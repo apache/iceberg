@@ -27,6 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -42,13 +44,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
@@ -57,6 +63,8 @@ import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroSchemaConverter;
 import org.apache.parquet.avro.AvroWriteSupport;
+import org.apache.parquet.conf.ParquetConfiguration;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.schema.GroupType;
@@ -128,6 +136,15 @@ public class TestVariantReaders {
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
         Variants.of("iceberg"),
       };
+
+  // Required configuration to convert between Avro and Parquet schemas with 3-level list structure
+  private static final ParquetConfiguration CONF =
+      new PlainParquetConfiguration(
+          Map.of(
+              AvroWriteSupport.WRITE_OLD_LIST_STRUCTURE,
+              "false",
+              AvroSchemaConverter.ADD_LIST_ELEMENT_RECORDS,
+              "false"));
 
   private static Stream<Arguments> metadataAndValues() {
     Stream<Arguments> primitives =
@@ -249,7 +266,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testValueAndTypedValueConflict() throws IOException {
+  public void testValueAndTypedValueConflict() {
     GroupType variantType = variant("var", 2, shreddedPrimitive(PrimitiveTypeName.INT32));
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -879,6 +896,405 @@ public class TestVariantReaders {
     VariantTestUtil.assertEqual(expectedThree, actualThreeVariant.value());
   }
 
+  @Test
+  public void testSimpleArray() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr =
+        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+    GenericRecord var =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    ValueArray expectedArray = Variants.array();
+    expectedArray.add(Variants.of("comedy"));
+    expectedArray.add(Variants.of("drama"));
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expectedArray, actualVariant.value());
+  }
+
+  @Test
+  public void testNullArray() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType variantType = variant("var", 2, list(element(shreddedType)));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    GenericRecord var =
+        record(
+            variantType,
+            Map.of(
+                "metadata",
+                VariantTestUtil.emptyMetadata(),
+                "value",
+                serialize(Variants.ofNull())));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(Variants.ofNull(), actualVariant.value());
+  }
+
+  @Test
+  public void testEmptyArray() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType variantType = variant("var", 2, list(element(shreddedType)));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr = List.of();
+    GenericRecord var =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    Record actual = writeAndRead(parquetSchema, row);
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    assertThat(actualVariant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(actualVariant.value().asArray().numElements()).isEqualTo(0);
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+  }
+
+  @Test
+  public void testArrayWithNull() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr =
+        elements(
+            elementType,
+            Lists.newArrayList(
+                List.of(Variants.of("comedy"), Variants.ofNull(), Variants.of("drama"))));
+    GenericRecord var =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    ValueArray expectedArray = Variants.array();
+    expectedArray.add(Variants.of("comedy"));
+    expectedArray.add(Variants.ofNull());
+    expectedArray.add(Variants.of("drama"));
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    assertThat(actualVariant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(actualVariant.value().asArray().numElements()).isEqualTo(3);
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expectedArray, actualVariant.value());
+  }
+
+  @Test
+  public void testNestedArray() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType outerElementType = element(list(elementType));
+    GroupType variantType = variant("var", 2, list(outerElementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    ValueArray inner1 = Variants.array();
+    inner1.add(Variants.of("comedy"));
+    inner1.add(Variants.of("drama"));
+
+    List<GenericRecord> outer1 = elements(outerElementType, List.of(inner1, Variants.array()));
+    GenericRecord var =
+        record(
+            variantType,
+            Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", outer1));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    ValueArray expectedArray = Variants.array();
+    ValueArray expectedInner1 = Variants.array();
+    expectedInner1.add(Variants.of("comedy"));
+    expectedInner1.add(Variants.of("drama"));
+    ValueArray expectedInner2 = Variants.array();
+    expectedArray.add(expectedInner1);
+    expectedArray.add(expectedInner2);
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    // Verify
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expectedArray, actualVariant.value());
+  }
+
+  @Test
+  public void testArrayWithNestedObject() throws IOException {
+    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType shreddedFields = objectFields(fieldA, fieldB);
+    GroupType elementType = element(shreddedFields);
+    GroupType listType = list(elementType);
+    GroupType fieldC = field("c", listType);
+    GroupType objectFields = objectFields(fieldC);
+    GroupType variantType = variant("var", 2, objectFields);
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    // Row 1
+    ByteBuffer shreddedBuffer1 =
+        VariantTestUtil.createObject(
+            TEST_METADATA_BUFFER, Map.of("a", Variants.of(1), "b", Variants.of("comedy")));
+    VariantValue shredded1 = Variants.value(TEST_METADATA, shreddedBuffer1);
+    ByteBuffer shreddedBuffer2 =
+        VariantTestUtil.createObject(
+            TEST_METADATA_BUFFER, Map.of("a", Variants.of(2), "b", Variants.of("drama")));
+    VariantValue shredded2 = Variants.value(TEST_METADATA, shreddedBuffer2);
+
+    List<GenericRecord> arr1 = elements(elementType, List.of(shredded1, shredded2));
+    GenericRecord element1 = record(fieldC, Map.of("typed_value", arr1));
+    GenericRecord c1 = record(objectFields, Map.of("c", element1));
+    GenericRecord var1 =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", c1));
+    GenericRecord row1 = record(parquetSchema, Map.of("id", 1, "var", var1));
+
+    ShreddedObject expected1 = Variants.object(TEST_METADATA);
+    ValueArray expectedArray1 = Variants.array();
+    ShreddedObject expectedElement1 = Variants.object(TEST_METADATA);
+    expectedElement1.put("a", Variants.of(1));
+    expectedElement1.put("b", Variants.of("comedy"));
+    expectedArray1.add(expectedElement1);
+    ShreddedObject expectedElement2 = Variants.object(TEST_METADATA);
+    expectedElement2.put("a", Variants.of(2));
+    expectedElement2.put("b", Variants.of("drama"));
+    expectedArray1.add(expectedElement2);
+    expected1.put("c", expectedArray1);
+
+    // Row 2
+    ByteBuffer shreddedBuffer3 =
+        VariantTestUtil.createObject(
+            TEST_METADATA_BUFFER, Map.of("a", Variants.of(3), "b", Variants.of("action")));
+    VariantValue shredded3 = Variants.value(TEST_METADATA, shreddedBuffer3);
+    ByteBuffer shreddedBuffer4 =
+        VariantTestUtil.createObject(
+            TEST_METADATA_BUFFER, Map.of("a", Variants.of(4), "b", Variants.of("horror")));
+    VariantValue shredded4 = Variants.value(TEST_METADATA, shreddedBuffer4);
+    List<GenericRecord> arr2 = elements(elementType, List.of(shredded3, shredded4));
+    GenericRecord element2 = record(fieldC, Map.of("typed_value", arr2));
+    GenericRecord c2 = record(objectFields, Map.of("c", element2));
+    GenericRecord var2 =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", c2));
+    GenericRecord row2 = record(parquetSchema, Map.of("id", 2, "var", var2));
+
+    ShreddedObject expected2 = Variants.object(TEST_METADATA);
+    ValueArray expectedArray2 = Variants.array();
+    ShreddedObject expectedElement3 = Variants.object(TEST_METADATA);
+    expectedElement3.put("a", Variants.of(3));
+    expectedElement3.put("b", Variants.of("action"));
+    expectedArray2.add(expectedElement3);
+    ShreddedObject expectedElement4 = Variants.object(TEST_METADATA);
+    expectedElement4.put("a", Variants.of(4));
+    expectedElement4.put("b", Variants.of("horror"));
+    expectedArray2.add(expectedElement4);
+    expected2.put("c", expectedArray2);
+
+    // verify
+    List<Record> actual = writeAndRead(parquetSchema, List.of(row1, row2));
+    Record actual1 = actual.get(0);
+    assertThat(actual1.getField("id")).isEqualTo(1);
+    assertThat(actual1.getField("var")).isInstanceOf(Variant.class);
+
+    Variant actualVariant1 = (Variant) actual1.getField("var");
+    VariantTestUtil.assertEqual(TEST_METADATA, actualVariant1.metadata());
+    VariantTestUtil.assertEqual(expected1, actualVariant1.value());
+
+    Record actual2 = actual.get(1);
+    assertThat(actual2.getField("id")).isEqualTo(2);
+    assertThat(actual2.getField("var")).isInstanceOf(Variant.class);
+
+    Variant actualVariant2 = (Variant) actual2.getField("var");
+    VariantTestUtil.assertEqual(TEST_METADATA, actualVariant2.metadata());
+    VariantTestUtil.assertEqual(expected2, actualVariant2.value());
+  }
+
+  @Test
+  public void testArrayWithNonArray() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr1 =
+        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+    GenericRecord var1 =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr1));
+    GenericRecord row1 = record(parquetSchema, Map.of("id", 1, "var", var1));
+
+    ValueArray expectedArray1 = Variants.array();
+    expectedArray1.add(Variants.of("comedy"));
+    expectedArray1.add(Variants.of("drama"));
+
+    GenericRecord var2 =
+        record(
+            variantType,
+            Map.of(
+                "metadata", VariantTestUtil.emptyMetadata(), "value", serialize(Variants.of(34))));
+    GenericRecord row2 = record(parquetSchema, Map.of("id", 2, "var", var2));
+
+    VariantValue expectedValue2 = Variants.of(PhysicalType.INT32, 34);
+
+    GenericRecord var3 =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "value", TEST_OBJECT_BUFFER));
+    GenericRecord row3 = record(parquetSchema, Map.of("id", 3, "var", var3));
+
+    ShreddedObject expectedObject3 = Variants.object(TEST_METADATA);
+    expectedObject3.put("a", Variants.ofNull());
+    expectedObject3.put("d", Variants.of("iceberg"));
+
+    // Test array is read properly after a non-array
+    List<GenericRecord> arr4 =
+        elements(elementType, List.of(Variants.of("action"), Variants.of("horror")));
+    GenericRecord var4 =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", arr4));
+    GenericRecord row4 = record(parquetSchema, Map.of("id", 4, "var", var4));
+
+    ValueArray expectedArray4 = Variants.array();
+    expectedArray4.add(Variants.of("action"));
+    expectedArray4.add(Variants.of("horror"));
+
+    List<Record> actual = writeAndRead(parquetSchema, List.of(row1, row2, row3, row4));
+
+    // Verify
+    Record actual1 = actual.get(0);
+    assertThat(actual1.getField("id")).isEqualTo(1);
+    assertThat(actual1.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant1 = (Variant) actual1.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant1.metadata());
+    VariantTestUtil.assertEqual(expectedArray1, actualVariant1.value());
+
+    Record actual2 = actual.get(1);
+    assertThat(actual2.getField("id")).isEqualTo(2);
+    assertThat(actual2.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant2 = (Variant) actual2.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant2.metadata());
+    VariantTestUtil.assertEqual(expectedValue2, actualVariant2.value());
+
+    Record actual3 = actual.get(2);
+    assertThat(actual3.getField("id")).isEqualTo(3);
+    assertThat(actual3.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant3 = (Variant) actual3.getField("var");
+    VariantTestUtil.assertEqual(TEST_METADATA, actualVariant3.metadata());
+    VariantTestUtil.assertEqual(expectedObject3, actualVariant3.value());
+
+    Record actual4 = actual.get(3);
+    assertThat(actual4.getField("id")).isEqualTo(4);
+    assertThat(actual4.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant4 = (Variant) actual4.getField("var");
+    VariantTestUtil.assertEqual(TEST_METADATA, actualVariant4.metadata());
+    VariantTestUtil.assertEqual(expectedArray4, actualVariant4.value());
+  }
+
+  @Test
+  public void testArrayMissingValueColumn() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType =
+        Types.buildGroup(Type.Repetition.OPTIONAL)
+            .id(2)
+            .required(PrimitiveTypeName.BINARY)
+            .named("metadata")
+            .addField(list(elementType))
+            .named("var");
+
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr =
+        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+    GenericRecord var =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    ValueArray expectedArray = Variants.array();
+    expectedArray.add(Variants.of("comedy"));
+    expectedArray.add(Variants.of("drama"));
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expectedArray, actualVariant.value());
+  }
+
+  @Test
+  public void testArrayMissingElementValueColumn() throws IOException {
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType =
+        Types.buildGroup(Type.Repetition.REQUIRED).addField(shreddedType).named("element");
+
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> arr =
+        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+    GenericRecord var =
+        record(
+            variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
+    GenericRecord row = record(parquetSchema, Map.of("id", 1, "var", var));
+
+    ValueArray expectedArray = Variants.array();
+    expectedArray.add(Variants.of("comedy"));
+    expectedArray.add(Variants.of("drama"));
+
+    Record actual = writeAndRead(parquetSchema, row);
+
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expectedArray, actualVariant.value());
+  }
+
+  @Test
+  public void testArrayWithElementNullValueAndNullTypedValue() throws IOException {
+    // Test the invalid case that both value and typed_value of an element are null
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    GenericRecord element = record(elementType, Map.of());
+    GenericRecord variant =
+        record(
+            variantType,
+            Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", List.of(element)));
+    GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
+
+    Record actual = writeAndRead(parquetSchema, record);
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
+    VariantValue actualValue = actualVariant.value();
+    assertThat(actualValue.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(actualValue.asArray().numElements()).isEqualTo(1);
+    assertThat(actualValue.asArray().get(0)).isNull();
+  }
+
   private static ByteBuffer serialize(VariantValue value) {
     ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     value.writeTo(buffer, 0);
@@ -898,6 +1314,102 @@ public class TestVariantReaders {
       record.put(entry.getKey(), entry.getValue());
     }
     return record;
+  }
+
+  private static List<GenericRecord> elements(GroupType elementType, List<VariantValue> elements) {
+    List<GenericRecord> elementRecords = Lists.newArrayList();
+    for (VariantValue element : elements) {
+      elementRecords.add(shred(elementType, element));
+    }
+
+    return elementRecords;
+  }
+
+  private static GenericRecord shred(GroupType fieldType, VariantValue value) {
+    checkField(fieldType);
+
+    switch (value.type()) {
+      case OBJECT:
+        return shredObject(fieldType, value.asObject());
+      case ARRAY:
+        return shredArray(fieldType, value.asArray());
+      default:
+        return shredPrimitive(fieldType, value.asPrimitive());
+    }
+  }
+
+  private static GenericRecord shredPrimitive(GroupType fieldType, VariantPrimitive<?> primitive) {
+    Type shreddedType = fieldType.getType("typed_value");
+    if (shreddedType.isPrimitive()
+        && primitive.type() != PhysicalType.NULL
+        && shreddedType(primitive).equals(shreddedType)) {
+      return record(fieldType, Map.of("typed_value", primitive.get()));
+    }
+
+    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(primitive)));
+  }
+
+  private static GenericRecord shredArray(GroupType fieldType, VariantArray array) {
+    Type shreddedType = fieldType.getType("typed_value");
+    if (shreddedType.getLogicalTypeAnnotation()
+        instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
+      checkListType(shreddedType.asGroupType());
+
+      List<GenericRecord> list = Lists.newArrayList();
+      for (int i = 0; i < array.numElements(); i++) {
+        list.add(
+            shred(
+                shreddedType
+                    .asGroupType()
+                    .getFields()
+                    .get(0)
+                    .asGroupType()
+                    .getFields()
+                    .get(0)
+                    .asGroupType(),
+                array.get(i)));
+      }
+
+      return record(fieldType, Map.of("typed_value", list));
+    }
+
+    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(array)));
+  }
+
+  private static GenericRecord shredObject(GroupType fieldType, VariantObject object) {
+    Type shreddedType = fieldType.getType("typed_value");
+    if (!shreddedType.isPrimitive()) {
+      Set<String> unshreddedFieldNames = Sets.newHashSet();
+      Iterables.addAll(unshreddedFieldNames, object.fieldNames());
+
+      // Shredded
+      Map shredded = Maps.newHashMap();
+      for (Type subType : shreddedType.asGroupType().getFields()) {
+        String subName = subType.getName();
+        VariantValue subValue = object.get(subName);
+        if (subValue != null) {
+          unshreddedFieldNames.remove(subName);
+          shredded.put(
+              subName, shred(shreddedType.asGroupType().getType(subName).asGroupType(), subValue));
+        }
+      }
+
+      // Unshredded
+      ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(unshreddedFieldNames, false);
+      Map<String, VariantValue> unshreddedFields =
+          unshreddedFieldNames.stream().collect(Collectors.toMap(name -> name, object::get));
+      ByteBuffer unshreddedBuffer = VariantTestUtil.createObject(metadataBuffer, unshreddedFields);
+
+      return record(
+          fieldType,
+          Map.of(
+              "typed_value",
+              record(shreddedType.asGroupType(), shredded),
+              "value",
+              unshreddedBuffer));
+    }
+
+    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(object)));
   }
 
   /**
@@ -937,7 +1449,7 @@ public class TestVariantReaders {
     OutputFile outputFile = new InMemoryOutputFile();
 
     try (ParquetWriter<GenericRecord> writer =
-        new TestWriterBuilder(outputFile).withFileType(parquetSchema).build()) {
+        new TestWriterBuilder(outputFile).withFileType(parquetSchema).withConf(CONF).build()) {
       for (GenericRecord record : records) {
         writer.write(record);
       }
@@ -1086,14 +1598,38 @@ public class TestVariantReaders {
         .named(name);
   }
 
+  private static GroupType element(Type shreddedType) {
+    return field("element", shreddedType);
+  }
+
+  private static GroupType list(GroupType elementType) {
+    return Types.optionalList().element(elementType).named("typed_value");
+  }
+
+  private static void checkListType(GroupType listType) {
+    // Check the list is a 3-level structure
+    Preconditions.checkArgument(
+        listType.getFieldCount() == 1
+            && listType.getFields().get(0).isRepetition(Type.Repetition.REPEATED),
+        "Invalid list type: does not contain single repeated field: %s",
+        listType);
+
+    GroupType repeated = listType.getFields().get(0).asGroupType();
+    Preconditions.checkArgument(
+        repeated.getFieldCount() == 1
+            && repeated.getFields().get(0).isRepetition(Type.Repetition.REQUIRED),
+        "Invalid list type: does not contain single required subfield: %s",
+        listType);
+  }
+
   private static org.apache.avro.Schema avroSchema(GroupType schema) {
     if (schema instanceof MessageType) {
-      return new AvroSchemaConverter().convert((MessageType) schema);
+      return new AvroSchemaConverter(CONF).convert((MessageType) schema);
 
     } else {
       MessageType wrapped = Types.buildMessage().addField(schema).named("table");
       org.apache.avro.Schema avro =
-          new AvroSchemaConverter().convert(wrapped).getFields().get(0).schema();
+          new AvroSchemaConverter(CONF).convert(wrapped).getFields().get(0).schema();
       switch (avro.getType()) {
         case RECORD:
           return avro;

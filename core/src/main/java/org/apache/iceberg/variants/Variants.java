@@ -120,6 +120,10 @@ public class Variants {
     return VariantUtil.readByte(valueBuffer, 0) == 0;
   }
 
+  public static ValueArray array() {
+    return new ValueArray();
+  }
+
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
     return new PrimitiveWrapper<>(type, value);
   }
