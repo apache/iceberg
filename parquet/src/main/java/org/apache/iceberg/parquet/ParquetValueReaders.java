@@ -382,12 +382,14 @@ public class ParquetValueReaders {
 
     @Override
     public Long read(Long reuse) {
+      // always call the position reader to keep the position accurate
+      long pos = posReader.read(null);
       Long idFromFile = idReader.read(null);
       if (idFromFile != null) {
         return idFromFile;
       }
 
-      return firstRowId + posReader.read(null);
+      return firstRowId + pos;
     }
 
     @Override
