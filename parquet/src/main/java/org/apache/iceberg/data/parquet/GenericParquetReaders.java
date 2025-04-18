@@ -36,6 +36,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -56,6 +57,18 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   public static ParquetValueReader<Record> buildReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
+  }
+
+  /**
+   * Create a struct reader.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createStructReader(List, StructType)}
+   *     instead.
+   */
+  @Deprecated
+  protected ParquetValueReader<Record> createStructReader(
+      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+    return ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 
   @Override
