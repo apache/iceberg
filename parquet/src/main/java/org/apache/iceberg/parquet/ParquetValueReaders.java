@@ -29,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -162,14 +163,22 @@ public class ParquetValueReaders {
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<Long> rowIds(long baseRowId, ParquetValueReader<?> idReader) {
-    return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
+  public static ParquetValueReader<Long> rowIds(Long baseRowId, ParquetValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
   }
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<Long> lastUpdated(
-      long fileLastUpdated, ParquetValueReader<?> seqReader) {
-    return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
+      Long baseRowId, Long fileLastUpdated, ParquetValueReader<?> seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
   }
 
   public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
@@ -183,6 +192,27 @@ public class ParquetValueReaders {
   public static ParquetValueReader<Record> recordReader(
       List<ParquetValueReader<?>> readers, Types.StructType struct) {
     return new RecordReader(readers, struct);
+  }
+
+  public static ParquetValueReader<?> replaceWithMetadataReader(
+      int id, ParquetValueReader<?> reader, Map<Integer, ?> idToConstant, int constantDL) {
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      return ParquetValueReaders.rowIds(baseRowId, reader);
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      Long fileSeqNumber = (Long) idToConstant.get(id);
+      return ParquetValueReaders.lastUpdated(baseRowId, fileSeqNumber, reader);
+    } else if (idToConstant.containsKey(id)) {
+      // containsKey is used because the constant may be null
+      return ParquetValueReaders.constant(idToConstant.get(id), constantDL);
+    } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+      return ParquetValueReaders.position();
+    } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+      return ParquetValueReaders.constant(false, constantDL);
+    }
+
+    return reader;
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {

@@ -27,7 +27,6 @@ import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
 
@@ -50,7 +49,7 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @Override
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 
