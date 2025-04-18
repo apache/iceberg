@@ -248,37 +248,15 @@ public class ParquetValueReaders {
       this.children = NullReader.COLUMNS;
     }
 
-    ConstantReader(C constantValue, int definitionLevel) {
+    ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
-      this.column =
-          new TripleIterator<Object>() {
-            @Override
-            public int currentDefinitionLevel() {
-              return definitionLevel;
-            }
-
-            @Override
-            public int currentRepetitionLevel() {
-              return 0;
-            }
-
-            @Override
-            public <N> N nextNull() {
-              return null;
-            }
-
-            @Override
-            public boolean hasNext() {
-              return false;
-            }
-
-            @Override
-            public Object next() {
-              return null;
-            }
-          };
-
-      this.children = ImmutableList.of(column);
+      if (constantValue != null) {
+        this.column = new ConstantDLColumn<>(parentDl);
+        this.children = ImmutableList.of(column);
+      } else {
+        this.column = NullReader.NULL_COLUMN;
+        this.children = NullReader.COLUMNS;
+      }
     }
 
     @Override
@@ -298,6 +276,39 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore) {}
+
+    private static class ConstantDLColumn<T> implements TripleIterator<T> {
+      private final int definitionLevel;
+
+      private ConstantDLColumn(int definitionLevel) {
+        this.definitionLevel = definitionLevel;
+      }
+
+      @Override
+      public int currentDefinitionLevel() {
+        return definitionLevel;
+      }
+
+      @Override
+      public int currentRepetitionLevel() {
+        return 0;
+      }
+
+      @Override
+      public <N> N nextNull() {
+        return null;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return false;
+      }
+
+      @Override
+      public T next() {
+        return null;
+      }
+    }
   }
 
   private static class PositionReader implements ParquetValueReader<Long> {

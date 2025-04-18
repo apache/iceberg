@@ -138,7 +138,6 @@ public class SparkParquetReaders {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
-      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
@@ -147,9 +146,6 @@ public class SparkParquetReaders {
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
           typesById.put(id, fieldType);
-          if (idToConstant.containsKey(id)) {
-            maxDefinitionLevelsById.put(id, fieldD);
-          }
         }
       }
 
@@ -157,8 +153,8 @@ public class SparkParquetReaders {
           expected != null ? expected.fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Defaulting to parent max definition level
-      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      // use the struct's DL for constants that are always non-null if the struct is non-null
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         ParquetValueReader<?> reader = readersById.get(id);
@@ -179,10 +175,8 @@ public class SparkParquetReaders {
           }
         } else if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
-              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
+              ParquetValueReaders.constant(idToConstant.get(id), constantDefinitionLevel));
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
@@ -193,7 +187,7 @@ public class SparkParquetReaders {
           reorderedFields.add(
               ParquetValueReaders.constant(
                   SparkUtil.internalToSpark(field.type(), field.initialDefault()),
-                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
+                  constantDefinitionLevel));
         } else if (field.isOptional()) {
           reorderedFields.add(ParquetValueReaders.nulls());
         } else {
