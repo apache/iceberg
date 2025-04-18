@@ -104,13 +104,6 @@ public class HadoopTableTestBase {
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
-  static final DataFile FILE_D =
-      DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a.parquet")
-          .withFileSizeInBytes(0)
-          .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-          .withRecordCount(2) // needs at least one record or else metrics will filter it out
-          .build();
 
   @TempDir File tempDir;
   @TempDir File tableDir;

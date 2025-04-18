@@ -79,6 +79,15 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void loadViewWithNonExistingNamespace() {
+    TableIdentifier ident = TableIdentifier.of("non-existing", "view");
+    assertThat(catalog().viewExists(ident)).as("View should not exist").isFalse();
+    assertThatThrownBy(() -> catalog().loadView(ident))
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageStartingWith("View does not exist: %s", ident);
+  }
+
+  @Test
   public void basicCreateView() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 

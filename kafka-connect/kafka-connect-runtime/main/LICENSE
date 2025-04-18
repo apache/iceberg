@@ -331,25 +331,25 @@ License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: api-common  Version: 2.43.0
+Group: com.google.api  Name: api-common  Version: 2.46.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax  Version: 2.60.0
+Group: com.google.api  Name: gax  Version: 2.63.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-grpc  Version: 2.60.0
+Group: com.google.api  Name: gax-grpc  Version: 2.63.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-httpjson  Version: 2.60.0
+Group: com.google.api  Name: gax-httpjson  Version: 2.63.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
@@ -361,28 +361,28 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.48.1
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.50.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.48.1
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.50.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.48.1
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.50.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.51.0
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.54.1
 Project URL (from POM): https://github.com/googleapis/sdk-platform-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.46.0
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.49.1
 Project URL (from POM): https://github.com/googleapis/sdk-platform-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -393,13 +393,13 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.31.0
+Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.33.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.31.0
+Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.33.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
@@ -411,22 +411,22 @@ License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.53.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.53.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.53.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-storage  Version: 2.48.1
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.50.0
 Project URL (from POM): https://github.com/googleapis/java-storage
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -438,14 +438,14 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.code.gson  Name: gson  Version: 2.11.0
+Group: com.google.code.gson  Name: gson  Version: 2.12.1
 Project URL (from manifest): https://github.com/google/gson
 Manifest License: "Apache-2.0";link="https://www.apache.org/licenses/LICENSE-2.0.txt" (Not packaged)
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.37.0
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
 Project URL (from manifest): https://errorprone.info/error_prone_annotations
 Manifest License: "Apache 2.0";link="http://www.apache.org/licenses/LICENSE-2.0.txt" (Not packaged)
 License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -458,7 +458,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.guava  Name: guava  Version: 33.4.6-jre
+Group: com.google.guava  Name: guava  Version: 33.4.0-jre
 Project URL (from manifest): https://github.com/google/guava/
 Project URL (from POM): https://github.com/google/guava
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -470,33 +470,33 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client  Version: 1.45.3
+Group: com.google.http-client  Name: google-http-client  Version: 1.46.3
 Project URL (from manifest): https://www.google.com/
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.45.3
+Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.46.3
 Project URL (from manifest): https://www.google.com/
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.45.3
+Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.46.3
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-gson  Version: 1.45.3
+Group: com.google.http-client  Name: google-http-client-gson  Version: 1.46.3
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.45.3
+Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.46.3
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -514,13 +514,13 @@ License (from POM): The Apache Software License, Version 2.0 - https://www.apach
 
 --------------------------------------------------------------------------------
 
-Group: com.google.protobuf  Name: protobuf-java  Version: 4.29.0
+Group: com.google.protobuf  Name: protobuf-java  Version: 4.29.4
 Project URL (from manifest): https://developers.google.com/protocol-buffers/
 License (from POM): BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
 
-Group: com.google.protobuf  Name: protobuf-java-util  Version: 4.29.0
+Group: com.google.protobuf  Name: protobuf-java-util  Version: 4.29.4
 Project URL (from manifest): https://developers.google.com/protocol-buffers/
 License (from POM): BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
 
@@ -602,7 +602,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: commons-codec  Name: commons-codec  Version: 1.17.2
+Group: commons-codec  Name: commons-codec  Version: 1.18.0
 Project URL (from manifest): https://commons.apache.org/proper/commons-codec/
 Project URL (from POM): https://commons.apache.org/proper/commons-codec/
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
@@ -674,109 +674,109 @@ License (from POM): Apache License 2.0 - http://www.apache.org/licenses/LICENSE-
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-alts  Version: 1.69.0
+Group: io.grpc  Name: grpc-alts  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-api  Version: 1.69.0
+Group: io.grpc  Name: grpc-api  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-auth  Version: 1.69.0
+Group: io.grpc  Name: grpc-auth  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-context  Version: 1.69.0
+Group: io.grpc  Name: grpc-context  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-core  Version: 1.69.0
+Group: io.grpc  Name: grpc-core  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-googleapis  Version: 1.69.0
+Group: io.grpc  Name: grpc-googleapis  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-grpclb  Version: 1.69.0
+Group: io.grpc  Name: grpc-grpclb  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-inprocess  Version: 1.69.0
+Group: io.grpc  Name: grpc-inprocess  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.69.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf  Version: 1.69.0
+Group: io.grpc  Name: grpc-protobuf  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.69.0
+Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-rls  Version: 1.69.0
+Group: io.grpc  Name: grpc-rls  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-services  Version: 1.69.0
+Group: io.grpc  Name: grpc-services  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-stub  Version: 1.69.0
+Group: io.grpc  Name: grpc-stub  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-util  Version: 1.69.0
+Group: io.grpc  Name: grpc-util  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-xds  Version: 1.69.0
+Group: io.grpc  Name: grpc-xds  Version: 1.70.0
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.2.0.Final
+Group: io.netty  Name: netty-buffer  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec  Version: 4.2.0.Final
+Group: io.netty  Name: netty-codec  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -788,43 +788,43 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http  Version: 4.2.0.Final
+Group: io.netty  Name: netty-codec-http  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http2  Version: 4.2.0.Final
+Group: io.netty  Name: netty-codec-http2  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-socks  Version: 4.2.0.Final
+Group: io.netty  Name: netty-codec-socks  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-common  Version: 4.2.0.Final
+Group: io.netty  Name: netty-common  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler  Version: 4.2.0.Final
+Group: io.netty  Name: netty-handler  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler-proxy  Version: 4.2.0.Final
+Group: io.netty  Name: netty-handler-proxy  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver  Version: 4.2.0.Final
+Group: io.netty  Name: netty-resolver  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -861,37 +861,37 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-epoll  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.2.0.Final
+Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.115.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -1067,12 +1067,12 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents.core5  Name: httpcore5  Version: 5.3.3
+Group: org.apache.httpcomponents.core5  Name: httpcore5  Version: 5.3.4
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents.core5  Name: httpcore5-h2  Version: 5.3.3
+Group: org.apache.httpcomponents.core5  Name: httpcore5-h2  Version: 5.3.4
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -1449,14 +1449,8 @@ License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2
 
 --------------------------------------------------------------------------------
 
-Group: org.mongodb Name: bson Version: 4.11
+Group: org.mongodb Name: bson Version: 4.11.5
 Project URL (from POM): https://github.com/mongodb/mongo-java-driver
 License (from POM): The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
-
---------------------------------------------------------------------------------
-
-Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
-Project URL: https://github.com/awslabs/analytics-accelerator-s3
-License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------

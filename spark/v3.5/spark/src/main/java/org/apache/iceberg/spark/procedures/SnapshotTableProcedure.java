@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Map;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -31,16 +31,23 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.runtime.BoxedUnit;
 
 class SnapshotTableProcedure extends BaseProcedure {
+
+  private static final ProcedureParameter SOURCE_TABLE_PARAM =
+      ProcedureParameter.required("source_table", DataTypes.StringType);
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter LOCATION_PARAM =
+      ProcedureParameter.optional("location", DataTypes.StringType);
+  private static final ProcedureParameter PROPERTIES_PARAM =
+      ProcedureParameter.optional("properties", STRING_MAP);
+  private static final ProcedureParameter PARALLELISM_PARAM =
+      ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("source_table", DataTypes.StringType),
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("location", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
+        SOURCE_TABLE_PARAM, TABLE_PARAM, LOCATION_PARAM, PROPERTIES_PARAM, PARALLELISM_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -74,26 +81,20 @@ class SnapshotTableProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String source = args.getString(0);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    String source = input.asString(SOURCE_TABLE_PARAM, null);
     Preconditions.checkArgument(
         source != null && !source.isEmpty(),
         "Cannot handle an empty identifier for argument source_table");
-    String dest = args.getString(1);
+
+    String dest = input.asString(TABLE_PARAM, null);
     Preconditions.checkArgument(
         dest != null && !dest.isEmpty(), "Cannot handle an empty identifier for argument table");
-    String snapshotLocation = args.isNullAt(2) ? null : args.getString(2);
 
-    Map<String, String> properties = Maps.newHashMap();
-    if (!args.isNullAt(3)) {
-      args.getMap(3)
-          .foreach(
-              DataTypes.StringType,
-              DataTypes.StringType,
-              (k, v) -> {
-                properties.put(k.toString(), v.toString());
-                return BoxedUnit.UNIT;
-              });
-    }
+    String snapshotLocation = input.asString(LOCATION_PARAM, null);
+
+    Map<String, String> properties = input.asStringMap(PROPERTIES_PARAM, ImmutableMap.of());
 
     Preconditions.checkArgument(
         !source.equals(dest),
@@ -104,8 +105,8 @@ class SnapshotTableProcedure extends BaseProcedure {
       action.tableLocation(snapshotLocation);
     }
 
-    if (!args.isNullAt(4)) {
-      int parallelism = args.getInt(4);
+    if (input.isProvided(PARALLELISM_PARAM)) {
+      int parallelism = input.asInt(PARALLELISM_PARAM);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
       action = action.executeWith(SparkTableUtil.migrationService(parallelism));
     }
