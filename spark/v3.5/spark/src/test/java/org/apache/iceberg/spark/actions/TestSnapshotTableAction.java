@@ -88,12 +88,8 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
     // Define properties for the destination table, setting its location to the same path as the
     // source table
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put("location", "file:" + location);
+    Map<String, String> tableProperties = Map.of("location", "file:" + location);
 
-    // Test that an exception is thrown
-    // when the destination table location overlaps with the source table location
-    // Assert that the exception message matches the expected error message
     assertThatThrownBy(
             () ->
                 SparkActions.get()

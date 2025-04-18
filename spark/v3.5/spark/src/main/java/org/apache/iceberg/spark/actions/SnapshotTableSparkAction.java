@@ -128,7 +128,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     try {
       Preconditions.checkArgument(
           !sourceTableLocation().equals(icebergTable.location()),
-          "The destination table location overlaps with the source table location.");
+          "The destination table location overlaps with the source table location");
 
       LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
       ensureNameMappingPresent(icebergTable);
