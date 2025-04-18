@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -64,5 +65,24 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                 }))
         .execute();
     assertThat(snapshotThreadsIndex.get()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testSnapshotWithEmptyPartitionOrLocationMissingPartition() throws IOException {
+    Path tableLocationPath = Files.createTempDirectory(temp, "junit");
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (bucket string) LOCATION '%s'",
+        SOURCE_NAME, tableLocationPath.toFile().toString());
+    sql("ALTER TABLE %s ADD PARTITION (bucket = 'foo')", SOURCE_NAME);
+    sql("ALTER TABLE %s ADD PARTITION (bucket = 'bar')", SOURCE_NAME);
+
+    // Delete the 2nd partition location
+    Path partitionLocationPath = tableLocationPath.resolve("bucket=bar");
+    Files.delete(partitionLocationPath);
+
+    SparkActions.get().snapshotTable(SOURCE_NAME).as(tableName).execute();
+    assertThat(scalarSql("SELECT count(*) FROM %s.partitions", selectTarget()))
+        .as("Should have 0 partition after snapshot")
+        .isEqualTo(0L);
   }
 }
