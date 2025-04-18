@@ -86,6 +86,16 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    */
   RewriteTablePath stagingLocation(String stagingLocation);
 
+  /**
+   * Allows the user to skip saving the file list, determining whether certain files should be
+   * skipped from being saved.
+   *
+   * @param skipFileList A boolean value indicating whether to skip file saving. Pass true to skip,
+   *     false to not skip.
+   * @return this for method chaining
+   */
+  RewriteTablePath skipFileList(boolean skipFileList);
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Staging location of rewritten files */
