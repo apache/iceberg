@@ -278,6 +278,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
+    if (projection.findField(DataFile.FIRST_ROW_ID.fieldId()) == null) {
+      fields.add(DataFile.FIRST_ROW_ID);
+    }
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
@@ -412,7 +415,14 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         }
       };
     } else {
-      return Function.identity();
+      // data file's first_row_id is null when the manifest's first_row_id is null
+      return entry -> {
+        if (entry.file() instanceof BaseFile) {
+          ((BaseFile<?>) entry.file()).setFirstRowId(null);
+        }
+
+        return entry;
+      };
     }
   }
 }

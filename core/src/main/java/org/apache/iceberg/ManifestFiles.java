@@ -314,7 +314,6 @@ public class ManifestFiles {
   static ManifestFile copyAppendManifest(
       int formatVersion,
       int specId,
-      Long firstRowId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
@@ -328,7 +327,7 @@ public class ManifestFiles {
             toCopy, specId, specsById, inheritableMetadata, null, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
-          firstRowId,
+          null, // do not produce row IDs
           reader,
           outputFile,
           snapshotId,
