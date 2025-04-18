@@ -112,4 +112,4 @@ jobs:
         with:
           name: test logs
           path: |
-            **/build/reports
+            **/build/testlogs

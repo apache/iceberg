@@ -54,6 +54,8 @@ public class TestAggregatePushDown extends CatalogTestBase {
     metastore.start();
     TestBase.hiveConf = metastore.hiveConf();
 
+    TestBase.spark.stop();
+
     TestBase.spark =
         SparkSession.builder()
             .master("local[2]")

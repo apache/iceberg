@@ -59,7 +59,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * Iceberg and Spark Parquet readers.
  *
  * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.12:jmh
+ *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-flat-data-benchmark-result.txt
  * </code>

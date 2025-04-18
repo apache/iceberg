@@ -537,7 +537,7 @@ public class TestViews extends ExtensionsTestBase {
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining((expectedErrorMsg));
+        .hasMessageContaining(expectedErrorMsg);
   }
 
   @TestTemplate
