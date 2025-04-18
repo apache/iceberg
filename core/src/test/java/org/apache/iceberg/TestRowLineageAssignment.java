@@ -685,6 +685,9 @@ public class TestRowLineageAssignment {
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, table.io(), table.specs())) {
 
+      // test that the first_row_id column is always scanned, even if not requested
+      reader.select(BaseScan.SCAN_COLUMNS);
+
       for (DataFile file : reader) {
         assertThat(file.content()).isEqualTo(FileContent.DATA);
         if (index < firstRowIds.length) {
