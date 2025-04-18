@@ -36,7 +36,6 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument;
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument;
 import org.apache.spark.sql.types.DataType;
