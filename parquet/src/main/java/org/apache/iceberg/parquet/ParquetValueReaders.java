@@ -280,13 +280,8 @@ public class ParquetValueReaders {
 
     ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
-      if (constantValue != null) {
-        this.column = new ConstantDLColumn<>(parentDl);
-        this.children = ImmutableList.of(column);
-      } else {
-        this.column = NullReader.NULL_COLUMN;
-        this.children = NullReader.COLUMNS;
-      }
+      this.column = new ConstantDLColumn<>(parentDl);
+      this.children = ImmutableList.of(column);
     }
 
     @Override
