@@ -105,7 +105,7 @@ public class TestSparkParquetReader extends AvroDataTest {
       for (Record record : expected) {
         assertThat(rows).as("Should have expected number of rows").hasNext();
         GenericsHelpers.assertEqualsUnsafe(
-            expectedSchema.asStruct(), record, rows.next(), FIRST_ROW_ID + pos);
+            expectedSchema.asStruct(), record, rows.next(), ID_TO_CONSTANT, pos);
         pos += 1;
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
@@ -113,7 +113,7 @@ public class TestSparkParquetReader extends AvroDataTest {
   }
 
   @Override
-  protected boolean supportsRowIds() {
+  protected boolean supportsRowLineage() {
     return true;
   }
 

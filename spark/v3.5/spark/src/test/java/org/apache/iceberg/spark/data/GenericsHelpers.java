@@ -207,11 +207,15 @@ public class GenericsHelpers {
 
   public static void assertEqualsUnsafe(
       Types.StructType struct, Record expected, InternalRow actual) {
-    assertEqualsUnsafe(struct, expected, actual, null);
+    assertEqualsUnsafe(struct, expected, actual, null, -1);
   }
 
   public static void assertEqualsUnsafe(
-      Types.StructType struct, Record expected, InternalRow actual, Long defaultRowId) {
+      Types.StructType struct,
+      Record expected,
+      InternalRow actual,
+      Map<Integer, Object> idToConstant,
+      int pos) {
     Types.StructType expectedType = expected.struct();
     List<Types.NestedField> fields = struct.fields();
     for (int readPos = 0; readPos < fields.size(); readPos += 1) {
@@ -224,13 +228,19 @@ public class GenericsHelpers {
 
       Object expectedValue;
       if (expectedField != null) {
-        if (expectedField.fieldId() == MetadataColumns.ROW_ID.fieldId()) {
-          Long expectedRowId = (Long) expected.getField(expectedField.name());
-          if (expectedRowId != null) {
-            expectedValue = expectedRowId;
-          } else {
-            expectedValue = defaultRowId;
+        int id = expectedField.fieldId();
+        if (id == MetadataColumns.ROW_ID.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = (Long) idToConstant.get(id) + pos;
           }
+
+        } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = idToConstant.get(id);
+          }
+
         } else {
           expectedValue = expected.getField(expectedField.name());
         }

@@ -161,8 +161,15 @@ public class ParquetValueReaders {
     return new PositionReader();
   }
 
+  @SuppressWarnings("unchecked")
   public static ParquetValueReader<Long> rowIds(long baseRowId, ParquetValueReader<?> idReader) {
     return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<Long> lastUpdated(
+      long fileLastUpdated, ParquetValueReader<?> seqReader) {
+    return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
   }
 
   public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
@@ -370,6 +377,41 @@ public class ParquetValueReaders {
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
+    }
+  }
+
+  private static class LastUpdatedSeqReader implements ParquetValueReader<Long> {
+    private final long fileLastUpdated;
+    private final ParquetValueReader<Long> seqReader;
+
+    private LastUpdatedSeqReader(long fileLastUpdated, ParquetValueReader<Long> seqReader) {
+      this.fileLastUpdated = fileLastUpdated;
+      this.seqReader = seqReader != null ? seqReader : nulls();
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      Long rowLastUpdated = seqReader.read(null);
+      if (rowLastUpdated != null) {
+        return rowLastUpdated;
+      }
+
+      return fileLastUpdated;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return seqReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return seqReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      seqReader.setPageSource(pageStore);
     }
   }
 

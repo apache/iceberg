@@ -60,6 +60,10 @@ public class PartitionUtil {
           convertConstant.apply(Types.LongType.get(), task.file().firstRowId()));
     }
 
+    idToConstant.put(
+        MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+        convertConstant.apply(Types.LongType.get(), task.file().fileSequenceNumber()));
+
     // add _file
     idToConstant.put(
         MetadataColumns.FILE_PATH.fieldId(),

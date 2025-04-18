@@ -64,7 +64,7 @@ public class TestGenericData extends DataTest {
   }
 
   @Override
-  protected boolean supportsRowIds() {
+  protected boolean supportsRowLineage() {
     return true;
   }
 
@@ -110,7 +110,7 @@ public class TestGenericData extends DataTest {
 
     for (int pos = 0; pos < expected.size(); pos += 1) {
       DataTestHelpers.assertEquals(
-          expectedSchema.asStruct(), expected.get(pos), rows.get(pos), FIRST_ROW_ID + pos);
+          expectedSchema.asStruct(), expected.get(pos), rows.get(pos), ID_TO_CONSTANT, pos);
     }
 
     // test reuseContainers
@@ -125,7 +125,7 @@ public class TestGenericData extends DataTest {
       int pos = 0;
       for (Record actualRecord : reader) {
         DataTestHelpers.assertEquals(
-            expectedSchema.asStruct(), expected.get(pos), actualRecord, FIRST_ROW_ID + pos);
+            expectedSchema.asStruct(), expected.get(pos), actualRecord, ID_TO_CONSTANT, pos);
         pos += 1;
       }
     }

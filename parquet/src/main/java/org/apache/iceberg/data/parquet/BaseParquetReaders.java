@@ -261,6 +261,14 @@ abstract class BaseParquetReaders<T> {
           } else {
             reorderedFields.add(ParquetValueReaders.nulls());
           }
+        } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+          Long baseRowId = (Long) idToConstant.get(id);
+          Long fileSeqNumber = (Long) idToConstant.get(id);
+          if (fileSeqNumber != null && baseRowId != null) {
+            reorderedFields.add(ParquetValueReaders.lastUpdated(fileSeqNumber, reader));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+          }
         } else if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =

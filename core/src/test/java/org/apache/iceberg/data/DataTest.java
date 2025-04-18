@@ -55,9 +55,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class DataTest {
 
-  protected static final long FIRST_ROW_ID = 2_000L;
+  private static final long FIRST_ROW_ID = 2_000L;
   protected static final Map<Integer, Object> ID_TO_CONSTANT =
-      Map.of(MetadataColumns.ROW_ID.fieldId(), FIRST_ROW_ID);
+      Map.of(
+          MetadataColumns.ROW_ID.fieldId(),
+          FIRST_ROW_ID,
+          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+          34L);
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
@@ -145,7 +149,7 @@ public abstract class DataTest {
     return false;
   }
 
-  protected boolean supportsRowIds() {
+  protected boolean supportsRowLineage() {
     return false;
   }
 
@@ -611,13 +615,17 @@ public abstract class DataTest {
   }
 
   @Test
-  public void testRowIds() throws Exception {
-    Assumptions.assumeThat(supportsRowIds()).as("_row_id support is not implemented").isTrue();
+  public void testRowLineage() throws Exception {
+    Assumptions.assumeThat(supportsRowLineage())
+        .as("Row Lineage support is not implemented")
+        .isTrue();
+
     Schema schema =
         new Schema(
             required(1, "id", LongType.get()),
             required(2, "data", Types.StringType.get()),
-            MetadataColumns.ROW_ID);
+            MetadataColumns.ROW_ID,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
 
     GenericRecord record = GenericRecord.create(schema);
 
@@ -626,7 +634,16 @@ public abstract class DataTest {
         List.of(
             record.copy(Map.of("id", 1L, "data", "a")),
             record.copy(Map.of("id", 2L, "data", "b")),
-            record.copy(Map.of("id", 3L, "data", "c", "_row_id", 1_000L)),
+            record.copy(
+                Map.of(
+                    "id",
+                    3L,
+                    "data",
+                    "c",
+                    "_row_id",
+                    1_000L,
+                    "_last_updated_sequence_number",
+                    33L)),
             record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
             record.copy(Map.of("id", 5L, "data", "e"))));
   }
