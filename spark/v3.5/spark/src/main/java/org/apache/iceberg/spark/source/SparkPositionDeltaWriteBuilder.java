@@ -110,8 +110,13 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
             MetadataColumns.SPEC_ID,
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
     if (TableUtil.supportsRowLineage(table)) {
-      expectedMetadataSchema =
-          TypeUtil.join(expectedMetadataSchema, TableUtil.schemaWithRowLineage(table));
+      Schema rowLineageSchema =
+          new Schema(
+              MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+              MetadataColumns.metadataColumn(
+                      table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                  .asOptional());
+      expectedMetadataSchema = TypeUtil.join(expectedMetadataSchema, rowLineageSchema);
     }
 
     StructType metadataSparkType = info.metadataSchema().get();

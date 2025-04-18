@@ -68,7 +68,7 @@ public class TableUtil {
       return false;
     }
 
-    return formatVersion(table) >= 3;
+    return formatVersion(table) >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE;
   }
 
   public static Schema schemaWithRowLineage(Table table) {
