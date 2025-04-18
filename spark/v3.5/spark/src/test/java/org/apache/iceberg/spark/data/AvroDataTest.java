@@ -27,10 +27,15 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -51,11 +56,25 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class AvroDataTest {
 
+  private static final long FIRST_ROW_ID = 2_000L;
+  protected static final Map<Integer, Object> ID_TO_CONSTANT =
+      Map.of(
+          MetadataColumns.ROW_ID.fieldId(),
+          FIRST_ROW_ID,
+          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+          34L);
+
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     throw new UnsupportedEncodingException(
         "Cannot run test, writeAndValidate(Schema, Schema) is not implemented");
+  }
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> records)
+      throws IOException {
+    throw new UnsupportedEncodingException(
+        "Cannot run test, writeAndValidate(Schema, Schema, List<Record>) is not implemented");
   }
 
   protected boolean supportsDefaultValues() {
@@ -64,6 +83,10 @@ public abstract class AvroDataTest {
 
   protected boolean supportsNestedTypes() {
     return true;
+  }
+
+  protected boolean supportsRowLineage() {
+    return false;
   }
 
   protected static final StructType SUPPORTED_PRIMITIVES =
@@ -546,5 +569,40 @@ public abstract class AvroDataTest {
                 .build());
 
     writeAndValidate(writeSchema, readSchema);
+  }
+
+  @Test
+  public void testRowLineage() throws Exception {
+    Assumptions.assumeThat(supportsRowLineage())
+        .as("Row lineage support is not implemented")
+        .isTrue();
+
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            MetadataColumns.ROW_ID,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+
+    GenericRecord record = GenericRecord.create(schema);
+
+    writeAndValidate(
+        schema,
+        schema,
+        List.of(
+            record.copy(Map.of("id", 1L, "data", "a")),
+            record.copy(Map.of("id", 2L, "data", "b")),
+            record.copy(
+                Map.of(
+                    "id",
+                    3L,
+                    "data",
+                    "c",
+                    "_row_id",
+                    1_000L,
+                    "_last_updated_sequence_number",
+                    33L)),
+            record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
+            record.copy(Map.of("id", 5L, "data", "e"))));
   }
 }

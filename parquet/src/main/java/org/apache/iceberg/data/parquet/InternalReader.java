@@ -47,10 +47,23 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
-  @Override
+  /**
+   * Create a struct reader.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createStructReader(List, StructType)}
+   *     instead.
+   */
+  @Deprecated
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 

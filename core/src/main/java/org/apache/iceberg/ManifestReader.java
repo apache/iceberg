@@ -278,6 +278,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
+    if (projection.findField(DataFile.FIRST_ROW_ID.fieldId()) == null) {
+      fields.add(DataFile.FIRST_ROW_ID);
+    }
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
