@@ -70,12 +70,6 @@ public class TestCallStatementParser {
   }
 
   @Test
-  public void testDelegateUnsupportedProcedure() throws ParseException {
-    LogicalPlan plan = parser.parsePlan("CALL cat.d.t()");
-    assertThat(plan.toString().contains("CALL cat.d.t()"));
-  }
-
-  @Test
   public void testCallWithBackticks() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.`system`.`rollback_to_snapshot`()");

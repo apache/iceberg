@@ -52,7 +52,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * Iceberg and Spark Parquet writers.
  *
  * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.12:jmh
+ *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-flat-data-benchmark-result.txt
  * </code>

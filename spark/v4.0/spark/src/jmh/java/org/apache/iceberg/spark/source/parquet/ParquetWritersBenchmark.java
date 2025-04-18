@@ -25,7 +25,7 @@ import org.apache.iceberg.spark.source.WritersBenchmark;
  * A benchmark that evaluates the performance of various Iceberg writers for Parquet data.
  *
  * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.12:jmh \
+ *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh \
  *       -PjmhIncludeRegex=ParquetWritersBenchmark \
  *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
  * </code>

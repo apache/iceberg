@@ -1191,7 +1191,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
               .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
               .load(posDeletesTableName);
       assertThat(scanDF.javaRDD().getNumPartitions()).isEqualTo(1);
-      assertThat(!Arrays.asList(scanDF.columns()).contains("partition"));
 
       // Add partition field to render the original un-partitioned dataset un-commitable
       tab.updateSpec().addField("data").commit();

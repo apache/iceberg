@@ -41,7 +41,7 @@ import org.openjdk.jmh.annotations.Threads;
  * and the built-in file source in Spark.
  *
  * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.12:jmh
+ *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatORCDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-orc-data-read-benchmark-result.txt
  * </code>
