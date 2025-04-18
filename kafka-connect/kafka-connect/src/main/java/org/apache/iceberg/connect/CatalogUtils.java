@@ -34,13 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CatalogUtils {
+class CatalogUtils {
 
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtils.class.getName());
   private static final List<String> HADOOP_CONF_FILES =
       ImmutableList.of("core-site.xml", "hdfs-site.xml", "hive-site.xml");
 
-  public static Catalog loadCatalog(IcebergSinkConfig config) {
+  static Catalog loadCatalog(IcebergSinkConfig config) {
     return CatalogUtil.buildIcebergCatalog(
         config.catalogName(), config.catalogProps(), loadHadoopConfig(config));
   }
