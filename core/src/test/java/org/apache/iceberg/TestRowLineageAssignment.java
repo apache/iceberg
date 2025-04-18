@@ -122,6 +122,28 @@ public class TestRowLineageAssignment {
   }
 
   @Test
+  public void testOverrideFirstRowId() {
+    assertThat(table.operations().current().nextRowId()).isEqualTo(0L);
+
+    // commit a file with first_row_id set
+    DataFile withFirstRowId =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .copy(FILE_A)
+            .withFirstRowId(1_000L)
+            .build();
+
+    table.newAppend().appendFile(withFirstRowId).commit();
+    Snapshot current = table.currentSnapshot();
+    assertThat(current.firstRowId()).isEqualTo(0L);
+    assertThat(table.operations().current().nextRowId()).isEqualTo(withFirstRowId.recordCount());
+    checkManifestListAssignment(table.io().newInputFile(current.manifestListLocation()), 0L);
+
+    // first_row_id should be overridden by metadata assignment
+    ManifestFile manifest = Iterables.getOnlyElement(current.dataManifests(table.io()));
+    checkDataFileAssignment(table, manifest, 0L);
+  }
+
+  @Test
   public void testMultiFileAppend() {
     assertThat(table.operations().current().nextRowId()).isEqualTo(0L);
 

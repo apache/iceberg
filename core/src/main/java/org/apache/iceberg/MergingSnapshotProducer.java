@@ -237,10 +237,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
-    if (dataFiles.add(file)) {
+    if (dataFiles.add(prepareDataFile(file))) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
+  }
+
+  private DataFile prepareDataFile(DataFile file) {
+    if (null == file.firstRowId()) {
+      return file;
+    }
+
+    return new DelegatingDataFile(file) {
+      @Override
+      public Long firstRowId() {
+        return null;
+      }
+    };
   }
 
   private PartitionSpec spec(int specId) {
@@ -326,7 +339,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
-        manifest.firstRowId(),
         toCopy,
         current.specsById(),
         newManifestFile,
