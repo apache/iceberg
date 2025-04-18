@@ -372,24 +372,22 @@ public class ParquetValueReaders {
   private static class RowIdReader implements ParquetValueReader<Long> {
     private final long firstRowId;
     private final ParquetValueReader<Long> idReader;
-    private long rowOffset = -1;
-    private long rowGroupStart;
+    private final ParquetValueReader<Long> posReader;
 
     private RowIdReader(long firstRowId, ParquetValueReader<Long> idReader) {
       this.firstRowId = firstRowId;
       this.idReader = idReader != null ? idReader : nulls();
+      this.posReader = position();
     }
 
     @Override
     public Long read(Long reuse) {
-      rowOffset += 1;
-
       Long idFromFile = idReader.read(null);
       if (idFromFile != null) {
         return idFromFile;
       }
 
-      return firstRowId + rowGroupStart + rowOffset;
+      return firstRowId + posReader.read(null);
     }
 
     @Override
@@ -405,14 +403,7 @@ public class ParquetValueReaders {
     @Override
     public void setPageSource(PageReadStore pageStore) {
       idReader.setPageSource(pageStore);
-      this.rowGroupStart =
-          pageStore
-              .getRowIndexOffset()
-              .orElseThrow(
-                  () ->
-                      new IllegalArgumentException(
-                          "PageReadStore does not contain row index offset"));
-      this.rowOffset = -1;
+      posReader.setPageSource(pageStore);
     }
   }
 
