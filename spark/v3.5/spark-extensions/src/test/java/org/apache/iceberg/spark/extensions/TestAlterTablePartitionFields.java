@@ -507,7 +507,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
   @TestTemplate
   public void testSparkTableAddDropPartitions() throws Exception {
     createTable("id bigint NOT NULL, ts timestamp, data string");
-    assertThat(sparkTable().partitioning()).as("spark table partition should be empty").hasSize(0);
+    assertThat(sparkTable().partitioning()).as("spark table partition should be empty").isEmpty();
 
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, id) AS shard", tableName);
     assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
@@ -526,7 +526,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
     sql("DESCRIBE %s", tableName);
-    assertThat(sparkTable().partitioning()).as("spark table partition should be empty").hasSize(0);
+    assertThat(sparkTable().partitioning()).as("spark table partition should be empty").isEmpty();
   }
 
   @TestTemplate
@@ -554,7 +554,8 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {
     assertThat(table.partitioning()).as("spark table partition should be " + len).hasSize(len);
-    assertThat(table.partitioning()[len - 1].toString())
+    assertThat(table.partitioning()[len - 1])
+        .asString()
         .as("latest spark table partition transform should match")
         .isEqualTo(transform);
   }
