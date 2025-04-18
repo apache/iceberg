@@ -47,8 +47,8 @@ class IcebergWriterFactory {
   private final Catalog catalog;
   private final IcebergSinkConfig config;
 
-  IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
-    this.catalog = catalog;
+  IcebergWriterFactory(IcebergSinkConfig config) {
+    this.catalog = config.loadCatalog();
     this.config = config;
   }
 
