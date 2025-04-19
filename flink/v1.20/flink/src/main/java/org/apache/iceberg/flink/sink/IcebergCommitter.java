@@ -151,7 +151,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String newFlinkJobId,
       String operatorId)
       throws IOException {
-    long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, CommitRequest<IcebergCommittable>> e : commitRequestMap.entrySet()) {
@@ -173,8 +172,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(summary);
     }
-
-    FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
   }
 
   private void logCommitSummary(CommitSummary summary, String description) {
