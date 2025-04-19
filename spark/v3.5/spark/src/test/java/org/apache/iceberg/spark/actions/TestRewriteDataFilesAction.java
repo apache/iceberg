@@ -2011,6 +2011,40 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
+  @TestTemplate
+  public void testRewriteMaxFilesOption() {
+    Table table = createTablePartitioned(5, 4);
+    shouldHaveFiles(table, 20);
+    int desiredMaxFileCount = 5000;
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, String.valueOf(desiredMaxFileCount))
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    assertThat(filesReWritten).isLessThanOrEqualTo(desiredMaxFileCount);
+  }
+
+  @TestTemplate
+  public void testRewriteMaxFilesOptionEquality() {
+    Table table = createTablePartitioned(5, 4);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    shouldHaveFiles(table, 50);
+    int desiredMaxFileCount = 10;
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    assertThat(filesReWritten).isEqualTo(desiredMaxFileCount);
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);

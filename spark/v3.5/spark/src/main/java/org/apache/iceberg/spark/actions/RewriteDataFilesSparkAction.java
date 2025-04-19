@@ -87,7 +87,8 @@ public class RewriteDataFilesSparkAction
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
-          REMOVE_DANGLING_DELETES);
+          REMOVE_DANGLING_DELETES,
+          MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -104,6 +105,7 @@ public class RewriteDataFilesSparkAction
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
   private boolean caseSensitive;
+  private int maxFilesToRewrite;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -407,15 +409,49 @@ public class RewriteDataFilesSparkAction
 
   Stream<RewriteFileGroup> toGroupStream(
       RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
-    return groupsByPartition.entrySet().stream()
+
+    if (maxFilesToRewrite == 0) {
+      return groupsByPartition.entrySet().stream()
+          .filter(e -> !e.getValue().isEmpty())
+          .flatMap(
+              e -> {
+                StructLike partition = e.getKey();
+                List<List<FileScanTask>> scanGroups = e.getValue();
+                return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
+              })
+          .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
+    }
+
+    LOG.info(
+        "Max files rewrite options provided for table {} with max file re-write value : {}",
+        table.name(),
+        maxFilesToRewrite);
+
+    List<RewriteFileGroup> selectedFileGroups = Lists.newArrayList();
+    AtomicInteger fileCountRunner = new AtomicInteger(0);
+
+    groupsByPartition.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
-        .flatMap(
-            e -> {
-              StructLike partition = e.getKey();
-              List<List<FileScanTask>> scanGroups = e.getValue();
-              return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
-            })
-        .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
+        .forEach(
+            entry -> {
+              StructLike partition = entry.getKey();
+              entry
+                  .getValue()
+                  .forEach(
+                      fileScanTasks -> {
+                        if (fileCountRunner.get() < maxFilesToRewrite) {
+                          int remainingSize = maxFilesToRewrite - fileCountRunner.get();
+                          int fileScanTaskListSize = fileScanTasks.size();
+                          List<FileScanTask> fileScanTaskListSizeTruncated =
+                              fileScanTasks.subList(
+                                  0, Math.min(fileScanTaskListSize, remainingSize));
+                          selectedFileGroups.add(
+                              newRewriteGroup(ctx, partition, fileScanTaskListSizeTruncated));
+                          fileCountRunner.getAndAdd(fileScanTaskListSizeTruncated.size());
+                        }
+                      });
+            });
+    return selectedFileGroups.stream().sorted(RewriteFileGroup.comparator(rewriteJobOrder));
   }
 
   private RewriteFileGroup newRewriteGroup(
@@ -449,6 +485,8 @@ public class RewriteDataFilesSparkAction
         rewriter.description());
 
     rewriter.init(options());
+
+    maxFilesToRewrite = PropertyUtil.propertyAsInt(options(), MAX_FILES_TO_REWRITE, 0);
 
     maxConcurrentFileGroupRewrites =
         PropertyUtil.propertyAsInt(
@@ -491,6 +529,12 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_MAX_COMMITS,
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
+
+    Preconditions.checkArgument(
+        maxFilesToRewrite >= 0,
+        "Cannot set %s to %s, the value must be positive.",
+        MAX_FILES_TO_REWRITE,
+        maxFilesToRewrite);
   }
 
   private String jobDesc(RewriteFileGroup group, RewriteExecutionContext ctx) {
