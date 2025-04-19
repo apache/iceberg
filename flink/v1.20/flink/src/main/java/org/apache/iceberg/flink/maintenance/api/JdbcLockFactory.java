@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
 public class JdbcLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
 
-  @VisibleForTesting
   static final String INIT_LOCK_TABLES_PROPERTY = "flink-maintenance.lock.jdbc.init-lock-tables";
 
   private static final String LOCK_TABLE_NAME = "flink_maintenance_lock";
