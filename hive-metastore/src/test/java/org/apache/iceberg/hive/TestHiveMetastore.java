@@ -23,6 +23,7 @@ import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.facebook.fb303.FacebookService;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,9 +39,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
-import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -60,18 +59,24 @@ public class TestHiveMetastore {
   private static final String DEFAULT_DATABASE_NAME = "default";
   private static final int DEFAULT_POOL_SIZE = 5;
 
-  // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive2 and Hive3
-  private static final DynConstructors.Ctor<HiveMetaStore.HMSHandler> HMS_HANDLER_CTOR =
+  private static final String HMS_HANDLER_CLASS =
+      (HiveVersion.current() == HiveVersion.HIVE_4)
+          ? "org.apache.hadoop.hive.metastore.HMSHandler"
+          : "org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler";
+  private static final DynConstructors.Ctor<IHMSHandler> HMS_HANDLER_CTOR =
       DynConstructors.builder()
-          .impl(HiveMetaStore.HMSHandler.class, String.class, Configuration.class)
-          .impl(HiveMetaStore.HMSHandler.class, String.class, HiveConf.class)
+          .impl(HMS_HANDLER_CLASS, String.class, Configuration.class)
+          .impl(HMS_HANDLER_CLASS, String.class, HiveConf.class)
           .build();
 
+  private static final String PROXY_METHOD_CLASS =
+      (HiveVersion.current() == HiveVersion.HIVE_4)
+          ? "org.apache.hadoop.hive.metastore.HMSHandlerProxyFactory"
+          : "org.apache.hadoop.hive.metastore.RetryingHMSHandler";
   private static final DynMethods.StaticMethod GET_BASE_HMS_HANDLER =
       DynMethods.builder("getProxy")
-          .impl(RetryingHMSHandler.class, Configuration.class, IHMSHandler.class, boolean.class)
-          .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
+          .impl(PROXY_METHOD_CLASS, Configuration.class, IHMSHandler.class, boolean.class)
+          .impl(PROXY_METHOD_CLASS, HiveConf.class, IHMSHandler.class, boolean.class)
           .buildStatic();
 
   // Hive3 introduces background metastore tasks (MetastoreTaskThread) for performing various
@@ -126,7 +131,7 @@ public class TestHiveMetastore {
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
-  private HiveMetaStore.HMSHandler baseHandler;
+  private FacebookService.Iface baseHandler;
   private HiveClientPool clientPool;
 
   /**
@@ -177,8 +182,7 @@ public class TestHiveMetastore {
       // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new
       // HiveConf is created
       System.setProperty(
-          HiveConf.ConfVars.METASTOREURIS.varname,
-          hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+          "hive.metastore.uris", hiveConf.getVar(HiveConf.getConfVars("hive.metastore.uris")));
 
       this.clientPool = new HiveClientPool(1, hiveConf);
     } catch (Exception e) {
@@ -255,9 +259,7 @@ public class TestHiveMetastore {
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf)
       throws Exception {
     HiveConf serverConf = new HiveConf(conf);
-    serverConf.set(
-        HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
-        "jdbc:derby:" + DERBY_PATH + ";create=true");
+    serverConf.set("javax.jdo.option.ConnectionURL", "jdbc:derby:" + DERBY_PATH + ";create=true");
     baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
 
@@ -273,24 +275,24 @@ public class TestHiveMetastore {
   }
 
   private void initConf(HiveConf conf, int port, boolean directSql) {
-    conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
-    conf.set(
-        HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
-    conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, String.valueOf(directSql));
-    conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
+    conf.set("hive.metastore.uris", "thrift://localhost:" + port);
+    conf.set("hive.metastore.warehouse.dir", "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
+    conf.set("hive.metastore.try.direct.sql", String.valueOf(directSql));
+    conf.set("hive.metastore.disallow.incompatible.col.type.changes", "false");
     conf.set("iceberg.hive.client-pool-size", "2");
     // Setting this to avoid thrift exception during running Iceberg tests outside Iceberg.
-    conf.set(
-        HiveConf.ConfVars.HIVE_IN_TEST.varname, HiveConf.ConfVars.HIVE_IN_TEST.getDefaultValue());
+    conf.set("hive.in.test", "false");
   }
 
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
     try (Connection connection = DriverManager.getConnection(dbURL)) {
       ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
+      String resource =
+          (HiveVersion.current() == HiveVersion.HIVE_4)
+              ? "hive-schema-4.0.0.derby.sql"
+              : "hive-schema-3.1.0.derby.sql"; // this can be used for both Hive 2 and 3
       try (InputStream inputStream =
-              TestHiveMetastore.class
-                  .getClassLoader()
-                  .getResourceAsStream("hive-schema-3.1.0.derby.sql");
+              TestHiveMetastore.class.getClassLoader().getResourceAsStream(resource);
           Reader reader =
               new InputStreamReader(
                   Preconditions.checkNotNull(inputStream, "Invalid input stream: null"))) {
