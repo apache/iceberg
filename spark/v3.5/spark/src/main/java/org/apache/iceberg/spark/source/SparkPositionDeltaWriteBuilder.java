@@ -22,6 +22,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -85,8 +86,12 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     if (info.schema() == null || info.schema().isEmpty()) {
       return null;
     } else {
-      Schema dataSchema = SparkSchemaUtil.convert(table.schema(), info.schema());
-      validateSchema("data", table.schema(), dataSchema);
+      Schema writeSchema =
+          TableUtil.supportsRowLineage(table)
+              ? TableUtil.schemaWithRowLineage(table)
+              : table.schema();
+      Schema dataSchema = SparkSchemaUtil.convert(writeSchema, info.schema());
+      validateSchema("data", writeSchema, dataSchema);
       return dataSchema;
     }
   }
@@ -104,6 +109,16 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
         new Schema(
             MetadataColumns.SPEC_ID,
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
+    if (TableUtil.supportsRowLineage(table)) {
+      Schema rowLineageSchema =
+          new Schema(
+              MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+              MetadataColumns.metadataColumn(
+                      table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                  .asOptional());
+      expectedMetadataSchema = TypeUtil.join(expectedMetadataSchema, rowLineageSchema);
+    }
+
     StructType metadataSparkType = info.metadataSchema().get();
     Schema metadataSchema = SparkSchemaUtil.convert(expectedMetadataSchema, metadataSparkType);
     validateSchema("metadata", expectedMetadataSchema, metadataSchema);

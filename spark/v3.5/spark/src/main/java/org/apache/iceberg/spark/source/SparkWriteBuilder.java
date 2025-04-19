@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -116,8 +117,14 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public Write build() {
-    // Validate
-    Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
+    // The write schema should only include row lineage in the output if it's an overwrite
+    // operation.
+    // In any other case, only null row IDs and sequence numbers would be produced which
+    // means the row lineage columns can be excluded from the output files
+    boolean writeIncludesRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
+    Schema writeSchema =
+        validateOrMergeWriteSchema(table, dsSchema, writeConf, writeIncludesRowLineage);
+
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
@@ -170,7 +177,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private static Schema validateOrMergeWriteSchema(
-      Table table, StructType dsSchema, SparkWriteConf writeConf) {
+      Table table, StructType dsSchema, SparkWriteConf writeConf, boolean writeIncludesRowLineage) {
     Schema writeSchema;
     boolean caseSensitive = writeConf.caseSensitive();
     if (writeConf.mergeSchema()) {
@@ -182,6 +189,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       UpdateSchema update =
           table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
+      if (writeIncludesRowLineage) {
+        mergedSchema = TypeUtil.join(mergedSchema, TableUtil.schemaWithRowLineage(table));
+      }
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
       writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema, caseSensitive);
@@ -192,7 +202,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, caseSensitive);
+      Schema schema =
+          writeIncludesRowLineage ? TableUtil.schemaWithRowLineage(table) : table.schema();
+      writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }
