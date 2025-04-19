@@ -103,7 +103,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         createRecordWithRowLineage(schemaWithRowLineage(table), 5678, null, null);
     expectedRecords.addAll(ImmutableList.of(insertedRecord, updatedRecord));
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -135,7 +135,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     Record insertedRecord = createRecordWithRowLineage(schema, 5678, null, null);
     expectedRecords.addAll(ImmutableList.of(insertedRecord, updatedRecord));
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -165,7 +165,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     Record insertedRecord = createRecordWithRowLineage(schema, 5678, null, null);
     expectedRecords.add(insertedRecord);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -195,7 +195,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     Record updatedRecord = createRecordWithRowLineage(schema, 1234, 1L, null);
     expectedRecords.add(updatedRecord);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -219,7 +219,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
 
     List<Record> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -258,7 +258,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
       expectedRecords.add(newRecord);
     }
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -291,7 +291,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     record.set(2, null);
     expectedRecords.add(record);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   @TestTemplate
@@ -316,7 +316,24 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     Record updatedRecord = createRecordWithRowLineage(schema, 5678, 1L, null);
     expectedRecords.add(updatedRecord);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(actualRecords(table)));
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+  }
+
+  @TestTemplate
+  public void testDelete() throws NoSuchTableException, ParseException, IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    createAndInitTable("data INT", null);
+    createBranchIfNeeded();
+    Table table = loadIcebergTable(spark, tableName);
+    Schema schema = schemaWithRowLineage(table);
+    PartitionMap<List<Record>> recordsByPartition =
+        createRecordsWithRowLineage(schema, table.spec(), 5, UNPARTITIONED_GENERATOR);
+    appendRecords(table, recordsByPartition);
+
+    sql("DELETE FROM %s WHERE data = 1", commitTarget());
+    List<Record> expectedRecords = filterByDataNotEqualTo(allRecords(recordsByPartition), 1);
+
+    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
   }
 
   protected Record createRecordWithRowLineage(
@@ -328,7 +345,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     return record;
   }
 
-  protected List<Record> actualRecords(Table table) throws IOException {
+  protected List<Record> recordsWithLineage(Table table) throws IOException {
     List<Record> records = Lists.newArrayList();
     table.refresh();
     Snapshot snapshot = branch != null ? table.snapshot(branch) : table.currentSnapshot();

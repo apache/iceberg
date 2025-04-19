@@ -29,6 +29,7 @@ public class TestMergeOnReadWithLineage extends TestRowLevelOperationsWithLineag
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.MERGE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
-        TableProperties.UPDATE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
+        TableProperties.UPDATE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
+        TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 }
