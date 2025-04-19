@@ -95,6 +95,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
+  private boolean skipFileList;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -145,6 +146,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         "Staging location('%s') cannot be empty.",
         stagingLocation);
     this.stagingDir = stagingLocation;
+    return this;
+  }
+
+  @Override
+  public RewriteTablePath skipFileList(boolean pSkipFileList) {
+    this.skipFileList = pSkipFileList;
     return this;
   }
 
@@ -302,6 +309,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .map(e -> (DeleteFile) e)
             .collect(Collectors.toSet());
     rewritePositionDeletes(endMetadata, deleteFiles);
+
+    // skip file list
+    if (skipFileList) {
+      return "";
+    }
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
