@@ -116,9 +116,19 @@ public class Variants {
     throw new UnsupportedOperationException("Metadata is required for object: " + object);
   }
 
+  public static ValueArray array(VariantValue... values) {
+    ValueArray arr = new ValueArray();
+    for (VariantValue value : values) {
+      arr.add(value);
+    }
+
+    return arr;
+  }
+
   public static boolean isNull(ByteBuffer valueBuffer) {
     return VariantUtil.readByte(valueBuffer, 0) == 0;
   }
+
 
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
     return new PrimitiveWrapper<>(type, value);
