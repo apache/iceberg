@@ -29,6 +29,7 @@ public class TestCopyOnWriteWithLineage extends TestRowLevelOperationsWithLineag
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
-        TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+        TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
+        TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 }

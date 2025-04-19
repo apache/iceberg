@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions
+package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.MetadataColumns
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
@@ -38,8 +38,8 @@ object RemoveRowLineageOutputFromOriginalTable extends Rule[LogicalPlan] {
     plan.transform {
       case writeDelta@WriteDelta(_, _, _, originalTable, _, _) =>
         writeDelta.copy(originalTable = removeRowLineageOutput(originalTable))
-      case replaceDelta@ReplaceData(_, _, _, originalTable, _, _) =>
-        replaceDelta.copy(originalTable = removeRowLineageOutput(originalTable))
+      case replaceData@ReplaceData(_, _, _, originalTable, _, _) =>
+        replaceData.copy(originalTable = removeRowLineageOutput(originalTable))
     }
   }
 
