@@ -45,6 +45,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
       ProcedureParameter.optional("end_version", DataTypes.StringType);
   private static final ProcedureParameter STAGING_LOCATION_PARAM =
       ProcedureParameter.optional("staging_location", DataTypes.StringType);
+  private static final ProcedureParameter HIVE_META_MIGRATE_PARAM =
+      ProcedureParameter.optional("hive_meta_migrate", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -53,7 +55,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
         TARGET_PREFIX_PARAM,
         START_VERSION_PARAM,
         END_VERSION_PARM,
-        STAGING_LOCATION_PARAM
+        STAGING_LOCATION_PARAM,
+        HIVE_META_MIGRATE_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -95,6 +98,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
     String startVersion = input.asString(START_VERSION_PARAM, null);
     String endVersion = input.asString(END_VERSION_PARM, null);
     String stagingLocation = input.asString(STAGING_LOCATION_PARAM, null);
+    boolean hiveMetaMigrate = input.asBoolean(HIVE_META_MIGRATE_PARAM, false);
 
     return withIcebergTable(
         tableIdent,
@@ -110,7 +114,9 @@ public class RewriteTablePathProcedure extends BaseProcedure {
           if (stagingLocation != null) {
             action.stagingLocation(stagingLocation);
           }
-
+          if (hiveMetaMigrate) {
+            action.hiveMetaMigrate(true);
+          }
           return toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute());
         });
   }
