@@ -657,11 +657,12 @@ Field paths follow the JSON path format to use normalized path, such as `$['loca
 
 Examples of valid field paths using normalized JSON path format are:
 
-* `$` -- the Variant root value
-* `$['user.name']` -- the field `"user.name"` in the root value that is a Variant object
-* `$['location']['latitude']` -- the field `latitude` in a nested `location` object
-* `$['ids']` -- the `ids` array
-* `$['addresses']['zip']` -- the field `zip` in an `addresses` array that contains objects
+* `$` -- the root of the Variant value
+* `$['event_type']` -- the `event_type` field in a Variant object
+* `$['user.name']` -- the `"user.name"` field in a Variant object
+* `$['location']['latitude']` -- the `latitude` field nested within a `location` object
+* `$['tags']` -- the `tags` array 
+* `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
 
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
