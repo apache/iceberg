@@ -116,6 +116,7 @@ public class AwsClientFactories {
           .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
           .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
           .applyMutation(s3FileIOProperties::applyRetryConfigurations)
+          .applyMutation(s3FileIOProperties::applyStorageCredentialsInterceptor)
           .build();
     }
 
@@ -133,6 +134,7 @@ public class AwsClientFactories {
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties::applyStorageCredentialsInterceptor)
           .build();
     }
 

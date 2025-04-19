@@ -22,8 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestStorageCredential {
@@ -53,5 +56,54 @@ public class TestStorageCredential {
     StorageCredential credential =
         StorageCredential.create("randomPrefix", Map.of("token", "storageToken"));
     assertThat(TestHelpers.roundTripSerialize(credential)).isEqualTo(credential);
+  }
+
+  @Test
+  public void roundTripFromToMap() {
+    assertThat(StorageCredential.fromMap(ImmutableMap.of())).isEmpty();
+
+    List<StorageCredential> credentials =
+        ImmutableList.of(
+            StorageCredential.create(
+                "s3://bucket1",
+                Map.of("accessKey", "key1", "secretKey", "secretKey1", "otherKey", "otherVal")),
+            StorageCredential.create(
+                "s3://bucket2",
+                Map.of("accessKey", "key2", "secretKey", "secretKey2", "otherKey", "otherVal")),
+            StorageCredential.create(
+                "s3",
+                Map.of(
+                    "accessKey",
+                    "genericKey",
+                    "secretKey",
+                    "genericSecretKey",
+                    "key1",
+                    "val1",
+                    "key2",
+                    "val2")));
+
+    assertThat(StorageCredential.fromMap(StorageCredential.toMap(credentials)))
+        .hasSameElementsAs(credentials);
+  }
+
+  @Test
+  public void invalidToMap() {
+    assertThatThrownBy(() -> StorageCredential.toMap(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid storage credentials: null");
+  }
+
+  @Test
+  public void invalidFromMap() {
+    assertThatThrownBy(() -> StorageCredential.fromMap(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid storage credentials config: null");
+
+    assertThatThrownBy(
+            () ->
+                StorageCredential.fromMap(
+                    ImmutableMap.of("storage-credential.s3://bucket", "s3://bucket")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid storage credential config with prefix s3://bucket: null or empty");
   }
 }

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,12 +33,14 @@ import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -531,6 +534,7 @@ public class S3FileIOProperties implements Serializable {
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
   private long s3RetryMaxWaitMs;
+  private List<StorageCredential> storageCredentials;
 
   private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
@@ -576,6 +580,7 @@ public class S3FileIOProperties implements Serializable {
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
     this.allProperties = Maps.newHashMap();
+    this.storageCredentials = List.of();
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -697,6 +702,8 @@ public class S3FileIOProperties implements Serializable {
     this.s3CrtMaxConcurrency =
         PropertyUtil.propertyAsInt(
             properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
+
+    this.storageCredentials = StorageCredential.fromMap(properties);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -1007,6 +1014,19 @@ public class S3FileIOProperties implements Serializable {
           configBuilder
               .putAdvancedOption(
                   SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties))
+              .build());
+    }
+  }
+
+  public <T extends AwsClientBuilder> void applyStorageCredentialsInterceptor(T builder) {
+    if (!storageCredentials.isEmpty()) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
+      builder.overrideConfiguration(
+          configBuilder
+              .addExecutionInterceptor(new S3ExecutionInterceptor(storageCredentials))
               .build());
     }
   }

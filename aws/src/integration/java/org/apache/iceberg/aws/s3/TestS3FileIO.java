@@ -66,7 +66,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -639,89 +638,6 @@ public class TestS3FileIO {
     s3FileIOProperties
         .extracting(S3FileIOProperties::sessionToken)
         .isEqualTo("sessionTokenFromProperties");
-  }
-
-  @Test
-  public void singleStorageCredentialConfigured() {
-    StorageCredential s3Credential =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential",
-                    "s3.session-token",
-                    "sessionTokenFromCredential"))
-            .build();
-
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.setCredentials(ImmutableList.of(s3Credential));
-    fileIO.initialize(
-        ImmutableMap.of(
-            "s3.access-key-id",
-            "keyIdFromProperties",
-            "s3.secret-access-key",
-            "accessKeyFromProperties",
-            "s3.session-token",
-            "sessionTokenFromProperties"));
-
-    ObjectAssert<S3FileIOProperties> s3FileIOProperties =
-        assertThat(fileIO)
-            .extracting("s3FileIOProperties")
-            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIOProperties.class));
-    s3FileIOProperties.extracting(S3FileIOProperties::accessKeyId).isEqualTo("keyIdFromCredential");
-    s3FileIOProperties
-        .extracting(S3FileIOProperties::secretAccessKey)
-        .isEqualTo("accessKeyFromCredential");
-    s3FileIOProperties
-        .extracting(S3FileIOProperties::sessionToken)
-        .isEqualTo("sessionTokenFromCredential");
-  }
-
-  @Test
-  public void multipleStorageCredentialsConfigured() {
-    StorageCredential s3Credential1 =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri/1")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential1",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential1",
-                    "s3.session-token",
-                    "sessionTokenFromCredential1"))
-            .build();
-
-    StorageCredential s3Credential2 =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri/2")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential2",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential2",
-                    "s3.session-token",
-                    "sessionTokenFromCredential2"))
-            .build();
-
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.setCredentials(ImmutableList.of(s3Credential1, s3Credential2));
-    assertThatThrownBy(
-            () ->
-                fileIO.initialize(
-                    ImmutableMap.of(
-                        "s3.access-key-id",
-                        "keyIdFromProperties",
-                        "s3.secret-access-key",
-                        "accessKeyFromProperties",
-                        "s3.session-token",
-                        "sessionTokenFromProperties")))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid S3 Credentials: only one S3 credential should exist");
   }
 
   private void createRandomObjects(String prefix, int count) {
