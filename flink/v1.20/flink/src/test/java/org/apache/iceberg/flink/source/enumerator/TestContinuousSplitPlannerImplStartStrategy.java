@@ -37,6 +37,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestContinuousSplitPlannerImplStartStrategy {
   private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
@@ -88,13 +90,14 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());
   }
 
-  @Test
-  public void testForLatestSnapshotStrategyExclusive() throws IOException {
+  @ParameterizedTest
+  @EnumSource(
+      value = StreamingStartingStrategy.class,
+      names = {"INCREMENTAL_FROM_LATEST_SNAPSHOT", "INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE"})
+  public void testForLatestSnapshotStrategyWithEmptyTable(
+      StreamingStartingStrategy startingStrategy) throws IOException {
     ScanContext scanContext =
-        ScanContext.builder()
-            .streaming(true)
-            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE)
-            .build();
+        ScanContext.builder().streaming(true).startingStrategy(startingStrategy).build();
 
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
@@ -105,18 +108,17 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());
   }
 
-  @Test
-  public void testForLatestSnapshotStrategy() throws IOException {
-    ScanContext scanContext =
-        ScanContext.builder()
-            .streaming(true)
-            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
-            .build();
-
-    assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
-        .isNotPresent();
-
+  @ParameterizedTest
+  @EnumSource(
+      value = StreamingStartingStrategy.class,
+      names = {"INCREMENTAL_FROM_LATEST_SNAPSHOT", "INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE"})
+  public void testForLatestSnapshotStrategyWithNonEmptyTable(
+      StreamingStartingStrategy startingStrategy) throws IOException {
     appendThreeSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder().streaming(true).startingStrategy(startingStrategy).build();
+
     Snapshot startSnapshot =
         ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());

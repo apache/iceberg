@@ -165,7 +165,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         "Get starting snapshot id {} based on strategy {}",
         startSnapshot.snapshotId(),
         scanContext.streamingStartingStrategy());
-    List<IcebergSourceSplit> splits;
+    List<IcebergSourceSplit> splits = Collections.emptyList();
     IcebergEnumeratorPosition toPosition;
     if (scanContext.streamingStartingStrategy()
         == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
@@ -182,7 +182,6 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
           IcebergEnumeratorPosition.of(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
     } else if (scanContext.streamingStartingStrategy()
         == StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE) {
-      splits = Collections.emptyList();
       toPosition =
           IcebergEnumeratorPosition.of(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
       LOG.info(
@@ -192,7 +191,6 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     } else {
       // For all other modes, starting snapshot should be consumed inclusively.
       // Use parentId to achieve the inclusive behavior. It is fine if parentId is null.
-      splits = Collections.emptyList();
       Long parentSnapshotId = startSnapshot.parentId();
       if (parentSnapshotId != null) {
         Snapshot parentSnapshot = table.snapshot(parentSnapshotId);

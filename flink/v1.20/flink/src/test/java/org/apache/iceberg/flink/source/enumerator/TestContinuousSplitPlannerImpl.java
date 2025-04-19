@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestContinuousSplitPlannerImpl {
   @TempDir protected Path temporaryFolder;
@@ -173,50 +175,14 @@ public class TestContinuousSplitPlannerImpl {
     }
   }
 
-  @Test
-  public void testIncrementalFromLatestSnapshotWithEmptyTable() throws Exception {
+  @ParameterizedTest
+  @EnumSource(
+      value = StreamingStartingStrategy.class,
+      names = {"INCREMENTAL_FROM_LATEST_SNAPSHOT", "INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE"})
+  public void testIncrementalFromLatestSnapshotWithEmptyTable(
+      StreamingStartingStrategy startingStrategy) throws Exception {
     ScanContext scanContext =
-        ScanContext.builder()
-            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
-            .splitSize(1L)
-            .build();
-    ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
-
-    ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
-    assertThat(emptyTableInitialDiscoveryResult.splits()).isEmpty();
-    assertThat(emptyTableInitialDiscoveryResult.fromPosition()).isNull();
-    assertThat(emptyTableInitialDiscoveryResult.toPosition().isEmpty()).isTrue();
-    assertThat(emptyTableInitialDiscoveryResult.toPosition().snapshotTimestampMs()).isNull();
-
-    ContinuousEnumerationResult emptyTableSecondDiscoveryResult =
-        splitPlanner.planSplits(emptyTableInitialDiscoveryResult.toPosition());
-    assertThat(emptyTableSecondDiscoveryResult.splits()).isEmpty();
-    assertThat(emptyTableSecondDiscoveryResult.fromPosition().isEmpty()).isTrue();
-    assertThat(emptyTableSecondDiscoveryResult.fromPosition().snapshotTimestampMs()).isNull();
-    assertThat(emptyTableSecondDiscoveryResult.toPosition().isEmpty()).isTrue();
-    assertThat(emptyTableSecondDiscoveryResult.toPosition().snapshotTimestampMs()).isNull();
-
-    // latest mode should discover both snapshots, as latest position is marked by when job starts
-    appendTwoSnapshots();
-    ContinuousEnumerationResult afterTwoSnapshotsAppended =
-        splitPlanner.planSplits(emptyTableSecondDiscoveryResult.toPosition());
-    assertThat(afterTwoSnapshotsAppended.splits()).hasSize(2);
-
-    // next 3 snapshots
-    IcebergEnumeratorPosition lastPosition = afterTwoSnapshotsAppended.toPosition();
-    for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
-    }
-  }
-
-  @Test
-  public void testIncrementalFromLatestSnapshotExclusiveWithEmptyTable() throws Exception {
-    ScanContext scanContext =
-        ScanContext.builder()
-            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE)
-            .splitSize(1L)
-            .build();
+        ScanContext.builder().startingStrategy(startingStrategy).splitSize(1L).build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
@@ -305,17 +271,17 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(initialResult.splits()).isEmpty();
     assertThat(initialResult.fromPosition()).isNull();
     // For exclusive behavior, the initial result should point to snapshot2
-
     assertThat(initialResult.toPosition().snapshotId().longValue())
         .isEqualTo(snapshot2.snapshotId());
     assertThat(initialResult.toPosition().snapshotTimestampMs().longValue())
         .isEqualTo(snapshot2.timestampMillis());
-    assertThat(initialResult.splits()).isEmpty();
 
     // Then the next incremental scan shall discover no files
     ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    assertThat(initialResult.splits()).isEmpty();
     assertThat(secondResult.fromPosition().snapshotId().longValue())
         .isEqualTo(snapshot2.snapshotId());
     assertThat(secondResult.fromPosition().snapshotTimestampMs().longValue())
@@ -324,8 +290,6 @@ public class TestContinuousSplitPlannerImpl {
         .isEqualTo(snapshot2.snapshotId());
     assertThat(secondResult.toPosition().snapshotTimestampMs().longValue())
         .isEqualTo(snapshot2.timestampMillis());
-
-    assertThat(initialResult.splits()).isEmpty();
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {
