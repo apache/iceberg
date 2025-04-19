@@ -19,19 +19,18 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class TestEnvironmentUtil {
   @Test
   public void testEnvironmentSubstitution() {
     Optional<Map.Entry<String, String>> envEntry = System.getenv().entrySet().stream().findFirst();
-    Assumptions.assumeTrue(
-        envEntry.isPresent(), "Expecting at least one env. variable to be present");
+    assumeThat(envEntry).as("Expecting at least one env. variable to be present").isPresent();
     Map<String, String> resolvedProps =
         EnvironmentUtil.resolveAll(ImmutableMap.of("env-test", "env:" + envEntry.get().getKey()));
     assertThat(resolvedProps)
