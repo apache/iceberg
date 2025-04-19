@@ -43,6 +43,7 @@ import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -77,11 +78,15 @@ public class HadoopTables implements Tables, Configurable {
   /**
    * Loads the table location from a FileSystem path location.
    *
+   * <p>If properties are provided, they will be used to initialize the table operations. The main
+   * purpose of this approach is to pass in properties related to manifest caching.
+   *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table/)
+   * @param properties catalog properties
    * @return table implementation
    */
   @Override
-  public Table load(String location) {
+  public Table load(String location, Map<String, String> properties) {
     Table result;
     Pair<String, MetadataTableType> parsedMetadataType = parseMetadataType(location);
 
@@ -90,7 +95,7 @@ public class HadoopTables implements Tables, Configurable {
       result = loadMetadataTable(parsedMetadataType.first(), location, parsedMetadataType.second());
     } else {
       // Load a normal table
-      TableOperations ops = newTableOps(location);
+      TableOperations ops = newTableOps(location, properties);
       if (ops.current() != null) {
         result = new BaseTable(ops, location);
       } else {
@@ -205,11 +210,18 @@ public class HadoopTables implements Tables, Configurable {
 
   @VisibleForTesting
   TableOperations newTableOps(String location) {
+    return newTableOps(location, null);
+  }
+
+  TableOperations newTableOps(String location, Map<String, String> properties) {
+    FileIO io = new HadoopFileIO(conf);
+    if (properties != null) {
+      io.initialize(properties);
+    }
     if (location.contains(METADATA_JSON)) {
-      return new StaticTableOperations(location, new HadoopFileIO(conf));
+      return new StaticTableOperations(location, io);
     } else {
-      return new HadoopTableOperations(
-          new Path(location), new HadoopFileIO(conf), conf, createOrGetLockManager(this));
+      return new HadoopTableOperations(new Path(location), io, conf, createOrGetLockManager(this));
     }
   }
 
