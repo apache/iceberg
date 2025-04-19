@@ -118,6 +118,7 @@ class AddFilesProcedure extends BaseProcedure {
     boolean checkDuplicateFiles = input.asBoolean(CHECK_DUPLICATE_FILES_PARAM, true);
 
     int parallelism = input.asInt(PARALLELISM, 1);
+    Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
 
     return importToIceberg(
         tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
