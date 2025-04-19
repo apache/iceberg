@@ -94,7 +94,9 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    *     false to not skip.
    * @return this for method chaining
    */
-  RewriteTablePath skipFileList(boolean skipFileList);
+  default RewriteTablePath skipFileList(boolean skipFileList) {
+    return this;
+  }
 
   /** The action result that contains a summary of the execution. */
   interface Result {

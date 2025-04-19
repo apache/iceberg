@@ -184,9 +184,9 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         .as("Should return correct latest version")
         .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
     assertThat(result.get(0)[1])
-        .as("Should return skip file list")
+        .as("Should return empty")
         .asString()
-        .isEqualTo("skip-file-list");
+        .isEqualTo("");
   }
 
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {

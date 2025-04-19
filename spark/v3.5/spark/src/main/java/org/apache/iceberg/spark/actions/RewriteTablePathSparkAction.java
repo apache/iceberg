@@ -312,7 +312,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // skip file list
     if (skipFileList) {
-      return "skip-file-list";
+      return "";
     }
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
