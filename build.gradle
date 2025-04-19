@@ -207,6 +207,11 @@ subprojects {
     testImplementation libs.assertj.core
   }
 
+  tasks.withType(Test).configureEach {
+    // Some tests verify the messages included in the stack traces
+    jvmArgs += '-XX:-OmitStackTraceInFastThrow'
+  }
+
   test {
     def logDir = "${rootDir}/build/testlogs"
     def logFile = "${logDir}/${project.name}.log"
