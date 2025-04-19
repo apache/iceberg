@@ -87,12 +87,20 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
           ImmutableMap.of(
               2,
               VariantTestUtil.variantBuffer(
-                  Map.of("event_id", Variants.of(INT_MIN_VALUE), "str", Variants.of("abc")))),
+                  Map.of(
+                      "$['event_id']",
+                      Variants.of(INT_MIN_VALUE),
+                      "$['str']",
+                      Variants.of("abc")))),
           // upper bounds
           ImmutableMap.of(
               2,
               VariantTestUtil.variantBuffer(
-                  Map.of("event_id", Variants.of(INT_MAX_VALUE), "str", Variants.of("abe")))));
+                  Map.of(
+                      "$['event_id']",
+                      Variants.of(INT_MAX_VALUE),
+                      "$['str']",
+                      Variants.of("abe")))));
 
   private boolean shouldRead(Expression expr) {
     return shouldRead(expr, FILE);
