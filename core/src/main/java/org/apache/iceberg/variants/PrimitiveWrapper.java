@@ -22,7 +22,9 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.UUIDUtil;
 
 class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte NULL_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_NULL);
@@ -45,6 +47,12 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       VariantUtil.primitiveHeader(Primitives.TYPE_DECIMAL16);
   private static final byte BINARY_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_BINARY);
   private static final byte STRING_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_STRING);
+  private static final byte TIMENTZ_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TIMENTZ);
+  private static final byte TIMESTAMPTZNS_HEADER =
+      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPTZ_NS);
+  private static final byte TIMESTAMPNTZNS_HEADER =
+      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NS);
+  private static final byte UUID_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_UUID);
 
   private final PhysicalType type;
   private final T value;
@@ -90,6 +98,9 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       case DOUBLE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIMESTAMPTZNS:
+      case TIMESTAMPNTZNS:
+      case TIMENTZ:
         return 9; // 1 header + 8 value
       case DECIMAL4:
         return 6; // 1 header + 1 scale + 4 unscaled value
@@ -105,6 +116,8 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         }
 
         return 5 + buffer.remaining(); // 1 header + 4 length + value length
+      case UUID:
+        return 1 + 16; // 1 header + 16 length
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type());
@@ -204,6 +217,23 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         outBuffer.putInt(offset + 1, buffer.remaining());
         VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
         return 5 + buffer.remaining();
+      case TIMENTZ:
+        outBuffer.put(offset, TIMENTZ_HEADER);
+        outBuffer.putLong(offset + 1, (Long) value);
+        return 9;
+      case TIMESTAMPTZNS:
+        outBuffer.put(offset, TIMESTAMPTZNS_HEADER);
+        outBuffer.putLong(offset + 1, (Long) value);
+        return 9;
+      case TIMESTAMPNTZNS:
+        outBuffer.put(offset, TIMESTAMPNTZNS_HEADER);
+        outBuffer.putLong(offset + 1, (Long) value);
+        return 9;
+      case UUID:
+        outBuffer.put(offset, UUID_HEADER);
+        VariantUtil.writeBufferAbsolute(
+            outBuffer, offset + 1, UUIDUtil.convertToByteBuffer((UUID) value));
+        return 1 + 16;
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type());

@@ -22,7 +22,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.UUIDUtil;
 
 class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
@@ -69,6 +71,9 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIMENTZ:
+      case TIMESTAMPTZNS:
+      case TIMESTAMPNTZNS:
         return VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
       case FLOAT:
         return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);
@@ -105,6 +110,9 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
           int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
         }
+      case UUID:
+        return UUIDUtil.convert(
+            VariantUtil.slice(value, PRIMITIVE_OFFSET, 16).order(ByteOrder.BIG_ENDIAN));
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type);
