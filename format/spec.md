@@ -266,7 +266,9 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-All columns of `unknown`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+
+Default values for struct fields must be either null or non-null to avoid conflicts between the struct-level default for a field and a field-level default. Default values for struct fields are tracked at the field level.
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
@@ -315,7 +317,7 @@ Struct evolution requires the following rules for default values:
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
 * When an optional field is added, the defaults may be null and should be explicitly set
-* When a new field is added to a struct with a default value, updating the struct's default is optional
+* When a field that is a struct type is added, its default may only be null or non-null. Default values for fields must be stored in field metadata.
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
@@ -1171,7 +1173,7 @@ Values should be stored in Avro using the Avro types and logical type annotation
 
 Optional fields, array elements, and map values must be wrapped in an Avro `union` with `null`. This is the only union type allowed in Iceberg data files.
 
-Optional fields must always set the Avro field default value to null.
+Optional fields without an Iceberg default must set the Avro field default value to null. Fields with a non-null Iceberg default must convert the default to an equivalent Avro default.
 
 Maps with non-string keys must use an array representation with the `map` logical type. The array representation or Avro’s map type may be used for maps with string keys.
 
