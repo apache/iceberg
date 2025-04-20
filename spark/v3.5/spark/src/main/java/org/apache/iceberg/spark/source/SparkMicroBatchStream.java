@@ -458,7 +458,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
       ReadLimit[] readLimits = new ReadLimit[2];
       readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
-      readLimits[1] = ReadLimit.maxRows(maxFilesPerMicroBatch);
+      readLimits[1] = ReadLimit.maxRows(maxRecordsPerMicroBatch);
       return ReadLimit.compositeLimit(readLimits);
     } else if (maxFilesPerMicroBatch != Integer.MAX_VALUE) {
       return ReadLimit.maxFiles(maxFilesPerMicroBatch);
