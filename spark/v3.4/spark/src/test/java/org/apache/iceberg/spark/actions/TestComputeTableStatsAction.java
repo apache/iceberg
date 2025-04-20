@@ -175,7 +175,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
                       blobMetadata -> {
                         assertThat(blobMetadata.properties())
                             .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
-                        ;
                       });
             });
   }
