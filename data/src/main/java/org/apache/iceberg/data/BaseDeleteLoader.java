@@ -230,11 +230,15 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
+    // We explicitly turn off reusing containers because when reading equality deletes
+    // non-primitive-type columns
+    // it may result in not capturing the full delete set. See
+    // https://github.com/apache/iceberg/issues/11239
+    // for details.
     switch (format) {
       case AVRO:
         return Avro.read(inputFile)
             .project(projection)
-            .reuseContainers()
             .createResolvingReader(PlannedDataReader::create)
             .build();
 
@@ -242,12 +246,13 @@ public class BaseDeleteLoader implements DeleteLoader {
         return Parquet.read(inputFile)
             .project(projection)
             .filter(filter)
-            .reuseContainers()
             .createReaderFunc(newParquetReaderFunc(projection))
             .build();
 
       case ORC:
-        // reusing containers is automatic for ORC, no need to call 'reuseContainers'
+        // reusing containers is built into the ORC reader, and doesn't have the same issue
+        // described above
+        // for Parquet and Avro
         return ORC.read(inputFile)
             .project(projection)
             .filter(filter)

@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
@@ -56,7 +57,8 @@ public abstract class DeleteReadTests {
   public static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()));
+          Types.NestedField.required(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "binaryData", Types.BinaryType.get()));
 
   public static final Schema DATE_SCHEMA =
       new Schema(
@@ -316,7 +318,8 @@ public abstract class DeleteReadTests {
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 29, 89, 122), "id");
-    StructLikeSet actual = rowSet(tableName, table, "id");
+    // include the optional column to prevent ArrayOutOfBoundsException
+    StructLikeSet actual = rowSet(tableName, table, "id", "binaryData");
 
     if (expectPruned()) {
       assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
@@ -584,6 +587,52 @@ public abstract class DeleteReadTests {
 
     assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
     checkDeleteCount(1L);
+  }
+
+  /** Regression test for https://github.com/apache/iceberg/issues/11239 */
+  @TestTemplate
+  public void testEqualityDeleteBinaryColumn() throws IOException {
+    Record record = GenericRecord.create(table.schema());
+    List<Record> binaryDataRecords = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      ByteBuffer binaryData = ByteBuffer.wrap(("binaryData_" + i).getBytes());
+      binaryDataRecords.add(
+          record.copy("id", i + 200, "data", "testData", "binaryData", binaryData));
+    }
+    DataFile binaryDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            binaryDataRecords);
+
+    table.newAppend().appendFile(binaryDataFile).commit();
+
+    Schema binaryDataSchema = table.schema().select("binaryData");
+    Record binaryDataDelete = GenericRecord.create(binaryDataSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_0").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_1").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_2").getBytes())));
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            dataDeletes,
+            binaryDataSchema);
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    List<Record> allRecords = Lists.newArrayList(records);
+    allRecords.addAll(binaryDataRecords);
+    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(3L);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
