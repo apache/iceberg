@@ -56,7 +56,8 @@ public final class TaskCheckHelper {
         .isEqualTo(expected.start());
 
     // simplify comparison on residual expression via comparing toString
-    assertThat(actual.residual().toString())
+    assertThat(actual.residual())
+        .asString()
         .as("Residual expression doesn't match")
         .isEqualTo(expected.residual().toString());
   }
