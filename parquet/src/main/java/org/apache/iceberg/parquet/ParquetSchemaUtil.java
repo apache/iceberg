@@ -27,6 +27,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -37,8 +38,33 @@ public class ParquetSchemaUtil {
 
   private ParquetSchemaUtil() {}
 
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
+  }
+
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * <p>Variant fields are converted by calling the {@link VariantShreddingFunction} with the
+   * variant's and field ID and name to produce the shredding type as a {@code typed_value} field.
+   * This field is added to the variant struct alongside the {@code metadata} and {@code value}
+   * fields.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @param variantShreddingFunc {@link VariantShreddingFunction} that produces a shredded type
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
+  public static MessageType convert(
+      Schema schema, String name, VariantShreddingFunction variantShreddingFunc) {
+    return new TypeToMessageType(variantShreddingFunc).convert(schema, name);
   }
 
   /**
@@ -73,6 +99,32 @@ public class ParquetSchemaUtil {
     return new Schema(
         ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
         converter.getAliases());
+  }
+
+  /**
+   * Returns true if the name identifies a field in the struct/group.
+   *
+   * @param group a GroupType
+   * @param name a String name
+   * @return true if the group contains a field with the given name
+   */
+  public static boolean hasField(GroupType group, String name) {
+    return fieldType(group, name) != null;
+  }
+
+  /**
+   * Returns the Type of the named field in the struct/group, or null.
+   *
+   * @param group a GroupType
+   * @param name a String name
+   * @return the Type of the field in the group, or null if it is not present.
+   */
+  public static Type fieldType(GroupType group, String name) {
+    try {
+      return group.getType(name);
+    } catch (InvalidRecordException ignored) {
+      return null;
+    }
   }
 
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {

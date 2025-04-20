@@ -1,0 +1,27 @@
+{
+  "string": "string",
+  "int": 42,
+  "long": 3147483647,
+  "boolean": true,
+  "float_is_double": 3.0,
+  "double": 0.3,
+  "null": null,
+  "empty_obj": {},
+  "empty_arr": [],
+  "empty_arr_arr": [[], []],
+  "empty_string": "",
+  "array_empty_object": [{}, {}],
+  "nested_object_contains_empty": [{}, {"one":  1}],
+  "array_int": [1, 1],
+  "array_array_int": [[1,1], [2,2]],
+  "array_objects": [{"key": 1}],
+  "array_array_objects":[[{"key":  1}], [{"key":  2, "other": {"ugly": [1,2]}}]],
+  "array_array_inconsistent": [[1], [2.0]],
+  "array_different_types": ["one", 1],
+  "nested_obj": {
+    "key": {"nested_key": 1}
+  },
+  "bytes": "SGVsbG8=",
+  "bigInt": 354736184430273859332531123456,
+  "bigDecimal": 13.3333333333333333333333333344444444455555555
+}

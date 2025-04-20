@@ -52,6 +52,10 @@ public interface CommitMetricsResult {
   String ADDED_EQ_DELETES = "added-equality-deletes";
   String REMOVED_EQ_DELETES = "removed-equality-deletes";
   String TOTAL_EQ_DELETES = "total-equality-deletes";
+  String KEPT_MANIFESTS_COUNT = "manifests-kept";
+  String CREATED_MANIFESTS_COUNT = "manifests-created";
+  String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
+  String PROCESSED_MANIFEST_ENTRY_COUNT = "manifest-entries-processed";
 
   @Nullable
   TimerResult totalDuration();
@@ -137,6 +141,30 @@ public interface CommitMetricsResult {
   @Nullable
   CounterResult totalEqualityDeletes();
 
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsCreated() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsReplaced() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsKept() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestEntriesProcessed() {
+    return null;
+  }
+
   static CommitMetricsResult from(
       CommitMetrics commitMetrics, Map<String, String> snapshotSummary) {
     Preconditions.checkArgument(null != commitMetrics, "Invalid commit metrics: null");
@@ -179,6 +207,11 @@ public interface CommitMetricsResult {
         .removedEqualityDeletes(
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_EQ_DELETES_PROP))
         .totalEqualityDeletes(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_EQ_DELETES_PROP))
+        .manifestsCreated(counterFrom(snapshotSummary, SnapshotSummary.CREATED_MANIFESTS_COUNT))
+        .manifestsReplaced(counterFrom(snapshotSummary, SnapshotSummary.REPLACED_MANIFESTS_COUNT))
+        .manifestsKept(counterFrom(snapshotSummary, SnapshotSummary.KEPT_MANIFESTS_COUNT))
+        .manifestEntriesProcessed(
+            counterFrom(snapshotSummary, SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT))
         .build();
   }
 

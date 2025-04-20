@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
 import org.apache.comet.parquet.TypeUtil;
@@ -31,10 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
-import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -135,12 +131,6 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
   @Override
   public void setBatchSize(int size) {
     this.batchSize = size;
-  }
-
-  @Override
-  public void setRowGroupInfo(
-      PageReadStore pageReadStore, Map<ColumnPath, ColumnChunkMetaData> map, long size) {
-    throw new UnsupportedOperationException("Not supported");
   }
 
   @Override

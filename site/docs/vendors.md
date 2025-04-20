@@ -22,6 +22,10 @@ title: "Vendors"
 
 This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
 
+### [Amazon Web Services (AWS)](https://aws.com)
+
+AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg) to support Apache Iceberg as part of its modern data architecture. [Amazon Athena](https://aws.amazon.com/athena/) offers a serverless, interactive query engine with native support for Iceberg, enabling fast and cost-efficient querying of large-scale datasets. [Amazon EMR](https://aws.amazon.com/emr/) integrates Iceberg with Apache Spark, Apache Flink, Apache Hive, Presto and Trino, making it easy to process and analyze data at scale. [AWS Glue](https://aws.amazon.com/glue/) provides fully managed data integration capabilities, including schema evolution, maintenance, optimizations and partition management for Iceberg tables. With [Amazon S3](https://aws.amazon.com/s3/) as the underlying storage layer, AWS enables a high-performance and cost-effective data lakehouse solution powered by Iceberg.
+
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
@@ -68,6 +72,12 @@ With Dremio, an organization can easily build and manage a data lakehouse in whi
 * [Dremio Sonar](https://www.dremio.com/platform/sonar/) is a lakehouse query engine that provides interactive performance and DML on Apache Iceberg, as well as other formats and data sources.
 * [Dremio Arctic](https://www.dremio.com/platform/arctic/) is a lakehouse catalog and optimization service for Apache Iceberg. Arctic automatically optimizes tables in the background to ensure high-performance access for any engine. Arctic also simplifies experimentation, data engineering, and data governance by providing Git concepts like branches and tags on Apache Iceberg tables.
 
+### [Estuary](https://estuary.dev)
+
+A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
+
+Estuary's catalog of pre-built data connectors provides integrations with databases, APIs, event logs, and more. [Apache Iceberg](https://estuary.dev/solutions/technology/apache-iceberg/) is a primary destination option with two configurable materializations: one that [merges](https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/) new updates and one that simply [appends](https://docs.estuary.dev/reference/Connectors/materialization-connectors/amazon-s3-iceberg/) them.
+
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
 [IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
@@ -86,11 +96,25 @@ PuppyGraph is a cloud-native graph analytics engine that enables users to query 
 
 [RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
 
+### [SingleStore](https://singlestore.com/)
+
+SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
+
+By directly reading and [managing](https://docs.singlestore.com/cloud/load-data/data-sources/iceberg-ingest/) data from Iceberg tables, SingleStore unlocks enterprises' dormant data, boost generative AI development, and ensure seamless schema evolution with low‑latency queries. Available [self-managed](https://docs.singlestore.com/db/v8.9/) or in the cloud, it bridges the gap between traditional data lakes and real‑time analytics.
+
 <!-- markdown-link-check-disable-next-line -->
 ### [Snowflake](https://snowflake.com/)
 
 <!-- markdown-link-check-disable-next-line -->
 [Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
+
+### [Stackable](https://stackable.tech)
+
+Stackable is the provider of the Stackable Data Platform - a modular, open source data platform for innovative data applications.
+
+True to the philosophy of 'your data, your platform', Stackable enables the creation of flexible, scalable data architectures for data meshes, data lakehouses, event streaming, machine learning, and with the seamless integration of Apache Iceberg via [Trino](https://trino.io), [Apache NiFi](https://nifi.apache.org) and [Apache Spark](https://spark.apache.org)
+
+The Stackable Data Platform is completely open source, providing maximum portability without vendor lock-in. It also enables true data sovereignty - whether in the private or public cloud. With 24/7 support and strict SLAs, Stackable guarantees stability and efficiency - modern, flexible and secure.
 
 ### [Starburst](https://starburst.io)
 
@@ -107,4 +131,3 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 ### [VeloDB](https://velodb.io)
 
 [VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
-

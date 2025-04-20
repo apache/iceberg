@@ -417,12 +417,6 @@ public class TestChangelogTable extends ExtensionsTestBase {
     sql("INSERT INTO %s VALUES (3, 'c')", tableName);
     sql("INSERT INTO %s VALUES (4, 'd')", tableName);
 
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot insertSnapshot = table.currentSnapshot();
-
-    // Get timestamp after inserts but before our changelog window
-    long beforeWindowTime = System.currentTimeMillis();
-
     // Small delay to ensure our timestamps are different
     try {
       Thread.sleep(100);

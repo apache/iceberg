@@ -63,6 +63,14 @@ public class ParquetValueReaders {
     return new UnboxedReader<>(desc);
   }
 
+  public static ParquetValueReader<Byte> intsAsByte(ColumnDescriptor desc) {
+    return new IntAsByteReader(desc);
+  }
+
+  public static ParquetValueReader<Short> intsAsShort(ColumnDescriptor desc) {
+    return new IntAsShortReader(desc);
+  }
+
   public static ParquetValueReader<String> strings(ColumnDescriptor desc) {
     return new StringReader(desc);
   }
@@ -129,6 +137,7 @@ public class ParquetValueReaders {
       case MILLIS:
         return new TimestampMillisReader(desc);
       case MICROS:
+      case NANOS:
         return new UnboxedReader<>(desc);
     }
 
@@ -387,6 +396,28 @@ public class ParquetValueReaders {
     @Override
     public String read(String reuse) {
       return column.nextBinary().toStringUsingUTF8();
+    }
+  }
+
+  private static class IntAsByteReader extends UnboxedReader<Byte> {
+    private IntAsByteReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Byte read(Byte ignored) {
+      return (byte) readInteger();
+    }
+  }
+
+  private static class IntAsShortReader extends UnboxedReader<Short> {
+    private IntAsShortReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Short read(Short ignored) {
+      return (short) readInteger();
     }
   }
 
@@ -869,14 +900,6 @@ public class ParquetValueReaders {
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
-
-    /**
-     * @deprecated will be removed in 1.9.0; use {@link #StructReader(List)} instead.
-     */
-    @Deprecated
-    protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      this(readers);
-    }
 
     protected StructReader(List<ParquetValueReader<?>> readers) {
       this.readers =

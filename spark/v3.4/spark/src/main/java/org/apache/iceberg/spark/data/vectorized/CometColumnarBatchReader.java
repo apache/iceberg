@@ -72,12 +72,6 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   @Override
   public void setRowGroupInfo(
-      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    setRowGroupInfo(pageStore, metaData);
-  }
-
-  @Override
-  public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
     for (int i = 0; i < readers.length; i++) {
       try {

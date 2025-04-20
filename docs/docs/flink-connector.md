@@ -24,14 +24,7 @@ Apache Flink supports creating Iceberg table directly without creating the expli
 In Flink, the SQL `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)` will create a Flink table in current Flink catalog (use [GenericInMemoryCatalog](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/catalogs/#genericinmemorycatalog) by default),
 which is just mapping to the underlying iceberg table instead of maintaining iceberg table directly in current Flink catalog.
 
-To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  Flink iceberg connector provides the following table properties:
-
-* `connector`: Use the constant `iceberg`.
-* `catalog-name`: User-specified catalog name. It's required because the connector don't have any default value.
-* `catalog-type`: `hive` or `hadoop` for built-in catalogs (defaults to `hive`), or left unset for custom catalog implementations using `catalog-impl`.
-* `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. See also [custom catalog](flink.md#adding-catalogs) for more details.
-* `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
-* `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
+To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  Flink iceberg connector allows setting the catalog properties through table properties. The valid property values are described on the [Flink Configuration](flink-configuration.md#catalog-configuration) page in detail.
 
 ## Table managed in Hive catalog.
 
@@ -84,6 +77,26 @@ CREATE TABLE flink_table (
     'catalog-name'='hadoop_prod',
     'catalog-type'='hadoop',
     'warehouse'='hdfs://nn:8020/path/to/warehouse'
+);
+```
+
+## Table managed in REST catalog
+
+The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in REST catalog
+
+```sql
+CREATE TABLE flink_table (
+    id   BIGINT,
+    data STRING
+) WITH (
+    'connector'='iceberg',
+    'catalog-name'='rest_prod',
+    'catalog-type'='rest',
+    'uri'='https://localhost/'
+    'credential'='xxxx' -- Optional
+    'token'='xxxx' -- Optional
+    'scope'='xxxx' -- Optional
+     ...
 );
 ```
 

@@ -18,15 +18,21 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.TestAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
 
@@ -36,8 +42,10 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   protected FileAppenderFactory<Record> createAppenderFactory(
       List<Integer> equalityFieldIds, Schema eqDeleteSchema, Schema posDeleteRowSchema) {
     return new GenericAppenderFactory(
+        table,
         table.schema(),
         table.spec(),
+        Maps.newHashMap(),
         ArrayUtil.toIntArray(equalityFieldIds),
         eqDeleteSchema,
         posDeleteRowSchema);
@@ -53,5 +61,79 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.forEach(set::add);
     return set;
+  }
+
+  @TestTemplate
+  void illegalSetConfig() {
+    GenericAppenderFactory appenderFactory =
+        (GenericAppenderFactory) createAppenderFactory(null, null, null);
+
+    assertThatThrownBy(
+            () ->
+                appenderFactory.set(
+                    TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+                    MetricsModes.None.get().toString()))
+        .as("Should not allow setting metrics property if the table was provided")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set metrics properties when the table is provided, use table properties instead");
+  }
+
+  @TestTemplate
+  void illegalSetAllConfigs() {
+    GenericAppenderFactory appenderFactory =
+        (GenericAppenderFactory) createAppenderFactory(null, null, null);
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            "10",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id",
+            MetricsModes.Full.get().toString());
+
+    assertThatThrownBy(() -> appenderFactory.setAll(properties))
+        .as("Should not allow setting metrics property if the table was provided")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set metrics properties when the table is provided, use table properties instead");
+  }
+
+  @TestTemplate
+  void setConfigExcludeMetrics() {
+    GenericAppenderFactory appenderFactory =
+        (GenericAppenderFactory) createAppenderFactory(null, null, null);
+    assertThatNoException().isThrownBy(() -> appenderFactory.set("key1", "value1"));
+    assertThatNoException()
+        .isThrownBy(() -> appenderFactory.setAll(ImmutableMap.of("key2", "value2")));
+  }
+
+  @TestTemplate
+  void setConfigWithoutTable() {
+    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(SCHEMA);
+    assertThatNoException()
+        .isThrownBy(
+            () -> appenderFactory.set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "10"));
+    assertThatNoException()
+        .isThrownBy(
+            () ->
+                appenderFactory.setAll(
+                    ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")));
+  }
+
+  @TestTemplate
+  void createFactoryWithConflictConfig() {
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.Full.get().toString())
+        .commit();
+    Map<String, String> config =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString());
+
+    assertThatThrownBy(
+            () -> new GenericAppenderFactory(table, SCHEMA, SPEC, config, null, null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set metrics properties when the table is provided, use table properties instead");
   }
 }

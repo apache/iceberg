@@ -85,7 +85,7 @@ public class TestParquetDataWriter {
     DataWriter<Record> dataWriter =
         Parquet.writeData(file)
             .schema(SCHEMA)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .withSortOrder(sortOrder)
@@ -144,7 +144,7 @@ public class TestParquetDataWriter {
         Parquet.writeData(file)
             .metricsConfig(MetricsConfig.forTable(testTable))
             .schema(SCHEMA)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build();
@@ -217,7 +217,7 @@ public class TestParquetDataWriter {
         Parquet.writeData(file)
             .metricsConfig(MetricsConfig.forTable(testTable))
             .schema(SCHEMA)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build();

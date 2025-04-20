@@ -494,7 +494,8 @@ public class TestNessieTable extends BaseTestIceberg {
             () ->
                 catalog.registerTable(
                     TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0) + "invalidName"))
-        .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Failed to open input stream for file");
     // Case 5: null identifier
     assertThatThrownBy(
             () ->

@@ -53,12 +53,11 @@ public class TableMetadata implements Serializable {
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
+  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
   static final int INITIAL_ROW_ID = 0;
-  static final boolean DEFAULT_ROW_LINEAGE = false;
-  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -260,13 +259,12 @@ public class TableMetadata implements Serializable {
   private final List<StatisticsFile> statisticsFiles;
   private final List<PartitionStatisticsFile> partitionStatisticsFiles;
   private final List<MetadataUpdate> changes;
+  private final long nextRowId;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
-  private final Boolean rowLineageEnabled;
-  private final long nextRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -293,9 +291,8 @@ public class TableMetadata implements Serializable {
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
-      List<MetadataUpdate> changes,
-      boolean rowLineageEnabled,
-      long nextRowId) {
+      long nextRowId,
+      List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -314,10 +311,6 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
-    Preconditions.checkArgument(
-        formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineageEnabled,
-        "Cannot enable row lineage when Table Version is less than V3. Table Version is %s",
-        formatVersion);
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -353,7 +346,6 @@ public class TableMetadata implements Serializable {
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
 
     // row lineage
-    this.rowLineageEnabled = rowLineageEnabled;
     this.nextRowId = nextRowId;
 
     HistoryEntry last = null;
@@ -578,22 +570,18 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
+  /**
+   * Whether row lineage is enabled.
+   *
+   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+   */
+  @Deprecated
   public boolean rowLineageEnabled() {
-    return rowLineageEnabled;
+    return formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE;
   }
 
   public long nextRowId() {
     return nextRowId;
-  }
-
-  /**
-   * Updates the schema
-   *
-   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use updateSchema(schema).
-   */
-  @Deprecated
-  public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
-    return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
   }
 
   /** Updates the schema */
@@ -638,15 +626,10 @@ public class TableMetadata implements Serializable {
     int newFormatVersion =
         PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    Boolean newRowLineage =
-        PropertyUtil.propertyAsBoolean(
-            rawProperties, TableProperties.ROW_LINEAGE, rowLineageEnabled);
-
     return new Builder(this)
         .setProperties(updated)
         .removeProperties(removed)
         .upgradeFormatVersion(newFormatVersion)
-        .setRowLineage(newRowLineage)
         .build();
   }
 
@@ -917,7 +900,7 @@ public class TableMetadata implements Serializable {
     private long lastSequenceNumber;
     private int lastColumnId;
     private int currentSchemaId;
-    private final List<Schema> schemas;
+    private List<Schema> schemas;
     private int defaultSpecId;
     private List<PartitionSpec> specs;
     private int lastAssignedPartitionId;
@@ -931,7 +914,6 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
-    private boolean rowLineage;
     private long nextRowId;
 
     // change tracking
@@ -979,7 +961,6 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap();
       this.specsById = Maps.newHashMap();
       this.sortOrdersById = Maps.newHashMap();
-      this.rowLineage = DEFAULT_ROW_LINEAGE;
       this.nextRowId = INITIAL_ROW_ID;
     }
 
@@ -1015,8 +996,23 @@ public class TableMetadata implements Serializable {
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
 
-      this.rowLineage = base.rowLineageEnabled;
       this.nextRowId = base.nextRowId;
+    }
+
+    /**
+     * Enables row lineage in v3 tables.
+     *
+     * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+     */
+    @Deprecated
+    public Builder enableRowLineage() {
+      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE) {
+        throw new UnsupportedOperationException(
+            "Cannot enable row lineage for format-version=" + formatVersion);
+      }
+
+      // otherwise this is a no-op
+      return this;
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1135,17 +1131,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    /**
-     * Add a new schema.
-     *
-     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use AddSchema(schema).
-     */
-    @Deprecated
-    public Builder addSchema(Schema schema, int newLastColumnId) {
-      addSchemaInternal(schema, newLastColumnId);
-      return this;
-    }
-
     public Builder setDefaultPartitionSpec(PartitionSpec spec) {
       setDefaultPartitionSpec(addPartitionSpecInternal(spec));
       return this;
@@ -1178,11 +1163,30 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
 
-      this.specs =
-          specs.stream()
-              .filter(s -> !specIdsToRemove.contains(s.specId()))
-              .collect(Collectors.toList());
-      changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      if (!specIdsToRemove.isEmpty()) {
+        this.specs =
+            specs.stream()
+                .filter(s -> !specIdsToRemove.contains(s.specId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      }
+
+      return this;
+    }
+
+    Builder removeSchemas(Iterable<Integer> schemaIds) {
+      Set<Integer> schemaIdsToRemove = Sets.newHashSet(schemaIds);
+      Preconditions.checkArgument(
+          !schemaIdsToRemove.contains(currentSchemaId), "Cannot remove the current schema");
+
+      if (!schemaIdsToRemove.isEmpty()) {
+        this.schemas =
+            schemas.stream()
+                .filter(s -> !schemaIdsToRemove.contains(s.schemaId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemoveSchemas(schemaIdsToRemove));
+      }
+
       return this;
     }
 
@@ -1265,18 +1269,14 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
-      if (rowLineage) {
+      if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
         ValidationException.check(
-            snapshot.firstRowId() >= nextRowId,
-            "Cannot add a snapshot whose 'first-row-id' (%s) is less than the metadata 'next-row-id' (%s) because this will end up generating duplicate row_ids.",
+            snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
+        ValidationException.check(
+            snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
+            "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),
             nextRowId);
-        ValidationException.check(
-            snapshot.addedRows() != null,
-            "Cannot add a snapshot with a null 'added-rows' field when row lineage is enabled");
-        Preconditions.checkArgument(
-            snapshot.addedRows() >= 0,
-            "Cannot decrease 'last-row-id'. 'last-row-id' must increase monotonically. Snapshot reports %s added rows");
 
         this.nextRowId += snapshot.addedRows();
       }
@@ -1360,24 +1360,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    /**
-     * Set a statistics file for a snapshot.
-     *
-     * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
-     */
-    @Deprecated
-    public Builder setStatistics(long snapshotId, StatisticsFile statisticsFile) {
-      Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
-      Preconditions.checkArgument(
-          snapshotId == statisticsFile.snapshotId(),
-          "snapshotId does not match: %s vs %s",
-          snapshotId,
-          statisticsFile.snapshotId());
-      statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
-      changes.add(new MetadataUpdate.SetStatistics(statisticsFile));
-      return this;
-    }
-
     public Builder setStatistics(StatisticsFile statisticsFile) {
       Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
       statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
@@ -1450,18 +1432,24 @@ public class TableMetadata implements Serializable {
     private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
+      Set<Long> snapshotIdsToRemove = Sets.newHashSet();
+
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+            snapshotIdsToRemove.add(snapshotId);
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
         } else {
           retainedSnapshots.add(snapshot);
         }
+      }
+
+      if (!snapshotIdsToRemove.isEmpty()) {
+        changes.add(new MetadataUpdate.RemoveSnapshots(snapshotIdsToRemove));
       }
 
       this.snapshots = retainedSnapshots;
@@ -1519,34 +1507,6 @@ public class TableMetadata implements Serializable {
 
     public Builder setPreviousFileLocation(String previousFileLocation) {
       this.previousFileLocation = previousFileLocation;
-      return this;
-    }
-
-    private Builder setRowLineage(Boolean newRowLineage) {
-      if (newRowLineage == null) {
-        return this;
-      }
-
-      boolean disablingRowLineage = rowLineage && !newRowLineage;
-
-      Preconditions.checkArgument(
-          !disablingRowLineage, "Cannot disable row lineage once it has been enabled");
-
-      if (!rowLineage && newRowLineage) {
-        return enableRowLineage();
-      } else {
-        return this;
-      }
-    }
-
-    public Builder enableRowLineage() {
-      Preconditions.checkArgument(
-          formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE,
-          "Cannot use row lineage with format version %s. Only format version %s or higher support row lineage",
-          formatVersion,
-          MIN_FORMAT_VERSION_ROW_LINEAGE);
-      this.rowLineage = true;
-      changes.add(new MetadataUpdate.EnableRowLineage());
       return this;
     }
 
@@ -1617,9 +1577,8 @@ public class TableMetadata implements Serializable {
           partitionStatisticsFiles.values().stream()
               .flatMap(List::stream)
               .collect(Collectors.toList()),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
-          rowLineage,
-          nextRowId);
+          nextRowId,
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
@@ -1659,7 +1618,7 @@ public class TableMetadata implements Serializable {
         schemasById.put(newSchema.schemaId(), newSchema);
       }
 
-      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+      changes.add(new MetadataUpdate.AddSchema(newSchema));
 
       this.lastAddedSchemaId = newSchemaId;
 
@@ -1879,7 +1838,11 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream().anyMatch(MetadataUpdate.RemoveSnapshot.class::isInstance);
+          changes.stream()
+              .anyMatch(
+                  change ->
+                      change instanceof MetadataUpdate.RemoveSnapshots
+                          || change instanceof MetadataUpdate.RemoveSnapshot);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;

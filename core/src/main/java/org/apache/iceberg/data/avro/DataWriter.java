@@ -102,6 +102,12 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     }
 
     @Override
+    public ValueWriter<?> variant(
+        Schema variant, ValueWriter<?> metadataWriter, ValueWriter<?> valueWriter) {
+      return ValueWriters.variants();
+    }
+
+    @Override
     public ValueWriter<?> primitive(Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -117,6 +123,12 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
               return GenericWriters.timestamptz();
             }
             return GenericWriters.timestamps();
+
+          case "timestamp-nanos":
+            if (AvroSchemaUtil.isTimestamptz(primitive)) {
+              return GenericWriters.timestamptzNanos();
+            }
+            return GenericWriters.timestampNanos();
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;

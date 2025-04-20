@@ -339,11 +339,21 @@ public class JsonUtil {
     }
   }
 
+  public static void writeIntegerFieldIfPresent(String key, Integer value, JsonGenerator generator)
+      throws IOException {
+    writeIntegerFieldIf(value != null, key, value, generator);
+  }
+
   public static void writeLongFieldIf(
       boolean condition, String key, Long value, JsonGenerator generator) throws IOException {
     if (condition) {
       generator.writeNumberField(key, value);
     }
+  }
+
+  public static void writeLongFieldIfPresent(String key, Long value, JsonGenerator generator)
+      throws IOException {
+    writeLongFieldIf(value != null, key, value, generator);
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {

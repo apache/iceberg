@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.api.client.util.Lists;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
@@ -26,8 +27,10 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -36,7 +39,12 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -56,7 +64,7 @@ import org.slf4j.LoggerFactory;
  * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
  * Overview</a>
  */
-public class GCSFileIO implements DelegateFileIO {
+public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -67,6 +75,8 @@ public class GCSFileIO implements DelegateFileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
+  private OAuth2RefreshCredentialsHandler refreshHandler = null;
+  private List<StorageCredential> storageCredentials = ImmutableList.of();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -133,7 +143,13 @@ public class GCSFileIO implements DelegateFileIO {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    this.gcpProperties = new GCPProperties(properties);
+    Map<String, String> propertiesWithCredentials =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .putAll(storageCredentialConfig())
+            .buildKeepingLast();
+
+    this.gcpProperties = new GCPProperties(propertiesWithCredentials);
 
     this.storageSupplier =
         () -> {
@@ -159,10 +175,11 @@ public class GCSFileIO implements DelegateFileIO {
                         new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
                     if (gcpProperties.oauth2RefreshCredentialsEnabled()
                         && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
+                      refreshHandler = OAuth2RefreshCredentialsHandler.create(properties);
                       builder.setCredentials(
                           OAuth2CredentialsWithRefresh.newBuilder()
                               .setAccessToken(accessToken)
-                              .setRefreshHandler(OAuth2RefreshCredentialsHandler.create(properties))
+                              .setRefreshHandler(refreshHandler)
                               .build());
                     } else {
                       builder.setCredentials(OAuth2Credentials.create(accessToken));
@@ -196,6 +213,9 @@ public class GCSFileIO implements DelegateFileIO {
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
+      if (refreshHandler != null) {
+        refreshHandler.close();
+      }
       if (storage != null) {
         // GCS Storage does not appear to be closable, so release the reference
         storage = null;
@@ -241,5 +261,30 @@ public class GCSFileIO implements DelegateFileIO {
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
     Streams.stream(Iterators.partition(blobIdsToDelete.iterator(), gcpProperties.deleteBatchSize()))
         .forEach(batch -> client().delete(batch));
+  }
+
+  @Override
+  public void setCredentials(List<StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
+  }
+
+  @Override
+  public List<StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
+  }
+
+  private Map<String, String> storageCredentialConfig() {
+    List<StorageCredential> gcsCredentials =
+        storageCredentials.stream()
+            .filter(c -> c.prefix().startsWith("gs"))
+            .collect(Collectors.toList());
+
+    Preconditions.checkState(
+        gcsCredentials.size() <= 1,
+        "Invalid GCS Credentials: only one GCS credential should exist");
+
+    return gcsCredentials.isEmpty() ? Map.of() : gcsCredentials.get(0).config();
   }
 }

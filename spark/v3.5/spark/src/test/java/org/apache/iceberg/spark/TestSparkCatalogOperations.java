@@ -28,11 +28,11 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -107,8 +107,8 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     assertThat(table).as("Should return updated table").isNotNull();
 
-    StructField expectedField = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
-    assertThat(table.schema().fields()[2])
+    Column expectedField = Column.create(fieldName, DataTypes.StringType, true);
+    assertThat(table.columns()[2])
         .as("Adding a column to a table should return the updated table with the new column")
         .isEqualTo(expectedField);
 

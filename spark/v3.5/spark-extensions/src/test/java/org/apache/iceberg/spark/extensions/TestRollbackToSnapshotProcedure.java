@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
@@ -256,11 +256,12 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rollback_to_snapshot('n', 't', 1L)", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
               assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
             });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t')", catalogName))

@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -364,7 +365,11 @@ public class TestSchemaUpdate {
             Types.FixedType.ofLength(4),
             Types.DecimalType.of(9, 2),
             Types.DecimalType.of(9, 3),
-            Types.DecimalType.of(18, 2));
+            Types.DecimalType.of(18, 2),
+            Types.GeometryType.crs84(),
+            Types.GeometryType.of("srid:3857"),
+            Types.GeographyType.crs84(),
+            Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
 
     for (Type.PrimitiveType fromType : primitives) {
       for (Type.PrimitiveType toType : primitives) {
@@ -2438,5 +2443,48 @@ public class TestSchemaUpdate {
             .apply();
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddUnknown() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "unk", Types.UnknownType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn("unk", Types.UnknownType.get())
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddUnknownNonNullDefault() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addColumn("unk", Types.UnknownType.get(), Literal.of("string!"))
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot cast default value to unknown: \"string!\"");
+  }
+
+  @Test
+  public void testAddRequiredUnknown() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addRequiredColumn("unk", Types.UnknownType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create required field with unknown type: unk");
   }
 }

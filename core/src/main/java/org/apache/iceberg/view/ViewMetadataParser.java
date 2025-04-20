@@ -175,7 +175,8 @@ public class ViewMetadataParser {
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file.location(), JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to read json file: %s", file), e);
+      throw new UncheckedIOException(
+          String.format("Failed to read json file: %s", file.location()), e);
     }
   }
 
@@ -187,12 +188,11 @@ public class ViewMetadataParser {
         new OutputStreamWriter(
             isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format("Failed to write json to file: %s", outputFile), e);
+          String.format("Failed to write json to file: %s", outputFile.location()), e);
     }
   }
 }

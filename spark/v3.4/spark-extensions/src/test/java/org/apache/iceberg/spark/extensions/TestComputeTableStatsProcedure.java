@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.BlobMetadata;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
@@ -33,22 +33,19 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.actions.NDVSketchUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
 
-  public TestComputeTableStatsProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureOnEmptyTable() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     List<Object[]> result =
@@ -56,7 +53,7 @@ public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
     assertThat(result).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithNamedArgs() throws NoSuchTableException, ParseException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -72,7 +69,7 @@ public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
     verifyTableStats(tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithPositionalArgs() throws NoSuchTableException, ParseException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -90,7 +87,7 @@ public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
     verifyTableStats(tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithInvalidColumns() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -105,7 +102,7 @@ public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Can't find column id1");
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithInvalidSnapshot() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -119,7 +116,7 @@ public class TestComputeTableStatsProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Snapshot not found");
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithInvalidTable() {
     assertThatThrownBy(
             () ->
