@@ -30,7 +30,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -632,12 +631,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     private int nrOfFiles;
     private long evalTimeTakenMs;
 
-    public FileScanTaskSummary(List<FileScanTask> tasks) {
-      this.tasks = Objects.requireNonNull(tasks);
+    FileScanTaskSummary(List<FileScanTask> tasks) {
+      this.tasks = Preconditions.checkNotNull(tasks, "FileScanTask collection is null.");
     }
 
     private void init() {
-      if (initialized) return;
+      if (initialized) {
+        return;
+      }
       long start = System.currentTimeMillis();
 
       int files = 0;
