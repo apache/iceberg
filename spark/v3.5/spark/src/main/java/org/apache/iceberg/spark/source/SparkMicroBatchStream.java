@@ -25,6 +25,9 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.CombinedScanTask;
@@ -105,7 +108,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
 
-    LOG.debug(
+    LOG.info(
         "Initializing SparkMicroBatchStream with params: branch={}, caseSensitive={}, "
             + "splitSize={}, splitLookback={}, splitOpenFileCost={}, fromTimestamp={}, "
             + "maxFilesPerMicroBatch={}, maxRecordsPerMicroBatch={}",
@@ -172,9 +175,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       return new InputPartition[0];
     }
 
-    LOG.debug("Planning input partitions from {} to {}", startOffset, endOffset);
     List<FileScanTask> fileScanTasks = planFiles(startOffset, endOffset);
-    LOG.debug("planFiles returned {} file scan tasks", fileScanTasks.size());
+    FileScanTaskSummary taskSummary = new FileScanTaskSummary(fileScanTasks);
+    LOG.debug(
+        "planFiles returned {} file scan tasks. total_files={}, total_size_in_bytes={}. Time taken to eval stats {} ms",
+        fileScanTasks.size(),
+        taskSummary.nrOfFiles,
+        taskSummary.sizeInBytes,
+        taskSummary.evalTimeTakenMs);
 
     CloseableIterable<FileScanTask> splitTasks =
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
@@ -184,8 +192,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     LOG.debug("Split into {} combined scan tasks", combinedScanTasks.size());
 
     String[][] locations = computePreferredLocations(combinedScanTasks);
-    LOG.debug("Computed preferred locations for tasks: localityPreferred={}", localityPreferred);
-
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
     for (int index = 0; index < combinedScanTasks.size(); index++) {
       partitions[index] =
@@ -235,13 +241,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   }
 
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
-    LOG.debug("planFiles called with startOffset={}, endOffset={}", startOffset, endOffset);
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
-    StreamingOffset batchStartOffset =
-        StreamingOffset.START_OFFSET.equals(startOffset)
-            ? determineStartingOffset(table, fromTimestamp)
-            : startOffset;
-    LOG.debug("Batch start offset determined as {}", batchStartOffset);
+    StreamingOffset batchStartOffset;
+    if (StreamingOffset.START_OFFSET.equals(startOffset)) {
+      batchStartOffset = determineStartingOffset(table, fromTimestamp);
+      LOG.debug("Batch start offset determined as {}", batchStartOffset);
+    } else {
+      batchStartOffset = startOffset;
+    }
 
     StreamingOffset currentOffset = null;
     do {
@@ -272,12 +279,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               ? endOffset.position()
               : addedFilesCount(snapshot);
 
-      LOG.debug(
-          "Processing snapshot [id={}, startFileIndex={}, endFileIndex={}]",
-          currentOffset.snapshotId(),
-          currentOffset.position(),
-          endFileIndex);
-
       MicroBatch latestMicroBatch =
           MicroBatches.from(snapshot, table.io())
               .caseSensitive(caseSensitive)
@@ -288,26 +289,57 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
                   Long.MAX_VALUE,
                   currentOffset.shouldScanAllFiles());
       List<FileScanTask> tasks = latestMicroBatch.tasks();
-      LOG.debug("Snapshot id={} generated {} file scan tasks", snapshot.snapshotId(), tasks.size());
+      Instant snapshotDt = Instant.ofEpochMilli(snapshot.timestampMillis());
+      LOG.debug(
+          "Processing snapshot [id={}, dateTime={}, ageHours={}, startFileIndex={}, endFileIndex={}] generated {} file scan tasks",
+          currentOffset.snapshotId(),
+          DateTimeFormatter.ISO_INSTANT.format(snapshotDt),
+          ChronoUnit.HOURS.between(snapshotDt, Instant.now()),
+          currentOffset.position(),
+          endFileIndex,
+          tasks.size());
 
       fileScanTasks.addAll(tasks);
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
 
-    LOG.debug("planFiles returning total {} tasks", fileScanTasks.size());
     return fileScanTasks;
+  }
+
+  public static class FileScanTaskSummary {
+    private long sizeInBytes = 0;
+    private int nrOfFiles = 0;
+    private long evalTimeTakenMs;
+
+    public FileScanTaskSummary(List<FileScanTask> list) {
+      long currentTimeMillis = System.currentTimeMillis();
+      for (var task : list) {
+        nrOfFiles += task.filesCount();
+        sizeInBytes += task.sizeBytes();
+      }
+      this.evalTimeTakenMs = System.currentTimeMillis() - currentTimeMillis;
+    }
+
+    public long getTotalSizeBytes() {
+      return sizeInBytes;
+    }
+
+    public int getTotalFiles() {
+      return nrOfFiles;
+    }
+
+    public long getEvalTimeTakenMs() {
+      return evalTimeTakenMs;
+    }
   }
 
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
     switch (op) {
       case DataOperations.APPEND:
-        LOG.debug("Snapshot {} is APPEND, will process", snapshot.snapshotId());
         return true;
       case DataOperations.REPLACE:
-        LOG.debug("Snapshot {} is REPLACE, skipping", snapshot.snapshotId());
         return false;
       case DataOperations.DELETE:
-        LOG.debug("Snapshot {} is DELETE, skipDelete={}", snapshot.snapshotId(), skipDelete);
         Preconditions.checkState(
             skipDelete,
             "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
@@ -315,8 +347,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
             SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
-        LOG.debug(
-            "Snapshot {} is OVERWRITE, skipOverwrite={}", snapshot.snapshotId(), skipOverwrite);
         Preconditions.checkState(
             skipOverwrite,
             "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
@@ -487,7 +517,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     StreamingOffset latestStreamingOffset =
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
-    LOG.debug(
+    LOG.info(
         "Computed next streaming offset [offset={}] after filling the batch: [files={}, records={}, bytes={}, snapshots={}]",
         latestStreamingOffset,
         curFilesAdded,
@@ -522,10 +552,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     long countFromSummary =
         PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
     if (countFromSummary != -1) {
-      LOG.debug(
-          "addedFilesCount from summary for snapshot {} = {}",
-          snapshot.snapshotId(),
-          countFromSummary);
+      // expecting to always read from summary, else log.
       return countFromSummary;
     }
     long counted = Iterables.size(snapshot.addedDataFiles(table.io()));
