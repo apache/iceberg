@@ -394,14 +394,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
-    int curRecordCount = 0;
+    long curRecordCount = 0;
+    long curBytesProcessed = 0L;
 
     // Start curPos at the incoming offset’s position so file indexing is correct
     // when resuming mid‐snapshot. This ensures the first file processed is at or after
     // startPosOfSnapOffset.
     int curPos = startPosOfSnapOffset;
-
+    int snapshotsProcessed = 0;
     while (shouldContinueReading) {
+      snapshotsProcessed++;
       List<Pair<ManifestFile, Integer>> indexedManifests =
           MicroBatches.skippedManifestIndexesFromSnapshot(
               table.io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
@@ -441,6 +443,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               }
               curFilesAdded++;
               curRecordCount += task.file().recordCount();
+              curBytesProcessed += task.file().fileSizeInBytes(); // ← accumulate bytes
             }
             curPos++;
           }
@@ -470,7 +473,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     StreamingOffset latestStreamingOffset =
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
-    LOG.debug("Computed next streaming offset {}", latestStreamingOffset);
+
+    LOG.debug(
+        "Computed next streaming offset [offset={}] after filling the batch: [files={}, records={}, bytes={}, snapshots={}]",
+        latestStreamingOffset,
+        curFilesAdded,
+        curRecordCount,
+        curBytesProcessed,
+        snapshotsProcessed);
 
     if (latestStreamingOffset.equals(startingOffset)) {
       LOG.debug("No new data beyond startingOffset, returning null");
