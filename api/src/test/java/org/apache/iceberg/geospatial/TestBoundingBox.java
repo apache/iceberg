@@ -24,14 +24,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.junit.jupiter.api.Test;
 
-public class TestGeospatialBoundingBox {
+public class TestBoundingBox {
 
   @Test
   public void testConstructorAndAccessors() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
 
-    GeospatialBoundingBox box = new GeospatialBoundingBox(min, max);
+    BoundingBox box = new BoundingBox(min, max);
 
     assertThat(box.min()).isEqualTo(min);
     assertThat(box.max()).isEqualTo(max);
@@ -54,29 +54,56 @@ public class TestGeospatialBoundingBox {
     maxBuffer.putDouble(0, 3.0); // x
     maxBuffer.putDouble(8, 4.0); // y
 
-    GeospatialBoundingBox box = GeospatialBoundingBox.fromByteBuffers(minBuffer, maxBuffer);
+    BoundingBox box = BoundingBox.fromByteBuffers(minBuffer, maxBuffer);
 
     assertThat(box.min().x()).isEqualTo(1.0);
     assertThat(box.min().y()).isEqualTo(2.0);
     assertThat(box.max().x()).isEqualTo(3.0);
     assertThat(box.max().y()).isEqualTo(4.0);
+    assertThat(minBuffer.order()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
+    assertThat(maxBuffer.order()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
+  }
+
+  @Test
+  public void testCreateFromBigEndianByteBuffers() {
+    // Create byte buffers for XY bounds
+    ByteBuffer minBuffer = ByteBuffer.allocate(16);
+    minBuffer.order(ByteOrder.LITTLE_ENDIAN);
+    minBuffer.putDouble(0, 10.0); // x
+    minBuffer.putDouble(8, 20.0); // y
+    minBuffer.order(ByteOrder.BIG_ENDIAN);
+
+    ByteBuffer maxBuffer = ByteBuffer.allocate(16);
+    maxBuffer.order(ByteOrder.LITTLE_ENDIAN);
+    maxBuffer.putDouble(0, 30.0); // x
+    maxBuffer.putDouble(8, 40.0); // y
+    maxBuffer.order(ByteOrder.BIG_ENDIAN);
+
+    BoundingBox box = BoundingBox.fromByteBuffers(minBuffer, maxBuffer);
+
+    assertThat(box.min().x()).isEqualTo(10.0);
+    assertThat(box.min().y()).isEqualTo(20.0);
+    assertThat(box.max().x()).isEqualTo(30.0);
+    assertThat(box.max().y()).isEqualTo(40.0);
+    assertThat(minBuffer.order()).isEqualTo(ByteOrder.BIG_ENDIAN);
+    assertThat(maxBuffer.order()).isEqualTo(ByteOrder.BIG_ENDIAN);
   }
 
   @Test
   public void testEqualsAndHashCode() {
     GeospatialBound min1 = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max1 = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Same values
     GeospatialBound min2 = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     // Different values
     GeospatialBound min3 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max3 = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox box3 = new GeospatialBoundingBox(min3, max3);
+    BoundingBox box3 = new BoundingBox(min3, max3);
 
     // Test equals
     assertThat(box1).isEqualTo(box2);
@@ -93,21 +120,7 @@ public class TestGeospatialBoundingBox {
   public void testToString() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox box = new GeospatialBoundingBox(min, max);
+    BoundingBox box = new BoundingBox(min, max);
     assertThat(box.toString()).isEqualTo("BoundingBox{min=x=1.0, y=2.0, max=x=3.0, y=4.0}");
-  }
-
-  @Test
-  public void testSanitized() {
-    GeospatialBoundingBox box = GeospatialBoundingBox.SANITIZED;
-    GeospatialBoundingBox box2 =
-        GeospatialBoundingBox.fromByteBuffers(box.min().toByteBuffer(), box.max().toByteBuffer());
-    assertThat(box).isEqualTo(box2);
-    assertThat(box.toString()).isEqualTo("BoundingBox{sanitized}");
-    assertThat(box2.toString()).isEqualTo("BoundingBox{sanitized}");
-    GeospatialBound min3 = GeospatialBound.createXY(0.0, 0.0);
-    GeospatialBound max3 = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox box3 = new GeospatialBoundingBox(min3, max3);
-    assertThat(box).isNotEqualTo(box3);
   }
 }

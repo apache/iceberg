@@ -29,7 +29,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
@@ -474,12 +474,12 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
-    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 

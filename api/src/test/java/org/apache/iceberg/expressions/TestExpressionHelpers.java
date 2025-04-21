@@ -48,8 +48,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.Callable;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -234,7 +234,7 @@ public class TestExpressionHelpers {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Test pairs of expressions: (rewritten pred, original pred)
     Expression[][] expressions =

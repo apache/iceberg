@@ -32,7 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -81,8 +81,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
-    } else if (value instanceof GeospatialBoundingBox) {
-      return (Literal<T>) new Literals.GeospatialBoundingBoxLiteral((GeospatialBoundingBox) value);
+    } else if (value instanceof BoundingBox) {
+      return (Literal<T>) new Literals.GeospatialBoundingBoxLiteral((BoundingBox) value);
     }
 
     throw new IllegalArgumentException(
@@ -691,18 +691,18 @@ class Literals {
     }
   }
 
-  static class GeospatialBoundingBoxLiteral implements Literal<GeospatialBoundingBox> {
-    private static final Comparator<GeospatialBoundingBox> CMP =
-        Comparators.<GeospatialBoundingBox>nullsFirst().thenComparing(Comparator.naturalOrder());
+  static class GeospatialBoundingBoxLiteral implements Literal<BoundingBox> {
+    private static final Comparator<BoundingBox> CMP =
+        Comparators.<BoundingBox>nullsFirst().thenComparing(Comparator.naturalOrder());
 
-    private final GeospatialBoundingBox value;
+    private final BoundingBox value;
 
-    GeospatialBoundingBoxLiteral(GeospatialBoundingBox value) {
+    GeospatialBoundingBoxLiteral(BoundingBox value) {
       this.value = value;
     }
 
     @Override
-    public GeospatialBoundingBox value() {
+    public BoundingBox value() {
       return value;
     }
 
@@ -712,7 +712,7 @@ class Literals {
     }
 
     @Override
-    public Comparator<GeospatialBoundingBox> comparator() {
+    public Comparator<BoundingBox> comparator() {
       return CMP;
     }
 

@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.ByteBuffer;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -52,7 +52,7 @@ public class TestBoundGeospatialPredicate {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Create an unbound predicate based on the operation
     UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
@@ -88,7 +88,7 @@ public class TestBoundGeospatialPredicate {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Create an unbound predicate based on the operation
     UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
@@ -130,15 +130,15 @@ public class TestBoundGeospatialPredicate {
     // Create two identical bounding boxes
     GeospatialBound min1 = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max1 = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox bbox1 = new BoundingBox(min1, max1);
     GeospatialBound min2 = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox bbox2 = new BoundingBox(min2, max2);
 
     // Create a different bounding box
     GeospatialBound min3 = GeospatialBound.createXY(5.0, 6.0);
     GeospatialBound max3 = GeospatialBound.createXY(7.0, 8.0);
-    GeospatialBoundingBox bbox3 = new GeospatialBoundingBox(min3, max3);
+    BoundingBox bbox3 = new BoundingBox(min3, max3);
 
     // Create the main predicate with the current operation
     UnboundPredicate<ByteBuffer> unbound1 = Expressions.geospatialPredicate(op, fieldName, bbox1);
@@ -196,7 +196,7 @@ public class TestBoundGeospatialPredicate {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Create an unbound predicate based on the operation
     UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
@@ -220,7 +220,7 @@ public class TestBoundGeospatialPredicate {
     // Create a bounding box with Z and M coordinates
     GeospatialBound min = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
     GeospatialBound max = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Create an unbound predicate based on the operation
     UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
@@ -239,7 +239,7 @@ public class TestBoundGeospatialPredicate {
     assertThat(predicate.literal().value()).isEqualTo(bbox);
 
     // Verify Z and M coordinates are preserved
-    GeospatialBoundingBox boundingBox = predicate.literal().value();
+    BoundingBox boundingBox = predicate.literal().value();
     assertThat(boundingBox.min().hasZ()).isTrue();
     assertThat(boundingBox.min().hasM()).isTrue();
     assertThat(boundingBox.min().z()).isEqualTo(3.0);
@@ -256,7 +256,7 @@ public class TestBoundGeospatialPredicate {
     // Create a bounding box with NaN and infinity values
     GeospatialBound min = GeospatialBound.createXY(Double.NEGATIVE_INFINITY, Double.NaN);
     GeospatialBound max = GeospatialBound.createXY(Double.POSITIVE_INFINITY, Double.NaN);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Create an unbound predicate based on the operation
     UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
@@ -275,34 +275,10 @@ public class TestBoundGeospatialPredicate {
     assertThat(predicate.literal().value()).isEqualTo(bbox);
 
     // Verify special values are preserved
-    GeospatialBoundingBox boundingBox = predicate.literal().value();
+    BoundingBox boundingBox = predicate.literal().value();
     assertThat(boundingBox.min().x()).isEqualTo(Double.NEGATIVE_INFINITY);
     assertThat(Double.isNaN(boundingBox.min().y())).isTrue();
     assertThat(boundingBox.max().x()).isEqualTo(Double.POSITIVE_INFINITY);
     assertThat(Double.isNaN(boundingBox.max().y())).isTrue();
-  }
-
-  @ParameterizedTest
-  @MethodSource("geospatialOperators")
-  public void testSanitizedBoundingBox(Expression.Operation op, String fieldName, int fieldId) {
-    // Use the sanitized bounding box
-    GeospatialBoundingBox bbox = GeospatialBoundingBox.SANITIZED;
-
-    // Create an unbound predicate based on the operation
-    UnboundPredicate<ByteBuffer> unbound = Expressions.geospatialPredicate(op, fieldName, bbox);
-
-    // Bind the predicate to the schema
-    Expression bound = unbound.bind(SCHEMA.asStruct());
-    BoundGeospatialPredicate predicate = (BoundGeospatialPredicate) bound;
-
-    // Verify the operation matches the expected operation
-    assertThat(predicate.op()).isEqualTo(op);
-
-    // Verify the term references the correct field
-    assertThat(predicate.term().ref().fieldId()).isEqualTo(fieldId);
-
-    // Verify the literal value is the sanitized bounding box
-    assertThat(predicate.literal().value()).isEqualTo(GeospatialBoundingBox.SANITIZED);
-    assertThat(predicate.literal().value().toString()).isEqualTo("BoundingBox{sanitized}");
   }
 }

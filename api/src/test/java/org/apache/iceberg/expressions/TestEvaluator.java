@@ -51,8 +51,8 @@ import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
@@ -833,9 +833,8 @@ public class TestEvaluator {
             required(1, "geom", Types.GeometryType.crs84()),
             required(2, "geog", Types.GeographyType.crs84()));
 
-    GeospatialBoundingBox bbox =
-        new GeospatialBoundingBox(
-            GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0));
+    BoundingBox bbox =
+        new BoundingBox(GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0));
 
     // Create a WKB point at (2, 3)
     ByteBuffer wkb =
