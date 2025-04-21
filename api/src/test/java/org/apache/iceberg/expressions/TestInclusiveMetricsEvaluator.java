@@ -49,8 +49,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -913,7 +913,7 @@ public class TestInclusiveMetricsEvaluator {
                 SCHEMA,
                 stIntersects(
                     "geom",
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(0, 0), GeospatialBound.createXY(3, 4))))
             .eval(FILE_6);
     assertThat(shouldRead).as("Should read: query window intersects the boundary").isTrue();
@@ -923,7 +923,7 @@ public class TestInclusiveMetricsEvaluator {
                 SCHEMA,
                 stIntersects(
                     "geom",
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
             .eval(FILE_6);
     assertThat(shouldRead)
@@ -935,7 +935,7 @@ public class TestInclusiveMetricsEvaluator {
                 SCHEMA,
                 stIntersects(
                     "geom",
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
             .eval(FILE);
     assertThat(shouldRead).as("Should read: stats is missing").isTrue();
@@ -948,7 +948,7 @@ public class TestInclusiveMetricsEvaluator {
                 SCHEMA,
                 stDisjoint(
                     "geom",
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(0, 0), GeospatialBound.createXY(3, 4))))
             .eval(FILE_6);
     assertThat(shouldRead).as("Should read: always read no matter if it's disjoint").isTrue();
@@ -958,7 +958,7 @@ public class TestInclusiveMetricsEvaluator {
                 SCHEMA,
                 stDisjoint(
                     "geom",
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
             .eval(FILE);
     assertThat(shouldRead).as("Should read: stats is missing").isTrue();

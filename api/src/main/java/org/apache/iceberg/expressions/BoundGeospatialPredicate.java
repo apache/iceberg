@@ -19,18 +19,17 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 
 public class BoundGeospatialPredicate extends BoundPredicate<ByteBuffer> {
-  private final Literal<GeospatialBoundingBox> literal;
+  private final Literal<BoundingBox> literal;
 
-  BoundGeospatialPredicate(
-      Operation op, BoundTerm<ByteBuffer> term, Literal<GeospatialBoundingBox> literal) {
+  BoundGeospatialPredicate(Operation op, BoundTerm<ByteBuffer> term, Literal<BoundingBox> literal) {
     super(op, term);
     this.literal = literal;
   }
 
-  public Literal<GeospatialBoundingBox> literal() {
+  public Literal<BoundingBox> literal() {
     return literal;
   }
 

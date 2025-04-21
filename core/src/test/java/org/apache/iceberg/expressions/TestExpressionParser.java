@@ -28,8 +28,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -101,19 +101,18 @@ public class TestExpressionParser {
           Expressions.not(Expressions.in("l", 1, 2, 3, 4)),
           Expressions.stIntersects(
               "geom",
-              new GeospatialBoundingBox(
-                  GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4))),
+              new BoundingBox(GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4))),
           Expressions.stDisjoint(
               "geom",
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXYM(1, 2, 3), GeospatialBound.createXYM(3, 4, 5))),
           Expressions.stIntersects(
               "geog",
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXYZ(1, 2, 3), GeospatialBound.createXYZ(3, 4, 5))),
           Expressions.stDisjoint(
               "geog",
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXYZM(1, 2, 3, 4), GeospatialBound.createXYZM(3, 4, 5, 6)))
         };
 
@@ -586,8 +585,7 @@ public class TestExpressionParser {
     Expression expression =
         Expressions.stIntersects(
             "column-name",
-            new GeospatialBoundingBox(
-                GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4)));
+            new BoundingBox(GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4)));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
@@ -615,7 +613,7 @@ public class TestExpressionParser {
     expression =
         Expressions.stIntersects(
             "column-name",
-            new GeospatialBoundingBox(
+            new BoundingBox(
                 GeospatialBound.createXYM(1, 2, 3), GeospatialBound.createXYM(3, 4, 5)));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
@@ -644,7 +642,7 @@ public class TestExpressionParser {
     expression =
         Expressions.stIntersects(
             "column-name",
-            new GeospatialBoundingBox(
+            new BoundingBox(
                 GeospatialBound.createXYZ(1, 2, 3), GeospatialBound.createXYZ(3, 4, 5)));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
@@ -677,7 +675,7 @@ public class TestExpressionParser {
     expression =
         Expressions.stIntersects(
             "column-name",
-            new GeospatialBoundingBox(
+            new BoundingBox(
                 GeospatialBound.createXYZM(1, 2, 3, 4), GeospatialBound.createXYZM(3, 4, 5, 6)));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))

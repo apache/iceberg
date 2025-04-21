@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +50,7 @@ public class TestLiteralSerialization {
           Literal.of(new byte[] {3, 4, 5, 6}).to(Types.BinaryType.get()),
           Literal.of(new BigDecimal("122.50")),
           Literal.of(
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)))
         };
 

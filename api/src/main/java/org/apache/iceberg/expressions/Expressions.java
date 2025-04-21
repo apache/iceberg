@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import java.nio.ByteBuffer;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
@@ -204,8 +204,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
 
-  public static UnboundPredicate<ByteBuffer> stIntersects(
-      String name, GeospatialBoundingBox value) {
+  public static UnboundPredicate<ByteBuffer> stIntersects(String name, BoundingBox value) {
     return geospatialPredicate(Operation.ST_INTERSECTS, name, value);
   }
 
@@ -215,7 +214,7 @@ public class Expressions {
   }
 
   public static UnboundPredicate<ByteBuffer> stIntersects(
-      UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
     return geospatialPredicate(Operation.ST_INTERSECTS, expr, value);
   }
 
@@ -224,7 +223,7 @@ public class Expressions {
     return geospatialPredicate(Operation.ST_INTERSECTS, expr, min, max);
   }
 
-  public static UnboundPredicate<ByteBuffer> stDisjoint(String name, GeospatialBoundingBox value) {
+  public static UnboundPredicate<ByteBuffer> stDisjoint(String name, BoundingBox value) {
     return geospatialPredicate(Operation.ST_DISJOINT, name, value);
   }
 
@@ -234,7 +233,7 @@ public class Expressions {
   }
 
   public static UnboundPredicate<ByteBuffer> stDisjoint(
-      UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
     return geospatialPredicate(Operation.ST_DISJOINT, expr, value);
   }
 
@@ -322,13 +321,13 @@ public class Expressions {
   }
 
   public static UnboundPredicate<ByteBuffer> geospatialPredicate(
-      Operation op, String name, GeospatialBoundingBox value) {
+      Operation op, String name, BoundingBox value) {
     return geospatialPredicate(
         op, ref(name), value.min().toByteBuffer(), value.max().toByteBuffer());
   }
 
   public static UnboundPredicate<ByteBuffer> geospatialPredicate(
-      Operation op, UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+      Operation op, UnboundTerm<ByteBuffer> expr, BoundingBox value) {
     return geospatialPredicate(op, expr, value.min().toByteBuffer(), value.max().toByteBuffer());
   }
 

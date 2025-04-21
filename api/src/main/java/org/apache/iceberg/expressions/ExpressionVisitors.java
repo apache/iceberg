@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 
 /** Utils for traversing {@link Expression expressions}. */
 public class ExpressionVisitors {
@@ -127,12 +127,12 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
-    public <T> R stIntersects(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
+    public <T> R stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
       throw new UnsupportedOperationException(
           "stIntersects expression is not supported by the visitor");
     }
 
-    public <T> R stDisjoint(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
+    public <T> R stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
       throw new UnsupportedOperationException(
           "stDisjoint expression is not supported by the visitor");
     }
@@ -290,11 +290,11 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
-    public <T> R stIntersects(Bound<T> term, Literal<GeospatialBoundingBox> literal) {
+    public <T> R stIntersects(Bound<T> term, Literal<BoundingBox> literal) {
       throw new UnsupportedOperationException("ST_INTERSECTS is not supported by the visitor");
     }
 
-    public <T> R stDisjoint(Bound<T> term, Literal<GeospatialBoundingBox> literal) {
+    public <T> R stDisjoint(Bound<T> term, Literal<BoundingBox> literal) {
       throw new UnsupportedOperationException("ST_DISJOINT is not supported by the visitor");
     }
 
@@ -602,11 +602,11 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T> R stIntersects(BoundTerm<T> term, Literal<GeospatialBoundingBox> lit) {
+    public <T> R stIntersects(BoundTerm<T> term, Literal<BoundingBox> lit) {
       return null;
     }
 
-    public <T> R stDisjoint(BoundTerm<T> term, Literal<GeospatialBoundingBox> lit) {
+    public <T> R stDisjoint(BoundTerm<T> term, Literal<BoundingBox> lit) {
       return null;
     }
   }
