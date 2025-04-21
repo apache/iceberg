@@ -45,11 +45,11 @@ public class TestGeospatialPredicateEvaluators {
 
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(5.0, 5.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(3.0, 3.0);
     GeospatialBound max2 = GeospatialBound.createXY(8.0, 8.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -63,11 +63,11 @@ public class TestGeospatialPredicateEvaluators {
 
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(2.0, 2.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(3.0, 3.0);
     GeospatialBound max2 = GeospatialBound.createXY(5.0, 5.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isFalse();
     assertThat(evaluator.intersects(box2, box1)).isFalse();
@@ -81,11 +81,11 @@ public class TestGeospatialPredicateEvaluators {
 
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(2.0, 2.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(2.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXY(4.0, 4.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -99,11 +99,11 @@ public class TestGeospatialPredicateEvaluators {
 
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(2.0, 2.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(2.0, 0.0);
     GeospatialBound max2 = GeospatialBound.createXY(4.0, 2.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -117,11 +117,11 @@ public class TestGeospatialPredicateEvaluators {
 
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(2.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXY(5.0, 5.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -137,11 +137,11 @@ public class TestGeospatialPredicateEvaluators {
     // Note: The current implementation only checks X and Y coordinates
     GeospatialBound min1 = GeospatialBound.createXYZ(0.0, 0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXYZ(2.0, 2.0, 1.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXYZ(1.0, 1.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXYZ(3.0, 3.0, 3.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     // They should intersect because the current implementation only checks X and Y
     assertThat(evaluator.intersects(box1, box2)).isTrue();
@@ -158,11 +158,11 @@ public class TestGeospatialPredicateEvaluators {
     // Note: The current implementation only checks X and Y coordinates
     GeospatialBound min1 = GeospatialBound.createXYM(0.0, 0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXYM(2.0, 2.0, 1.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXYM(1.0, 1.0, 2.0);
     GeospatialBound max2 = GeospatialBound.createXYM(3.0, 3.0, 3.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     // They should intersect because the current implementation only checks X and Y
     assertThat(evaluator.intersects(box1, box2)).isTrue();
@@ -178,12 +178,12 @@ public class TestGeospatialPredicateEvaluators {
     // First box wraps around antimeridian (min.x > max.x), second doesn't
     GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Box that overlaps with the part after the wrap around
     GeospatialBound min2 = GeospatialBound.createXY(-175.0, 5.0);
     GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -191,7 +191,7 @@ public class TestGeospatialPredicateEvaluators {
     // Box that overlaps with the part before the wrap around
     GeospatialBound min3 = GeospatialBound.createXY(160.0, 5.0);
     GeospatialBound max3 = GeospatialBound.createXY(175.0, 15.0);
-    GeospatialBoundingBox box3 = new GeospatialBoundingBox(min3, max3);
+    BoundingBox box3 = new BoundingBox(min3, max3);
 
     assertThat(evaluator.intersects(box1, box3)).isTrue();
     assertThat(evaluator.intersects(box3, box1)).isTrue();
@@ -199,7 +199,7 @@ public class TestGeospatialPredicateEvaluators {
     // Box that doesn't overlap with either part
     GeospatialBound min4 = GeospatialBound.createXY(-150.0, 20.0);
     GeospatialBound max4 = GeospatialBound.createXY(-140.0, 30.0);
-    GeospatialBoundingBox box4 = new GeospatialBoundingBox(min4, max4);
+    BoundingBox box4 = new BoundingBox(min4, max4);
 
     assertThat(evaluator.intersects(box1, box4)).isFalse();
     assertThat(evaluator.intersects(box4, box1)).isFalse();
@@ -214,11 +214,11 @@ public class TestGeospatialPredicateEvaluators {
     // First box doesn't wrap around, second does (min.x > max.x)
     GeospatialBound min1 = GeospatialBound.createXY(-175.0, 5.0);
     GeospatialBound max1 = GeospatialBound.createXY(-160.0, 15.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max2 = GeospatialBound.createXY(-170.0, 10.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -233,11 +233,11 @@ public class TestGeospatialPredicateEvaluators {
     // Both boxes wrap around (min.x > max.x)
     GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(160.0, 5.0);
     GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     // When both wrap around, they must intersect
     assertThat(evaluator.intersects(box1, box2)).isTrue();
@@ -253,11 +253,11 @@ public class TestGeospatialPredicateEvaluators {
     // Two overlapping boxes
     GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     GeospatialBound min2 = GeospatialBound.createXY(5.0, 5.0);
     GeospatialBound max2 = GeospatialBound.createXY(15.0, 15.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -265,7 +265,7 @@ public class TestGeospatialPredicateEvaluators {
     // Non-overlapping boxes
     GeospatialBound min3 = GeospatialBound.createXY(20.0, 20.0);
     GeospatialBound max3 = GeospatialBound.createXY(30.0, 30.0);
-    GeospatialBoundingBox box3 = new GeospatialBoundingBox(min3, max3);
+    BoundingBox box3 = new BoundingBox(min3, max3);
 
     assertThat(evaluator.intersects(box1, box3)).isFalse();
     assertThat(evaluator.intersects(box3, box1)).isFalse();
@@ -273,11 +273,11 @@ public class TestGeospatialPredicateEvaluators {
     // Boxes at extreme valid latitudes
     GeospatialBound min4 = GeospatialBound.createXY(-10.0, -90.0);
     GeospatialBound max4 = GeospatialBound.createXY(10.0, -80.0);
-    GeospatialBoundingBox box4 = new GeospatialBoundingBox(min4, max4);
+    BoundingBox box4 = new BoundingBox(min4, max4);
 
     GeospatialBound min5 = GeospatialBound.createXY(-5.0, 80.0);
     GeospatialBound max5 = GeospatialBound.createXY(15.0, 90.0);
-    GeospatialBoundingBox box5 = new GeospatialBoundingBox(min5, max5);
+    BoundingBox box5 = new BoundingBox(min5, max5);
 
     assertThat(evaluator.intersects(box4, box5)).isFalse();
     assertThat(evaluator.intersects(box5, box4)).isFalse();
@@ -292,12 +292,12 @@ public class TestGeospatialPredicateEvaluators {
     // Box that wraps around the antimeridian
     GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Box that overlaps with the part after the wrap around
     GeospatialBound min2 = GeospatialBound.createXY(-175.0, 5.0);
     GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
@@ -312,16 +312,16 @@ public class TestGeospatialPredicateEvaluators {
     // Box with latitude below -90
     GeospatialBound min1 = GeospatialBound.createXY(0.0, -91.0);
     GeospatialBound max1 = GeospatialBound.createXY(10.0, 0.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Box with latitude above 90
     GeospatialBound min2 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max2 = GeospatialBound.createXY(10.0, 91.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     GeospatialBound validMin = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound validMax = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox validBox = new GeospatialBoundingBox(validMin, validMax);
+    BoundingBox validBox = new BoundingBox(validMin, validMax);
 
     assertThatThrownBy(() -> evaluator.intersects(box1, validBox))
         .isInstanceOf(IllegalArgumentException.class)
@@ -349,16 +349,16 @@ public class TestGeospatialPredicateEvaluators {
     // Box with longitude below -180
     GeospatialBound min1 = GeospatialBound.createXY(-181.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(0.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Box with longitude above 180
     GeospatialBound min2 = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound max2 = GeospatialBound.createXY(181.0, 10.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     GeospatialBound validMin = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound validMax = GeospatialBound.createXY(10.0, 10.0);
-    GeospatialBoundingBox validBox = new GeospatialBoundingBox(validMin, validMax);
+    BoundingBox validBox = new BoundingBox(validMin, validMax);
 
     assertThatThrownBy(() -> evaluator.intersects(box1, validBox))
         .isInstanceOf(IllegalArgumentException.class)
@@ -387,12 +387,12 @@ public class TestGeospatialPredicateEvaluators {
     // Box at -180 longitude
     GeospatialBound min1 = GeospatialBound.createXY(-180.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
-    GeospatialBoundingBox box1 = new GeospatialBoundingBox(min1, max1);
+    BoundingBox box1 = new BoundingBox(min1, max1);
 
     // Box at 180 longitude
     GeospatialBound min2 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max2 = GeospatialBound.createXY(180.0, 10.0);
-    GeospatialBoundingBox box2 = new GeospatialBoundingBox(min2, max2);
+    BoundingBox box2 = new BoundingBox(min2, max2);
 
     // These boxes should not intersect
     assertThat(evaluator.intersects(box1, box2)).isFalse();
@@ -401,7 +401,7 @@ public class TestGeospatialPredicateEvaluators {
     // Box that wraps around the antimeridian, touching -180 and 180
     GeospatialBound min3 = GeospatialBound.createXY(180.0, 0.0);
     GeospatialBound max3 = GeospatialBound.createXY(-180.0, 10.0);
-    GeospatialBoundingBox box3 = new GeospatialBoundingBox(min3, max3);
+    BoundingBox box3 = new BoundingBox(min3, max3);
 
     // This should intersect with both boxes at the extreme edges
     assertThat(evaluator.intersects(box1, box3)).isTrue();
@@ -425,6 +425,6 @@ public class TestGeospatialPredicateEvaluators {
 
     assertThatThrownBy(() -> GeospatialPredicateEvaluators.create(stringType))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Unsupported type for GeospatialBoundingBox");
+        .hasMessageContaining("Unsupported type for BoundingBox");
   }
 }

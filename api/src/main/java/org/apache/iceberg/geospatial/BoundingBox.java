@@ -29,31 +29,37 @@ import java.util.Objects;
  * minimum and maximum coordinates that define the box's corners. This provides a simple
  * approximation of a more complex geometry for efficient filtering and data skipping.
  */
-public class GeospatialBoundingBox implements Serializable, Comparable<GeospatialBoundingBox> {
-  public static final GeospatialBoundingBox SANITIZED =
-      new GeospatialBoundingBox(
-          GeospatialBound.createXY(Double.NaN, Double.NaN),
-          GeospatialBound.createXY(Double.NaN, Double.NaN));
-
-  private final GeospatialBound min;
-  private final GeospatialBound max;
-
+public class BoundingBox implements Serializable, Comparable<BoundingBox> {
   /**
-   * Create a {@link GeospatialBoundingBox} object from buffers containing min and max bounds
+   * Create a {@link BoundingBox} object from buffers containing min and max bounds
    *
    * @param min the serialized minimum bound
    * @param max the serialized maximum bound
-   * @return a GeospatialBoundingBox instance
+   * @return a BoundingBox instance
    */
-  public static GeospatialBoundingBox fromByteBuffers(ByteBuffer min, ByteBuffer max) {
-    return new GeospatialBoundingBox(
+  public static BoundingBox fromByteBuffers(ByteBuffer min, ByteBuffer max) {
+    return new BoundingBox(
         GeospatialBound.fromByteBuffer(min), GeospatialBound.fromByteBuffer(max));
   }
 
-  public GeospatialBoundingBox(GeospatialBound min, GeospatialBound max) {
+  /**
+   * Create an empty bounding box
+   *
+   * @return an empty bounding box
+   */
+  public static BoundingBox empty() {
+    return new BoundingBox(
+        GeospatialBound.createXY(Double.NaN, Double.NaN),
+        GeospatialBound.createXY(Double.NaN, Double.NaN));
+  }
+
+  public BoundingBox(GeospatialBound min, GeospatialBound max) {
     this.min = min;
     this.max = max;
   }
+
+  private final GeospatialBound min;
+  private final GeospatialBound max;
 
   /**
    * Get the minimum corner of the bounding box.
@@ -77,11 +83,11 @@ public class GeospatialBoundingBox implements Serializable, Comparable<Geospatia
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    } else if (!(other instanceof GeospatialBoundingBox)) {
+    } else if (!(other instanceof BoundingBox)) {
       return false;
     }
 
-    GeospatialBoundingBox that = (GeospatialBoundingBox) other;
+    BoundingBox that = (BoundingBox) other;
     return Objects.equals(min, that.min) && Objects.equals(max, that.max);
   }
 
@@ -92,15 +98,11 @@ public class GeospatialBoundingBox implements Serializable, Comparable<Geospatia
 
   @Override
   public String toString() {
-    if (SANITIZED.equals(this)) {
-      return "BoundingBox{sanitized}";
-    }
-
     return "BoundingBox{min=" + min.simpleString() + ", max=" + max.simpleString() + '}';
   }
 
   @Override
-  public int compareTo(GeospatialBoundingBox other) {
+  public int compareTo(BoundingBox other) {
     int minComparison = min.compareTo(other.min);
     if (minComparison != 0) {
       return minComparison;

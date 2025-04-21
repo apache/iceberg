@@ -31,8 +31,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -202,8 +202,7 @@ public class ExpressionParser {
                 gen.writeFieldName(VALUE);
                 Literal<ByteBuffer> min = pred.literals().get(0).to(Types.BinaryType.get());
                 Literal<ByteBuffer> max = pred.literals().get(1).to(Types.BinaryType.get());
-                GeospatialBoundingBox bbox =
-                    GeospatialBoundingBox.fromByteBuffers(min.value(), max.value());
+                BoundingBox bbox = BoundingBox.fromByteBuffers(min.value(), max.value());
                 geospatialBoundingBox(bbox);
               } else {
                 gen.writeFieldName(VALUE);
@@ -242,7 +241,7 @@ public class ExpressionParser {
       }
     }
 
-    private void geospatialBoundingBox(GeospatialBoundingBox value) throws IOException {
+    private void geospatialBoundingBox(BoundingBox value) throws IOException {
       gen.writeStartObject();
 
       // Write x coordinate
@@ -433,8 +432,8 @@ public class ExpressionParser {
     Preconditions.checkArgument(node.has(VALUE), "Cannot parse %s predicate: missing value", op);
     Preconditions.checkArgument(
         !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
-    GeospatialBoundingBox geospatialBoundingBox = geospatialBoundingBox(JsonUtil.get(VALUE, node));
-    return Expressions.geospatialPredicate(op, term, geospatialBoundingBox);
+    BoundingBox boundingBox = geospatialBoundingBox(JsonUtil.get(VALUE, node));
+    return Expressions.geospatialPredicate(op, term, boundingBox);
   }
 
   private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {
@@ -449,7 +448,7 @@ public class ExpressionParser {
     return toValue.apply(valueNode);
   }
 
-  private static GeospatialBoundingBox geospatialBoundingBox(JsonNode valueNode) {
+  private static BoundingBox geospatialBoundingBox(JsonNode valueNode) {
     // X and Y coordinates are required
     double xMin = valueNode.get("x").get("min").asDouble();
     double xMax = valueNode.get("x").get("max").asDouble();
@@ -491,7 +490,7 @@ public class ExpressionParser {
       maxBound = GeospatialBound.createXY(xMax, yMax);
     }
 
-    return new GeospatialBoundingBox(minBound, maxBound);
+    return new BoundingBox(minBound, maxBound);
   }
 
   private static Object asObject(JsonNode node) {

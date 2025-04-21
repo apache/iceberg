@@ -40,8 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
@@ -431,7 +431,7 @@ public class TestExpressionBinding {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     Expression expr =
         Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "point", bbox);
@@ -451,7 +451,7 @@ public class TestExpressionBinding {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     Expression expr =
         Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geography", bbox);
@@ -471,7 +471,7 @@ public class TestExpressionBinding {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     // Test with a field that doesn't exist
     Expression expr =

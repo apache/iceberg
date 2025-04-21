@@ -53,37 +53,47 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    * (2 doubles): x and y only - 24 bytes (3 doubles): x, y, and z - 32 bytes (4 doubles): x, y, z
    * (might be NaN), and m
    *
+   * <p>The ordinates are encoded as 8-byte little-endian IEEE 754 values.
+   *
    * @param buffer the ByteBuffer containing the serialized geospatial bound
    * @return a GeospatialBound object representing the parsed bound
    * @throws IllegalArgumentException if the buffer has an invalid size
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
-    // Create a duplicate to avoid modifying the original buffer's position and byte order
-    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    // Save original position and byte order to restore them later
+    int originalPosition = buffer.position();
+    ByteOrder originalOrder = buffer.order();
 
-    int size = tmp.remaining();
+    try {
+      buffer.order(ByteOrder.LITTLE_ENDIAN);
+      int size = buffer.remaining();
 
-    if (size == 2 * Double.BYTES) {
-      // x:y format (2 doubles)
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      return createXY(coordX, coordY);
-    } else if (size == 3 * Double.BYTES) {
-      // x:y:z format (3 doubles)
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      double coordZ = tmp.getDouble();
-      return createXYZ(coordX, coordY, coordZ);
-    } else if (size == 4 * Double.BYTES) {
-      // x:y:z:m format (4 doubles) - z might be NaN
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      double coordZ = tmp.getDouble();
-      double coordM = tmp.getDouble();
-      return new GeospatialBound(coordX, coordY, coordZ, coordM);
-    } else {
-      throw new IllegalArgumentException(
-          "Invalid buffer size for GeospatialBound: expected 16, 24, or 32 bytes, got " + size);
+      if (size == 2 * Double.BYTES) {
+        // x:y format (2 doubles)
+        double coordX = buffer.getDouble();
+        double coordY = buffer.getDouble();
+        return createXY(coordX, coordY);
+      } else if (size == 3 * Double.BYTES) {
+        // x:y:z format (3 doubles)
+        double coordX = buffer.getDouble();
+        double coordY = buffer.getDouble();
+        double coordZ = buffer.getDouble();
+        return createXYZ(coordX, coordY, coordZ);
+      } else if (size == 4 * Double.BYTES) {
+        // x:y:z:m format (4 doubles) - z might be NaN
+        double coordX = buffer.getDouble();
+        double coordY = buffer.getDouble();
+        double coordZ = buffer.getDouble();
+        double coordM = buffer.getDouble();
+        return new GeospatialBound(coordX, coordY, coordZ, coordM);
+      } else {
+        throw new IllegalArgumentException(
+            "Invalid buffer size for GeospatialBound: expected 16, 24, or 32 bytes, got " + size);
+      }
+    } finally {
+      // Restore original position and byte order
+      buffer.position(originalPosition);
+      buffer.order(originalOrder);
     }
   }
 

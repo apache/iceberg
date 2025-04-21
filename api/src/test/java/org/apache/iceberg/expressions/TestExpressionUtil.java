@@ -34,8 +34,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -1332,17 +1332,17 @@ public class TestExpressionUtil {
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    GeospatialBoundingBox bbox = new GeospatialBoundingBox(min, max);
+    BoundingBox bbox = new BoundingBox(min, max);
 
     UnboundPredicate<ByteBuffer> geoPredicate =
         Expressions.geospatialPredicate(operation, columnName, bbox);
     Expression predicateSanitized =
-        Expressions.geospatialPredicate(operation, columnName, GeospatialBoundingBox.SANITIZED);
+        Expressions.geospatialPredicate(operation, columnName, BoundingBox.empty());
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoStruct, geoPredicate, true));
 
     String opString = operation.name();
-    String expectedSanitizedString = columnName + " " + opString + " WITH BoundingBox{sanitized}";
+    String expectedSanitizedString = columnName + " " + opString + " WITH (bounding-box)";
 
     assertThat(ExpressionUtil.toSanitizedString(geoPredicate))
         .as("Sanitized string should be identical for geospatial predicates")

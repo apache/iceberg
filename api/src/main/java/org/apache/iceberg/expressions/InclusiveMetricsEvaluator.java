@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialPredicateEvaluators;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
@@ -474,7 +474,7 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean stIntersects(Bound<T> term, Literal<GeospatialBoundingBox> lit) {
+    public <T> Boolean stIntersects(Bound<T> term, Literal<BoundingBox> lit) {
       T lower = lowerBound(term);
       T upper = upperBound(term);
 
@@ -483,9 +483,8 @@ public class InclusiveMetricsEvaluator {
       }
 
       if (lit.value() != null && lower instanceof ByteBuffer && upper instanceof ByteBuffer) {
-        GeospatialBoundingBox dataBox =
-            GeospatialBoundingBox.fromByteBuffers((ByteBuffer) lower, (ByteBuffer) upper);
-        GeospatialBoundingBox queryBox = lit.value();
+        BoundingBox dataBox = BoundingBox.fromByteBuffers((ByteBuffer) lower, (ByteBuffer) upper);
+        BoundingBox queryBox = lit.value();
 
         // If the data box and query box doesn't intersect, no records can match
         GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
@@ -499,7 +498,7 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean stDisjoint(Bound<T> term, Literal<GeospatialBoundingBox> lit) {
+    public <T> Boolean stDisjoint(Bound<T> term, Literal<BoundingBox> lit) {
       return ROWS_MIGHT_MATCH;
     }
 

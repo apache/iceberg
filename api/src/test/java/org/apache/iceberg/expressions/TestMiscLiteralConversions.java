@@ -25,8 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -380,8 +380,7 @@ public class TestMiscLiteralConversions {
   public void testInvalidGeospatialBoundingBoxConversions() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    Literal<GeospatialBoundingBox> geoBoundingBoxLiteral =
-        Literal.of(new GeospatialBoundingBox(min, max));
+    Literal<BoundingBox> geoBoundingBoxLiteral = Literal.of(new BoundingBox(min, max));
 
     // Test that geospatial bounding box literals cannot be converted to other types
     testInvalidConversions(

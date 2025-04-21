@@ -32,7 +32,7 @@ public class GeospatialPredicateEvaluators {
      * @param bbox2 the second bounding box
      * @return true if this box intersects the other box
      */
-    boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2);
+    boolean intersects(BoundingBox bbox1, BoundingBox bbox2);
   }
 
   public static GeospatialPredicateEvaluator create(Type type) {
@@ -42,19 +42,40 @@ public class GeospatialPredicateEvaluators {
       case GEOGRAPHY:
         return new GeographyEvaluator();
       default:
-        throw new UnsupportedOperationException(
-            "Unsupported type for GeospatialBoundingBox: " + type);
+        throw new UnsupportedOperationException("Unsupported type for BoundingBox: " + type);
     }
   }
 
   static class GeometryEvaluator implements GeospatialPredicateEvaluator {
     @Override
-    public boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
+    public boolean intersects(BoundingBox bbox1, BoundingBox bbox2) {
       return intersectsWithWrapAround(bbox1, bbox2);
     }
 
-    static boolean intersectsWithWrapAround(
-        GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
+    /**
+     * Check if two bounding boxes intersect, taking wrap-around into account.
+     *
+     * <p>Wraparound (or antimeridian crossing) occurs when a geography crosses the 180°/-180°
+     * longitude line on a map. In these cases, the minimum X value is greater than the maximum X
+     * value (xmin > xmax). This represents a bounding box that wraps around the globe.
+     *
+     * <p>For example, a bounding box with xmin=170° and xmax=-170° represents an area that spans
+     * from 170° east to 190° east (or equivalently, -170° west). This is important for geometries
+     * that cross the antimeridian, like a path from Japan to Alaska.
+     *
+     * <p>When xmin > xmax, a point matches if its X coordinate is either X ≥ xmin OR X ≤ xmax,
+     * rather than the usual X ≥ xmin AND X ≤ xmax. In geographic terms, if the westernmost
+     * longitude is greater than the easternmost longitude, this indicates an antimeridian crossing.
+     *
+     * <p>The Iceberg specification does not explicitly rule out the use of wrap-around in bounding
+     * boxes for geometry types, so we handle wrap-around for both geography and geometry bounding
+     * boxes.
+     *
+     * @param bbox1 the first bounding box
+     * @param bbox2 the second bounding box
+     * @return true if the bounding boxes intersect
+     */
+    static boolean intersectsWithWrapAround(BoundingBox bbox1, BoundingBox bbox2) {
       // Let's check y first, and if y does not intersect, we can return false
       if (bbox1.min().y() > bbox2.max().y() || bbox1.max().y() < bbox2.min().y()) {
         return false;
@@ -79,13 +100,20 @@ public class GeospatialPredicateEvaluators {
 
   static class GeographyEvaluator implements GeospatialPredicateEvaluator {
     @Override
-    public boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
+    public boolean intersects(BoundingBox bbox1, BoundingBox bbox2) {
       validateBoundingBox(bbox1);
       validateBoundingBox(bbox2);
       return GeometryEvaluator.intersectsWithWrapAround(bbox1, bbox2);
     }
 
-    private void validateBoundingBox(GeospatialBoundingBox bbox) {
+    /**
+     * For geography types, coordinates are restricted to the canonical ranges of [-180°, 180°] for
+     * longitude (X) and [-90°, 90°] for latitude (Y).
+     *
+     * @param bbox the bounding box to validate
+     * @throws IllegalArgumentException if the bounding box is invalid
+     */
+    private void validateBoundingBox(BoundingBox bbox) {
       Preconditions.checkArgument(
           bbox.min().y() >= -90 && bbox.max().y() <= 90, "Latitude out of range: %s", bbox);
       Preconditions.checkArgument(

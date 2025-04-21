@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -282,7 +282,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return new BoundGeospatialPredicate(
         op(),
         (BoundTerm<ByteBuffer>) boundTerm,
-        Literals.from(GeospatialBoundingBox.fromByteBuffers(min.value(), max.value())));
+        Literals.from(BoundingBox.fromByteBuffers(min.value(), max.value())));
   }
 
   @Override
@@ -319,7 +319,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         String opName = op() == Operation.ST_INTERSECTS ? " stIntersects " : " stDisjoint ";
         return term()
             + opName
-            + GeospatialBoundingBox.fromByteBuffers(minLiteral.value(), maxLiteral.value());
+            + BoundingBox.fromByteBuffers(minLiteral.value(), maxLiteral.value());
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

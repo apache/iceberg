@@ -46,8 +46,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -737,7 +737,7 @@ public class TestStrictMetricsEvaluator {
                 geospatialPredicate(
                     operation,
                     columnName,
-                    new GeospatialBoundingBox(
+                    new BoundingBox(
                         GeospatialBound.createXY(1, 2), GeospatialBound.createXY(2, 3))))
             .eval(FILE_4);
     assertThat(shouldRead).as("Geospatial predicate should never match").isFalse();

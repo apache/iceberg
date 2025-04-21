@@ -35,7 +35,7 @@ import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -323,7 +323,7 @@ public class ExpressionUtil {
       } else if (pred.isGeospatialPredicate()) {
         BoundGeospatialPredicate bound = (BoundGeospatialPredicate) pred;
         return Expressions.geospatialPredicate(
-            pred.op(), unbind(bound.term()), GeospatialBoundingBox.SANITIZED);
+            pred.op(), unbind(bound.term()), BoundingBox.empty());
       }
 
       throw new UnsupportedOperationException("Cannot sanitize bound predicate type: " + pred.op());
@@ -352,7 +352,7 @@ public class ExpressionUtil {
         case ST_INTERSECTS:
         case ST_DISJOINT:
           return Expressions.geospatialPredicate(
-              pred.op(), (UnboundTerm<ByteBuffer>) pred.term(), GeospatialBoundingBox.SANITIZED);
+              pred.op(), (UnboundTerm<ByteBuffer>) pred.term(), BoundingBox.empty());
         case IN:
         case NOT_IN:
           Iterable<T> iter =
@@ -504,9 +504,9 @@ public class ExpressionUtil {
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case ST_INTERSECTS:
-          return term + " ST_INTERSECTS WITH " + GeospatialBoundingBox.SANITIZED;
+          return term + " ST_INTERSECTS WITH (bounding-box)";
         case ST_DISJOINT:
-          return term + " ST_DISJOINT WITH " + GeospatialBoundingBox.SANITIZED;
+          return term + " ST_DISJOINT WITH (bounding-box)";
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());

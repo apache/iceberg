@@ -24,8 +24,8 @@ import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
-import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -69,20 +69,20 @@ public class TestExpressionSerialization {
           Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
           Expressions.stIntersects(
               "point",
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0))),
           Expressions.stDisjoint(
               "geography",
-              new GeospatialBoundingBox(
+              new BoundingBox(
                   GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0))),
           Expressions.stIntersects(
                   "point",
-                  new GeospatialBoundingBox(
+                  new BoundingBox(
                       GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)))
               .bind(schema.asStruct()),
           Expressions.stDisjoint(
                   "geography",
-                  new GeospatialBoundingBox(
+                  new BoundingBox(
                       GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0)))
               .bind(schema.asStruct())
         };
