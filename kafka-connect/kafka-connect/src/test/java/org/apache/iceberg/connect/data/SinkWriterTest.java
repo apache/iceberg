@@ -281,7 +281,8 @@ public class SinkWriterTest {
             now.toEpochMilli(),
             TimestampType.LOG_APPEND_TIME);
     rec.headers().addBytes("MappedTable", "tableNameFromMap".getBytes(StandardCharsets.UTF_8));
-    rec.headers().addBytes("tableName", TABLE_IDENTIFIER.toString().getBytes(StandardCharsets.UTF_8));
+    rec.headers()
+        .addBytes("tableName", TABLE_IDENTIFIER.toString().getBytes(StandardCharsets.UTF_8));
     sinkWriter.save(ImmutableList.of(rec));
 
     SinkWriterResult result = sinkWriter.completeWrite();
