@@ -428,9 +428,21 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
+            long fileRecords = task.file().recordCount();
+
+            // WARN if a single file’s record count exceeds the configured maxRecordsPerMicroBatch
+            if (fileRecords > maxRecordsPerMicroBatch) {
+              LOG.warn(
+                  "File {} has {} records, which exceeds maxRecordsPerMicroBatch {}. "
+                      + "This file will never fit into any micro-batch.",
+                  task.file().location(),
+                  fileRecords,
+                  maxRecordsPerMicroBatch);
+            }
+
             if (curPos >= startPosOfSnapOffset) {
               long nextFilesCount = curFilesAdded + 1;
-              long nextRecordsCount = curRecordCount + task.file().recordCount();
+              long nextRecordsCount = curRecordCount + fileRecords;
               if (nextFilesCount > maxFilesPerMicroBatch
                   || nextRecordsCount > maxRecordsPerMicroBatch) {
                 LOG.debug(
