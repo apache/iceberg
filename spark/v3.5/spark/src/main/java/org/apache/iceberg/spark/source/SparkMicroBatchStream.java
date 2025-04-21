@@ -395,6 +395,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
     int curRecordCount = 0;
+
+    // Start curPos at the incoming offset’s position so file indexing is correct
+    // when resuming mid‐snapshot. This ensures the first file processed is at or after
+    // startPosOfSnapOffset.
     int curPos = startPosOfSnapOffset;
 
     while (shouldContinueReading) {
