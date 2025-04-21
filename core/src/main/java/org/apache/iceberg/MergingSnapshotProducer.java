@@ -323,10 +323,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
+      Preconditions.checkArgument(
+          manifest.firstRowId() == null,
+          "Cannot append manifest with assigned first_row_id: %s",
+          manifest.firstRowId());
       appendedManifestsSummary.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and null first_row_ids
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
     }

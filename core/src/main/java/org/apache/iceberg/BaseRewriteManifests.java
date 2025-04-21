@@ -141,6 +141,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
 
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
+      Preconditions.checkArgument(
+          manifest.firstRowId() == null,
+          "Cannot append manifest with assigned first_row_id: %s",
+          manifest.firstRowId());
       addedManifests.add(manifest);
     } else {
       // the manifest must be rewritten with this update's snapshot ID
