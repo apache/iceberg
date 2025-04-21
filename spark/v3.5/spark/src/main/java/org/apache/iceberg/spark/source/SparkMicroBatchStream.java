@@ -178,7 +178,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     List<FileScanTask> fileScanTasks = planFiles(startOffset, endOffset);
     FileScanTaskSummary taskSummary = new FileScanTaskSummary(fileScanTasks);
     LOG.debug(
-        "Spark micro‑batch 'planFiles' generated {} scan tasks ({} files, {} bytes); summary computed in {} ms",
+        "Spark micro-batch 'planFiles' generated {} scan tasks ({} files, {} bytes); summary computed in {} ms",
         fileScanTasks.size(),
         taskSummary.getTotalFiles(),
         taskSummary.getTotalSizeBytes(),
@@ -191,7 +191,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
             TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
 
     LOG.info(
-        "Spark micro‑batch 'split' produced {} combined scan tasks (splitSize={}, splitLookback={}, splitOpenFileCost={})",
+        "Spark micro-batch 'split' produced {} combined scan tasks (splitSize={}, splitLookback={}, splitOpenFileCost={})",
         combinedScanTasks.size(),
         splitSize,
         splitLookback,
