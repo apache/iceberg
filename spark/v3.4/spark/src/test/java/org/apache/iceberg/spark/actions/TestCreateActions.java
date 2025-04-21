@@ -534,11 +534,7 @@ public class TestCreateActions extends CatalogTestBase {
     expectedProps.putAll(props);
     expectedProps.put("dogs", "sundance");
 
-    for (Map.Entry<String, String> entry : expectedProps.entrySet()) {
-      assertThat(table.properties())
-          .as("Property value is not the expected value")
-          .containsEntry(entry.getKey(), entry.getValue());
-    }
+    assertThat(table.properties()).containsAllEntriesOf(expectedProps);
   }
 
   @TestTemplate
@@ -556,11 +552,9 @@ public class TestCreateActions extends CatalogTestBase {
 
     String[] keys = {"provider", "format", "current-snapshot-id", "location", "sort-order"};
 
-    for (String entry : keys) {
-      assertThat(table.properties())
-          .as("Created table missing reserved property " + entry)
-          .containsKey(entry);
-    }
+    assertThat(table.properties())
+        .as("Created table missing reserved properties")
+        .containsKeys(keys);
 
     assertThat(table.properties())
         .containsEntry("provider", "iceberg")
