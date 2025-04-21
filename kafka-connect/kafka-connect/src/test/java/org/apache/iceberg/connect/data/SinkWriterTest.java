@@ -26,18 +26,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.connect.data.routers.AllTableRecordRouter;
+import org.apache.iceberg.connect.data.routers.DynamicRecordRouter;
+import org.apache.iceberg.connect.data.routers.HeaderRecordRouter;
+import org.apache.iceberg.connect.data.routers.RouterConstants;
+import org.apache.iceberg.connect.data.routers.StaticRecordRouter;
+import org.apache.iceberg.connect.data.routers.TopicRecordRouter;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -85,7 +91,10 @@ public class SinkWriterTest {
   public void testDefaultRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    AllTableRecordRouter allTableRecordRouter = new AllTableRecordRouter();
+    allTableRecordRouter.configure(ImmutableMap.of("iceberg.tables", TABLE_IDENTIFIER.toString()));
+
+    when(config.recordRouter()).thenReturn(allTableRecordRouter);
     Map<String, Object> value = ImmutableMap.of();
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
@@ -98,7 +107,9 @@ public class SinkWriterTest {
   public void testDefaultNoRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.tables()).thenReturn(ImmutableList.of());
+    AllTableRecordRouter allTableRecordRouter = new AllTableRecordRouter();
+    allTableRecordRouter.configure(ImmutableMap.of());
+    when(config.recordRouter()).thenReturn(allTableRecordRouter);
     Map<String, Object> value = ImmutableMap.of();
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
@@ -108,12 +119,20 @@ public class SinkWriterTest {
   @Test
   public void testStaticRoute() {
     TableSinkConfig tableConfig = mock(TableSinkConfig.class);
-    when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
 
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(tableConfig);
-    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    StaticRecordRouter staticRecordRouter = new StaticRecordRouter();
+    staticRecordRouter.configure(
+        ImmutableMap.of(
+            "iceberg.tables.route-field",
+            ROUTE_FIELD,
+            "iceberg.tables",
+            TABLE_IDENTIFIER.toString(),
+            "iceberg.table." + "tbl" + ".route-regex",
+            "val"));
+    when(config.recordRouter()).thenReturn(staticRecordRouter);
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "val");
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
@@ -125,12 +144,18 @@ public class SinkWriterTest {
   @Test
   public void testStaticNoRoute() {
     TableSinkConfig tableConfig = mock(TableSinkConfig.class);
-    when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
 
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(tableConfig);
-    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    StaticRecordRouter staticRecordRouter = new StaticRecordRouter();
+    staticRecordRouter.configure(
+        ImmutableMap.of(
+            "iceberg.tables.route-field",
+            ROUTE_FIELD,
+            "iceberg.tables",
+            TABLE_IDENTIFIER.toString()));
+    when(config.recordRouter()).thenReturn(staticRecordRouter);
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "foobar");
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
@@ -140,10 +165,11 @@ public class SinkWriterTest {
   @Test
   public void testDynamicRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.dynamicTablesEnabled()).thenReturn(true);
-    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    DynamicRecordRouter dynamicRecordRouter = new DynamicRecordRouter();
+    dynamicRecordRouter.configure(ImmutableMap.of("iceberg.tables.route-field", ROUTE_FIELD));
+    when(config.recordRouter()).thenReturn(dynamicRecordRouter);
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString());
 
@@ -156,15 +182,73 @@ public class SinkWriterTest {
   @Test
   public void testDynamicNoRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.dynamicTablesEnabled()).thenReturn(true);
-    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    DynamicRecordRouter dynamicRecordRouter = new DynamicRecordRouter();
+    dynamicRecordRouter.configure(ImmutableMap.of("iceberg.tables.route-field", ROUTE_FIELD));
+    when(config.recordRouter()).thenReturn(dynamicRecordRouter);
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "db.foobar");
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults.size()).isEqualTo(0);
+  }
+
+  @Test
+  public void testHeaderRouteOnHeaderValue() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+
+    HeaderRecordRouter headerRecordRouter = new HeaderRecordRouter();
+    headerRecordRouter.configure(ImmutableMap.of(RouterConstants.HEADER_ROUTE_KEYS, "tableName"));
+    when(config.recordRouter()).thenReturn(headerRecordRouter);
+
+    Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString());
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  public void testHeaderRouteOnTableMapping() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+
+    HeaderRecordRouter headerRecordRouter = new HeaderRecordRouter();
+    headerRecordRouter.configure(
+        ImmutableMap.of(
+            RouterConstants.HEADER_ROUTE_KEYS,
+            "MappedTable",
+            RouterConstants.TABLE_MAPPING,
+            "tableNameFromMap:" + TABLE_IDENTIFIER));
+    when(config.recordRouter()).thenReturn(headerRecordRouter);
+
+    Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString());
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  public void testTopicRoute() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+
+    TopicRecordRouter topicRecordRouter = new TopicRecordRouter();
+    topicRecordRouter.configure(
+        ImmutableMap.of(RouterConstants.TABLE_MAPPING, "topic:" + TABLE_IDENTIFIER));
+    when(config.recordRouter()).thenReturn(topicRecordRouter);
+
+    Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString());
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   private List<IcebergWriterResult> sinkWriterTest(
@@ -196,6 +280,8 @@ public class SinkWriterTest {
             100L,
             now.toEpochMilli(),
             TimestampType.LOG_APPEND_TIME);
+    rec.headers().addBytes("MappedTable", "tableNameFromMap".getBytes(StandardCharsets.UTF_8));
+    rec.headers().addBytes("tableName", TABLE_IDENTIFIER.toString().getBytes(StandardCharsets.UTF_8));
     sinkWriter.save(ImmutableList.of(rec));
 
     SinkWriterResult result = sinkWriter.completeWrite();

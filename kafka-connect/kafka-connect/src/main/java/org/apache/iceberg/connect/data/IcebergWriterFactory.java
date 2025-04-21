@@ -101,6 +101,7 @@ class IcebergWriterFactory {
       spec = PartitionSpec.unpartitioned();
     }
 
+    String tableLocation = config.tableConfig(tableName).location();
     PartitionSpec partitionSpec = spec;
     AtomicReference<Table> result = new AtomicReference<>();
     Tasks.range(1)
@@ -109,8 +110,15 @@ class IcebergWriterFactory {
             notUsed -> {
               try {
                 result.set(
-                    catalog.createTable(
-                        identifier, schema, partitionSpec, config.autoCreateProps()));
+                    null == tableLocation || tableLocation.isBlank()
+                        ? catalog.createTable(
+                            identifier, schema, partitionSpec, config.autoCreateProps())
+                        : catalog.createTable(
+                            identifier,
+                            schema,
+                            partitionSpec,
+                            tableLocation,
+                            config.autoCreateProps()));
               } catch (AlreadyExistsException e) {
                 result.set(catalog.loadTable(identifier));
               }

@@ -23,28 +23,26 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.connect.RecordRouter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 public class SinkWriter {
-  private final IcebergSinkConfig config;
   private final IcebergWriterFactory writerFactory;
   private final Map<String, RecordWriter> writers;
   private final Map<TopicPartition, Offset> sourceOffsets;
+  private final RecordRouter recordRouter;
 
   public SinkWriter(Catalog catalog, IcebergSinkConfig config) {
-    this.config = config;
     this.writerFactory = new IcebergWriterFactory(catalog, config);
     this.writers = Maps.newHashMap();
     this.sourceOffsets = Maps.newHashMap();
+    this.recordRouter = config.recordRouter();
   }
 
   public void close() {
@@ -79,58 +77,11 @@ public class SinkWriter {
         new TopicPartition(record.topic(), record.kafkaPartition()),
         new Offset(record.kafkaOffset() + 1, timestamp));
 
-    if (config.dynamicTablesEnabled()) {
-      routeRecordDynamically(record);
-    } else {
-      routeRecordStatically(record);
-    }
-  }
-
-  private void routeRecordStatically(SinkRecord record) {
-    String routeField = config.tablesRouteField();
-
-    if (routeField == null) {
-      // route to all tables
-      config
-          .tables()
-          .forEach(
-              tableName -> {
-                writerForTable(tableName, record, false).write(record);
-              });
-
-    } else {
-      String routeValue = extractRouteValue(record.value(), routeField);
-      if (routeValue != null) {
-        config
-            .tables()
-            .forEach(
-                tableName -> {
-                  Pattern regex = config.tableConfig(tableName).routeRegex();
-                  if (regex != null && regex.matcher(routeValue).matches()) {
-                    writerForTable(tableName, record, false).write(record);
-                  }
-                });
-      }
-    }
-  }
-
-  private void routeRecordDynamically(SinkRecord record) {
-    String routeField = config.tablesRouteField();
-    Preconditions.checkNotNull(routeField, "Route field cannot be null with dynamic routing");
-
-    String routeValue = extractRouteValue(record.value(), routeField);
-    if (routeValue != null) {
-      String tableName = routeValue.toLowerCase(Locale.ROOT);
-      writerForTable(tableName, record, true).write(record);
-    }
-  }
-
-  private String extractRouteValue(Object recordValue, String routeField) {
-    if (recordValue == null) {
-      return null;
-    }
-    Object routeValue = RecordUtils.extractFromRecordValue(recordValue, routeField);
-    return routeValue == null ? null : routeValue.toString();
+    recordRouter
+        .tables(record)
+        .forEach(
+            tableName ->
+                writerForTable(tableName, record, recordRouter.ignoreMissingTable()).write(record));
   }
 
   private RecordWriter writerForTable(
