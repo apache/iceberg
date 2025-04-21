@@ -150,6 +150,7 @@ class Delegates {
     }
   }
 
+  @SuppressWarnings("VisibilityModifier")
   static class DelegatingContentFile<F extends ContentFile<F>> implements ContentFile<F> {
     protected ContentFile<F> wrapped;
 
