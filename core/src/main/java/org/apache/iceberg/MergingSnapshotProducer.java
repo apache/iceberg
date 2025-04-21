@@ -237,23 +237,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
-    if (dataFiles.add(prepareDataFile(file))) {
+    if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
-  }
-
-  private DataFile prepareDataFile(DataFile file) {
-    if (null == file.firstRowId()) {
-      return file;
-    }
-
-    return new DelegatingDataFile(file) {
-      @Override
-      public Long firstRowId() {
-        return null;
-      }
-    };
   }
 
   private PartitionSpec spec(int specId) {
@@ -262,17 +249,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file));
+    addInternal(Delegates.pendingDeleteFile(file, null));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file, dataSequenceNumber));
+    addInternal(Delegates.pendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(PendingDeleteFile file) {
+  private void addInternal(DeleteFile file) {
+    validateNewDeleteFile(file);
     PartitionSpec spec = spec(file.specId());
     Preconditions.checkArgument(
         spec != null,

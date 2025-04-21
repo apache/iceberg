@@ -450,7 +450,7 @@ public class TestManifestWriterVersions {
     String filename = FileFormat.AVRO.addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.newWriter(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID);
     try {
       for (DataFile file : files) {
         writer.add(file);

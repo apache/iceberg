@@ -194,7 +194,8 @@ public class ManifestFiles {
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
-  private static ManifestWriter<DataFile> newWriter(
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
       int formatVersion,
       PartitionSpec spec,
       EncryptedOutputFile encryptedOutputFile,
