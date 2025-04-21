@@ -52,7 +52,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @param file a data file
    * @return this for method chaining
    */
-  RowDelta deleteFile(DataFile file);
+  default RowDelta deleteFile(DataFile file) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement deleteFile");
+  }
 
   /**
    * Removes a rewritten {@link DeleteFile} from the table.
