@@ -47,6 +47,14 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   RowDelta addDeletes(DeleteFile deletes);
 
   /**
+   * Delete a {@link DataFile} from the table.
+   *
+   * @param file a data file
+   * @return this for method chaining
+   */
+  RowDelta deleteFile(DataFile file);
+
+  /**
    * Removes a rewritten {@link DeleteFile} from the table.
    *
    * @param deletes a delete file that can be removed from the table

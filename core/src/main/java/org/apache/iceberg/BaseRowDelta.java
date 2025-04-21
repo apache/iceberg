@@ -22,11 +22,13 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
+  private final DataFileSet deletedDataFiles = DataFileSet.create();
   private boolean validateDeletes = false;
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
@@ -59,6 +61,13 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   @Override
   public RowDelta addDeletes(DeleteFile deletes) {
     add(deletes);
+    return this;
+  }
+
+  @Override
+  public RowDelta deleteFile(DataFile file) {
+    deletedDataFiles.add(file);
+    delete(file);
     return this;
   }
 
@@ -138,6 +147,11 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
       if (validateNewDeleteFiles) {
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+      }
+
+      if (!deletedDataFiles.isEmpty()) {
+        validateNoNewDeletesForDataFiles(
+            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
       }
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
