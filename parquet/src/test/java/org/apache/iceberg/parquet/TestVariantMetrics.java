@@ -62,7 +62,7 @@ public class TestVariantMetrics {
 
   private static final VariantMetadata EMPTY = Variants.emptyMetadata();
 
-  private static final String ROOT_FIELD = "";
+  private static final String ROOT_FIELD = "$";
 
   private static final VariantValue[] PRIMITIVES =
       new VariantValue[] {
@@ -304,12 +304,12 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    VariantMetadata boundMetadata = Variants.metadata("a", "b", "c", "d.e");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']", "$['c']", "$['d']['e']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("b", num);
-    expectedBounds.put("c", str);
-    expectedBounds.put("d.e", dec);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
+    expectedBounds.put("$['c']", str);
+    expectedBounds.put("$['d']['e']", dec);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
@@ -362,10 +362,10 @@ public class TestVariantMetrics {
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
     // only a and b were shredded so the other fields are not present
-    VariantMetadata boundMetadata = Variants.metadata("a", "b");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("b", num);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
@@ -420,10 +420,10 @@ public class TestVariantMetrics {
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
     // only a and b were shredded so the other fields are not present
-    VariantMetadata boundMetadata = Variants.metadata("a", "d.e");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['d']['e']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("d.e", dec);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['d']['e']", dec);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
