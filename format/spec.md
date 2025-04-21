@@ -652,6 +652,22 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
+For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
+
+Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a "measurement" field that contains int64 and null values may have bounds, but if the field also contained a string value such as "n/a" or "0" then the field may not have bounds.
+
+The Variant bounds objects are serialized by concatenating the [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) of the metadata (containing the normalized field paths) and the bounds object.
+Field paths follow the JSON path format to use normalized path, such as `$['location']['latitude']` or `$['user.name']`. The special path `$` represents bounds for the variant root, indicating that the variant data consists of uniform primitive types, such as strings.
+
+Examples of valid field paths using normalized JSON path format are:
+
+* `$` -- the root of the Variant value
+* `$['event_type']` -- the `event_type` field in a Variant object
+* `$['user.name']` -- the `"user.name"` field in a Variant object
+* `$['location']['latitude']` -- the `latitude` field nested within a `location` object
+* `$['tags']` -- the `tags` array 
+* `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
+
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
@@ -1558,6 +1574,7 @@ The binary single-value serialization can be used to store the lower and upper b
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`geometry`**               | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
 | **`geography`**              | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
+| **`variant`**                | A serialized Variant of encoded v1 metadata concatenated with an encoded variant object. Object keys are normalized JSON paths to identify fields; values are lower or upper bound values. |
 
 ### JSON single-value serialization
 
