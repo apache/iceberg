@@ -255,10 +255,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           currentOffset = endOffset;
         }
       }
-      LOG.debug(
-          "Processing snapshot id={} position={}",
-          currentOffset.snapshotId(),
-          currentOffset.position());
 
       Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
       validateCurrentSnapshotExists(snapshot, currentOffset);
@@ -275,7 +271,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           currentOffset.snapshotId() == endOffset.snapshotId()
               ? endOffset.position()
               : addedFilesCount(snapshot);
-      LOG.debug("For snapshot id={}, endFileIndex={}", snapshot.snapshotId(), endFileIndex);
+
+      LOG.debug(
+          "Processing snapshot [id={}, startFileIndex={}, endFileIndex={}]",
+          currentOffset.snapshotId(),
+          currentOffset.position(),
+          endFileIndex);
 
       MicroBatch latestMicroBatch =
           MicroBatches.from(snapshot, table.io())
@@ -533,10 +534,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   public ReadLimit getDefaultReadLimit() {
     if (maxFilesPerMicroBatch != Integer.MAX_VALUE
         && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
-      return ReadLimit.compositeLimit(
-          new ReadLimit[] {
-            ReadLimit.maxFiles(maxFilesPerMicroBatch), ReadLimit.maxRows(maxRecordsPerMicroBatch)
-          });
+      ReadLimit[] readLimits = new ReadLimit[2];
+      readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
+      readLimits[1] = ReadLimit.maxRows(maxFilesPerMicroBatch);
+      return ReadLimit.compositeLimit(readLimits);
     } else if (maxFilesPerMicroBatch != Integer.MAX_VALUE) {
       return ReadLimit.maxFiles(maxFilesPerMicroBatch);
     } else if (maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
