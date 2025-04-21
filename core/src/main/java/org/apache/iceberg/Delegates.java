@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 
 class Delegates {
+  private Delegates() {}
+
   @SuppressWarnings("unchecked")
   static <F extends ContentFile<F>> F suppressFirstRowId(F file) {
     if (file instanceof DataFile && null != file.firstRowId()) {
