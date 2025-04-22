@@ -61,9 +61,6 @@ public class GCPProperties implements Serializable {
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
 
-  /** The BIGQUERY GCP location (https://cloud.google.com/bigquery/docs/locations). Required. */
-  public static final String BIGQUERY_LOCATION = "gcp-location";
-
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
