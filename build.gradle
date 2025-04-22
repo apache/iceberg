@@ -208,7 +208,8 @@ subprojects {
   }
 
   tasks.withType(Test).configureEach {
-    // Some tests verify the messages included in the stack traces
+    // JVM may stop outputting stack trace of the exception which often occurs.
+    // Disable the optimization because some tests depend on the stack trace.
     jvmArgs += '-XX:-OmitStackTraceInFastThrow'
   }
 
