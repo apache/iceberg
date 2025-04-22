@@ -234,7 +234,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
 
-    Map<String, String> createProps = ImmutableMap.of("prop", "val");
+    Map<String, String> createProps = Map.of("prop", "val");
     catalog.createNamespace(NS, createProps);
     assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
 
