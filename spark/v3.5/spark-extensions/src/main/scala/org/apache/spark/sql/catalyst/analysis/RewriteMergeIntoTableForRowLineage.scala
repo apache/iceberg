@@ -44,9 +44,14 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
         val matchedActions = mergeIntoTable.matchedActions
         val notMatchedBySourceActions = mergeIntoTable.notMatchedBySourceActions
         val rowLineageAttributes = findRowLineageAttributes(r.metadataOutput)
-        val rowId = rowLineageAttributes.filter(
+        // Treat row lineage columns as data columns by removing the metadata attribute
+        // This works around the logic in ExposesMetadataColumns,
+        // which prevents surfacing other metadata columns when a single metadata column is in the output
+        val rowLineageAsDataColumns = rowLineageAttributes.map(removeMetadataColumnAttribute)
+
+        val rowId = rowLineageAsDataColumns.filter(
           attr => attr.name == ROW_ID_ATTRIBUTE_NAME).head
-        val lastUpdatedSequence = rowLineageAttributes.filter(
+        val lastUpdatedSequence = rowLineageAsDataColumns.filter(
           attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
 
         val matchedAssignmentsForLineage = matchedActions.map {
@@ -64,12 +69,6 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
 
           case p => p
         }
-
-        // Treat row lineage columns as data columns by removing the metadata attribute
-        // This works around the logic in
-        // ExposesMetadataColumns, used later in metadata attribute resolution,
-        // which prevents surfacing other metadata columns when a single metadata column is in the output
-        val rowLineageAsDataColumns = rowLineageAttributes.map(removeMetadataColumnAttribute)
 
         val tableWithLineage = r.copy(output =
           r.output ++ rowLineageAsDataColumns)

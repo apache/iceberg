@@ -51,15 +51,15 @@ object RewriteUpdateTableForRowLineage extends RewriteOperationForRowLineage {
     EliminateSubqueryAliases(updateTable.table) match {
       case r @ DataSourceV2Relation(_: SupportsRowLevelOperations, _, _, _, _) =>
         val rowLineageAttributes = findRowLineageAttributes(updateTable.metadataOutput)
-        val lastUpdatedSequence = rowLineageAttributes.filter(
-          attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
-
-        val lineageAssignments = updateTable.assignments ++
-          Seq(Assignment(lastUpdatedSequence, Literal(null)))
-
         val rowLineageAsDataColumns = rowLineageAttributes.map(removeMetadataColumnAttribute)
-        val tableWithLineage = r.copy(output = r.output ++ rowLineageAsDataColumns)
+        val lastUpdatedSequence = rowLineageAsDataColumns.filter(
+          attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
+        val rowIdAttribute = rowLineageAsDataColumns.filter(
+          attr => attr.name == ROW_ID_ATTRIBUTE_NAME).head
+        val lineageAssignments = updateTable.assignments ++
+          Seq(Assignment(lastUpdatedSequence, Literal(null)), Assignment(rowIdAttribute, rowIdAttribute))
 
+        val tableWithLineage = r.copy(output = r.output ++ rowLineageAsDataColumns)
         updateTable.copy(table = tableWithLineage, assignments = lineageAssignments)
     }
   }
