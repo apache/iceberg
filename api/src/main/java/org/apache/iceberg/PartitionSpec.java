@@ -106,7 +106,7 @@ public class PartitionSpec implements Serializable {
 
     for (PartitionField field : fields) {
       builder.addField(
-          field.transform().toString(), field.sourceId(), field.fieldId(), field.name());
+          field.transform().toString(), field.sourceIds(), field.fieldId(), field.name());
     }
 
     return builder.build();
@@ -602,15 +602,24 @@ public class PartitionSpec implements Serializable {
 
     // add a partition field with an auto-increment partition field id starting from
     // PARTITION_DATA_ID_START
+    Builder add(List<Integer> sourceIds, String name, Transform<?, ?> transform) {
+      return add(sourceIds, nextFieldId(), name, transform);
+    }
+
     Builder add(int sourceId, String name, Transform<?, ?> transform) {
-      return add(sourceId, nextFieldId(), name, transform);
+      return add(List.of(sourceId), name, transform);
+    }
+
+    Builder add(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+      // we use the first entry in the source-ids list here
+      checkAndAddPartitionName(name, sourceIds.get(0));
+      fields.add(new PartitionField(sourceIds, fieldId, name, transform));
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
+      return this;
     }
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
-      checkAndAddPartitionName(name, sourceId);
-      fields.add(new PartitionField(sourceId, fieldId, name, transform));
-      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
-      return this;
+      return add(List.of(sourceId), fieldId, name, transform);
     }
 
     public PartitionSpec build() {
@@ -627,7 +636,7 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema) {
     final Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.findType(field.sourceId());
+      Type sourceType = schema.findType(field.sourceIds().get(0));
       Transform<?, ?> transform = field.transform();
       // In the case of a Version 1 partition-spec field gets deleted,
       // it is replaced with a void transform, see:
