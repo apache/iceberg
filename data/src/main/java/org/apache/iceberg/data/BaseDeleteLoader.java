@@ -231,7 +231,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
     // We explicitly turn off reusing containers because when reading equality deletes
-    // non-primitive-type columns
+    // for non-primitive-type columns
     // it may result in not capturing the full delete set. See
     // https://github.com/apache/iceberg/issues/11239
     // for details.

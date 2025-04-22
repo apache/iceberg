@@ -318,8 +318,7 @@ public abstract class DeleteReadTests {
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 29, 89, 122), "id");
-    // include the optional column to prevent ArrayOutOfBoundsException
-    StructLikeSet actual = rowSet(tableName, table, "id", "binaryData");
+    StructLikeSet actual = rowSet(tableName, table, "id");
 
     if (expectPruned()) {
       assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
