@@ -82,7 +82,7 @@ public class GetNamespaceResponse implements RESTResponse {
 
     public Builder setProperties(Map<String, String> props) {
       Preconditions.checkNotNull(props, "Invalid properties map: null");
-      Preconditions.checkArgument(!props.containsKey(null), "Invalid property: null");
+      Preconditions.checkArgument(!props.keySet().contains(null), "Invalid property: null");
       Preconditions.checkArgument(
           !props.containsValue(null),
           "Invalid value for properties %s: null",

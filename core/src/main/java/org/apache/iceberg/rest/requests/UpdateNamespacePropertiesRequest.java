@@ -107,7 +107,7 @@ public class UpdateNamespacePropertiesRequest implements RESTRequest {
 
     public Builder updateAll(Map<String, String> updates) {
       Preconditions.checkNotNull(updates, "Invalid collection of properties to update: null");
-      Preconditions.checkArgument(!updates.containsKey(null), "Invalid property to update: null");
+      Preconditions.checkArgument(!updates.keySet().contains(null), "Invalid property to update: null");
       Preconditions.checkArgument(
           !updates.containsValue(null),
           "Invalid value to update for properties %s: null. Use remove instead",

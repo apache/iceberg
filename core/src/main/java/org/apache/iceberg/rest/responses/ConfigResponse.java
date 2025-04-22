@@ -159,7 +159,7 @@ public class ConfigResponse implements RESTResponse {
     public Builder withDefaults(Map<String, String> defaultsToAdd) {
       Preconditions.checkNotNull(defaultsToAdd, "Invalid default properties map: null");
       Preconditions.checkArgument(
-          !defaultsToAdd.containsKey(null), "Invalid default property: null");
+          !defaultsToAdd.keySet().contains(null), "Invalid default property: null");
       defaults.putAll(defaultsToAdd);
       return this;
     }
@@ -168,7 +168,7 @@ public class ConfigResponse implements RESTResponse {
     public Builder withOverrides(Map<String, String> overridesToAdd) {
       Preconditions.checkNotNull(overridesToAdd, "Invalid override properties map: null");
       Preconditions.checkArgument(
-          !overridesToAdd.containsKey(null), "Invalid override property: null");
+          !overridesToAdd.keySet().contains(null), "Invalid override property: null");
       overrides.putAll(overridesToAdd);
       return this;
     }
