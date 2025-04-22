@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_COLUMN_STATS_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
@@ -31,6 +30,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENA
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -309,13 +310,19 @@ public class Parquet {
     }
 
     // Utility method to get the column path
-    private String getParquetColumnPath(Map<Integer, String> fieldIdToParquetPath, String colPath) {
+    private String getParquetColumnPath(
+        Map<Integer, String> fieldIdToParquetPath, String colPath, String configStr) {
       Types.NestedField fieldId = schema.findField(colPath);
       if (fieldId == null) {
+        LOG.warn("Skipping {} config for missing field: {}", configStr, colPath);
         return null;
       }
 
-      return fieldIdToParquetPath.get(fieldId.fieldId());
+      String columnPath = fieldIdToParquetPath.get(fieldId.fieldId());
+      if (columnPath == null) {
+        LOG.warn("Skipping {}} config for missing field: {}", configStr, fieldId);
+      }
+      return columnPath;
     }
 
     private void setBloomFilterConfig(
@@ -328,9 +335,9 @@ public class Parquet {
           .columnBloomFilterEnabled()
           .forEach(
               (colPath, isEnabled) -> {
-                String parquetColumnPath = getParquetColumnPath(fieldIdToParquetPath, colPath);
+                String parquetColumnPath =
+                    getParquetColumnPath(fieldIdToParquetPath, colPath, "bloom filter");
                 if (parquetColumnPath == null) {
-                  LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
                   return;
                 }
 
@@ -351,9 +358,9 @@ public class Parquet {
           .columnStatsEnabled()
           .forEach(
               (colPath, isEnabled) -> {
-                String parquetColumnPath = getParquetColumnPath(fieldIdToParquetPath, colPath);
+                String parquetColumnPath =
+                    getParquetColumnPath(fieldIdToParquetPath, colPath, "column statistics");
                 if (parquetColumnPath == null) {
-                  LOG.warn("Skipping column statistics config for missing field: {}", colPath);
                   return;
                 }
 
@@ -513,7 +520,6 @@ public class Parquet {
       private final int bloomFilterMaxBytes;
       private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterEnabled;
-
       private final Map<String, String> columnStatsEnabled;
       private final boolean defaultColumnStatsEnabled;
       private final boolean dictionaryEnabled;
@@ -609,11 +615,10 @@ public class Parquet {
 
         Map<String, String> columnStatsEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_STATS_ENABLED_PREFIX);
-        String defaultStatsEnabledStr = columnStatsEnabled.remove("default");
+
         boolean defaultStatsEnabled =
-            (defaultStatsEnabledStr == null)
-                ? DEFAULT_PARQUET_COLUMN_STATS_ENABLED_DEFAULT
-                : Boolean.valueOf(defaultStatsEnabledStr);
+            PropertyUtil.propertyAsBoolean(
+                config, PARQUET_COLUMN_STATS_ENABLED, PARQUET_COLUMN_STATS_ENABLED_DEFAULT);
 
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
@@ -701,7 +706,7 @@ public class Parquet {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
-            DEFAULT_PARQUET_COLUMN_STATS_ENABLED_DEFAULT,
+            PARQUET_COLUMN_STATS_ENABLED_DEFAULT,
             dictionaryEnabled);
       }
 
