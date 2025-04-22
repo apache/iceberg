@@ -28,9 +28,6 @@ import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
-  /** The GCP project ID. Required. */
-  public static final String PROJECT_ID = "gcp-project";
-
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";

@@ -47,7 +47,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,6 +63,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable {
 
   // User provided properties.
+  public static final String PROJECT_ID = "gcp-project";
   public static final String GCP_LOCATION = "gcp-location";
   public static final String FILTER_UNSUPPORTED_TABLES = "filter-unsupported-tables";
   public static final String TESTING_ENABLED = "testing-enabled";
@@ -91,9 +91,9 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     Preconditions.checkArgument(
-        properties.containsKey(GCPProperties.PROJECT_ID), "GCP project must be specified");
+        properties.containsKey(PROJECT_ID), "GCP project must be specified");
 
-    projectId = properties.get(GCPProperties.PROJECT_ID);
+    projectId = properties.get(PROJECT_ID);
     location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
     boolean testingEnabled =
         Boolean.parseBoolean(properties.getOrDefault(TESTING_ENABLED, "false"));

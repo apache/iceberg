@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.bigquery;
 
+import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
@@ -42,7 +43,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,7 +78,7 @@ public class BigQueryTableOperationsTest {
     bigQueryMetastoreCatalog.initialize(
         "CATALOG_ID",
         /* properties= */ ImmutableMap.of(
-            GCPProperties.PROJECT_ID,
+            PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
             warehouseLocation,
