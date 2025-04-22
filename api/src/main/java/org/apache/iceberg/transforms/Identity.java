@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
@@ -105,6 +106,12 @@ class Identity<T> implements Transform<T, T> {
     return maybePrimitive.isPrimitiveType();
   }
 
+  @Override
+  public boolean canTransform(List<Type> types) {
+    Preconditions.checkArgument(types.size() == 1, "Only one type is accepted");
+    return canTransform(types.get(0));
+  }
+
   /**
    * Returns a human-readable String representation of a transformed value.
    *
@@ -126,6 +133,12 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public Type getResultType(Type sourceType) {
     return sourceType;
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    Preconditions.checkArgument(sourceTypes.size() == 1, "Only one sorce type is accepted");
+    return getResultType(sourceTypes.get(0));
   }
 
   @Override

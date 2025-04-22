@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -69,12 +70,28 @@ public interface Transform<S, T> extends Serializable {
   boolean canTransform(Type type);
 
   /**
+   * Checks whether this function can be applied to the given list of {@link Type}.
+   *
+   * @param types the list of types
+   * @return true if this transform can be applied to the types, false otherwise
+   */
+  boolean canTransform(List<Type> types);
+
+  /**
    * Returns the {@link Type} produced by this transform given a source type.
    *
    * @param sourceType a type
    * @return the result type created by the apply method for the given type
    */
   Type getResultType(Type sourceType);
+
+  /**
+   * Returns the {@link Type} produced by this transform given a source types.
+   *
+   * @param sourceTypes a list of type
+   * @return the result type created by the apply method for the given types
+   */
+  Type getResultType(List<Type> sourceTypes);
 
   /**
    * Whether the transform preserves the order of values (is monotonic).

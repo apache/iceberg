@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -136,6 +137,12 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
   }
 
   @Override
+  public boolean canTransform(List<Type> types) {
+    Preconditions.checkArgument(types.size() == 1, "Only one type is accepted");
+    return canTransform(types.get(0));
+  }
+
+  @Override
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -204,6 +211,12 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
   @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    Preconditions.checkArgument(sourceTypes.size() == 1, "Only one source type is accpeted");
+    return getResultType(sourceTypes.get(0));
   }
 
   private static class BucketInteger extends Bucket<Integer>

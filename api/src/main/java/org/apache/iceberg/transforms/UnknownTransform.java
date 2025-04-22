@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -61,7 +62,19 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
   }
 
   @Override
+  public boolean canTransform(List<Type> types) {
+    // assume the trasnform function can be applied for any type
+    return true;
+  }
+
+  @Override
   public Type getResultType(Type type) {
+    // the actual result type is not known
+    return Types.StringType.get();
+  }
+
+  @Override
+  public Type getResultType(List<Type> types) {
     // the actual result type is not known
     return Types.StringType.get();
   }

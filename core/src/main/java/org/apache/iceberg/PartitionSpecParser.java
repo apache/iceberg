@@ -24,7 +24,9 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
@@ -35,6 +37,7 @@ public class PartitionSpecParser {
   private static final String SPEC_ID = "spec-id";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
+  private static final String SOURCE_IDS = "source-ids";
   private static final String FIELD_ID = "field-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
@@ -98,10 +101,22 @@ public class PartitionSpecParser {
       generator.writeStartObject();
       generator.writeStringField(NAME, field.name());
       generator.writeStringField(TRANSFORM, field.transformAsString());
-      generator.writeNumberField(SOURCE_ID, field.sourceId());
+      if (field.sourceIds().size() == 1) {
+        generator.writeNumberField(SOURCE_ID, field.sourceId());
+      } else {
+        generator.writeFieldName(SOURCE_IDS);
+        generator.writeStartArray();
+        for (Integer value : field.sourceIds()) {
+          generator.writeNumber(value);
+        }
+
+        generator.writeEndArray();
+      }
+
       generator.writeNumberField(FIELD_ID, field.partitionId());
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
   }
 
@@ -132,15 +147,36 @@ public class PartitionSpecParser {
 
       String name = JsonUtil.getString(NAME, element);
       String transform = JsonUtil.getString(TRANSFORM, element);
-      int sourceId = JsonUtil.getInt(SOURCE_ID, element);
+      Preconditions.checkArgument(
+          !(element.has(SOURCE_ID) && element.has(SOURCE_IDS)),
+          "Cannot parse partition field, only "
+              + SOURCE_ID
+              + " or "
+              + SOURCE_IDS
+              + " are accepted exclusively, not both");
+      Preconditions.checkArgument(
+          element.has(SOURCE_ID) || element.has(SOURCE_IDS),
+          "Cannot parse partition field, either "
+              + SOURCE_ID
+              + " or "
+              + SOURCE_IDS
+              + " has to be present");
+      List<Integer> sourceIds;
+      Integer sourceId = JsonUtil.getIntOrNull(SOURCE_ID, element);
+      if (sourceId != null) {
+        sourceIds = Lists.newArrayList();
+        sourceIds.add(sourceId);
+      } else {
+        sourceIds = JsonUtil.getIntegerList(SOURCE_IDS, element);
+      }
 
       // partition field ids are missing in old PartitionSpec, they always auto-increment from
       // PARTITION_DATA_ID_START
       if (element.has(FIELD_ID)) {
-        builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
+        builder.addField(transform, sourceIds, JsonUtil.getInt(FIELD_ID, element), name);
         fieldIdCount++;
       } else {
-        builder.addField(transform, sourceId, name);
+        builder.addField(transform, sourceIds, name);
       }
     }
 

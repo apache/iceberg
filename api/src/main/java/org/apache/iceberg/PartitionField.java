@@ -19,26 +19,40 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 
 /** Represents a single field in a {@link PartitionSpec}. */
 public class PartitionField implements Serializable {
-  private final int sourceId;
+  private final List<Integer> sourceIds;
   private final int fieldId;
   private final String name;
   private final Transform<?, ?> transform;
 
   PartitionField(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
-    this.sourceId = sourceId;
+    this(List.of(sourceId), fieldId, name, transform);
+  }
+
+  PartitionField(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+    this.sourceIds = sourceIds;
     this.fieldId = fieldId;
     this.name = name;
     this.transform = transform;
   }
 
-  /** Returns the field id of the source field in the {@link PartitionSpec spec's} table schema. */
+  /** Returns the source field in the {@link PartitionSpec spec's} table schema. */
   public int sourceId() {
-    return sourceId;
+    Preconditions.checkArgument(
+        sourceIds.size() == 1, "Cannot use sourceId() on a transform with multiple arguments");
+    return sourceIds.get(0);
+  }
+
+  /** Returns source ids field in the {@link PartitionSpec spec's} table schema. */
+  public List<Integer> sourceIds() {
+    return sourceIds;
   }
 
   /** Returns the partition field id across all the table metadata's partition specs. */
@@ -58,7 +72,14 @@ public class PartitionField implements Serializable {
 
   @Override
   public String toString() {
-    return fieldId + ": " + name + ": " + transform + "(" + sourceId + ")";
+    return fieldId
+        + ": "
+        + name
+        + ": "
+        + transform
+        + "("
+        + sourceIds.stream().map(String::valueOf).collect(Collectors.joining(", "))
+        + ")";
   }
 
   @Override
@@ -70,7 +91,7 @@ public class PartitionField implements Serializable {
     }
 
     PartitionField that = (PartitionField) other;
-    return sourceId == that.sourceId
+    return sourceIds.equals(that.sourceIds)
         && fieldId == that.fieldId
         && name.equals(that.name)
         && transform.toString().equals(that.transform.toString());
@@ -78,6 +99,6 @@ public class PartitionField implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(sourceId, fieldId, name, transform);
+    return Objects.hashCode(sourceIds, fieldId, name, transform);
   }
 }

@@ -106,7 +106,7 @@ public class PartitionSpec implements Serializable {
 
     for (PartitionField field : fields) {
       builder.addField(
-          field.transform().toString(), field.sourceId(), field.fieldId(), field.name());
+          field.transform().toString(), field.sourceIds(), field.fieldId(), field.name());
     }
 
     return builder.build();
@@ -608,15 +608,24 @@ public class PartitionSpec implements Serializable {
 
     // add a partition field with an auto-increment partition field id starting from
     // PARTITION_DATA_ID_START
+    Builder add(List<Integer> sourceIds, String name, Transform<?, ?> transform) {
+      return add(sourceIds, nextFieldId(), name, transform);
+    }
+
     Builder add(int sourceId, String name, Transform<?, ?> transform) {
-      return add(sourceId, nextFieldId(), name, transform);
+      return add(List.of(sourceId), name, transform);
+    }
+
+    Builder add(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+      // we use the first entry in the source-ids list here
+      checkAndAddPartitionName(name, sourceIds.get(0));
+      fields.add(new PartitionField(sourceIds, fieldId, name, transform));
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
+      return this;
     }
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
-      checkAndAddPartitionName(name, sourceId);
-      fields.add(new PartitionField(sourceId, fieldId, name, transform));
-      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
-      return this;
+      return add(List.of(sourceId), fieldId, name, transform);
     }
 
     public PartitionSpec build() {
@@ -641,10 +650,13 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema, boolean allowMissingFields) {
     final Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.findType(field.sourceId());
+      List<Type> sourceTypes = Lists.newArrayList();
+      for (int sourceId : field.sourceIds()) {
+        sourceTypes.add(schema.findType(sourceId));
+      }
       Transform<?, ?> transform = field.transform();
       // In the case the underlying field is dropped, we cannot check if they are compatible
-      if (allowMissingFields && sourceType == null) {
+      if (allowMissingFields) {
         continue;
       }
       // In the case of a Version 1 partition-spec field gets deleted,
@@ -654,15 +666,20 @@ public class PartitionSpec implements Serializable {
       // checks
       if (!transform.equals(Transforms.alwaysNull())) {
         ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
+            !sourceTypes.isEmpty(), "Cannot find source column for partition field: %s", field);
+        for (Type sourceType : sourceTypes) {
+          ValidationException.check(
+              sourceType != null, "Cannot find source column for partition field: %s", field);
+          ValidationException.check(
+              sourceType.isPrimitiveType(),
+              "Cannot partition by non-primitive source field: %s (%s)",
+              field,
+              sourceType);
+        }
         ValidationException.check(
-            sourceType.isPrimitiveType(),
-            "Cannot partition by non-primitive source field: %s",
-            sourceType);
-        ValidationException.check(
-            transform.canTransform(sourceType),
+            transform.canTransform(sourceTypes),
             "Invalid source type %s for transform: %s",
-            sourceType,
+            sourceTypes,
             transform);
         // The only valid parent types for a PartitionField are StructTypes. This must be checked
         // recursively.
