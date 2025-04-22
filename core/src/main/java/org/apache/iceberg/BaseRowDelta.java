@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -131,6 +134,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             startingSnapshotId,
             parent.snapshotId());
       }
+
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
@@ -139,6 +143,10 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             !validateDeletes,
             conflictDetectionFilter,
             parent);
+      }
+
+      if (validateDeletes) {
+        failMissingDeletePaths();
       }
 
       if (validateNewDataFiles) {
@@ -152,9 +160,26 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       if (!deletedDataFiles.isEmpty()) {
         validateNoNewDeletesForDataFiles(
             base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+        validateNoDeletesForDeletedFiles();
       }
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
+    }
+  }
+
+  /** Validates that the data files removed in this commit do not overlap with delete files added */
+  @SuppressWarnings("CollectionUndefinedEquality")
+  private void validateNoDeletesForDeletedFiles() {
+    List<CharSequence> deletedFileWithNewDVs =
+        deletedDataFiles.stream()
+            .map(DataFile::path)
+            .filter(referencedDataFiles::contains)
+            .collect(Collectors.toList());
+
+    if (!deletedFileWithNewDVs.isEmpty()) {
+      throw new ValidationException(
+          "Cannot delete data files %s that are referenced by new delete files",
+          deletedFileWithNewDVs);
     }
   }
 }

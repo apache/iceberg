@@ -370,6 +370,66 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testValidateFileDeleteAndRowDeleteSameFile() {
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    // test adding a delete vector to a deleted file
+    assertThatThrownBy(
+            () -> {
+              commit(
+                  table,
+                  table
+                      .newRowDelta()
+                      .addDeletes(fileADeletes())
+                      .deleteFile(FILE_A)
+                      .validateFromSnapshot(initialCommit)
+                      .validateDeletedFiles()
+                      .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
+                  branch);
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot delete data files")
+        .hasMessageContaining(FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testValidateDeleteFile() {
+    commit(table, table.newAppend().appendFile(FILE_B), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    // Remove a file which does not exist
+    assertThatThrownBy(
+            () -> {
+              commit(
+                  table,
+                  table
+                      .newRowDelta()
+                      .deleteFile(FILE_A)
+                      .validateFromSnapshot(initialCommit)
+                      .validateDeletedFiles(),
+                  branch);
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Missing required files to delete:")
+        .hasMessageContaining(FILE_A.location());
+
+    // Should succeed if validation is ignored
+    commit(
+        table, table.newRowDelta().deleteFile(FILE_A).validateFromSnapshot(initialCommit), branch);
+
+    // Commit should be a no-op
+    Snapshot snap = latestSnapshot(table, branch);
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(initialCommit),
+        files(FILE_B),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
   public void testValidateDataFilesExistRewrite() {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
