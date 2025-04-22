@@ -340,4 +340,105 @@ public class TestPartitionSpecValidation {
       {10, "unknown_partition1", "Invalid source type unknown for transform: bucket[5]"}
     };
   }
+
+  @Test
+  void testSourceIdNotFound() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(99, 1000, "Test", Transforms.identity())
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find source column for partition field: 1000: Test: identity(99)");
+  }
+
+  @Test
+  void testPartitionFieldInStruct() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(SCHEMA.highestFieldId() + 1, "MyStruct", SCHEMA.asStruct()));
+    PartitionSpec.builderFor(schema).identity("MyStruct.id").build();
+  }
+
+  @Test
+  void testPartitionFieldInStructInStruct() {
+    final Schema schema =
+        new Schema(
+            NestedField.optional(
+                SCHEMA.highestFieldId() + 2,
+                "Outer",
+                Types.StructType.of(
+                    NestedField.required(
+                        SCHEMA.highestFieldId() + 1, "Inner", SCHEMA.asStruct()))));
+    PartitionSpec.builderFor(schema).identity("Outer.Inner.id").build();
+  }
+
+  @Test
+  void testPartitionFieldInList() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                2, "MyList", Types.ListType.ofRequired(1, Types.IntegerType.get())));
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyList.element").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: list<int>");
+  }
+
+  @Test
+  void testPartitionFieldInStructInList() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                3,
+                "MyList",
+                Types.ListType.ofRequired(
+                    2,
+                    Types.StructType.of(NestedField.optional(1, "Foo", Types.IntegerType.get())))));
+    assertThatThrownBy(
+            () -> PartitionSpec.builderFor(schema).identity("MyList.element.Foo").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: list<struct<1: Foo: optional int>>");
+  }
+
+  @Test
+  void testPartitionFieldInMap() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                3,
+                "MyMap",
+                Types.MapType.ofRequired(1, 2, Types.IntegerType.get(), Types.IntegerType.get())));
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.key").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: map<int, int>");
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.value").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: map<int, int>");
+  }
+
+  @Test
+  void testPartitionFieldInStructInMap() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                5,
+                "MyMap",
+                Types.MapType.ofRequired(
+                    3,
+                    4,
+                    Types.StructType.of(NestedField.optional(1, "Foo", Types.IntegerType.get())),
+                    Types.StructType.of(NestedField.optional(2, "Bar", Types.IntegerType.get())))));
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.key.Foo").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Invalid partition field parent: map<struct<1: Foo: optional int>, struct<2: Bar: optional int>>");
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.value.Bar").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Invalid partition field parent: map<struct<1: Foo: optional int>, struct<2: Bar: optional int>>");
+  }
 }
