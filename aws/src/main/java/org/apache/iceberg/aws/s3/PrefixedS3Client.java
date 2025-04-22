@@ -21,13 +21,15 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class PrefixedS3Client implements AutoCloseable {
 
-  private final String prefix;
+  private final String storagePrefix;
   private final S3FileIOProperties s3FileIOProperties;
   private SerializableSupplier<S3Client> s3;
   private SerializableSupplier<S3AsyncClient> s3Async;
@@ -35,11 +37,14 @@ public class PrefixedS3Client implements AutoCloseable {
   private transient volatile S3AsyncClient s3AsyncClient;
 
   public PrefixedS3Client(
-      String prefix,
+      String storagePrefix,
       Map<String, String> properties,
       SerializableSupplier<S3Client> s3,
       SerializableSupplier<S3AsyncClient> s3Async) {
-    this.prefix = prefix;
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
+    Preconditions.checkArgument(null != properties, "Invalid properties: null");
+    this.storagePrefix = storagePrefix;
     this.s3 = s3;
     this.s3Async = s3Async;
     this.s3FileIOProperties = new S3FileIOProperties(properties);
@@ -69,8 +74,8 @@ public class PrefixedS3Client implements AutoCloseable {
     }
   }
 
-  public String prefix() {
-    return prefix;
+  public String storagePrefix() {
+    return storagePrefix;
   }
 
   public S3Client s3() {
