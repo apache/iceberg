@@ -36,8 +36,6 @@ public final class BigQueryMetastoreUtils {
   public static final String HIVE_FILE_OUTPUT_FORMAT =
       "org.apache.iceberg.mr.hive.HiveIcebergOutputFormat";
 
-  // TODO(b/341933455): Consider using "org.apache.iceberg.mr.hive.HiveIcebergSerDe" when
-  // TableProperties.ENGINE_HIVE_ENABLED is set.
   public static final String SERIALIZATION_LIBRARY =
       "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe";
   public static final String FILE_INPUT_FORMAT = "org.apache.hadoop.mapred.FileInputFormat";

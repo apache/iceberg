@@ -470,13 +470,18 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @SuppressWarnings("FormatStringAnnotation")
   private Dataset updateDataset(Dataset dataset) {
+    Preconditions.checkArgument(
+        dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
+    Preconditions.checkArgument(
+        dataset.getDatasetReference().getDatasetId() != null, "Dataset Id can not be null!");
+
     try {
       HttpResponse response =
           client
               .datasets()
               .update(
-                  Preconditions.checkNotNull(dataset.getDatasetReference()).getProjectId(),
-                  Preconditions.checkNotNull(dataset.getDatasetReference().getDatasetId()),
+                  dataset.getDatasetReference().getProjectId(),
+                  dataset.getDatasetReference().getDatasetId(),
                   dataset)
               .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
               .executeUnparsed();

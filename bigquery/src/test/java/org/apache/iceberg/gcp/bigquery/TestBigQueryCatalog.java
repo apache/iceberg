@@ -20,7 +20,7 @@ package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
-import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROPERTIES_KEY_TESTING_ENABLED;
+import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.TESTING_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -150,7 +150,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
             warehouseLocation,
-            PROPERTIES_KEY_TESTING_ENABLED,
+            TESTING_ENABLED,
             "true",
             CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
             "catalog-default-key1",
@@ -201,7 +201,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testOverrideTablePropertiesReplaceTransaction() {}
@@ -245,8 +245,6 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
     assertFiles(afterSecondReplace, FILE_C);
   }
 
-  // TODO: unit test use local path rather than abstraction. When we use gs for path it throws
-  // exception
   @Test
   public void testCompleteCreateTransaction() {
     if (requiresNamespaceCreate()) {
@@ -304,12 +302,12 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testCreateOrReplaceReplaceTransactionReplace() {}
 
-  // TODO: Remove this test when BigQuery supports required filed change
+  // TODO: Remove this test when BigQuery supports required field change
   @Test
   public void testCreateOrReplaceReplaceTransactionReplaceWithOptionalFields() {
 
@@ -359,7 +357,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testConcurrentReplaceTransactionSchema2() {}
@@ -404,7 +402,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testDefaultTablePropertiesReplaceTransaction() {}
@@ -439,7 +437,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testReplaceTransaction() {}
@@ -514,7 +512,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   public void testCreateTableWithDefaultColumnValue() {}
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testCompleteCreateOrReplaceTransactionReplace() {}
@@ -593,7 +591,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Disabled(
-      "TODO(b/407563915): BigQuery does not allow adding a REQUIRED column to an existing table schema. "
+      "BigQuery does not allow adding a REQUIRED column to an existing table schema. "
           + "When this operation is attempted, an exception gets thrown.")
   @Test
   public void testCompleteReplaceTransaction() {}

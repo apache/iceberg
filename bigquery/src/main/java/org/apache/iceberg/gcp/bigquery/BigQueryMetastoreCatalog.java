@@ -47,6 +47,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,10 +64,9 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable {
 
   // User provided properties.
-  public static final String PROPERTIES_KEY_GCP_PROJECT = "gcp-project";
-  public static final String PROPERTIES_KEY_GCP_LOCATION = "gcp-location";
-  public static final String PROPERTIES_KEY_FILTER_UNSUPPORTED_TABLES = "filter-unsupported-tables";
-  public static final String PROPERTIES_KEY_TESTING_ENABLED = "testing-enabled";
+  public static final String GCP_LOCATION = "gcp-location";
+  public static final String FILTER_UNSUPPORTED_TABLES = "filter-unsupported-tables";
+  public static final String TESTING_ENABLED = "testing-enabled";
 
   public static final String HIVE_METASTORE_WAREHOUSE_DIR = "hive.metastore.warehouse.dir";
 
@@ -74,7 +74,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   private static final String DEFAULT_GCP_LOCATION = "us";
 
-  private String catalogPluginName;
+  private String catalogName;
   private Map<String, String> catalogProperties;
   private FileIO fileIO;
   private Configuration conf;
@@ -90,13 +90,13 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
-    if (!properties.containsKey(PROPERTIES_KEY_GCP_PROJECT)) {
-      throw new ValidationException("GCP project must be specified");
-    }
-    projectId = properties.get(PROPERTIES_KEY_GCP_PROJECT);
-    location = properties.getOrDefault(PROPERTIES_KEY_GCP_LOCATION, DEFAULT_GCP_LOCATION);
+    Preconditions.checkArgument(
+        properties.containsKey(GCPProperties.PROJECT_ID), "GCP project must be specified");
+
+    projectId = properties.get(GCPProperties.PROJECT_ID);
+    location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
     boolean testingEnabled =
-        Boolean.parseBoolean(properties.getOrDefault(PROPERTIES_KEY_TESTING_ENABLED, "false"));
+        Boolean.parseBoolean(properties.getOrDefault(TESTING_ENABLED, "false"));
 
     BigQueryOptions options =
         BigQueryOptions.newBuilder()
@@ -127,12 +127,12 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       String initialProjectId,
       String initialLocation,
       BigQueryMetastoreClient bigQueryMetaStoreClient) {
-    this.catalogPluginName = inputName;
+    Preconditions.checkArgument(bigQueryMetaStoreClient != null, "BigQuery client can not be null");
+    this.catalogName = inputName;
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.projectId = initialProjectId;
     this.location = initialLocation;
-    this.client =
-        Preconditions.checkNotNull(bigQueryMetaStoreClient, "BigQuery client can not be null");
+    this.client = bigQueryMetaStoreClient;
 
     if (this.conf == null) {
       LOG.warn("No configuration was set, using the default environment Configuration");
@@ -155,8 +155,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     this.fileIO = CatalogUtil.loadFileIO(fileIoImpl, properties, conf);
 
     this.filterUnsupportedTables =
-        Boolean.parseBoolean(
-            properties.getOrDefault(PROPERTIES_KEY_FILTER_UNSUPPORTED_TABLES, "false"));
+        Boolean.parseBoolean(properties.getOrDefault(FILTER_UNSUPPORTED_TABLES, "false"));
   }
 
   @Override
@@ -289,10 +288,9 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public boolean dropNamespace(Namespace namespace) {
     try {
       client.deleteDataset(toDatasetReference(namespace));
-      /* We don't delete the data folder for safety, which aligns with Hive Metastore's default
-       * behavior.
-       * We can support database or catalog level config controlling file deletion in the future.
-       */
+      // We don't delete the data folder for safety, which aligns with Hive Metastore's default
+      // behavior.
+      // We can support database or catalog level config controlling file deletion in the future.
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
@@ -340,7 +338,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public String name() {
-    return catalogPluginName;
+    return catalogName;
   }
 
   @Override

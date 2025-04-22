@@ -205,7 +205,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   // To make the table queryable from Hive, the user would likely be setting the HIVE_ENGINE_ENABLED
   // parameter.
   //
-  // TODO(b/318693532): We need to make a decision on how to make the table queryable from Hive.
+  // TODO: We need to make a decision on how to make the table queryable from Hive.
   // (could be a server side change or a client side change - that's TBD).
   private Table makeNewTable(TableMetadata metadata, String metadataFileLocation) {
     boolean hiveEngineEnabled = getHiveEngineEnabled(metadata);
