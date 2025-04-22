@@ -977,9 +977,7 @@ public class TestCreateActions extends CatalogTestBase {
       throws NoSuchTableException, ParseException {
     List<Row> expected = spark.table(source).collectAsList();
     SparkTable destTable = loadTable(dest);
-    assertThat(destTable.properties().get(TableCatalog.PROP_PROVIDER))
-        .as("Provider should be iceberg")
-        .isEqualTo("iceberg");
+    assertThat(destTable.properties()).containsEntry(TableCatalog.PROP_PROVIDER, "iceberg");
     List<Row> actual = spark.table(dest).collectAsList();
     assertThat(actual)
         .as(
