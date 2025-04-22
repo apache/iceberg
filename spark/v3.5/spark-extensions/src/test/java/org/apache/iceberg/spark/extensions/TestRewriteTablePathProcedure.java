@@ -20,10 +20,12 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.atIndex;
 
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
@@ -31,8 +33,10 @@ import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   @TempDir private Path staging;
   @TempDir private Path targetTableDir;
@@ -98,11 +102,13 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
             v1Metadata,
             v0Metadata,
             stagingLocation);
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
-    assertThat(result.get(0)[1])
-        .as("Should return correct file_list_location")
-        .isEqualTo(expectedFileListLocation);
+    assertThat(result)
+        .singleElement()
+        .satisfies(
+            objects -> {
+              assertThat(objects).contains(v1Metadata, atIndex(0));
+              assertThat(objects).contains(expectedFileListLocation, atIndex(1));
+            });
     checkFileListLocationCount((String) result.get(0)[1], 4);
   }
 

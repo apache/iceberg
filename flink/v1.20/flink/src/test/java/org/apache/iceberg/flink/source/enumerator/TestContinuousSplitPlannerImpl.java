@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestContinuousSplitPlannerImpl {
   @TempDir protected Path temporaryFolder;
@@ -173,13 +175,14 @@ public class TestContinuousSplitPlannerImpl {
     }
   }
 
-  @Test
-  public void testIncrementalFromLatestSnapshotWithEmptyTable() throws Exception {
+  @ParameterizedTest
+  @EnumSource(
+      value = StreamingStartingStrategy.class,
+      names = {"INCREMENTAL_FROM_LATEST_SNAPSHOT", "INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE"})
+  public void testIncrementalFromLatestSnapshotWithEmptyTable(
+      StreamingStartingStrategy startingStrategy) throws Exception {
     ScanContext scanContext =
-        ScanContext.builder()
-            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
-            .splitSize(1L)
-            .build();
+        ScanContext.builder().startingStrategy(startingStrategy).splitSize(1L).build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
@@ -249,6 +252,44 @@ public class TestContinuousSplitPlannerImpl {
     // should discover dataFile2 appended in snapshot2
     Set<String> expectedFiles = ImmutableSet.of(dataFile2.location());
     assertThat(discoveredFiles).containsExactlyElementsOf(expectedFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
+    }
+  }
+
+  @Test
+  public void testIncrementalFromLatestSnapshotExclusiveWithNonEmptyTable() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(initialResult.splits()).isEmpty();
+    assertThat(initialResult.fromPosition()).isNull();
+    // For exclusive behavior, the initial result should point to snapshot2
+    assertThat(initialResult.toPosition().snapshotId().longValue())
+        .isEqualTo(snapshot2.snapshotId());
+    assertThat(initialResult.toPosition().snapshotTimestampMs().longValue())
+        .isEqualTo(snapshot2.timestampMillis());
+
+    // Then the next incremental scan shall discover no files
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    assertThat(initialResult.splits()).isEmpty();
+    assertThat(secondResult.fromPosition().snapshotId().longValue())
+        .isEqualTo(snapshot2.snapshotId());
+    assertThat(secondResult.fromPosition().snapshotTimestampMs().longValue())
+        .isEqualTo(snapshot2.timestampMillis());
+    assertThat(secondResult.toPosition().snapshotId().longValue())
+        .isEqualTo(snapshot2.snapshotId());
+    assertThat(secondResult.toPosition().snapshotTimestampMs().longValue())
+        .isEqualTo(snapshot2.timestampMillis());
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
     for (int i = 0; i < 3; ++i) {

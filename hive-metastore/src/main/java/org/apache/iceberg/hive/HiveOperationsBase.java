@@ -30,8 +30,6 @@ import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.io.FileIO;
@@ -98,27 +96,6 @@ interface HiveOperationsBase {
             BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
             NO_LOCK_EXPECTED_VALUE,
             metadataLocation);
-  }
-
-  default boolean exposeInHmsProperties() {
-    return maxHiveTablePropertySize() > 0;
-  }
-
-  default void setSchema(Schema schema, Map<String, String> parameters) {
-    parameters.remove(TableProperties.CURRENT_SCHEMA);
-    if (exposeInHmsProperties() && schema != null) {
-      String jsonSchema = SchemaParser.toJson(schema);
-      setField(parameters, TableProperties.CURRENT_SCHEMA, jsonSchema);
-    }
-  }
-
-  default void setField(Map<String, String> parameters, String key, String value) {
-    if (value.length() <= maxHiveTablePropertySize()) {
-      parameters.put(key, value);
-    } else {
-      LOG.warn(
-          "Not exposing {} in HMS since it exceeds {} characters", key, maxHiveTablePropertySize());
-    }
   }
 
   static void validateTableIsIceberg(Table table, String fullName) {

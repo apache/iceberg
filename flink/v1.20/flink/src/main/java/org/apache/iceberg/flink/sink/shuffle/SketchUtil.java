@@ -20,10 +20,12 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class SketchUtil {
   static final int COORDINATOR_MIN_RESERVOIR_SIZE = 10_000;
@@ -109,23 +111,23 @@ class SketchUtil {
     // sort the keys first
     Arrays.sort(samples, comparator);
     int numCandidates = numPartitions - 1;
-    SortKey[] candidates = new SortKey[numCandidates];
+    List<SortKey> candidatesList = Lists.newLinkedList();
     int step = (int) Math.ceil((double) samples.length / numPartitions);
     int position = step - 1;
     int numChosen = 0;
     while (position < samples.length && numChosen < numCandidates) {
       SortKey candidate = samples[position];
       // skip duplicate values
-      if (numChosen > 0 && candidate.equals(candidates[numChosen - 1])) {
+      if (numChosen > 0 && candidate.equals(candidatesList.get(candidatesList.size() - 1))) {
         // linear probe for the next distinct value
         position += 1;
       } else {
-        candidates[numChosen] = candidate;
+        candidatesList.add(candidate);
         position += step;
         numChosen += 1;
       }
     }
-
+    SortKey[] candidates = candidatesList.toArray(new SortKey[0]);
     return candidates;
   }
 

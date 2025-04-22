@@ -237,7 +237,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
-    if (dataFiles.add(file)) {
+    if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
@@ -249,17 +249,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file));
+    addInternal(Delegates.pendingDeleteFile(file, null));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file, dataSequenceNumber));
+    addInternal(Delegates.pendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(PendingDeleteFile file) {
+  private void addInternal(DeleteFile file) {
+    validateNewDeleteFile(file);
     PartitionSpec spec = spec(file.specId());
     Preconditions.checkArgument(
         spec != null,
@@ -310,10 +309,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
+      Preconditions.checkArgument(
+          manifest.firstRowId() == null,
+          "Cannot append manifest with assigned first_row_id: %s",
+          manifest.firstRowId());
       appendedManifestsSummary.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and null first_row_ids
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
     }

@@ -52,7 +52,8 @@ class ManifestLists {
       OutputFile manifestListFile,
       long snapshotId,
       Long parentSnapshotId,
-      long sequenceNumber) {
+      long sequenceNumber,
+      Long firstRowId) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
@@ -65,7 +66,7 @@ class ManifestLists {
             manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
       case 3:
         return new ManifestListWriter.V3Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);

@@ -50,7 +50,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestRowDelta extends V2TableTestBase {
+public class TestRowDelta extends TestBase {
 
   @Parameter(index = 1)
   private String branch;
@@ -546,7 +546,6 @@ public class TestRowDelta extends V2TableTestBase {
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
-    long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
