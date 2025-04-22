@@ -362,6 +362,7 @@ public class TestRowDelta extends TestBase {
                       .addRows(FILE_A2)
                       .deleteFile(FILE_B)
                       .validateFromSnapshot(initialCommit)
+                      .validateNoConflictingDeleteFiles()
                       .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                   branch);
             })

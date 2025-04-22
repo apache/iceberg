@@ -134,7 +134,6 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             startingSnapshotId,
             parent.snapshotId());
       }
-
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
@@ -154,14 +153,17 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       }
 
       if (validateNewDeleteFiles) {
+        // validate that explicitly deleted files have not had added deletes
+        if (!deletedDataFiles.isEmpty()) {
+          validateNoNewDeletesForDataFiles(
+              base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+        }
+
+        // validate that previous deletes do not conflict with added deletes
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
-      if (!deletedDataFiles.isEmpty()) {
-        validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
-        validateNoDeletesForDeletedFiles();
-      }
+      validateNoSimultaneousForDeletedFiles();
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
@@ -169,7 +171,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   /** Validates that the data files removed in this commit do not overlap with delete files added */
   @SuppressWarnings("CollectionUndefinedEquality")
-  private void validateNoDeletesForDeletedFiles() {
+  private void validateNoSimultaneousForDeletedFiles() {
     List<CharSequence> deletedFileWithNewDVs =
         deletedDataFiles.stream()
             .map(DataFile::path)
