@@ -98,8 +98,8 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       case DOUBLE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMESTAMPTZNS:
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPNTZ_NANO:
       case TIMENTZ:
         return 9; // 1 header + 8 value
       case DECIMAL4:
@@ -221,11 +221,11 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         outBuffer.put(offset, TIMENTZ_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
-      case TIMESTAMPTZNS:
+      case TIMESTAMPTZ_NANO:
         outBuffer.put(offset, TIMESTAMPTZNS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPNTZ_NANO:
         outBuffer.put(offset, TIMESTAMPNTZNS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
@@ -233,7 +233,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         outBuffer.put(offset, UUID_HEADER);
         VariantUtil.writeBufferAbsolute(
             outBuffer, offset + 1, UUIDUtil.convertToByteBuffer((UUID) value));
-        return 1 + 16;
+        return 17;
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type());

@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
@@ -111,10 +110,10 @@ public class RandomVariants {
         return Variants.of(type, RandomUtil.generatePrimitive(Types.StringType.get(), random));
       case TIMENTZ:
         return Variants.of(type, RandomUtil.generatePrimitive(Types.TimeType.get(), random));
-      case TIMESTAMPTZNS:
+      case TIMESTAMPTZ_NANO:
         return Variants.of(
             type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withZone(), random));
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPNTZ_NANO:
         return Variants.of(
             type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withoutZone(), random));
       case UUID:

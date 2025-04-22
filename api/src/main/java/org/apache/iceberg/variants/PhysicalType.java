@@ -41,9 +41,9 @@ public enum PhysicalType {
   FLOAT(LogicalType.FLOAT, Float.class),
   BINARY(LogicalType.BINARY, ByteBuffer.class),
   STRING(LogicalType.STRING, String.class),
-  TIMENTZ(LogicalType.TIMENTZ, Long.class),
-  TIMESTAMPTZNS(LogicalType.TIMESTAMPTZ, Long.class),
-  TIMESTAMPNTZNS(LogicalType.TIMESTAMPNTZ, Long.class),
+  TIMENTZ(LogicalType.TIME, Long.class),
+  TIMESTAMPTZ_NANO(LogicalType.TIMESTAMPTZ, Long.class),
+  TIMESTAMPNTZ_NANO(LogicalType.TIMESTAMPNTZ, Long.class),
   UUID(LogicalType.UUID, String.class),
   ARRAY(LogicalType.ARRAY, List.class),
   OBJECT(LogicalType.OBJECT, Map.class);
@@ -103,9 +103,9 @@ public enum PhysicalType {
       case Primitives.TYPE_TIMENTZ:
         return TIMENTZ;
       case Primitives.TYPE_TIMESTAMPTZ_NS:
-        return TIMESTAMPTZNS;
+        return TIMESTAMPTZ_NANO;
       case Primitives.TYPE_TIMESTAMPNTZ_NS:
-        return TIMESTAMPNTZNS;
+        return TIMESTAMPNTZ_NANO;
       case Primitives.TYPE_UUID:
         return UUID;
     }

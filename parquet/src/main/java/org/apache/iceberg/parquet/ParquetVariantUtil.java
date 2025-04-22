@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
@@ -126,8 +125,8 @@ class ParquetVariantUtil {
       case DATE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMESTAMPTZNS:
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPNTZ_NANO:
       case TIMENTZ:
       case FLOAT:
       case DOUBLE:
@@ -233,9 +232,9 @@ class ParquetVariantUtil {
           }
         case NANOS:
           if (timestamps.isAdjustedToUTC()) {
-            return Optional.of(PhysicalType.TIMESTAMPTZNS);
+            return Optional.of(PhysicalType.TIMESTAMPTZ_NANO);
           } else {
-            return Optional.of(PhysicalType.TIMESTAMPNTZNS);
+            return Optional.of(PhysicalType.TIMESTAMPNTZ_NANO);
           }
         default:
           return Optional.empty();
@@ -433,11 +432,11 @@ class ParquetVariantUtil {
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case TIMESTAMPTZNS:
+        case TIMESTAMPTZ_NANO:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        case TIMESTAMPNTZNS:
+        case TIMESTAMPNTZ_NANO:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS));

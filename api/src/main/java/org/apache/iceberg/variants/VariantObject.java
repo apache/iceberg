@@ -46,7 +46,9 @@ public interface VariantObject extends VariantValue {
   static String asString(VariantObject object) {
     StringBuilder builder = new StringBuilder();
 
-    // Make the string deterministic
+    // When a Variant object is serialized, its field IDs are sorted lexicographically. This ensures
+    // a deterministic field order so that the string representation remains consistent and
+    // comparable.
     String[] sortedNames = Iterables.toArray(object.fieldNames(), String.class);
     Arrays.sort(sortedNames);
 

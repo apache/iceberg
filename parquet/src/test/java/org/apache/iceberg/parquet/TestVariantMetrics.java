@@ -100,7 +100,7 @@ public class TestVariantMetrics {
         Variants.ofIsoTimestamptzNano("1957-11-07T12:33:54.123456789+00:00"),
         Variants.ofIsoTimestampntzNano("2024-11-07T12:33:54.123456789"),
         Variants.ofIsoTimestampntzNano("1957-11-07T12:33:54.123456789"),
-        Variants.ofUuid("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
+        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   @ParameterizedTest
@@ -489,8 +489,8 @@ public class TestVariantMetrics {
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
       case TIMENTZ:
-      case TIMESTAMPTZNS:
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPNTZ_NANO:
         return Variants.of(value.type(), (Long) primitive.get() + 1L);
       case FLOAT:
         return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
@@ -507,12 +507,10 @@ public class TestVariantMetrics {
         return Variants.of(
             value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
       case UUID:
-        {
-          UUID uuid = (UUID) primitive.get();
-          return Variants.of(
-              value.type(),
-              new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
-        }
+        UUID uuid = (UUID) primitive.get();
+        return Variants.of(
+            value.type(),
+            new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
     }
 
     throw new UnsupportedOperationException("Cannot increment value: " + value);

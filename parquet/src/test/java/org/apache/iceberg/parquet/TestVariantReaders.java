@@ -132,7 +132,7 @@ public class TestVariantReaders {
         Variants.ofIsoTimestamptzNano("1957-11-07T12:33:54.123456789+00:00"),
         Variants.ofIsoTimestampntzNano("2024-11-07T12:33:54.123456789"),
         Variants.ofIsoTimestampntzNano("1957-11-07T12:33:54.123456789"),
-        Variants.ofUuid("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
+        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   private static Stream<Arguments> metadataAndValues() {
@@ -1041,10 +1041,10 @@ public class TestVariantReaders {
       case TIMENTZ:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timeType(false, TimeUnit.MICROS));
-      case TIMESTAMPTZNS:
+      case TIMESTAMPTZ_NANO:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.NANOS));
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPNTZ_NANO:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.NANOS));
       case UUID:

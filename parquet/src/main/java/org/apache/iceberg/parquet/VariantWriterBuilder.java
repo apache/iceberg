@@ -37,7 +37,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
-import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -236,18 +235,25 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamp) {
-      if (timestamp.getUnit() == TimeUnit.MICROS) {
-        PhysicalType type =
-            timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-        ParquetValueWriter<?> writer =
-            ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-        return Optional.of(writer);
-      } else if (timestamp.getUnit() == TimeUnit.NANOS) {
-        PhysicalType type =
-            timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZNS : PhysicalType.TIMESTAMPNTZNS;
-        ParquetValueWriter<?> writer =
-            ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-        return Optional.of(writer);
+      switch (timestamp.getUnit()) {
+        case MICROS:
+          {
+            PhysicalType type =
+                timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+            ParquetValueWriter writer =
+                ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
+            return Optional.of(writer);
+          }
+        case NANOS:
+          {
+            PhysicalType type =
+                timestamp.isAdjustedToUTC()
+                    ? PhysicalType.TIMESTAMPTZ_NANO
+                    : PhysicalType.TIMESTAMPNTZ_NANO;
+            ParquetValueWriter writer =
+                ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
+            return Optional.of(writer);
+          }
       }
 
       throw new IllegalArgumentException(

@@ -40,6 +40,7 @@ class Primitives {
   static final int TYPE_TIMESTAMPTZ_NS = 18;
   static final int TYPE_TIMESTAMPNTZ_NS = 19;
   static final int TYPE_UUID = 20;
+
   static final int PRIMITIVE_TYPE_SHIFT = 2;
 
   private Primitives() {}

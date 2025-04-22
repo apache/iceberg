@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -72,8 +71,8 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
       case TIMENTZ:
-      case TIMESTAMPTZNS:
-      case TIMESTAMPNTZNS:
+      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPNTZ_NANO:
         return VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
       case FLOAT:
         return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);

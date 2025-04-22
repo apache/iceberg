@@ -201,15 +201,21 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
     @Override
     public Optional<VariantValueReader> visit(TimestampLogicalTypeAnnotation logical) {
-      PhysicalType variantType = null;
-      if (logical.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        variantType =
-            logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-      } else if (logical.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
-        variantType =
-            logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZNS : PhysicalType.TIMESTAMPNTZNS;
-      } else {
-        throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
+      PhysicalType variantType;
+
+      switch (logical.getUnit()) {
+        case MICROS:
+          variantType =
+              logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+          break;
+        case NANOS:
+          variantType =
+              logical.isAdjustedToUTC()
+                  ? PhysicalType.TIMESTAMPTZ_NANO
+                  : PhysicalType.TIMESTAMPNTZ_NANO;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
       }
 
       VariantValueReader reader =

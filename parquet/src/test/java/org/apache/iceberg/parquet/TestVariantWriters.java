@@ -128,7 +128,7 @@ public class TestVariantWriters {
             EMPTY_METADATA, Variants.ofIsoTimestamptzNano("1957-11-07T12:33:54.123456789+00:00")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestampntzNano("2024-11-07T12:33:54.123456789")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestampntzNano("1957-11-07T12:33:54.123456789")),
-        Variant.of(EMPTY_METADATA, Variants.ofUuid("f24f9b64-81fa-49d1-b74e-8c09a6e31c56")),
+        Variant.of(EMPTY_METADATA, Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56")),
       };
 
   @ParameterizedTest

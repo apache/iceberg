@@ -19,6 +19,7 @@
 package org.apache.iceberg.variants;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
@@ -473,6 +474,28 @@ public class TestSerializedPrimitives {
   }
 
   @Test
+  public void testNegativeTimentzNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(17),
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMENTZ);
+    assertThatException()
+        .as("Invalid value for NanoOfDay (valid values 0 - 86399999999999): -1000")
+        .isThrownBy(() -> DateTimeUtil.timeFromMicros((long) value.get()));
+  }
+
+  @Test
   public void testTimestamptzNano() {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(
@@ -488,7 +511,7 @@ public class TestSerializedPrimitives {
               0x14
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZNS);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANO);
     assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.123456789+00:00");
   }
@@ -509,7 +532,7 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZNS);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANO);
     assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999999+00:00");
   }
@@ -530,7 +553,7 @@ public class TestSerializedPrimitives {
               0x14
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZNS);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANO);
     assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.123456789");
   }
@@ -551,7 +574,7 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZNS);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANO);
     assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999999");
   }
