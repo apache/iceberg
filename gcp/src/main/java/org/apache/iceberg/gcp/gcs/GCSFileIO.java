@@ -18,15 +18,13 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.google.api.client.util.Lists;
-import com.google.auth.oauth2.AccessToken;
-import com.google.auth.oauth2.OAuth2Credentials;
-import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
-import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageOptions;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,13 +68,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private SerializableSupplier<Storage> storageSupplier;
-  private GCPProperties gcpProperties;
-  private transient volatile Storage storage;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
-  private OAuth2RefreshCredentialsHandler refreshHandler = null;
   private List<StorageCredential> storageCredentials = ImmutableList.of();
+  private transient volatile Cache<String, PrefixedStorage> storageCache;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -92,7 +88,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    */
   public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
     this.storageSupplier = storageSupplier;
-    this.gcpProperties = new GCPProperties();
   }
 
   /**
@@ -109,30 +104,31 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Deprecated
   public GCSFileIO(SerializableSupplier<Storage> storageSupplier, GCPProperties gcpProperties) {
     this.storageSupplier = storageSupplier;
-    this.gcpProperties = gcpProperties;
+    this.properties = SerializableMap.copyOf(gcpProperties.properties());
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    return GCSInputFile.fromLocation(path, client(), gcpProperties, metrics);
+    return GCSInputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return GCSInputFile.fromLocation(path, length, client(), gcpProperties, metrics);
+    return GCSInputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return GCSOutputFile.fromLocation(path, client(), gcpProperties, metrics);
+    return GCSOutputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
+  @SuppressWarnings("resource")
   @Override
   public void deleteFile(String path) {
     // There is no specific contract about whether delete should fail
     // and other FileIO providers ignore failure.  Log the failure for
     // now as it is not a required operation for Iceberg.
-    if (!client().delete(BlobId.fromGsUtilUri(path))) {
+    if (!clientForStoragePath(path).storage().delete(BlobId.fromGsUtilUri(path))) {
       LOG.warn("Failed to delete path: {}", path);
     }
   }
@@ -142,68 +138,40 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     return properties.immutableMap();
   }
 
+  /**
+   * Returns the {@link Storage} client that is configured for this {@link
+   * org.apache.iceberg.io.FileIO} instance.
+   *
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     GCSFileIO#clientForStoragePath(String)} instead.
+   */
+  @Deprecated
+  @SuppressWarnings("resource")
   public Storage client() {
-    if (storage == null) {
-      synchronized (this) {
-        if (storage == null) {
-          storage = storageSupplier.get();
-        }
+    return clientForStoragePath("gs").storage();
+  }
+
+  public PrefixedStorage clientForStoragePath(String storagePath) {
+    PrefixedStorage client;
+    String matchingPrefix = "gs";
+
+    for (String storagePrefix : storageCache().asMap().keySet()) {
+      if (storagePath.startsWith(storagePrefix)
+          && storagePrefix.length() > matchingPrefix.length()) {
+        matchingPrefix = storagePrefix;
       }
     }
-    return storage;
+
+    client = storageCache().getIfPresent(matchingPrefix);
+
+    Preconditions.checkState(
+        null != client, "[BUG] GCS client for storage path not available: %s", storagePath);
+    return client;
   }
 
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    Map<String, String> propertiesWithCredentials =
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(storageCredentialConfig())
-            .buildKeepingLast();
-
-    this.gcpProperties = new GCPProperties(propertiesWithCredentials);
-
-    if (null == storageSupplier) {
-      this.storageSupplier =
-          () -> {
-            StorageOptions.Builder builder = StorageOptions.newBuilder();
-
-            gcpProperties.projectId().ifPresent(builder::setProjectId);
-            gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
-            gcpProperties.serviceHost().ifPresent(builder::setHost);
-
-            // Google Cloud APIs default to automatically detect the credentials to use, which is
-            // in most cases the convenient way, especially in GCP.
-            // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault().
-            if (gcpProperties.noAuth()) {
-              // Explicitly allow "no credentials" for testing purposes.
-              builder.setCredentials(NoCredentials.getInstance());
-            }
-            gcpProperties
-                .oauth2Token()
-                .ifPresent(
-                    token -> {
-                      // Explicitly configure an OAuth token.
-                      AccessToken accessToken =
-                          new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
-                      if (gcpProperties.oauth2RefreshCredentialsEnabled()
-                          && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
-                        refreshHandler = OAuth2RefreshCredentialsHandler.create(properties);
-                        builder.setCredentials(
-                            OAuth2CredentialsWithRefresh.newBuilder()
-                                .setAccessToken(accessToken)
-                                .setRefreshHandler(refreshHandler)
-                                .build());
-                      } else {
-                        builder.setCredentials(OAuth2Credentials.create(accessToken));
-                      }
-                    });
-
-            return builder.build().getService();
-          };
-    }
-
     initMetrics(properties);
   }
 
@@ -224,25 +192,65 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     }
   }
 
+  private Cache<String, PrefixedStorage> storageCache() {
+    if (null == storageCache) {
+      synchronized (this) {
+        if (null == storageCache) {
+          this.storageCache =
+              Caffeine.newBuilder()
+                  .evictionListener(
+                      (RemovalListener<String, PrefixedStorage>)
+                          (prefix, client, cause) -> {
+                            if (null != client) {
+                              client.close();
+                            }
+                          })
+                  .build();
+
+          storageCache.put("gs", new PrefixedStorage("gs", properties, storageSupplier));
+          storageCredentials.stream()
+              .filter(c -> c.prefix().startsWith("gs"))
+              .collect(Collectors.toList())
+              .forEach(
+                  storageCredential -> {
+                    Map<String, String> propertiesWithCredentials =
+                        ImmutableMap.<String, String>builder()
+                            .putAll(properties)
+                            .putAll(storageCredential.config())
+                            .buildKeepingLast();
+
+                    storageCache.put(
+                        storageCredential.prefix(),
+                        new PrefixedStorage(
+                            storageCredential.prefix(),
+                            propertiesWithCredentials,
+                            storageSupplier));
+                  });
+        }
+      }
+    }
+
+    return storageCache;
+  }
+
   @Override
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
-      if (refreshHandler != null) {
-        refreshHandler.close();
-      }
-      if (storage != null) {
-        // GCS Storage does not appear to be closable, so release the reference
-        storage = null;
+      if (storageCache != null) {
+        storageCache.invalidateAll();
+        storageCache.cleanUp();
       }
     }
   }
 
+  @SuppressWarnings("resource")
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     GCSLocation location = new GCSLocation(prefix);
     return () ->
-        client()
+        clientForStoragePath(prefix)
+            .storage()
             .list(location.bucket(), Storage.BlobListOption.prefix(location.prefix()))
             .streamAll()
             .map(
@@ -273,9 +281,18 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
   }
 
+  @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
-    Streams.stream(Iterators.partition(blobIdsToDelete.iterator(), gcpProperties.deleteBatchSize()))
-        .forEach(batch -> client().delete(batch));
+    Streams.stream(
+            Iterators.partition(
+                blobIdsToDelete.iterator(),
+                clientForStoragePath("gs").gcpProperties().deleteBatchSize()))
+        .forEach(
+            batch -> {
+              if (!batch.isEmpty()) {
+                clientForStoragePath(batch.getFirst().toGsUtilUri()).storage().delete(batch);
+              }
+            });
   }
 
   @Override
@@ -288,18 +305,5 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
-  }
-
-  private Map<String, String> storageCredentialConfig() {
-    List<StorageCredential> gcsCredentials =
-        storageCredentials.stream()
-            .filter(c -> c.prefix().startsWith("gs"))
-            .collect(Collectors.toList());
-
-    Preconditions.checkState(
-        gcsCredentials.size() <= 1,
-        "Invalid GCS Credentials: only one GCS credential should exist");
-
-    return gcsCredentials.isEmpty() ? Map.of() : gcsCredentials.get(0).config();
   }
 }
