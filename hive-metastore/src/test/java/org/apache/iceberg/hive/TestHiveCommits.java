@@ -47,7 +47,7 @@ import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.support.ReflectionSupport;
 
-public class TestHiveCommits extends HiveTableBaseTest {
+public class TestHiveCommits extends HiveTableTestBase {
 
   @Test
   public void testSuppressUnlockExceptions() {
