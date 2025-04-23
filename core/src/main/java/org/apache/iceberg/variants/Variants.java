@@ -203,7 +203,7 @@ public class Variants {
   }
 
   public static VariantPrimitive<Long> ofTimentz(long value) {
-    return new PrimitiveWrapper<>(PhysicalType.TIMENTZ, value);
+    return new PrimitiveWrapper<>(PhysicalType.TIME, value);
   }
 
   public static VariantPrimitive<Long> ofIsoTimentz(String value) {
@@ -211,7 +211,7 @@ public class Variants {
   }
 
   public static VariantPrimitive<Long> ofTimestamptzNano(long value) {
-    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPTZ_NANO, value);
+    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPTZ_NANOS, value);
   }
 
   public static VariantPrimitive<Long> ofIsoTimestamptzNano(String value) {
@@ -219,7 +219,7 @@ public class Variants {
   }
 
   public static VariantPrimitive<Long> ofTimestampntzNano(long value) {
-    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPNTZ_NANO, value);
+    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPNTZ_NANOS, value);
   }
 
   public static VariantPrimitive<Long> ofIsoTimestampntzNano(String value) {

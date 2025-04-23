@@ -108,12 +108,12 @@ public class RandomVariants {
         return Variants.of(type, ByteBuffer.wrap(randomBytes));
       case STRING:
         return Variants.of(type, RandomUtil.generatePrimitive(Types.StringType.get(), random));
-      case TIMENTZ:
+      case TIME:
         return Variants.of(type, RandomUtil.generatePrimitive(Types.TimeType.get(), random));
-      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPTZ_NANOS:
         return Variants.of(
             type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withZone(), random));
-      case TIMESTAMPNTZ_NANO:
+      case TIMESTAMPNTZ_NANOS:
         return Variants.of(
             type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withoutZone(), random));
       case UUID:

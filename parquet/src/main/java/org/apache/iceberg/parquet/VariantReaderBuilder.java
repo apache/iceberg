@@ -211,8 +211,8 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
         case NANOS:
           variantType =
               logical.isAdjustedToUTC()
-                  ? PhysicalType.TIMESTAMPTZ_NANO
-                  : PhysicalType.TIMESTAMPNTZ_NANO;
+                  ? PhysicalType.TIMESTAMPTZ_NANOS
+                  : PhysicalType.TIMESTAMPNTZ_NANOS;
           break;
         default:
           throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
@@ -231,7 +231,7 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
       }
 
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(PhysicalType.TIMENTZ, ParquetValueReaders.times(desc));
+          ParquetVariantReaders.asVariant(PhysicalType.TIME, ParquetValueReaders.times(desc));
 
       return Optional.of(reader);
     }

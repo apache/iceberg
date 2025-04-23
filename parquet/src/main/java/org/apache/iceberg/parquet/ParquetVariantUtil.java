@@ -125,9 +125,9 @@ class ParquetVariantUtil {
       case DATE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMESTAMPTZ_NANO:
-      case TIMESTAMPNTZ_NANO:
-      case TIMENTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+      case TIME:
       case FLOAT:
       case DOUBLE:
         return (T) value;
@@ -218,7 +218,7 @@ class ParquetVariantUtil {
 
     @Override
     public Optional<PhysicalType> visit(TimeLogicalTypeAnnotation ignored) {
-      return Optional.of(PhysicalType.TIMENTZ);
+      return Optional.of(PhysicalType.TIME);
     }
 
     @Override
@@ -232,9 +232,9 @@ class ParquetVariantUtil {
           }
         case NANOS:
           if (timestamps.isAdjustedToUTC()) {
-            return Optional.of(PhysicalType.TIMESTAMPTZ_NANO);
+            return Optional.of(PhysicalType.TIMESTAMPTZ_NANOS);
           } else {
-            return Optional.of(PhysicalType.TIMESTAMPNTZ_NANO);
+            return Optional.of(PhysicalType.TIMESTAMPNTZ_NANOS);
           }
         default:
           return Optional.empty();
@@ -428,15 +428,15 @@ class ParquetVariantUtil {
         case STRING:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType());
-        case TIMENTZ:
+        case TIME:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case TIMESTAMPTZ_NANO:
+        case TIMESTAMPTZ_NANOS:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        case TIMESTAMPNTZ_NANO:
+        case TIMESTAMPNTZ_NANOS:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS));

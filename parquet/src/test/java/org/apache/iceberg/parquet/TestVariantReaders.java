@@ -1038,13 +1038,13 @@ public class TestVariantReaders {
         return shreddedPrimitive(PrimitiveTypeName.BINARY);
       case STRING:
         return shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
-      case TIMENTZ:
+      case TIME:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timeType(false, TimeUnit.MICROS));
-      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPTZ_NANOS:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.NANOS));
-      case TIMESTAMPNTZ_NANO:
+      case TIMESTAMPNTZ_NANOS:
         return shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.NANOS));
       case UUID:

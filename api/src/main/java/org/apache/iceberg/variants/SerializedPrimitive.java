@@ -70,9 +70,9 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMENTZ:
-      case TIMESTAMPTZ_NANO:
-      case TIMESTAMPNTZ_NANO:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
         return VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
       case FLOAT:
         return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);

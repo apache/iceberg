@@ -98,9 +98,9 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       case DOUBLE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMESTAMPTZ_NANO:
-      case TIMESTAMPNTZ_NANO:
-      case TIMENTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+      case TIME:
         return 9; // 1 header + 8 value
       case DECIMAL4:
         return 6; // 1 header + 1 scale + 4 unscaled value
@@ -217,15 +217,15 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         outBuffer.putInt(offset + 1, buffer.remaining());
         VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
         return 5 + buffer.remaining();
-      case TIMENTZ:
+      case TIME:
         outBuffer.put(offset, TIMENTZ_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
-      case TIMESTAMPTZ_NANO:
+      case TIMESTAMPTZ_NANOS:
         outBuffer.put(offset, TIMESTAMPTZNS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
-      case TIMESTAMPNTZ_NANO:
+      case TIMESTAMPNTZ_NANOS:
         outBuffer.put(offset, TIMESTAMPNTZNS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;

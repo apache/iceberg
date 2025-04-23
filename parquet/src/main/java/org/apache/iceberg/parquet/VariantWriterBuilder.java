@@ -229,35 +229,28 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimeLogicalTypeAnnotation time) {
       ParquetValueWriter<VariantValue> writer =
-          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIMENTZ);
+          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
       return Optional.of(writer);
     }
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamp) {
+      return Optional.of(
+          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type(timestamp)));
+    }
+
+    private PhysicalType type(TimestampLogicalTypeAnnotation timestamp) {
       switch (timestamp.getUnit()) {
         case MICROS:
-          {
-            PhysicalType type =
-                timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-            ParquetValueWriter writer =
-                ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-            return Optional.of(writer);
-          }
+          return timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
         case NANOS:
-          {
-            PhysicalType type =
-                timestamp.isAdjustedToUTC()
-                    ? PhysicalType.TIMESTAMPTZ_NANO
-                    : PhysicalType.TIMESTAMPNTZ_NANO;
-            ParquetValueWriter writer =
-                ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-            return Optional.of(writer);
-          }
+          return timestamp.isAdjustedToUTC()
+              ? PhysicalType.TIMESTAMPTZ_NANOS
+              : PhysicalType.TIMESTAMPNTZ_NANOS;
+        default:
+          throw new UnsupportedOperationException(
+              "Invalid unit for shredded timestamp: " + timestamp.getUnit());
       }
-
-      throw new IllegalArgumentException(
-          "Invalid unit for shredded timestamp: " + timestamp.getUnit());
     }
 
     @Override

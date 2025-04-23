@@ -469,7 +469,7 @@ public class TestSerializedPrimitives {
               0x00
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMENTZ);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIME);
     assertThat(DateTimeUtil.timeFromMicros((long) value.get())).isEqualTo("03:14:25.123456");
   }
 
@@ -489,7 +489,7 @@ public class TestSerializedPrimitives {
               (byte) 0xff
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMENTZ);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIME);
     assertThatException()
         .as("Invalid value for NanoOfDay (valid values 0 - 86399999999999): -1000")
         .isThrownBy(() -> DateTimeUtil.timeFromMicros((long) value.get()));
@@ -511,7 +511,7 @@ public class TestSerializedPrimitives {
               0x14
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANO);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANOS);
     assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.123456789+00:00");
   }
@@ -532,7 +532,7 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANO);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANOS);
     assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999999+00:00");
   }
@@ -553,7 +553,7 @@ public class TestSerializedPrimitives {
               0x14
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANO);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANOS);
     assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.123456789");
   }
@@ -574,7 +574,7 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANO);
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANOS);
     assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999999");
   }

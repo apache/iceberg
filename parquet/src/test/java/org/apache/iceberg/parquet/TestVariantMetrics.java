@@ -488,9 +488,9 @@ public class TestVariantMetrics {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
-      case TIMENTZ:
-      case TIMESTAMPTZ_NANO:
-      case TIMESTAMPNTZ_NANO:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
         return Variants.of(value.type(), (Long) primitive.get() + 1L);
       case FLOAT:
         return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
