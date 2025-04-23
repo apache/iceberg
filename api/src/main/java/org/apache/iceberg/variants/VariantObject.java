@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
-import java.util.Arrays;
 import java.util.Objects;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /** An variant object value. */
 public interface VariantObject extends VariantValue {
@@ -46,15 +44,9 @@ public interface VariantObject extends VariantValue {
   static String asString(VariantObject object) {
     StringBuilder builder = new StringBuilder();
 
-    // When a Variant object is serialized, its field IDs are sorted lexicographically. This ensures
-    // a deterministic field order so that the string representation remains consistent and
-    // comparable.
-    String[] sortedNames = Iterables.toArray(object.fieldNames(), String.class);
-    Arrays.sort(sortedNames);
-
     builder.append("VariantObject(fields={");
     boolean first = true;
-    for (String field : sortedNames) {
+    for (String field : object.fieldNames()) {
       if (first) {
         first = false;
       } else {

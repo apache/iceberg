@@ -61,7 +61,7 @@ public class ShreddedObject implements VariantObject {
   }
 
   private Set<String> nameSet() {
-    Set<String> names = Sets.newHashSet(shreddedFields.keySet());
+    Set<String> names = Sets.newTreeSet(shreddedFields.keySet());
 
     if (unshredded != null) {
       Iterables.addAll(names, unshredded.fieldNames());
