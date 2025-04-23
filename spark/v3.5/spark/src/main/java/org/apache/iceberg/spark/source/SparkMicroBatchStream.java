@@ -295,16 +295,17 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
                   Long.MAX_VALUE,
                   currentOffset.shouldScanAllFiles());
       List<FileScanTask> tasks = latestMicroBatch.tasks();
-      Instant snapshotDt = Instant.ofEpochMilli(snapshot.timestampMillis());
-      LOG.debug(
-          "Processing snapshot [id={}, dateTime={}, ageHours={}, startFileIndex={}, endFileIndex={}] generated {} file scan tasks",
-          currentOffset.snapshotId(),
-          DateTimeFormatter.ISO_INSTANT.format(snapshotDt),
-          ChronoUnit.HOURS.between(snapshotDt, Instant.now()),
-          currentOffset.position(),
-          endFileIndex,
-          tasks.size());
-
+      if (LOG.isDebugEnabled()) {
+        Instant snapshotDt = Instant.ofEpochMilli(snapshot.timestampMillis());
+        LOG.debug(
+            "Processing snapshot [id={}, dateTime={}, ageHours={}, startFileIndex={}, endFileIndex={}] generated {} file scan tasks",
+            currentOffset.snapshotId(),
+            DateTimeFormatter.ISO_INSTANT.format(snapshotDt),
+            ChronoUnit.HOURS.between(snapshotDt, Instant.now()),
+            currentOffset.position(),
+            endFileIndex,
+            tasks.size());
+      }
       fileScanTasks.addAll(tasks);
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
 
