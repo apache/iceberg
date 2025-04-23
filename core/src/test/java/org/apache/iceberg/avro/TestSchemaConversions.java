@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.Assert;
 
 public class TestSchemaConversions {
   @Test
@@ -393,5 +394,73 @@ public class TestSchemaConversions {
           .isEqualTo(Schema.Type.BYTES);
       assertThat(variantSchema.getField("value").schema().getType()).isEqualTo(Schema.Type.BYTES);
     }
+  }
+
+  @Test
+  public void testUUIDLogicalTypeOnStringField() {
+    Schema stringSchema = Schema.create(Schema.Type.STRING);
+    Schema uuidStringSchema = LogicalTypes.uuid().addToSchema(stringSchema);
+
+    Schema avroSchema = SchemaBuilder.record("TestRecord")
+        .fields()
+        .name("id")
+        .type(uuidStringSchema)
+        .noDefault()
+        .endRecord();
+
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+
+    Types.NestedField idField = icebergSchema.findField("id");
+    Assert.assertNotNull("Field 'id' should exist", idField);
+    Assert.assertTrue("Field 'id' should be a UUID type",
+                     idField.type().equals(Types.UUIDType.get()));
+
+    Schema convertedAvroSchema = AvroSchemaUtil.convert(icebergSchema, "TestRecord");
+    Schema.Field convertedIdField = convertedAvroSchema.getField("id");
+    Assert.assertNotNull("Field 'id' should exist in converted schema", convertedIdField);
+
+    Assert.assertEquals("Logical type should be UUID",
+                        LogicalTypes.uuid().getName(),
+                        convertedIdField.schema().getLogicalType().getName());
+     Assert.assertEquals("Avro type should be fixed(16) after conversion back",
+                         Schema.Type.FIXED,
+                         convertedIdField.schema().getType());
+     Assert.assertEquals("Avro fixed size should be 16",
+                         16,
+                         convertedIdField.schema().getFixedSize());
+  }
+
+  @Test
+  public void testUUIDLogicalTypeOnFixedField() {
+    Schema fixedSchema = Schema.createFixed("uuid_fixed", null, null, 16);
+    Schema uuidFixedSchema = LogicalTypes.uuid().addToSchema(fixedSchema);
+
+    Schema avroSchema = SchemaBuilder.record("TestRecordFixed")
+        .fields()
+        .name("id")
+        .type(uuidFixedSchema)
+        .noDefault()
+        .endRecord();
+
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+
+    Types.NestedField idField = icebergSchema.findField("id");
+    Assert.assertNotNull("Field 'id' should exist", idField);
+    Assert.assertTrue("Field 'id' should be a UUID type",
+                     idField.type().equals(Types.UUIDType.get()));
+
+    Schema convertedAvroSchema = AvroSchemaUtil.convert(icebergSchema, "TestRecordFixed");
+    Schema.Field convertedIdField = convertedAvroSchema.getField("id");
+    Assert.assertNotNull("Field 'id' should exist in converted schema", convertedIdField);
+
+    Assert.assertEquals("Logical type should be UUID",
+                        LogicalTypes.uuid().getName(),
+                        convertedIdField.schema().getLogicalType().getName());
+    Assert.assertEquals("Avro type should be fixed",
+                        Schema.Type.FIXED,
+                        convertedIdField.schema().getType());
+    Assert.assertEquals("Avro fixed size should be 16",
+                        16,
+                        convertedIdField.schema().getFixedSize());
   }
 }
