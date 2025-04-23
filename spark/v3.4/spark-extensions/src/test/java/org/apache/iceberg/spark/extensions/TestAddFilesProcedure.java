@@ -1131,6 +1131,22 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testAddFilesWithInvalidParallelism() {
+    createUnpartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => -1)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
+  }
+
+  @TestTemplate
   public void testAddFilesToTableWithManySpecs() {
     createPartitionedHiveTable();
     createIcebergTable("id Integer, name String, dept String, subdept String"); // Spec 0
