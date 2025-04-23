@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 public class TestClientPoolImpl {
@@ -36,6 +38,25 @@ public class TestClientPoolImpl {
       mockClientPool.clients().add(firstClient);
 
       int actions = mockClientPool.run(client -> client.succeedAfter(succeedAfterAttempts));
+      assertThat(actions)
+          .as("There should be exactly one successful action invocation")
+          .isEqualTo(1);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(succeedAfterAttempts - 1);
+      assertThat(mockClientPool.clients().peekFirst().equals(firstClient)).isFalse();
+    }
+  }
+
+  @Test
+  public void testRetryWithImplementationSpecificException() throws Exception {
+    int maxRetries = 5;
+    int succeedAfterAttempts = 3;
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, maxRetries)) {
+      // initial the client pool with a client, so that we can verify the client is replaced
+      MockClient firstClient = mockClientPool.newClient();
+      mockClientPool.clients().add(firstClient);
+
+      int actions = mockClientPool.run(client -> client.succeedAfter(succeedAfterAttempts, () -> new ImplementationSpecificException(true)));
       assertThat(actions)
           .as("There should be exactly one successful action invocation")
           .isEqualTo(1);
@@ -70,6 +91,17 @@ public class TestClientPoolImpl {
   }
 
   @Test
+  public void testNoRetryingNonRetryableImplementationSpecificException() {
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
+      assertThatThrownBy(() -> mockClientPool.run(MockClient::failWithNonRetryableImplementationSpecific, true))
+          .isInstanceOf(NonRetryableException.class)
+          .hasMessage(null);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
+    }
+  }
+
+  @Test
   public void testNoRetryingWhenDisabled() {
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, false, 3)) {
@@ -83,6 +115,18 @@ public class TestClientPoolImpl {
   static class RetryableException extends RuntimeException {}
 
   static class NonRetryableException extends RuntimeException {}
+
+  static class ImplementationSpecificException extends NonRetryableException {
+    private final boolean retryable;
+
+    ImplementationSpecificException(boolean retryable) {
+      this.retryable = retryable;
+    }
+
+    public boolean isRetryable() {
+      return retryable;
+    }
+  }
 
   static class MockClient {
     boolean closed = false;
@@ -104,17 +148,25 @@ public class TestClientPoolImpl {
       return actions;
     }
 
-    int succeedAfter(int succeedAfterAttempts) {
+    int succeedAfter(int succeedAfterAttempts, Supplier<RuntimeException> exceptionSupplier) {
       if (retryableFailures == succeedAfterAttempts - 1) {
         return successfulAction();
       }
 
       retryableFailures++;
-      throw new RetryableException();
+      throw exceptionSupplier.get();
+    }
+
+    int succeedAfter(int succeedAfterAttempts) {
+      return succeedAfter(succeedAfterAttempts, RetryableException::new);
     }
 
     int failWithNonRetryable() {
       throw new NonRetryableException();
+    }
+
+    int failWithNonRetryableImplementationSpecific() {
+      throw new ImplementationSpecificException(false);
     }
   }
 
@@ -144,6 +196,12 @@ public class TestClientPoolImpl {
     @Override
     protected void close(MockClient client) {
       client.close();
+    }
+
+    @Override
+    protected boolean isConnectionException(Exception exc) {
+      return super.isConnectionException(exc) ||
+              (exc instanceof ImplementationSpecificException && ((ImplementationSpecificException) exc).isRetryable());
     }
 
     int reconnectionAttempts() {
