@@ -202,7 +202,8 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     @Override
     public Optional<VariantValueReader> visit(TimestampLogicalTypeAnnotation logical) {
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(type(logical), ParquetValueReaders.timestamps(desc));
+          ParquetVariantReaders.asVariant(
+              ParquetVariantUtil.convert(logical), ParquetValueReaders.timestamps(desc));
 
       return Optional.of(reader);
     }

@@ -454,7 +454,7 @@ public class TestSerializedPrimitives {
   }
 
   @Test
-  public void testTimentzNano() {
+  public void testTimeNano() {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(
             new byte[] {
@@ -474,7 +474,7 @@ public class TestSerializedPrimitives {
   }
 
   @Test
-  public void testNegativeTimentzNano() {
+  public void testNegativeTimeNano() {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(
             new byte[] {

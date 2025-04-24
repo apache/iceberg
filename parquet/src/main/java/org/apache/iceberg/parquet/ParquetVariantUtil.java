@@ -90,6 +90,28 @@ class ParquetVariantUtil {
   }
 
   /**
+   * Convert a Parquet {@link TimestampLogicalTypeAnnotation} to the equivalent Variant {@link
+   * PhysicalType}.
+   *
+   * @param timestamp a Parquet {@link TimestampLogicalTypeAnnotation}
+   * @return a Variant {@link PhysicalType}
+   * @throws UnsupportedOperationException if the timestamp unit is not MICROS or NANOS
+   */
+  static PhysicalType convert(TimestampLogicalTypeAnnotation timestamp) {
+    switch (timestamp.getUnit()) {
+      case MICROS:
+        return timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+      case NANOS:
+        return timestamp.isAdjustedToUTC()
+            ? PhysicalType.TIMESTAMPTZ_NANOS
+            : PhysicalType.TIMESTAMPNTZ_NANOS;
+      default:
+        throw new UnsupportedOperationException(
+            "Invalid unit for shredded timestamp: " + timestamp.getUnit());
+    }
+  }
+
+  /**
    * Serialize Variant metadata and value in a single concatenated buffer.
    *
    * @param metadata a {VariantMetadata}

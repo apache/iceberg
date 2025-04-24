@@ -236,7 +236,8 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamp) {
       return Optional.of(
-          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type(timestamp)));
+          ParquetVariantWriters.primitive(
+              ParquetValueWriters.longs(desc), ParquetVariantUtil.convert(timestamp)));
     }
 
     @Override

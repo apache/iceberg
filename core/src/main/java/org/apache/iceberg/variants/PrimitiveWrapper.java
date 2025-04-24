@@ -47,7 +47,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       VariantUtil.primitiveHeader(Primitives.TYPE_DECIMAL16);
   private static final byte BINARY_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_BINARY);
   private static final byte STRING_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_STRING);
-  private static final byte TIMENTZ_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TIME);
+  private static final byte TIME_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TIME);
   private static final byte TIMESTAMPTZ_NANOS_HEADER =
       VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPTZ_NANOS);
   private static final byte TIMESTAMPNTZ_NANOS_HEADER =
@@ -218,7 +218,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
         return 5 + buffer.remaining();
       case TIME:
-        outBuffer.put(offset, TIMENTZ_HEADER);
+        outBuffer.put(offset, TIME_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
       case TIMESTAMPTZ_NANOS:
