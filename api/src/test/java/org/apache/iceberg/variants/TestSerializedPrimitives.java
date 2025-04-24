@@ -19,10 +19,12 @@
 package org.apache.iceberg.variants;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 
@@ -452,10 +454,164 @@ public class TestSerializedPrimitives {
   }
 
   @Test
+  public void testTimeNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(17),
+              (byte) 0x80,
+              (byte) 0xa8,
+              (byte) 0x4b,
+              (byte) 0xb7,
+              (byte) 0x02,
+              (byte) 0x00,
+              (byte) 0x00,
+              0x00
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIME);
+    assertThat(DateTimeUtil.timeFromMicros((long) value.get())).isEqualTo("03:14:25.123456");
+  }
+
+  @Test
+  public void testNegativeTimeNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(17),
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff,
+              (byte) 0xff
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIME);
+    assertThatException()
+        .as("Invalid value for NanoOfDay (valid values 0 - 86399999999999): -1000")
+        .isThrownBy(() -> DateTimeUtil.timeFromMicros((long) value.get()));
+  }
+
+  @Test
+  public void testTimestamptzNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(18),
+              0x15,
+              (byte) 0x8f,
+              (byte) 0x35,
+              (byte) 0x77,
+              (byte) 0x9e,
+              (byte) 0xf6,
+              (byte) 0xdb,
+              0x14
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANOS);
+    assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
+        .isEqualTo("2017-08-18T14:21:01.123456789+00:00");
+  }
+
+  @Test
+  public void testNegativeTimestamptzNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(18),
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ_NANOS);
+    assertThat(DateTimeUtil.nanosToIsoTimestamptz((long) value.get()))
+        .isEqualTo("1969-12-31T23:59:59.999999999+00:00");
+  }
+
+  @Test
+  public void testTimestampntzNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(19),
+              0x15,
+              (byte) 0x8f,
+              (byte) 0x35,
+              (byte) 0x77,
+              (byte) 0x9e,
+              (byte) 0xf6,
+              (byte) 0xdb,
+              0x14
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANOS);
+    assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
+        .isEqualTo("2017-08-18T14:21:01.123456789");
+  }
+
+  @Test
+  public void testNegativeTimestampntzNano() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(19),
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF,
+              (byte) 0xFF
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ_NANOS);
+    assertThat(DateTimeUtil.nanosToIsoTimestamp((long) value.get()))
+        .isEqualTo("1969-12-31T23:59:59.999999999");
+  }
+
+  @Test
+  public void testUUID() {
+    VariantPrimitive<?> value =
+        SerializedPrimitive.from(
+            new byte[] {
+              primitiveHeader(20),
+              (byte) 0xf2,
+              0x4f,
+              (byte) 0x9b,
+              0x64,
+              (byte) 0x81,
+              (byte) 0xfa,
+              0x49,
+              (byte) 0xd1,
+              (byte) 0xb7,
+              0x4e,
+              (byte) 0x8c,
+              0x09,
+              (byte) 0xa6,
+              (byte) 0xe3,
+              0x1c,
+              0x56
+            });
+
+    assertThat(value.type()).isEqualTo(PhysicalType.UUID);
+    assertThat(value.get()).isEqualTo(UUID.fromString("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"));
+  }
+
+  @Test
   public void testUnsupportedType() {
-    assertThatThrownBy(() -> SerializedPrimitive.from(new byte[] {primitiveHeader(17)}))
+    assertThatThrownBy(() -> SerializedPrimitive.from(new byte[] {primitiveHeader(21)}))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unknown primitive physical type: 17");
+        .hasMessage("Unknown primitive physical type: 21");
   }
 
   private static byte primitiveHeader(int primitiveType) {

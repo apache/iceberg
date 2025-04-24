@@ -37,7 +37,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
-import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -229,23 +228,16 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimeLogicalTypeAnnotation time) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
+      return Optional.of(writer);
     }
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamp) {
-      if (timestamp.getUnit() == TimeUnit.MICROS) {
-        PhysicalType type =
-            timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-        ParquetValueWriter<?> writer =
-            ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-        return Optional.of(writer);
-      }
-
-      throw new IllegalArgumentException(
-          "Invalid unit for shredded timestamp: " + timestamp.getUnit());
+      return Optional.of(
+          ParquetVariantWriters.primitive(
+              ParquetValueWriters.longs(desc), ParquetVariantUtil.convert(timestamp)));
     }
 
     @Override
@@ -278,9 +270,9 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuidLogicalType) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
+      return Optional.of(writer);
     }
   }
 }

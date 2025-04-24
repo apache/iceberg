@@ -36,6 +36,10 @@ class Primitives {
   static final int TYPE_FLOAT = 14;
   static final int TYPE_BINARY = 15;
   static final int TYPE_STRING = 16;
+  static final int TYPE_TIME = 17;
+  static final int TYPE_TIMESTAMPTZ_NANOS = 18;
+  static final int TYPE_TIMESTAMPNTZ_NANOS = 19;
+  static final int TYPE_UUID = 20;
 
   static final int PRIMITIVE_TYPE_SHIFT = 2;
 

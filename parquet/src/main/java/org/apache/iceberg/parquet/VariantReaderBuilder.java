@@ -29,12 +29,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -198,11 +201,21 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
     @Override
     public Optional<VariantValueReader> visit(TimestampLogicalTypeAnnotation logical) {
-      PhysicalType variantType =
-          logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+      VariantValueReader reader =
+          ParquetVariantReaders.asVariant(
+              ParquetVariantUtil.convert(logical), ParquetValueReaders.timestamps(desc));
+
+      return Optional.of(reader);
+    }
+
+    @Override
+    public Optional<VariantValueReader> visit(TimeLogicalTypeAnnotation logical) {
+      if (logical.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS || logical.isAdjustedToUTC()) {
+        throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
+      }
 
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(variantType, ParquetValueReaders.timestamps(desc));
+          ParquetVariantReaders.asVariant(PhysicalType.TIME, ParquetValueReaders.times(desc));
 
       return Optional.of(reader);
     }
@@ -240,6 +253,13 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
           throw new IllegalArgumentException("Invalid bit width for int: " + logical.getBitWidth());
       }
 
+      return Optional.of(reader);
+    }
+
+    @Override
+    public Optional<VariantValueReader> visit(UUIDLogicalTypeAnnotation logical) {
+      VariantValueReader reader =
+          ParquetVariantReaders.asVariant(PhysicalType.UUID, ParquetValueReaders.uuids(desc));
       return Optional.of(reader);
     }
 
