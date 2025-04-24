@@ -648,13 +648,12 @@ public class PartitionSpec implements Serializable {
             transform);
         // The only valid parent types for a PartitionField are StructTypes. This must be checked
         // recursively.
-        int fieldId = field.sourceId();
-        Integer parentId;
-        while ((parentId = parents.get(fieldId)) != null) {
+        Integer parentId = parents.get(field.sourceId());
+        while (parentId != null) {
           Type parentType = schema.findType(parentId);
           ValidationException.check(
               parentType.isStructType(), "Invalid partition field parent: %s", parentType);
-          fieldId = parentId;
+          parentId = parents.get(parentId);
         }
       }
     }
