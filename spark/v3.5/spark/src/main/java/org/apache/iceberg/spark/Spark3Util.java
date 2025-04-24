@@ -946,7 +946,7 @@ public class Spark3Util {
                         Object catalystValue = partition.values().get(fieldIndex, field.dataType());
                         Object value =
                             CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-                        values.put(field.name(), String.valueOf(value));
+                        values.put(field.name(), (value == null) ? null : value.toString());
                       });
 
               FileStatusWithMetadata fileStatus =
