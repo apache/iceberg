@@ -637,22 +637,20 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
     createIcebergTable(
-            "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
 
     // Add all partitions including null partitions.
     List<Object[]> result =
-            sql(
-                    "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-                    catalogName, tableName, fileTableDir.getAbsolutePath());
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     assertOutput(result, 10L, 5L);
 
     assertEquals(
-            "Iceberg table contains correct data",
-            sql(
-                    "SELECT id, name, dept, subdept FROM %s ORDER BY id",
-                    sourceTableName),
-            sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
@@ -662,34 +660,31 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     createPartitionedTableWithNullValueInPartitionColumn("parquet");
 
     createIcebergTable(
-            "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
 
     // Add all partitions including null partitions.
     List<Object[]> result =
-            sql(
-                    "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-                    catalogName, tableName, fileTableDir.getAbsolutePath());
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     assertOutput(result, 6L, 3L);
 
     assertEquals(
-            "Iceberg table contains correct data",
-            sql(
-                    "SELECT id, name, dept, subdept FROM %s ORDER BY id",
-                    sourceTableName),
-            sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
     // Check if correct partitions are created
-    List<Object[]> actualRows = sql("SELECT partition from %s.partitions ORDER BY partition", tableName);
+    List<Object[]> actualRows =
+        sql("SELECT partition from %s.partitions ORDER BY partition", tableName);
     assertEquals(
-            "Other partitions should match",
-            ImmutableList.of(
-                    row(new Object[]{new Object[]{null}}),
-                    row(new Object[]{new Object[]{"facilities"}}),
-                    row(new Object[]{new Object[]{"hr"}})
-            ),
-            actualRows
-    );
+        "Other partitions should match",
+        ImmutableList.of(
+            row(new Object[] {new Object[] {null}}),
+            row(new Object[] {new Object[] {"facilities"}}),
+            row(new Object[] {new Object[] {"hr"}})),
+        actualRows);
   }
 
   @TestTemplate
@@ -1330,15 +1325,16 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private void createPartitionedTableWithNullValueInPartitionColumn(String format) {
     String createParquet =
-            "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
-                    + "PARTITIONED BY (dept) LOCATION '%s'";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (dept) LOCATION '%s'";
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
     Dataset<Row> unionedDF =
-            unpartitionedDF().select("id", "name", "subdept", "dept")
-                    .unionAll(singleNullRecordDF().select("id", "name", "subdept", "dept"))
-                    .select("id", "name", "subdept", "dept")
-                    .repartition(1);
+        unpartitionedDF()
+            .select("id", "name", "subdept", "dept")
+            .unionAll(singleNullRecordDF().select("id", "name", "subdept", "dept"))
+            .select("id", "name", "subdept", "dept")
+            .repartition(1);
 
     unionedDF.write().insertInto(sourceTableName);
     unionedDF.write().insertInto(sourceTableName);
