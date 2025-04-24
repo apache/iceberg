@@ -21,8 +21,10 @@ package org.apache.iceberg.parquet;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.ListLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
@@ -281,5 +283,19 @@ public abstract class ParquetVariantVisitor<R> {
   private static boolean isBinary(Type type) {
     return type.isPrimitive()
         && type.asPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.BINARY;
+  }
+
+  protected static PhysicalType type(TimestampLogicalTypeAnnotation timestamp) {
+    switch (timestamp.getUnit()) {
+      case MICROS:
+        return timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+      case NANOS:
+        return timestamp.isAdjustedToUTC()
+            ? PhysicalType.TIMESTAMPTZ_NANOS
+            : PhysicalType.TIMESTAMPNTZ_NANOS;
+      default:
+        throw new UnsupportedOperationException(
+            "Invalid unit for shredded timestamp: " + timestamp.getUnit());
+    }
   }
 }

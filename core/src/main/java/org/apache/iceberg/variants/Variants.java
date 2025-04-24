@@ -202,28 +202,28 @@ public class Variants {
     return new PrimitiveWrapper<>(PhysicalType.STRING, value);
   }
 
-  public static VariantPrimitive<Long> ofTimentz(long value) {
+  public static VariantPrimitive<Long> ofTime(long value) {
     return new PrimitiveWrapper<>(PhysicalType.TIME, value);
   }
 
-  public static VariantPrimitive<Long> ofIsoTimentz(String value) {
-    return ofTimentz(DateTimeUtil.isoTimeToMicros(value));
+  public static VariantPrimitive<Long> ofIsoTime(String value) {
+    return ofTime(DateTimeUtil.isoTimeToMicros(value));
   }
 
-  public static VariantPrimitive<Long> ofTimestamptzNano(long value) {
+  public static VariantPrimitive<Long> ofTimestamptzNanos(long value) {
     return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPTZ_NANOS, value);
   }
 
-  public static VariantPrimitive<Long> ofIsoTimestamptzNano(String value) {
-    return ofTimestamptzNano(DateTimeUtil.isoTimestamptzToNanos(value));
+  public static VariantPrimitive<Long> ofIsoTimestamptzNanos(String value) {
+    return ofTimestamptzNanos(DateTimeUtil.isoTimestamptzToNanos(value));
   }
 
-  public static VariantPrimitive<Long> ofTimestampntzNano(long value) {
+  public static VariantPrimitive<Long> ofTimestampntzNanos(long value) {
     return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPNTZ_NANOS, value);
   }
 
-  public static VariantPrimitive<Long> ofIsoTimestampntzNano(String value) {
-    return ofTimestampntzNano(DateTimeUtil.isoTimestampToNanos(value));
+  public static VariantPrimitive<Long> ofIsoTimestampntzNanos(String value) {
+    return ofTimestampntzNanos(DateTimeUtil.isoTimestampToNanos(value));
   }
 
   public static VariantPrimitive<UUID> ofUUID(UUID uuid) {

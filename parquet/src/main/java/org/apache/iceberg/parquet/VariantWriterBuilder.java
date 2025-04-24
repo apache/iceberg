@@ -239,20 +239,6 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
           ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type(timestamp)));
     }
 
-    private PhysicalType type(TimestampLogicalTypeAnnotation timestamp) {
-      switch (timestamp.getUnit()) {
-        case MICROS:
-          return timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-        case NANOS:
-          return timestamp.isAdjustedToUTC()
-              ? PhysicalType.TIMESTAMPTZ_NANOS
-              : PhysicalType.TIMESTAMPNTZ_NANOS;
-        default:
-          throw new UnsupportedOperationException(
-              "Invalid unit for shredded timestamp: " + timestamp.getUnit());
-      }
-    }
-
     @Override
     public Optional<ParquetValueWriter<?>> visit(IntLogicalTypeAnnotation logical) {
       Preconditions.checkArgument(

@@ -47,11 +47,11 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       VariantUtil.primitiveHeader(Primitives.TYPE_DECIMAL16);
   private static final byte BINARY_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_BINARY);
   private static final byte STRING_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_STRING);
-  private static final byte TIMENTZ_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TIMENTZ);
-  private static final byte TIMESTAMPTZNS_HEADER =
-      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPTZ_NS);
-  private static final byte TIMESTAMPNTZNS_HEADER =
-      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NS);
+  private static final byte TIMENTZ_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TIME);
+  private static final byte TIMESTAMPTZ_NANOS_HEADER =
+      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPTZ_NANOS);
+  private static final byte TIMESTAMPNTZ_NANOS_HEADER =
+      VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NANOS);
   private static final byte UUID_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_UUID);
 
   private final PhysicalType type;
@@ -222,11 +222,11 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
       case TIMESTAMPTZ_NANOS:
-        outBuffer.put(offset, TIMESTAMPTZNS_HEADER);
+        outBuffer.put(offset, TIMESTAMPTZ_NANOS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
       case TIMESTAMPNTZ_NANOS:
-        outBuffer.put(offset, TIMESTAMPNTZNS_HEADER);
+        outBuffer.put(offset, TIMESTAMPNTZ_NANOS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
         return 9;
       case UUID:
