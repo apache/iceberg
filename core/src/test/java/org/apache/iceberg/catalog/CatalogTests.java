@@ -1227,6 +1227,13 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testListNonExistingNamespace() {
+    assertThatThrownBy(() -> catalog().listNamespaces(Namespace.of("non-existing")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: non-existing");
+  }
+
+  @Test
   public void createAndDropEmptyNamespace() {
     assumeThat(supportsEmptyNamespace())
         .as("Only valid for catalogs that support creating/dropping empty namespaces")
