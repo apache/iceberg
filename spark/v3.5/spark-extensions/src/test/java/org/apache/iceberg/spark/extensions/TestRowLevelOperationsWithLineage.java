@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.TableUtil.schemaWithRowLineage;
+import static org.apache.iceberg.MetadataColumns.schemaWithRowLineage;
 import static org.apache.iceberg.spark.Spark3Util.loadIcebergTable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;

@@ -88,7 +88,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     } else {
       Schema writeSchema =
           TableUtil.supportsRowLineage(table)
-              ? TableUtil.schemaWithRowLineage(table)
+              ? MetadataColumns.schemaWithRowLineage(table)
               : table.schema();
       Schema dataSchema = SparkSchemaUtil.convert(writeSchema, info.schema());
       validateSchema("data", writeSchema, dataSchema);

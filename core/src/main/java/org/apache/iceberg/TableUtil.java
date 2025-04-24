@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.TypeUtil;
 
 public class TableUtil {
   private TableUtil() {}
@@ -69,20 +68,5 @@ public class TableUtil {
     }
 
     return formatVersion(table) >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE;
-  }
-
-  public static Schema schemaWithRowLineage(Table table) {
-    Preconditions.checkArgument(null != table, "Invalid table: null");
-    Preconditions.checkArgument(
-        !(table instanceof BaseMetadataTable),
-        "Cannot produce row lineage for metadata table: %s",
-        table);
-    Schema rowLineageSchema =
-        new Schema(
-            MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
-            MetadataColumns.metadataColumn(
-                    table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-                .asOptional());
-    return TypeUtil.join(table.schema(), rowLineageSchema);
   }
 }
