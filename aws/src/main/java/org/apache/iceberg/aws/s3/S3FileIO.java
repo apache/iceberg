@@ -431,7 +431,7 @@ public class S3FileIO
     client = s3ClientCache().getIfPresent(matchingPrefix);
 
     Preconditions.checkState(
-        null != client, "S3 client for storage path not available: %s", storagePath);
+        null != client, "[BUG] S3 client for storage path not available: %s", storagePath);
     return client;
   }
 
