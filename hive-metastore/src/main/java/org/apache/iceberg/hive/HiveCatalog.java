@@ -56,7 +56,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -508,11 +507,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-    }
     if (!namespace.isEmpty()) {
-      return ImmutableList.of();
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     try {
       List<Namespace> namespaces =
