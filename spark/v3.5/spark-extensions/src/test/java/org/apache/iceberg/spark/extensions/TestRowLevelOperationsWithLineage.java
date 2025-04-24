@@ -24,13 +24,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -41,10 +40,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionUtil;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +52,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOperationsTestBase {
@@ -66,6 +64,14 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   @BeforeAll
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
+  }
+
+  @BeforeEach
+  public void beforeEach() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    // ToDo: Remove these as row lineage inheritance gets implemented in the other readers
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+    assumeThat(vectorized).isFalse();
   }
 
   @AfterEach
@@ -96,14 +102,29 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "  INSERT *",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    Record updatedRecord = createRecordWithRowLineage(schemaWithRowLineage(table), 1234, 1L, null);
-    Record insertedRecord =
-        createRecordWithRowLineage(schemaWithRowLineage(table), 5678, null, null);
-    expectedRecords.addAll(ImmutableList.of(insertedRecord, updatedRecord));
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
+    List<Object[]> rowsWhereIdShouldBePreserved =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data != 5678 ORDER BY _row_id",
+            selectTarget());
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(0, 0L, 0L),
+            row(1234, 1L, updateSequenceNumber),
+            row(2, 2L, 2L),
+            row(3, 3L, 3L),
+            row(4, 4L, 4L)),
+        rowsWhereIdShouldBePreserved);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    // New row with data 5678 should have any row ID higher than the max in the previous commit
+    // version (4), and have the latest seq number
+    long previousHighestRowId = 4;
+    List<Object[]> newRows =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data = 5678 ORDER BY _row_id",
+            selectTarget());
+    assertRowsHaveRowIdsGreaterThan(newRows, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate
@@ -129,13 +150,29 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "  INSERT *",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    Record updatedRecord = createRecordWithRowLineage(schema, 1234, 1L, null);
-    Record insertedRecord = createRecordWithRowLineage(schema, 5678, null, null);
-    expectedRecords.addAll(ImmutableList.of(insertedRecord, updatedRecord));
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
+    List<Object[]> rowsWhereIdShouldBePreserved =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data != 5678 ORDER BY _row_id",
+            selectTarget());
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(0, 0L, 0L),
+            row(1234, 1L, updateSequenceNumber),
+            row(2, 2L, 2L),
+            row(3, 3L, 3L),
+            row(4, 4L, 4L)),
+        rowsWhereIdShouldBePreserved);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    // New row with data 5678 should have any row ID higher than the max in the previous commit
+    // version (4), and have the latest seq number
+    long previousHighestRowId = 4;
+    List<Object[]> newRows =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data = 5678 ORDER BY _row_id",
+            selectTarget());
+    assertRowsHaveRowIdsGreaterThan(newRows, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate
@@ -160,12 +197,26 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "INSERT *",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(allRecords(recordsByPartition));
-    Record insertedRecord = createRecordWithRowLineage(schema, 5678, null, null);
-    expectedRecords.add(insertedRecord);
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
+    List<Object[]> rowsWhereIdShouldBePreserved =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data != 5678 ORDER BY _row_id",
+            selectTarget());
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(0, 0L, 0L), row(1, 1L, 1L), row(2, 2L, 2L), row(3, 3L, 3L), row(4, 4L, 4L)),
+        rowsWhereIdShouldBePreserved);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    // New row with data 5678 should have any row ID higher than the max in the previous commit
+    // version (4), and have the latest seq number
+    long previousHighestRowId = 4;
+    List<Object[]> newRows =
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s WHERE data = 5678 ORDER BY _row_id",
+            selectTarget());
+    assertThat(newRows).hasSize(1);
+    assertRowsHaveRowIdsGreaterThan(newRows, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate
@@ -176,7 +227,6 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     createAndInitTable("data INT", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    Schema schema = schemaWithRowLineage(table);
     PartitionMap<List<Record>> recordsByPartition =
         createRecordsWithRowLineage(
             schemaWithRowLineage(table), table.spec(), 5, UNPARTITIONED_GENERATOR);
@@ -190,12 +240,16 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "  UPDATE SET t.data = 1234 ",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    Record updatedRecord = createRecordWithRowLineage(schema, 1234, 1L, null);
-    expectedRecords.add(updatedRecord);
-
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(0, 0L, 0L),
+            row(1234, 1L, updateSequenceNumber),
+            row(2, 2L, 2L),
+            row(3, 3L, 3L),
+            row(4, 4L, 4L)),
+        rowsWithLineage());
   }
 
   @TestTemplate
@@ -217,9 +271,10 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "WHEN MATCHED THEN DELETE",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(row(0, 0L, 0L), row(2, 2L, 2L), row(3, 3L, 3L), row(4, 4L, 4L)),
+        rowsWithLineage());
   }
 
   @TestTemplate
@@ -242,23 +297,17 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "WHEN NOT MATCHED BY SOURCE THEN UPDATE set data = 5678",
         commitTarget());
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    // Every record should preserve its row ID and null out its sequence number.
-    // Every record other than id 1 should be 5678 and
-    for (Record record : allRecords(recordsByPartition)) {
-      Record newRecord = record.copy();
-      if (record.get(0, Integer.class) == 1) {
-        newRecord.set(0, 1234);
-        newRecord.set(2, null);
-      } else {
-        newRecord.set(0, 5678);
-        newRecord.set(2, null);
-      }
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
 
-      expectedRecords.add(newRecord);
-    }
-
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(5678, 0L, updateSequenceNumber),
+            row(1234, 1L, updateSequenceNumber),
+            row(5678, 2L, updateSequenceNumber),
+            row(5678, 3L, updateSequenceNumber),
+            row(5678, 4L, updateSequenceNumber)),
+        rowsWithLineage());
   }
 
   @TestTemplate
@@ -280,18 +329,11 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             + "WHEN NOT MATCHED BY SOURCE THEN DELETE",
         commitTarget());
 
-    Record recordWithData1 =
-        allRecords(recordsByPartition).stream()
-            .filter(record -> record.get(0, Integer.class).equals(1))
-            .findFirst()
-            .get();
-    List<Record> expectedRecords = Lists.newArrayList();
-    Record record = recordWithData1.copy();
-    record.set(0, 1234);
-    record.set(2, null);
-    expectedRecords.add(record);
-
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(row(1234, 1L, updateSequenceNumber)),
+        rowsWithLineage());
   }
 
   @TestTemplate
@@ -310,13 +352,19 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     appendRecords(table, recordsByPartition);
 
     sql("UPDATE %s AS t set data = 5678 WHERE data = 1", commitTarget());
+    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(filterByDataNotEqualTo(allRecords(recordsByPartition), 1));
-    Record updatedRecord = createRecordWithRowLineage(schema, 5678, 1L, null);
-    expectedRecords.add(updatedRecord);
-
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(
+            row(0, 0L, 0L),
+            row(5678, 1L, updateSequenceNumber),
+            row(2, 2L, 2L),
+            row(3, 3L, 3L),
+            row(4, 4L, 4L)),
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            selectTarget()));
   }
 
   @TestTemplate
@@ -331,9 +379,19 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     appendRecords(table, recordsByPartition);
 
     sql("DELETE FROM %s WHERE data = 1", commitTarget());
-    List<Record> expectedRecords = filterByDataNotEqualTo(allRecords(recordsByPartition), 1);
 
-    assertRecordsAreEqual(sortByRowId(expectedRecords), sortByRowId(recordsWithLineage(table)));
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        ImmutableList.of(row(0, 0L, 0L), row(2, 2L, 2L), row(3, 3L, 3L), row(4, 4L, 4L)),
+        sql(
+            "SELECT data, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            selectTarget()));
+  }
+
+  private List<Object[]> rowsWithLineage() {
+    return sql(
+        "SELECT data, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+        selectTarget());
   }
 
   protected Record createRecordWithRowLineage(
@@ -343,28 +401,6 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     record.set(1, rowId);
     record.set(2, lastUpdatedSequenceNumber);
     return record;
-  }
-
-  protected List<Record> recordsWithLineage(Table table) throws IOException {
-    List<Record> records = Lists.newArrayList();
-    table.refresh();
-    Snapshot snapshot = branch != null ? table.snapshot(branch) : table.currentSnapshot();
-    try (CloseableIterable<Record> recordsOnDisk =
-        IcebergGenerics.read(table)
-            .project(schemaWithRowLineage(table))
-            .useSnapshot(snapshot.snapshotId())
-            .build()) {
-      recordsOnDisk.forEach(records::add);
-    }
-
-    return records;
-  }
-
-  protected List<Record> sortByRowId(List<Record> records) {
-    records.sort(
-        Comparator.comparing(
-            record -> record.get(1, Long.class), Comparator.nullsFirst(Comparator.naturalOrder())));
-    return records;
   }
 
   /**
@@ -396,12 +432,6 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     }
 
     return recordsByPartition;
-  }
-
-  protected List<Record> filterByDataNotEqualTo(List<Record> records, int data) {
-    return records.stream()
-        .filter(record -> record.get(0, Integer.class) != data)
-        .collect(Collectors.toList());
   }
 
   protected void appendRecords(Table table, PartitionMap<List<Record>> partitionedRecords)
@@ -437,7 +467,19 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     }
   }
 
-  private List<Record> allRecords(PartitionMap<List<Record>> recordsByPartition) {
-    return recordsByPartition.values().stream().flatMap(List::stream).collect(Collectors.toList());
+  private Snapshot latestSnapshot(Table table) {
+    return branch != null ? table.snapshot(branch) : table.currentSnapshot();
+  }
+
+  private void assertRowsHaveRowIdsGreaterThan(
+      List<Object[]> rows,
+      int expectedData,
+      long rowIdWatermark,
+      long expectedLastUpdatedSequenceNumber) {
+    for (Object[] row : rows) {
+      assertThat(row[0]).isEqualTo(expectedData);
+      assertThat((long) row[1]).isGreaterThan(rowIdWatermark);
+      assertThat((long) row[2]).isEqualTo(expectedLastUpdatedSequenceNumber);
+    }
   }
 }
