@@ -268,7 +268,9 @@ The `initial-default` and `write-default` produce SQL default value behavior, wi
 
 All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
 
-Default values for struct fields must be either null or non-null to avoid conflicts between the struct-level default for a field and a field-level default. Default values for struct fields are tracked at the field level.
+Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The actual default value is produced by setting each field default in a new struct.
+
+For example, a column `point` with fields `x` (default 0) and `y` (default 0) can be defaulted to `{"x": 0, "y": 0}` or `null`. The values stored for `initial-default` and `write-default` may be either `null` or an empty struct (`{}`) that indicates a non-null struct with field values set from each field's `initial-default` or `write-default`, respectively.
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
@@ -317,7 +319,7 @@ Struct evolution requires the following rules for default values:
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
 * When an optional field is added, the defaults may be null and should be explicitly set
-* When a field that is a struct type is added, its default may only be null or non-null. Default values for fields must be stored in field metadata.
+* When a field that is a struct type is added, its default may only be null or a non-null struct with no field values. Default values for fields must be stored in field metadata.
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
