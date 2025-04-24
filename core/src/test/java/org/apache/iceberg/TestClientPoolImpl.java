@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +55,11 @@ public class TestClientPoolImpl {
       MockClient firstClient = mockClientPool.newClient();
       mockClientPool.clients().add(firstClient);
 
-      int actions = mockClientPool.run(client -> client.succeedAfter(succeedAfterAttempts, () -> new ImplementationSpecificException(true)));
+      int actions =
+          mockClientPool.run(
+              client ->
+                  client.succeedAfter(
+                      succeedAfterAttempts, () -> new ImplementationSpecificException(true)));
       assertThat(actions)
           .as("There should be exactly one successful action invocation")
           .isEqualTo(1);
@@ -94,7 +97,9 @@ public class TestClientPoolImpl {
   public void testNoRetryingNonRetryableImplementationSpecificException() {
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
-      assertThatThrownBy(() -> mockClientPool.run(MockClient::failWithNonRetryableImplementationSpecific, true))
+      assertThatThrownBy(
+              () ->
+                  mockClientPool.run(MockClient::failWithNonRetryableImplementationSpecific, true))
           .isInstanceOf(NonRetryableException.class)
           .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
@@ -200,8 +205,9 @@ public class TestClientPoolImpl {
 
     @Override
     protected boolean isConnectionException(Exception exc) {
-      return super.isConnectionException(exc) ||
-              (exc instanceof ImplementationSpecificException && ((ImplementationSpecificException) exc).isRetryable());
+      return super.isConnectionException(exc)
+          || (exc instanceof ImplementationSpecificException
+              && ((ImplementationSpecificException) exc).isRetryable());
     }
 
     int reconnectionAttempts() {
