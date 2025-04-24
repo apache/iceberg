@@ -33,7 +33,7 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
       case m @ MergeIntoTable(_, _, _, matchedActions, _, notMatchedBySourceActions)
         if m.resolved && m.rewritable && m.aligned &&
           (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty) &&
-          shouldUpdatePlan(m) =>
+          shouldUpdatePlan(m.targetTable) =>
         updateMergeIntoForRowLineage(m)
     }
   }
@@ -59,7 +59,7 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequence, Literal(null))))
 
-          case p => p
+          case deleteAction => deleteAction
         }
 
         val notMatchedBySourceActionsForLineage = notMatchedBySourceActions.map {
@@ -67,7 +67,7 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequence, Literal(null))))
 
-          case p => p
+          case deleteAction => deleteAction
         }
 
         val tableWithLineage = r.copy(output =
@@ -78,17 +78,5 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
           matchedActions = matchedAssignmentsForLineage,
           notMatchedBySourceActions = notMatchedBySourceActionsForLineage)
     }
-  }
-
-  // The plan should only be updated if row lineage metadata attributes are present
-  // in the target table AND lineage attributes are not already
-  // on the output of operation which indicates the rule already ran
-  private def shouldUpdatePlan(mergeIntoTable: MergeIntoTable): Boolean = {
-    val metadataOutput = mergeIntoTable.targetTable.metadataOutput
-    val rowLineageAttrs = findRowLineageAttributes(metadataOutput)
-    val allLineageAttrsPresent = rowLineageAttrs.nonEmpty && rowLineageAttrs.forall(metadataOutput.contains)
-    val rowIdAbsentFromOutput = !mergeIntoTable.targetTable.output.exists(_.name == ROW_ID_ATTRIBUTE_NAME)
-
-    allLineageAttrsPresent && rowIdAbsentFromOutput
   }
 }

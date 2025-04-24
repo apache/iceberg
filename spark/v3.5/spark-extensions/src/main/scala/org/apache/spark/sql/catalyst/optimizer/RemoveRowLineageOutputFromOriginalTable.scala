@@ -28,10 +28,9 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
 /**
- * RemoveRowLineageOutputFromOriginalTable removes row lineage
- * outputs from Dsv2 write's originalTable so that downstream
- * behaviors like relation caching just work, without
- * having to modify physical planning strategies.
+ * RemoveRowLineageOutputFromOriginalTable removes row lineage outputs from Dsv2 write's
+ * originalTable so that downstream behaviors like relation caching just work, without having to
+ * modify physical planning strategies.
  */
 object RemoveRowLineageOutputFromOriginalTable extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = {
@@ -45,11 +44,10 @@ object RemoveRowLineageOutputFromOriginalTable extends Rule[LogicalPlan] {
 
   private def removeRowLineageOutput(table: NamedRelation): DataSourceV2Relation = {
     table match {
-      case dsv2Relation@DataSourceV2Relation(_, _, _, _, _) => {
+      case dsv2Relation@DataSourceV2Relation(_, _, _, _, _) =>
         dsv2Relation.copy(output = dsv2Relation.output.filterNot(
           attr => attr.name == MetadataColumns.ROW_ID.name() ||
             attr.name == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()))
-      }
     }
   }
 }

@@ -116,8 +116,8 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
 
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
     List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> rowsWhereIdShouldBePreserved = allRows.subList(0, allRows.size() - 1);
-    Object[] insertedRow = allRows.get(allRows.size() - 1);
+    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
+    Object[] newRow = allRows.get(allRows.size() - 1);
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
@@ -127,12 +127,12 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             row(2, 2L, 1L),
             row(3, 3L, 1L),
             row(4, 4L, 1L)),
-        rowsWhereIdShouldBePreserved);
+        carriedOverAndUpdatedRows);
 
     // New row with data 5678 should have any row ID higher than the max in the previous commit
     // version (4), and have the latest seq number
     long previousHighestRowId = 4;
-    assertAddedRowLineage(insertedRow, 5678, previousHighestRowId, updateSequenceNumber);
+    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate
@@ -156,8 +156,8 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
 
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
     List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> rowsWhereIdShouldBePreserved = allRows.subList(0, allRows.size() - 1);
-    Object[] insertedRow = allRows.get(allRows.size() - 1);
+    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
+    Object[] newRow = allRows.get(allRows.size() - 1);
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
@@ -167,12 +167,12 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
             row(2, 2L, 1L),
             row(3, 3L, 1L),
             row(4, 4L, 1L)),
-        rowsWhereIdShouldBePreserved);
+        carriedOverAndUpdatedRows);
 
     // Added row with data 5678 should have any row ID higher than the max in the previous commit
     // version (4), and have the latest seq number
     long previousHighestRowId = 4;
-    assertAddedRowLineage(insertedRow, 5678, previousHighestRowId, updateSequenceNumber);
+    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate
@@ -192,20 +192,20 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         commitTarget());
 
     List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> rowsWhereIdShouldBePreserved = allRows.subList(0, allRows.size() - 1);
-    Object[] insertedRow = allRows.get(allRows.size() - 1);
+    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
+    Object[] newRow = allRows.get(allRows.size() - 1);
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
             row(0, 0L, 1L), row(1, 1L, 1L), row(2, 2L, 1L), row(3, 3L, 1L), row(4, 4L, 1L)),
-        rowsWhereIdShouldBePreserved);
+        carriedOverAndUpdatedRows);
 
     // Added row with data 5678 should have any row ID higher than the max in the previous commit
     // version (4), and have the latest seq number
     long previousHighestRowId = 4;
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
-    assertAddedRowLineage(insertedRow, 5678, previousHighestRowId, updateSequenceNumber);
+    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
   }
 
   @TestTemplate

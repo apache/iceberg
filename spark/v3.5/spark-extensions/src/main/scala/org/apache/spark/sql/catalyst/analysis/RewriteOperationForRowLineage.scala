@@ -20,15 +20,12 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.MetadataColumns
-import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.iceberg.TableUtil
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.V2WriteCommand
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.METADATA_COL_ATTR_KEY
-import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.MetadataBuilder
 
@@ -39,6 +36,22 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
 
   protected val ROW_LINEAGE_ATTRIBUTES =
     Set(ROW_ID_ATTRIBUTE_NAME, LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME)
+
+  // The plan should only be updated if the underlying Iceberg table supports row lineage AND
+  // lineage attributes are not already on the output of operation which indicates the rule already ran
+  protected def shouldUpdatePlan(table: LogicalPlan): Boolean = {
+    val supportsRowLineage = EliminateSubqueryAliases(table) match {
+      case r: DataSourceV2Relation =>
+        r.table match {
+          case sparkTable: SparkTable =>
+            TableUtil.supportsRowLineage(sparkTable.table())
+        }
+    }
+
+    val rowIdAbsentFromOutput = !table.output.exists(_.name == ROW_ID_ATTRIBUTE_NAME)
+
+    supportsRowLineage && rowIdAbsentFromOutput
+  }
 
   protected def findRowLineageAttributes(
       expressions: Seq[Expression]
