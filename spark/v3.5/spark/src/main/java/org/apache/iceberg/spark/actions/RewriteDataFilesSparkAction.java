@@ -94,7 +94,7 @@ public class RewriteDataFilesSparkAction
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
-  private int maxFilesToRewrite;
+  private Integer maxFilesToRewrite;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -350,25 +350,8 @@ public class RewriteDataFilesSparkAction
   Stream<RewriteFileGroup> toGroupStream(
       RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
 
-    if (maxFilesToRewrite == 0) {
-      return groupsByPartition.entrySet().stream()
-          .filter(e -> !e.getValue().isEmpty())
-          .flatMap(
-              e -> {
-                StructLike partition = e.getKey();
-                List<List<FileScanTask>> scanGroups = e.getValue();
-                return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
-              })
-          .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
-    }
-
-    LOG.info(
-        "Max files rewrite options provided for table {} with max file re-write value : {}",
-        table.name(),
-        maxFilesToRewrite);
-
     List<RewriteFileGroup> selectedFileGroups = Lists.newArrayList();
-    AtomicInteger fileCountRunner = new AtomicInteger(0);
+    AtomicInteger fileCountRunner = new AtomicInteger();
 
     groupsByPartition.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
@@ -379,18 +362,23 @@ public class RewriteDataFilesSparkAction
                   .getValue()
                   .forEach(
                       fileScanTasks -> {
-                        if (fileCountRunner.get() < maxFilesToRewrite) {
+                        if (maxFilesToRewrite == null) {
+                          selectedFileGroups.add(newRewriteGroup(ctx, partition, fileScanTasks));
+                        } else if (fileCountRunner.get() < maxFilesToRewrite) {
                           int remainingSize = maxFilesToRewrite - fileCountRunner.get();
                           int fileScanTaskListSize = fileScanTasks.size();
-                          List<FileScanTask> fileScanTaskListSizeTruncated =
-                              fileScanTasks.subList(
-                                  0, Math.min(fileScanTaskListSize, remainingSize));
                           selectedFileGroups.add(
-                              newRewriteGroup(ctx, partition, fileScanTaskListSizeTruncated));
-                          fileCountRunner.getAndAdd(fileScanTaskListSizeTruncated.size());
+                              newRewriteGroup(
+                                  ctx,
+                                  partition,
+                                  remainingSize >= fileScanTaskListSize
+                                      ? fileScanTasks
+                                      : fileScanTasks.subList(0, remainingSize)));
+                          fileCountRunner.getAndAdd(Math.min(remainingSize, fileScanTaskListSize));
                         }
                       });
             });
+
     return selectedFileGroups.stream().sorted(RewriteFileGroup.comparator(rewriteJobOrder));
   }
 
@@ -428,7 +416,7 @@ public class RewriteDataFilesSparkAction
     planner.init(options());
     runner.init(options());
 
-    maxFilesToRewrite = PropertyUtil.propertyAsInt(options(), MAX_FILES_TO_REWRITE, 0);
+    maxFilesToRewrite = PropertyUtil.propertyAsNullableInt(options(), MAX_FILES_TO_REWRITE);
 
     maxConcurrentFileGroupRewrites =
         PropertyUtil.propertyAsInt(
@@ -469,8 +457,8 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
 
     Preconditions.checkArgument(
-        maxFilesToRewrite >= 0,
-        "Cannot set %s to %s, the value must be positive.",
+        maxFilesToRewrite == null || maxFilesToRewrite > 0,
+        "Cannot set %s to %s, the value must be positive integer.",
         MAX_FILES_TO_REWRITE,
         maxFilesToRewrite);
   }
