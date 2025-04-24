@@ -66,7 +66,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -644,17 +643,15 @@ public class TestS3FileIO {
   @Test
   public void singleStorageCredentialConfigured() {
     StorageCredential s3Credential =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential",
-                    "s3.session-token",
-                    "sessionTokenFromCredential"))
-            .build();
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "keyIdFromCredential",
+                "s3.secret-access-key",
+                "accessKeyFromCredential",
+                "s3.session-token",
+                "sessionTokenFromCredential"));
 
     S3FileIO fileIO = new S3FileIO();
     fileIO.setCredentials(ImmutableList.of(s3Credential));
@@ -683,30 +680,26 @@ public class TestS3FileIO {
   @Test
   public void multipleStorageCredentialsConfigured() {
     StorageCredential s3Credential1 =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri/1")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential1",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential1",
-                    "s3.session-token",
-                    "sessionTokenFromCredential1"))
-            .build();
+        StorageCredential.create(
+            "s3://custom-uri/1",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "keyIdFromCredential1",
+                "s3.secret-access-key",
+                "accessKeyFromCredential1",
+                "s3.session-token",
+                "sessionTokenFromCredential1"));
 
     StorageCredential s3Credential2 =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri/2")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyIdFromCredential2",
-                    "s3.secret-access-key",
-                    "accessKeyFromCredential2",
-                    "s3.session-token",
-                    "sessionTokenFromCredential2"))
-            .build();
+        StorageCredential.create(
+            "s3://custom-uri/2",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "keyIdFromCredential2",
+                "s3.secret-access-key",
+                "accessKeyFromCredential2",
+                "s3.session-token",
+                "sessionTokenFromCredential2"));
 
     S3FileIO fileIO = new S3FileIO();
     fileIO.setCredentials(ImmutableList.of(s3Credential1, s3Credential2));
