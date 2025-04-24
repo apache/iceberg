@@ -272,6 +272,13 @@ Default values for the fields of a struct are tracked as `initial-default` and `
 
 For example, a struct column `point` with fields `x` (default 0) and `y` (default 0) can be defaulted to `{"x": 0, "y": 0}` or `null`. A non-null default is stored by setting `initial-default` or `write-default` to an empty struct (`{}`) that will use field values set from each field's `initial-default` or `write-default`, respectively.
 
+| `point` default | `point.x` default | `point.y` default | Data value   | Result value |
+|-----------------|-------------------|-------------------|--------------|--------------|
+| `null`          | `0`               | `0`               | (missing)    | `null` |
+| `null`          | `0`               | `0`               | `{"x": 3}`   | `{"x": 3, "y": 0}` |
+| `{}`            | `0`               | `0`               | (missing)    | `{"x": 0, "y": 0}` |
+| `{}`            | `0`               | `0`               | `{"y": -1}`  | `{"x": 0, "y": -1}` |
+
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
 
