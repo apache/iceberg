@@ -381,6 +381,11 @@ the end.
 s3://my-table-data-bucket/my_ns.db/my_table/0101/0110/1001/10110010/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
+!!! warning
+    Setting the `write.data.path` table property changes the default location where Iceberg writes data files.
+    Consider also provide the same path via the `location` argument when running the [remove_orphan_files procedure](spark-procedures.md#remove_orphan_files). 
+    This helps ensure that all orphaned data files can be properly identified and cleaned up.
+
 Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
 However, for the older versions up to 0.12.0, the logic is as follows:
 - before 0.12.0, `write.object-storage.path` must be set.
