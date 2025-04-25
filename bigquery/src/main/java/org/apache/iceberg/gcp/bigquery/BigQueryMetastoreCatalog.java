@@ -65,7 +65,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   // User provided properties.
   public static final String PROJECT_ID = "gcp-project";
   public static final String GCP_LOCATION = "gcp-location";
-  public static final String FILTER_UNSUPPORTED_TABLES = "filter-unsupported-tables";
+  public static final String LIST_ALL_TABLES = "list-all-tables";
 
   public static final String HIVE_METASTORE_WAREHOUSE_DIR = "hive.metastore.warehouse.dir";
 
@@ -80,7 +80,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private String projectId;
   private String location;
   private BigQueryMetastoreClient client;
-  private boolean filterUnsupportedTables;
+  private boolean listAllTables;
 
   // Must have a no-arg constructor to be dynamically loaded
   // initialize(String name, Map<String, String> properties) will be called to complete
@@ -145,14 +145,12 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
     this.fileIO = CatalogUtil.loadFileIO(fileIoImpl, properties, conf);
 
-    this.filterUnsupportedTables =
-        Boolean.parseBoolean(properties.getOrDefault(FILTER_UNSUPPORTED_TABLES, "false"));
+    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
   }
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new BigQueryTableOperations(
-        client, fileIO, projectId, identifier.namespace().level(0), identifier.name(), conf);
+    return new BigQueryTableOperations(client, fileIO, toTableReference(identifier), conf);
   }
 
   @Override
@@ -176,7 +174,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public List<TableIdentifier> listTables(Namespace namespace) {
     validateNamespace(namespace);
 
-    return client.list(toDatasetReference(namespace), filterUnsupportedTables).stream()
+    return client.list(toDatasetReference(namespace), listAllTables).stream()
         .map(
             table -> TableIdentifier.of(namespace.level(0), table.getTableReference().getTableId()))
         .collect(ImmutableList.toImmutableList());
@@ -193,8 +191,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
-    } catch (NoSuchTableException e) { // Not catching a NoSuchIcebergTableException on purpose
-      return false; // The documentation says just return false in this case
+    } catch (NoSuchTableException e) {
+      return false;
     }
 
     return true;
@@ -307,13 +305,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       return false;
     }
 
-    client.setDatasetParameters(toDatasetReference(namespace), properties);
+    client.setParameters(toDatasetReference(namespace), properties);
     return true;
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    client.removeDatasetParameters(toDatasetReference(namespace), properties);
+    client.removeParameters(toDatasetReference(namespace), properties);
     return true;
   }
 

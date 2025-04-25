@@ -218,8 +218,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public Dataset setDatasetParameters(
-      DatasetReference datasetReference, Map<String, String> parameters) {
+  public Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
     Dataset dataset = load(datasetReference);
     ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
         dataset.getExternalCatalogDatasetOptions() == null
@@ -238,8 +237,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public Dataset removeDatasetParameters(
-      DatasetReference datasetReference, Set<String> parameters) {
+  public Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters) {
     Dataset dataset = load(datasetReference);
     ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
         dataset.getExternalCatalogDatasetOptions() == null

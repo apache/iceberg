@@ -691,7 +691,7 @@ project(':iceberg-bigquery') {
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
       exclude group: 'com.google.code.gson', module: 'gson'
-  }
+    }
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')

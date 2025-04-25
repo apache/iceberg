@@ -83,8 +83,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Dataset setDatasetParameters(
-      DatasetReference datasetReference, Map<String, String> parameters) {
+  public Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
     Dataset dataset = load(datasetReference);
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
@@ -97,8 +96,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Dataset removeDatasetParameters(
-      DatasetReference datasetReference, Set<String> parameters) {
+  public Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters) {
     Dataset dataset = load(datasetReference);
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());

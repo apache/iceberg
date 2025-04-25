@@ -62,7 +62,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
       List<TableIdentifier> tables = catalog().listTables(namespace);
       for (TableIdentifier table : tables) {
         try {
-          catalog().dropTable(table, true); // drop with purge
+          catalog().dropTable(table, true);
         } catch (NoSuchTableException e) {
           // Table might be dropped by a previous iteration, ignore
         }
@@ -184,4 +184,8 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Disabled("BigQuery Metastore does not support V3 Spec yet.")
   @Test
   public void testCreateTableWithDefaultColumnValue() {}
+
+  @Disabled("BigQuery Metastore does not support multi layer namespaces")
+  @Test
+  public void testLoadMetadataTable() {}
 }

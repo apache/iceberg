@@ -56,14 +56,11 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   BigQueryTableOperations(
       BigQueryMetastoreClient client,
       FileIO fileIO,
-      String project,
-      String dataset,
-      String table,
+      TableReference tableReference,
       Configuration conf) {
     this.client = client;
     this.fileIO = fileIO;
-    this.tableReference =
-        new TableReference().setProjectId(project).setDatasetId(dataset).setTableId(table);
+    this.tableReference = tableReference;
     this.conf = conf;
   }
 

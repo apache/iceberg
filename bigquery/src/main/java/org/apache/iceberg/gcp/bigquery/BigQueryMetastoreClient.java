@@ -63,7 +63,7 @@ public interface BigQueryMetastoreClient {
    * @param parameters metadata parameters to add
    * @return dataset after patch
    */
-  Dataset setDatasetParameters(DatasetReference datasetReference, Map<String, String> parameters);
+  Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters);
 
   /**
    * Removes given set of keys of parameters of a dataset. Ignores keys that do not exist already.
@@ -72,7 +72,7 @@ public interface BigQueryMetastoreClient {
    * @param parameters metadata parameter keys to remove
    * @return dataset after patch
    */
-  Dataset removeDatasetParameters(DatasetReference datasetReference, Set<String> parameters);
+  Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters);
 
   /**
    * Lists datasets under a given project
