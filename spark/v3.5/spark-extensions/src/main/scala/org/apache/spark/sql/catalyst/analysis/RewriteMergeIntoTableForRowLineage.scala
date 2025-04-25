@@ -46,16 +46,19 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
         val (rowId, lastUpdatedSequenceNumber) = findRowLineageAttributes(r.metadataOutput).get
 
         val matchedAssignmentsForLineage = matchedActions.map {
-          case UpdateAction(cond, actions) =>
-            UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
+          case UpdateAction(cond, assignments) =>
+            UpdateAction(cond, assignments ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }
 
+        // Updates target rows without a matching source row.
+        // For NOT MATCHED BY TARGET (INSERT), null literals are assigned
+        // during alignment in ResolveRowLevelCommandAssignments.
         val notMatchedBySourceActionsForLineage = notMatchedBySourceActions.map {
-          case UpdateAction(cond, actions) =>
-            UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
+          case UpdateAction(cond, assignments) =>
+            UpdateAction(cond, assignments ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
