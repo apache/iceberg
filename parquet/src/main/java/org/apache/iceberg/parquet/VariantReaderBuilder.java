@@ -66,8 +66,8 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     return Streams.concat(Streams.stream(basePath), fieldNames.stream()).toArray(String[]::new);
   }
 
-  private String[] path(String name) {
-    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(name))
+  private String[] path(String... names) {
+    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(names))
         .toArray(String[]::new);
   }
 
@@ -162,8 +162,16 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
   @Override
   public VariantValueReader array(
-      GroupType array, ParquetValueReader<?> valueResult, ParquetValueReader<?> elementResult) {
-    throw new UnsupportedOperationException("Array is not yet supported");
+      GroupType array, ParquetValueReader<?> valueReader, ParquetValueReader<?> elementReader) {
+    int valueDL =
+        valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
+    int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST)) - 1;
+    int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST)) - 1;
+    VariantValueReader typedReader =
+        ParquetVariantReaders.array(repeatedDL, repeatedRL, elementReader);
+
+    return ParquetVariantReaders.shredded(valueDL, valueReader, typedDL, typedReader);
   }
 
   private static class LogicalTypeToVariantReader
