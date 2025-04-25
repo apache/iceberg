@@ -1327,7 +1327,7 @@ public class TestVariantReaders {
     VariantValue actualValue = actualVariant.value();
     assertThat(actualValue.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(actualValue.asArray().numElements()).isEqualTo(1);
-    assertThat(actualValue.asArray().get(0)).isNull();
+    VariantTestUtil.assertEqual(Variants.ofNull(), actualValue.asArray().get(0));
   }
 
   @Test

@@ -366,7 +366,8 @@ public class ParquetVariantReaders {
       ValueArray arr = Variants.array();
       do {
         if (column.currentDefinitionLevel() > definitionLevel) {
-          arr.add(reader.read(metadata));
+          VariantValue value = reader.read(metadata);
+          arr.add(value != null ? value : Variants.ofNull());
         } else {
           // consume the empty list triple
           for (TripleIterator<?> child : children) {
