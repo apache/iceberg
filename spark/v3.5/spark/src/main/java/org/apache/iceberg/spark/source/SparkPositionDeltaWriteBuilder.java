@@ -88,7 +88,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     } else {
       Schema writeSchema =
           TableUtil.supportsRowLineage(table)
-              ? MetadataColumns.schemaWithRowLineage(table)
+              ? MetadataColumns.schemaWithRowLineage(table.schema())
               : table.schema();
       Schema dataSchema = SparkSchemaUtil.convert(writeSchema, info.schema());
       validateSchema("data", writeSchema, dataSchema);
@@ -110,13 +110,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
             MetadataColumns.SPEC_ID,
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
     if (TableUtil.supportsRowLineage(table)) {
-      Schema rowLineageSchema =
-          new Schema(
-              MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
-              MetadataColumns.metadataColumn(
-                      table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-                  .asOptional());
-      expectedMetadataSchema = TypeUtil.join(expectedMetadataSchema, rowLineageSchema);
+      expectedMetadataSchema = MetadataColumns.schemaWithRowLineage(expectedMetadataSchema);
     }
 
     StructType metadataSparkType = info.metadataSchema().get();

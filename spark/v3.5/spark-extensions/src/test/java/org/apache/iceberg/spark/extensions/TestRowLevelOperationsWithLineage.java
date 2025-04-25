@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -59,24 +60,25 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOperationsTestBase {
-  static final Function<StructLike, StructLike> UNPARTITIONED_GENERATOR = record -> null;
   static final Function<StructLike, StructLike> BUCKET_PARTITION_GENERATOR =
       record ->
           TestHelpers.Row.of(BucketFunction.BucketInt.invoke(2, record.get(0, Integer.class)));
+
   static final Schema SCHEMA =
       new Schema(
           ImmutableList.of(
-              Types.NestedField.required(1, "data", Types.IntegerType.get()),
+              Types.NestedField.required(1, "id", Types.IntegerType.get()),
+              Types.NestedField.required(2, "data", Types.StringType.get()),
               MetadataColumns.ROW_ID,
               MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER));
 
   static final List<Record> INITIAL_RECORDS =
       ImmutableList.of(
-          createRecord(0, 0L, 1L),
-          createRecord(1, 1L, 1L),
-          createRecord(2, 2L, 1L),
-          createRecord(3, 3L, 1L),
-          createRecord(4, 4L, 1L));
+          createRecord(SCHEMA, 100, "a", 0L, 1L),
+          createRecord(SCHEMA, 101, "b", 1L, 1L),
+          createRecord(SCHEMA, 102, "c", 2L, 1L),
+          createRecord(SCHEMA, 103, "d", 3L, 1L),
+          createRecord(SCHEMA, 104, "e", 4L, 1L));
 
   @BeforeAll
   public static void setupSparkConf() {
@@ -100,175 +102,204 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   @TestTemplate
   public void testMergeIntoWithBothMatchedAndNonMatched()
       throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 5678}\n");
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id int, data string",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n " + "{ \"id\": 200, \"data\": \"f\" }\n");
     sql(
         "MERGE INTO %s AS t USING source AS s "
-            + "ON t.data == s.data "
+            + "ON t.id == s.id "
             + "WHEN MATCHED THEN "
-            + "  UPDATE SET t.data = 1234 "
+            + "  UPDATE SET t.data = s.data "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
         commitTarget());
 
-    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
-    List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
-    Object[] newRow = allRows.get(allRows.size() - 1);
+    Snapshot updateSnapshot = latestSnapshot(table);
+    long updateSnapshotFirstRowId = updateSnapshot.firstRowId();
+    List<Object[]> allRows = rowsWithLineageAndFilePos();
+    List<Object[]> carriedOverAndUpdatedRows =
+        allRows.stream()
+            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .collect(Collectors.toList());
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(0, 0L, 1L),
-            row(1234, 1L, updateSequenceNumber),
-            row(2, 2L, 1L),
-            row(3, 3L, 1L),
-            row(4, 4L, 1L)),
+            row(100, "a", 0L, 1L, ANY, ANY),
+            row(101, "updated_b", 1L, updateSnapshot.sequenceNumber(), ANY, ANY),
+            row(102, "c", 2L, 1L, ANY, ANY),
+            row(103, "d", 3L, 1L, ANY, ANY),
+            row(104, "e", 4L, 1L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
-    // New row with data 5678 should have any row ID higher than the max in the previous commit
-    // version (4), and have the latest seq number
-    long previousHighestRowId = 4;
-    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
+    Object[] newRow =
+        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
+    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
   }
 
   @TestTemplate
   public void testMergeIntoWithBothMatchedAndNonMatchedPartitioned()
       throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", "PARTITIONED BY (bucket(2, data))", null);
+
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
     appendRecords(
         table, partitionRecords(INITIAL_RECORDS, table.spec(), BUCKET_PARTITION_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 5678}\n");
-
+    createOrReplaceView(
+        "source",
+        "id int, data string",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n " + "{ \"id\": 200, \"data\": \"f\" }\n");
     sql(
         "MERGE INTO %s AS t USING source AS s "
-            + "ON t.data == s.data "
+            + "ON t.id == s.id "
             + "WHEN MATCHED THEN "
-            + "  UPDATE SET t.data = 1234 "
+            + "  UPDATE SET t.data = s.data "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
         commitTarget());
 
-    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
-    List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
-    Object[] newRow = allRows.get(allRows.size() - 1);
+    Snapshot updateSnapshot = latestSnapshot(table);
+    long updateSnapshotFirstRowId = updateSnapshot.firstRowId();
+    List<Object[]> allRows = rowsWithLineageAndFilePos();
+
+    List<Object[]> carriedOverAndUpdatedRows =
+        allRows.stream()
+            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .collect(Collectors.toList());
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(0, 0L, 1L),
-            row(1234, 1L, updateSequenceNumber),
-            row(2, 2L, 1L),
-            row(3, 3L, 1L),
-            row(4, 4L, 1L)),
+            row(100, "a", 0L, 1L, ANY, ANY),
+            row(101, "updated_b", 1L, updateSnapshot.sequenceNumber(), ANY, ANY),
+            row(102, "c", 2L, 1L, ANY, ANY),
+            row(103, "d", 3L, 1L, ANY, ANY),
+            row(104, "e", 4L, 1L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
-    // Added row with data 5678 should have any row ID higher than the max in the previous commit
-    // version (4), and have the latest seq number
-    long previousHighestRowId = 4;
-    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
+    Object[] newRow =
+        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
+    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
   }
 
   @TestTemplate
   public void testMergeIntoWithOnlyNonMatched()
       throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data string", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 5678}\n");
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id INT, data STRING",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n " + "{ \"id\": 200, \"data\": \"f\" }\n");
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
-            + "ON t.data == s.data "
+            + "ON t.id == s.id "
             + "WHEN NOT MATCHED THEN "
             + "INSERT *",
         commitTarget());
 
-    List<Object[]> allRows = rowsWithLineage();
-    List<Object[]> carriedOverAndUpdatedRows = allRows.subList(0, allRows.size() - 1);
-    Object[] newRow = allRows.get(allRows.size() - 1);
+    Snapshot updateSnapshot = latestSnapshot(table);
+    long updateSnapshotFirstRowId = updateSnapshot.firstRowId();
+
+    List<Object[]> allRows = rowsWithLineageAndFilePos();
+    List<Object[]> carriedOverAndUpdatedRows =
+        allRows.stream()
+            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .collect(Collectors.toList());
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(0, 0L, 1L), row(1, 1L, 1L), row(2, 2L, 1L), row(3, 3L, 1L), row(4, 4L, 1L)),
+            row(100, "a", 0L, 1L, ANY, ANY),
+            row(101, "b", 1L, 1L, ANY, ANY),
+            row(102, "c", 2L, 1L, ANY, ANY),
+            row(103, "d", 3L, 1L, ANY, ANY),
+            row(104, "e", 4L, 1L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
-    // Added row with data 5678 should have any row ID higher than the max in the previous commit
-    // version (4), and have the latest seq number
-    long previousHighestRowId = 4;
-    long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
-    assertAddedRowLineage(newRow, 5678, previousHighestRowId, updateSequenceNumber);
+    Object[] newRow =
+        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
+    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
   }
 
   @TestTemplate
   public void testMergeIntoWithOnlyMatched()
       throws IOException, NoSuchTableException, ParseException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 2}\n");
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id INT, data string",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n "
+            + "{ \"id\": 102, \"data\": \"updated_c\" }\n");
 
     sql(
         "MERGE INTO %s AS t USING source AS s "
-            + "ON t.data == s.data "
+            + "ON t.id == s.id "
             + "WHEN MATCHED THEN "
-            + "  UPDATE SET t.data = 1234 ",
+            + "  UPDATE SET t.data = s.data ",
         commitTarget());
 
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(0, 0L, 1L),
-            row(1234, 1L, updateSequenceNumber),
-            row(1234, 2L, updateSequenceNumber),
-            row(3, 3L, 1L),
-            row(4, 4L, 1L)),
+            row(100, "a", 0L, 1L),
+            row(101, "updated_b", 1L, updateSequenceNumber),
+            row(102, "updated_c", 2L, updateSequenceNumber),
+            row(103, "d", 3L, 1L),
+            row(104, "e", 4L, 1L)),
         rowsWithLineage());
   }
 
   @TestTemplate
   public void testMergeMatchedDelete() throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 2}\n");
-
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id INT, data string",
+        "{ \"id\": 101, \"data\": \"delete_101\" }\n "
+            + "{ \"id\": 102, \"data\": \"delete_102\" }\n");
     sql(
-        "MERGE INTO %s AS t USING source AS s "
-            + "ON t.data == s.data "
-            + "WHEN MATCHED THEN DELETE",
+        "MERGE INTO %s AS t USING source AS s " + "ON t.id == s.id " + "WHEN MATCHED THEN DELETE",
         commitTarget());
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
-        ImmutableList.of(row(0, 0L, 1L), row(3, 3L, 1L), row(4, 4L, 1L)),
+        ImmutableList.of(row(100, "a", 0L, 1L), row(103, "d", 3L, 1L), row(104, "e", 4L, 1L)),
         rowsWithLineage());
   }
 
   @TestTemplate
   public void testMergeWhenNotMatchedBySource()
       throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 42}\n");
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id INT, data STRING",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n " + "{ \"id\": 200, \"data\": \"f\" }\n");
 
     sql(
-        "MERGE INTO %s AS t USING source AS s ON t.data == s.data"
-            + " WHEN MATCHED THEN UPDATE set data = 1234 "
-            + "WHEN NOT MATCHED BY SOURCE THEN UPDATE set data = 5678",
+        "MERGE INTO %s AS t USING source AS s ON t.id == s.id"
+            + " WHEN MATCHED THEN UPDATE set t.data = s.data "
+            + "WHEN NOT MATCHED BY SOURCE THEN UPDATE set data = 'not_matched_by_source'",
         commitTarget());
 
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
@@ -276,76 +307,92 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(5678, 0L, updateSequenceNumber),
-            row(1234, 1L, updateSequenceNumber),
-            row(5678, 2L, updateSequenceNumber),
-            row(5678, 3L, updateSequenceNumber),
-            row(5678, 4L, updateSequenceNumber)),
+            row(100, "not_matched_by_source", 0L, updateSequenceNumber),
+            row(101, "updated_b", 1L, updateSequenceNumber),
+            row(102, "not_matched_by_source", 2L, updateSequenceNumber),
+            row(103, "not_matched_by_source", 3L, updateSequenceNumber),
+            row(104, "not_matched_by_source", 4L, updateSequenceNumber)),
         rowsWithLineage());
   }
 
   @TestTemplate
   public void testMergeWhenNotMatchedBySourceDelete()
       throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
-    createOrReplaceView("source", "data INT", "{ \"data\": 1}\n" + "{ \"data\": 42}\n");
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
+    createOrReplaceView(
+        "source",
+        "id INT, data STRING",
+        "{ \"id\": 101, \"data\": \"updated_b\" }\n "
+            + "{ \"id\": 102, \"data\": \"updated_c\" }\n");
 
     sql(
-        "MERGE INTO %s AS t USING source AS s ON t.data == s.data AND t.data = 1"
-            + " WHEN MATCHED THEN UPDATE set data = 1234 "
+        "MERGE INTO %s AS t USING source AS s ON t.id == s.id"
+            + " WHEN MATCHED THEN UPDATE set t.data = s.data "
             + "WHEN NOT MATCHED BY SOURCE THEN DELETE",
         commitTarget());
 
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
-        ImmutableList.of(row(1234, 1L, updateSequenceNumber)),
+        ImmutableList.of(
+            row(101, "updated_b", 1L, updateSequenceNumber),
+            row(102, "updated_c", 2L, updateSequenceNumber)),
         rowsWithLineage());
   }
 
   @TestTemplate
   public void testUpdate() throws NoSuchTableException, ParseException, IOException {
-    createAndInitTable("data INT", null);
+    createAndInitTable("id INT, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
 
-    sql("UPDATE %s AS t set data = 5678 WHERE data = 1", commitTarget());
+    sql("UPDATE %s AS t set data = 'updated_b' WHERE id = 101", commitTarget());
     long updateSequenceNumber = latestSnapshot(table).sequenceNumber();
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(0, 0L, 1L),
-            row(5678, 1L, updateSequenceNumber),
-            row(2, 2L, 1L),
-            row(3, 3L, 1L),
-            row(4, 4L, 1L)),
+            row(100, "a", 0L, 1L),
+            row(101, "updated_b", 1L, updateSequenceNumber),
+            row(102, "c", 2L, 1L),
+            row(103, "d", 3L, 1L),
+            row(104, "e", 4L, 1L)),
         rowsWithLineage());
   }
 
   @TestTemplate
   public void testDelete() throws NoSuchTableException, ParseException, IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    createAndInitTable("data INT", null);
+    createAndInitTable("id int, data STRING", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
-    appendRecords(table, partitionRecords(INITIAL_RECORDS, table.spec(), UNPARTITIONED_GENERATOR));
+    appendUnpartitionedRecords(table, INITIAL_RECORDS);
 
-    sql("DELETE FROM %s WHERE data = 1", commitTarget());
+    sql("DELETE FROM %s WHERE id = 101", commitTarget());
 
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
-        ImmutableList.of(row(0, 0L, 1L), row(2, 2L, 1L), row(3, 3L, 1L), row(4, 4L, 1L)),
+        ImmutableList.of(
+            row(100, "a", 0L, 1L),
+            row(102, "c", 2L, 1L),
+            row(103, "d", 3L, 1L),
+            row(104, "e", 4L, 1L)),
         rowsWithLineage());
+  }
+
+  private List<Object[]> rowsWithLineageAndFilePos() {
+    return sql(
+        "SELECT id, data, _row_id, _last_updated_sequence_number, _file, _pos FROM %s ORDER BY _row_id",
+        selectTarget());
   }
 
   private List<Object[]> rowsWithLineage() {
     return sql(
-        "SELECT data, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+        "SELECT id, data, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
         selectTarget());
   }
 
@@ -374,6 +421,11 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     return recordsByPartition;
   }
 
+  protected void appendUnpartitionedRecords(Table table, List<Record> records) throws IOException {
+    appendRecords(table, partitionRecords(records, table.spec(), record -> null));
+  }
+
+  // Append unpartitioned records?
   protected void appendRecords(Table table, PartitionMap<List<Record>> partitionedRecords)
       throws IOException {
     AppendFiles append = table.newAppend();
@@ -381,7 +433,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     for (Map.Entry<Pair<Integer, StructLike>, List<Record>> entry : partitionedRecords.entrySet()) {
       OutputFile file = Files.localOutput(temp.resolve(UUID.randomUUID().toString()).toFile());
       DataWriter<Record> writer =
-          new GenericAppenderFactory(schemaWithRowLineage(table), table.spec())
+          new GenericAppenderFactory(schemaWithRowLineage(table.schema()), table.spec())
               .newDataWriter(
                   EncryptionUtil.plainAsEncryptedOutput(file), fileFormat, entry.getKey().second());
       List<Record> recordsForPartition = entry.getValue();
@@ -396,11 +448,13 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     append.commit();
   }
 
-  protected static Record createRecord(int data, long rowId, long lastUpdatedSequenceNumber) {
-    Record record = GenericRecord.create(SCHEMA);
-    record.set(0, data);
-    record.set(1, rowId);
-    record.set(2, lastUpdatedSequenceNumber);
+  protected static Record createRecord(
+      Schema schema, int id, String data, long rowId, long lastUpdatedSequenceNumber) {
+    Record record = GenericRecord.create(schema);
+    record.set(0, id);
+    record.set(1, data);
+    record.set(2, rowId);
+    record.set(3, lastUpdatedSequenceNumber);
     return record;
   }
 
@@ -408,10 +462,29 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     return branch != null ? table.snapshot(branch) : table.currentSnapshot();
   }
 
-  private void assertAddedRowLineage(
-      Object[] row, int expectedData, long rowIdWatermark, long expectedLastUpdatedSequenceNumber) {
-    assertThat(row[0]).isEqualTo(expectedData);
-    assertThat((long) row[1]).isGreaterThan(rowIdWatermark);
-    assertThat((long) row[2]).isEqualTo(expectedLastUpdatedSequenceNumber);
+  // Expected should have all data columns and the last updated sequence at the end
+  // Actual should all data columns, followed by row ID, last updated sequence, file, and then pos
+  private void assertAddedRowLineage(Object[] expected, Object[] actual) {
+    // validate all the data columns
+    for (int pos = 0; pos < expected.length - 1; pos++) {
+      assertThat(actual[pos]).isEqualTo(expected[pos]);
+    }
+
+    // Determine the expected row ID from the firstRowId of the file and the pos
+    int actualRowIdPos = actual.length - 4;
+    int filePos = actual.length - 2;
+    int rowPositionPos = actual.length - 1;
+    String file = actual[filePos].toString();
+    long fileFirstRowId =
+        (Long)
+            sql("SELECT first_row_id FROM %s.files WHERE file_path = '%s'", selectTarget(), file)
+                .get(0)[0];
+    long rowPosition = (long) actual[rowPositionPos];
+    long expectedFirstRowId = fileFirstRowId + rowPosition;
+    assertThat(actual[actualRowIdPos]).isEqualTo(expectedFirstRowId);
+
+    int expectedLastSequencePos = expected.length - 1;
+    int actualLastSequencePos = 3;
+    assertThat(actual[actualLastSequencePos]).isEqualTo(expected[expectedLastSequencePos]);
   }
 }

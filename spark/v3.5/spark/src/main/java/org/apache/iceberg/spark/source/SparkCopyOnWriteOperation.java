@@ -100,14 +100,14 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   public NamedReference[] requiredMetadataAttributes() {
     List<NamedReference> metadataAttributes = Lists.newArrayList();
     metadataAttributes.add(Expressions.column(MetadataColumns.FILE_PATH.name()));
+    if (command == DELETE || command == UPDATE) {
+      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_POSITION.name()));
+    }
 
     if (TableUtil.supportsRowLineage(table)) {
-      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_POSITION.name()));
       metadataAttributes.add(Expressions.column(MetadataColumns.ROW_ID.name()));
       metadataAttributes.add(
           Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
-    } else if (command == DELETE || command == UPDATE) {
-      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_POSITION.name()));
     }
 
     return metadataAttributes.toArray(NamedReference[]::new);

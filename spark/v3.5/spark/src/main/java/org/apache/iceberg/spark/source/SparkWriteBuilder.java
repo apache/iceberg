@@ -191,7 +191,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
           table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
       if (writeIncludesRowLineage) {
-        mergedSchema = TypeUtil.join(mergedSchema, MetadataColumns.schemaWithRowLineage(table));
+        mergedSchema =
+            TypeUtil.join(mergedSchema, MetadataColumns.schemaWithRowLineage(table.schema()));
       }
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
@@ -204,7 +205,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       update.commit();
     } else {
       Schema schema =
-          writeIncludesRowLineage ? MetadataColumns.schemaWithRowLineage(table) : table.schema();
+          writeIncludesRowLineage
+              ? MetadataColumns.schemaWithRowLineage(table.schema())
+              : table.schema();
       writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
