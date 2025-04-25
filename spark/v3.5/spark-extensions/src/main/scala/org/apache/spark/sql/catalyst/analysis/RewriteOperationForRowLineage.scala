@@ -34,9 +34,6 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
   protected val ROW_ID_ATTRIBUTE_NAME = MetadataColumns.ROW_ID.name()
   protected val LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()
 
-  protected val ROW_LINEAGE_ATTRIBUTES =
-    Set(ROW_ID_ATTRIBUTE_NAME, LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME)
-
   // The plan should only be updated if the underlying Iceberg table supports row lineage AND
   // lineage attributes are not already on the output of operation which indicates the rule already ran
   protected def shouldUpdatePlan(table: LogicalPlan): Boolean = {
