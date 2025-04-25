@@ -64,7 +64,7 @@ public final class BigQueryMetastoreTestUtils {
         .commitTransaction();
 
     Optional<String> metadataLocation = getIcebergMetadataFilePath(tableDir);
-    assertThat(metadataLocation.isPresent());
+    assertThat(metadataLocation).isPresent();
     return new Table()
         .setTableReference(tableReference)
         .setExternalCatalogTableOptions(
