@@ -23,7 +23,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -74,9 +73,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
 
-  /**
-   * Flag to indicate that Hadoop Bulk Delete API should be used.
-   */
+  /** Flag to indicate that Hadoop Bulk Delete API should be used. */
   @VisibleForTesting static final AtomicBoolean HADOOP_BULK_DELETE = new AtomicBoolean(true);
 
   // probe for WrappedIO class existing; if not found: disable bulk deletion.
@@ -209,9 +206,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /**
    * Delete files.
    *
-   * <p>If the Hadoop Bulk Delete API is available, this API is used through {@link
-   * #hadoopBulkDelete(Iterable)}.
-   *
    * @param pathsToDelete The paths to delete
    * @throws BulkDeletionFailureException failure to delete files.
    */
@@ -219,25 +213,24 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   public void deleteFiles(final Iterable<String> pathsToDelete)
       throws BulkDeletionFailureException {
     Iterable<String> targetPaths = pathsToDelete;
-    if (HADOOP_BULK_DELETE.get()) {
-      try {
-        final List<Map.Entry<Path, String>> pathsNotDeleted = hadoopBulkDelete(targetPaths);
-        if (pathsNotDeleted.isEmpty()) {
-          return;
-        }
-        // one or more files were not deleted.
-        targetPaths =
-            pathsNotDeleted.stream()
-                .map(
-                    entry -> {
-                      LOG.info("Failed to delete {} cause: {}", entry.getKey(), entry.getValue());
-                      return entry.getKey().toString();
-                    })
-                .collect(Collectors.toList());
-      } catch (RuntimeException e) {
-        LOG.warn("Failed to use bulk delete -falling back to single delete calls", e);
+    try {
+      final List<Map.Entry<Path, String>> pathsNotDeleted = hadoopBulkDelete(targetPaths);
+      if (pathsNotDeleted.isEmpty()) {
+        return;
       }
+      // one or more files were not deleted.
+      targetPaths =
+          pathsNotDeleted.stream()
+              .map(
+                  entry -> {
+                    LOG.info("Failed to delete {} cause: {}", entry.getKey(), entry.getValue());
+                    return entry.getKey().toString();
+                  })
+              .collect(Collectors.toList());
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to use bulk delete -falling back to single delete calls", e);
     }
+
     AtomicInteger failureCount = new AtomicInteger(0);
     Tasks.foreach(targetPaths)
         .executeWith(executorService())
@@ -269,7 +262,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
     SetMultimap<Path, Path> fsMap = Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
     Map<Path, Integer> fsPageSizeMap = Maps.newHashMap();
-    List<Map.Entry<Path, String>> filesNotDeleted = new ArrayList<>();
+    List<Map.Entry<Path, String>> filesNotDeleted = Lists.newArrayList();
     List<Future<List<Map.Entry<Path, String>>>> deletionTasks = Lists.newArrayList();
     final Path rootPath = new Path("/");
     final Configuration conf = hadoopConf.get();
@@ -325,7 +318,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
               filesNotDeleted.add(entry);
             });
       } catch (ExecutionException e) {
-        LOG.warn("Caught unexpected exception during batch deletion: ", e.getCause());
+        LOG.warn("Exception during batch deletion", e.getCause());
         // this failure
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();

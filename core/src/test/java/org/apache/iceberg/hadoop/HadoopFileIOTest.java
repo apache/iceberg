@@ -25,12 +25,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-import java.util.Vector;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -51,7 +49,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class HadoopFileIOTest {
-
   private final Random random = new Random(1);
 
   private FileSystem fs;
@@ -65,7 +62,6 @@ public class HadoopFileIOTest {
     fs = FileSystem.getLocal(conf);
 
     hadoopFileIO = new HadoopFileIO(conf);
-    HadoopFileIO.HADOOP_BULK_DELETE.set(true);
   }
 
   @Test
@@ -93,14 +89,9 @@ public class HadoopFileIOTest {
         .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
 
-    // having gone to the effort of creating a few thousand files, delete them
-    // this stresses the bulk delete memory/execution path and if profiled,
-    // can highlight performance mismatches across the implementations.
     final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
     hadoopFileIO.deleteFiles(() -> locations);
 
-    // now there are no files, but the parent directory still exists as it was not
-    // deleted.
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parentString)).count())
         .describedAs("Files found under %s after bulk delete", parentString)
         .isEqualTo(0);
@@ -157,17 +148,12 @@ public class HadoopFileIOTest {
   @Test
   public void testDeleteFilesErrorHandling() {
     Path parent = new Path(tempDir.toURI());
-    // two files whose schema doesn't resolve
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
-    // one file in the local FS which doesn't actually exist but whose schema is valid
-    // this MUST NOT be recorded as a failure
     filesCreated.add(new Path(parent, "file-not-exist").toUri().toString());
-    // and a valid file which must be deleted
-    Path path = file(new Path(parent, "random-file-" + UUID.randomUUID()));
-    filesCreated.add(path.toUri().toString());
+    Path file = file(new Path(parent, "file-which-exists-" + UUID.randomUUID()));
+    filesCreated.add(file.toUri().toString());
 
-    // delete all of them and expect a failure
     assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesCreated))
         .describedAs("Exception raised by deleteFiles()")
         .isInstanceOf(BulkDeletionFailureException.class)
@@ -175,35 +161,16 @@ public class HadoopFileIOTest {
         .matches(
             (e) -> ((BulkDeletionFailureException) e).numberFailedObjects() == 2,
             "Wrong number of failures");
-
-    // the file actually created is gone
-    assertPathDoesNotExist(path);
+    assertPathDoesNotExist(file);
   }
 
   @Test
   public void testBulkDeleteEmptyList() {
-    // Deleting an empty list is harmless
-    hadoopFileIO.deleteFiles(new ArrayList<>());
-
-    // disable bulk delete and repeat
-    HadoopFileIO.HADOOP_BULK_DELETE.set(false);
-    hadoopFileIO.deleteFiles(new ArrayList<>());
+    hadoopFileIO.deleteFiles(Lists.newArrayList());
   }
 
   @Test
-  public void testBulkDeleteEmptyDirectory() throws Throwable {
-    verifyBulkDeleteEmptyDirectorySucceeds();
-  }
-
-  @Test
-  public void testBulkDeleteEmptyDirectoryClassic() throws Throwable {
-    // disable bulk delete and repeat
-    HadoopFileIO.HADOOP_BULK_DELETE.set(false);
-    verifyBulkDeleteEmptyDirectorySucceeds();
-  }
-
-  private void verifyBulkDeleteEmptyDirectorySucceeds() throws IOException {
-    // Empty directories are deleted.
+  public void testBulkDeleteEmptyDirectory() throws IOException {
     Path parent = new Path(tempDir.toURI());
     final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
     fs.mkdirs(dir);
@@ -215,19 +182,7 @@ public class HadoopFileIOTest {
   }
 
   @Test
-  public void testBulkDeleteNonEmptyDirectory() throws Throwable {
-    verifyBulkDeleteNonEmptyDirectoryFails();
-  }
-
-  @Test
-  public void testBulkDeleteNonEmptyDirectoryClassic() throws Throwable {
-    HadoopFileIO.HADOOP_BULK_DELETE.set(false);
-    verifyBulkDeleteNonEmptyDirectoryFails();
-  }
-
-  private void verifyBulkDeleteNonEmptyDirectoryFails() throws Throwable {
-    // non-empty directories cannot be deleted; other paths in the bulk request
-    // are still deleted
+  public void testBulkDeleteNonEmptyDirectory() {
     Path parent = new Path(tempDir.toURI());
     final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
     final Path file = file(new Path(parent, "file-" + UUID.randomUUID()));
@@ -245,8 +200,7 @@ public class HadoopFileIOTest {
   }
 
   @Test
-  public void testDeleteEmptyDirectory() throws Throwable {
-    // Empty directories are deleted.
+  public void testDeleteEmptyDirectory() throws IOException {
     Path parent = new Path(tempDir.toURI());
     final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
     fs.mkdirs(dir);
@@ -255,8 +209,7 @@ public class HadoopFileIOTest {
   }
 
   @Test
-  public void testDeleteNonEmptyDirectory() throws Throwable {
-    // directories with children must not be deleted.
+  public void testDeleteNonEmptyDirectory() {
     Path parent = new Path(tempDir.toURI());
     final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
     final Path file = file(new Path(dir, "file"));
@@ -363,9 +316,11 @@ public class HadoopFileIOTest {
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {
-    Vector<Path> paths = new Vector<>();
-    random.ints(count).parallel().forEach(i -> paths.add(file(new Path(parent, "file-" + i))));
-    return paths;
+    return random
+        .ints(count)
+        .parallel()
+        .mapToObj(i -> file(new Path(parent, "file-" + i)))
+        .collect(Collectors.toList());
   }
 
   private void assertPathDoesNotExist(Path path) {
