@@ -46,6 +46,7 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
           case sparkTable: SparkTable =>
             TableUtil.supportsRowLineage(sparkTable.table())
         }
+      case _ => false
     }
 
     val rowIdAbsentFromOutput = !table.output.exists(_.name == ROW_ID_ATTRIBUTE_NAME)
