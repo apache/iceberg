@@ -43,21 +43,12 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
       case r: DataSourceV2Relation =>
         val matchedActions = mergeIntoTable.matchedActions
         val notMatchedBySourceActions = mergeIntoTable.notMatchedBySourceActions
-        val rowLineageAttributes = findRowLineageAttributes(r.metadataOutput)
-        // Treat row lineage columns as data columns by removing the metadata attribute
-        // This works around the logic in ExposesMetadataColumns,
-        // which prevents surfacing other metadata columns when a single metadata column is in the output
-        val rowLineageAsDataColumns = rowLineageAttributes.map(removeMetadataColumnAttribute)
-
-        val rowId = rowLineageAsDataColumns.filter(
-          attr => attr.name == ROW_ID_ATTRIBUTE_NAME).head
-        val lastUpdatedSequence = rowLineageAsDataColumns.filter(
-          attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
+        val (rowId, lastUpdatedSequenceNumber) = findRowLineageAttributes(r.metadataOutput).get
 
         val matchedAssignmentsForLineage = matchedActions.map {
           case UpdateAction(cond, actions) =>
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
-              Assignment(lastUpdatedSequence, Literal(null))))
+              Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }
@@ -65,13 +56,12 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
         val notMatchedBySourceActionsForLineage = notMatchedBySourceActions.map {
           case UpdateAction(cond, actions) =>
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
-              Assignment(lastUpdatedSequence, Literal(null))))
+              Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }
 
-        val tableWithLineage = r.copy(output =
-          r.output ++ rowLineageAsDataColumns)
+        val tableWithLineage = r.copy(output = r.output ++ Seq(rowId, lastUpdatedSequenceNumber))
 
         mergeIntoTable.copy(
           targetTable = tableWithLineage,

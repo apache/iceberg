@@ -55,12 +55,25 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
   }
 
   protected def findRowLineageAttributes(
-      expressions: Seq[Expression]
-  ): Seq[AttributeReference] = {
-    expressions.collect {
+    expressions: Seq[Expression]
+  ): Option[(AttributeReference, AttributeReference)] = {
+    val rowIdAttr = expressions.collectFirst {
       case attr: AttributeReference
-        if ROW_LINEAGE_ATTRIBUTES.contains(attr.name) &&
-          attr.metadata.contains(METADATA_COL_ATTR_KEY) => attr
+        if  isMetadataColumn(attr) && attr.name == ROW_ID_ATTRIBUTE_NAME => attr
+    }
+
+    val lastUpdatedAttr = expressions.collectFirst {
+      case attr: AttributeReference
+        if isMetadataColumn(attr) &&  attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME => attr
+    }
+
+    // Treat row lineage columns as data columns by removing the metadata attribute
+    // This works around the logic in ExposesMetadataColumns,
+    // which prevents surfacing other metadata columns when a single metadata column is in the output
+    (rowIdAttr, lastUpdatedAttr) match {
+      case (Some(rowId), Some(lastUpdated)) =>
+        Some((removeMetadataColumnAttribute(rowId), removeMetadataColumnAttribute(lastUpdated)))
+      case _ => None
     }
   }
 
@@ -69,5 +82,9 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
       new MetadataBuilder()
         .withMetadata(attr.metadata)
         .remove(METADATA_COL_ATTR_KEY).build())
+  }
+
+  private def isMetadataColumn(attributeReference: AttributeReference): Boolean = {
+    attributeReference.metadata.contains(METADATA_COL_ATTR_KEY)
   }
 }
