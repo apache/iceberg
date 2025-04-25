@@ -1922,6 +1922,34 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(filesReWritten).isEqualTo(desiredMaxFileCount);
   }
 
+  @TestTemplate
+  public void testRewriteMaxFilesOptionSinglePartition() {
+    Table table = createTablePartitioned(1, 7);
+    shouldHaveFiles(table, 7);
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    assertThat(filesReWritten).isEqualTo(7);
+  }
+
+  @TestTemplate
+  public void testInvalidMaxFilesRewriteParam() {
+    Table table = createTablePartitioned(1, 5);
+    shouldHaveFiles(table, 5);
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteDataFiles(table)
+                    .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "0")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set max-files-to-rewrite to 0, the value must be positive integer.");
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
