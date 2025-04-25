@@ -106,7 +106,6 @@ public class TestViewMetadataParser {
                     .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
                     .addSchema(TEST_SCHEMA)
                     .addVersion(version1)
-                    .addVersion(version2)
                     .setLocation("s3://bucket/test/location")
                     .setProperties(
                         ImmutableMap.of(
@@ -114,6 +113,7 @@ public class TestViewMetadataParser {
                     .setCurrentVersionId(1)
                     .upgradeFormatVersion(1)
                     .build())
+            .addVersion(version2)
             .setCurrentVersionId(2)
             .build();
 
@@ -222,7 +222,6 @@ public class TestViewMetadataParser {
                             .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
                             .addSchema(TEST_SCHEMA)
                             .addVersion(version1)
-                            .addVersion(version2)
                             .setLocation("s3://bucket/test/location")
                             .setProperties(
                                 ImmutableMap.of(
@@ -233,6 +232,7 @@ public class TestViewMetadataParser {
                             .setCurrentVersionId(1)
                             .upgradeFormatVersion(1)
                             .build())
+                    .addVersion(version2)
                     .setCurrentVersionId(2)
                     .build())
             .setMetadataLocation(metadataLocation)
