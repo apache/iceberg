@@ -66,7 +66,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public static final String PROJECT_ID = "gcp-project";
   public static final String GCP_LOCATION = "gcp-location";
   public static final String FILTER_UNSUPPORTED_TABLES = "filter-unsupported-tables";
-  public static final String TESTING_ENABLED = "testing-enabled";
 
   public static final String HIVE_METASTORE_WAREHOUSE_DIR = "hive.metastore.warehouse.dir";
 
@@ -95,8 +94,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
     projectId = properties.get(PROJECT_ID);
     location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
-    boolean testingEnabled =
-        Boolean.parseBoolean(properties.getOrDefault(TESTING_ENABLED, "false"));
 
     BigQueryOptions options =
         BigQueryOptions.newBuilder()
@@ -106,12 +103,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
             .build();
 
     try {
-      if (testingEnabled) {
-        client = new FakeBigQueryMetastoreClient(options);
-
-      } else {
-        client = new BigQueryMetastoreClientImpl(options);
-      }
+      client = new BigQueryMetastoreClientImpl(options);
     } catch (IOException e) {
       throw new ServiceFailureException(e, "Creating BigQuery client failed");
     } catch (GeneralSecurityException e) {

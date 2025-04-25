@@ -77,7 +77,7 @@ public class BigQueryTableOperationsTest {
 
     bigQueryMetastoreCatalog.initialize(
         "CATALOG_ID",
-        /* properties= */ ImmutableMap.of(
+        ImmutableMap.of(
             PROJECT_ID,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,

@@ -25,9 +25,6 @@ import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableList;
 import com.google.api.services.bigquery.model.TableReference;
-import com.google.cloud.bigquery.BigQueryOptions;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,8 +41,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   private final Map<DatasetReference, Dataset> datasets = Maps.newHashMap();
   private final Map<TableReference, Table> tables = Maps.newHashMap();
 
-  public FakeBigQueryMetastoreClient(BigQueryOptions options)
-      throws IOException, GeneralSecurityException {}
+  public FakeBigQueryMetastoreClient() {}
 
   @Override
   public Dataset create(Dataset dataset) {
