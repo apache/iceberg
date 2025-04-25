@@ -46,7 +46,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
 
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryTableOperations.class);
 
-  public static final String TABLE_PROPERTIES_BQ_CONNECTION = "bq_connection";
+  private static final String TABLE_PROPERTIES_BQ_CONNECTION = "bq_connection";
 
   private final BigQueryMetastoreClient client;
   private final FileIO fileIO;
@@ -75,7 +75,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     try {
       metadataLocation =
           getMetadataLocationOrThrow(
-              client.getTable(this.tableReference).getExternalCatalogTableOptions());
+              client.load(this.tableReference).getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
         // Re-throws the exception because the table must exist in this case.
@@ -150,7 +150,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     tableBuilder.setTableReference(this.tableReference);
     addConnectionIfProvided(tableBuilder, metadata.properties());
 
-    client.createTable(tableBuilder);
+    client.create(tableBuilder);
   }
 
   private void addConnectionIfProvided(Table tableBuilder, Map<String, String> metadataProperties) {
@@ -164,7 +164,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   /** Update table properties with concurrent update detection using etag. */
   private void updateTable(
       String oldMetadataLocation, String newMetadataLocation, TableMetadata metadata) {
-    Table table = client.getTable(this.tableReference);
+    Table table = client.load(this.tableReference);
     if (table.getEtag().isEmpty()) {
       throw new ValidationException(
           "Etag of legacy table %s is empty, manually update the table via the BigQuery API or"
@@ -191,7 +191,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
     try {
-      client.patchTable(tableReference, table);
+      client.update(tableReference, table);
     } catch (ValidationException e) {
       if (e.getMessage().toLowerCase(Locale.ENGLISH).contains("etag mismatch")) {
         throw new CommitFailedException(
@@ -208,7 +208,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   // TODO: We need to make a decision on how to make the table queryable from Hive.
   // (could be a server side change or a client side change - that's TBD).
   private Table makeNewTable(TableMetadata metadata, String metadataFileLocation) {
-    boolean hiveEngineEnabled = getHiveEngineEnabled(metadata);
+    boolean hiveEngineEnabled = hiveEngineEnabled(metadata);
     return new Table()
         .setExternalCatalogTableOptions(
             BigQueryMetastoreUtils.createExternalCatalogTableOptions(
@@ -252,9 +252,11 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
       parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     }
+
     if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
       parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
+
     if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
       parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
@@ -266,6 +268,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
           "Table %s is not a valid BigQuery Metastore Iceberg table, metadata location not found",
           tableName());
     }
+
     return tableOptions.getParameters().get(METADATA_LOCATION_PROP);
   }
 
@@ -285,7 +288,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
    * @param metadata Table metadata to use
    * @return if the hive engine related values should be enabled or not
    */
-  private boolean getHiveEngineEnabled(TableMetadata metadata) {
+  private boolean hiveEngineEnabled(TableMetadata metadata) {
     if (metadata.properties().get(TableProperties.ENGINE_HIVE_ENABLED) != null) {
       // We know that the property is set, so default value will not be used,
       return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);

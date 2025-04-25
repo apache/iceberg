@@ -59,7 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Iceberg Bigquery Metastore Catalog implementation. */
-public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
+public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable {
 
   // User provided properties.
@@ -117,6 +117,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     } catch (GeneralSecurityException e) {
       throw new ValidationException(e, "Creating BigQuery client failed due to a security issue");
     }
+
     initialize(inputName, properties, projectId, location, client);
   }
 
@@ -142,8 +143,6 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     LOG.info("Using BigQuery Metastore Iceberg Catalog: {}", inputName);
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-      // Iceberg always removes trailing slash to avoid paths like "<folder>//data" in file systems
-      // like s3.
       this.conf.set(
           HIVE_METASTORE_WAREHOUSE_DIR,
           LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
@@ -161,29 +160,22 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new BigQueryTableOperations(
-        client,
-        fileIO,
-        projectId,
-        // Sometimes extensions have the namespace contain the table name too, so we are forced to
-        // allow invalid namespace and just take the first part here like other catalog
-        // implementations do.
-        identifier.namespace().level(0),
-        identifier.name(),
-        conf);
+        client, fileIO, projectId, identifier.namespace().level(0), identifier.name(), conf);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier identifier) {
     String locationUri = null;
     DatasetReference datasetReference = toDatasetReference(identifier.namespace());
-    Dataset dataset = client.getDataset(datasetReference);
+    Dataset dataset = client.load(datasetReference);
     if (dataset != null && dataset.getExternalCatalogDatasetOptions() != null) {
       locationUri = dataset.getExternalCatalogDatasetOptions().getDefaultStorageLocationUri();
     }
+
     return String.format(
         "%s/%s",
         Strings.isNullOrEmpty(locationUri)
-            ? datasetReference.getDatasetId()
+            ? createDefaultStorageLocationUri(datasetReference.getDatasetId())
             : LocationUtil.stripTrailingSlash(locationUri),
         identifier.name());
   }
@@ -192,7 +184,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public List<TableIdentifier> listTables(Namespace namespace) {
     validateNamespace(namespace);
 
-    return client.listTables(toDatasetReference(namespace), filterUnsupportedTables).stream()
+    return client.list(toDatasetReference(namespace), filterUnsupportedTables).stream()
         .map(
             table -> TableIdentifier.of(namespace.level(0), table.getTableReference().getTableId()))
         .collect(ImmutableList.toImmutableList());
@@ -204,7 +196,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       TableOperations ops = newTableOps(identifier);
       TableMetadata lastMetadata = ops.current();
 
-      client.deleteTable(toTableReference(identifier));
+      client.delete(toTableReference(identifier));
 
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
@@ -212,6 +204,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     } catch (NoSuchTableException e) { // Not catching a NoSuchIcebergTableException on purpose
       return false; // The documentation says just return false in this case
     }
+
     return true;
   }
 
@@ -220,37 +213,29 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     validateNamespace(from.namespace());
     validateNamespace(to.namespace());
 
-    try {
-      client.getDataset(toDatasetReference(to.namespace()));
-      client.getDataset(toDatasetReference(from.namespace()));
-    } catch (NoSuchNamespaceException e) {
-      throw e;
+    if (!namespaceExists(to.namespace())) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", to.namespace());
     }
 
-    TableReference fromTableRef = toTableReference(from);
-    TableReference toTableRef = toTableReference(to);
+    if (!namespaceExists(from.namespace())) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", from.namespace());
+    }
 
     // Check if the source table exists
-    try {
-      client.getTable(fromTableRef);
-    } catch (NoSuchTableException e) {
+    if (!tableExists(from)) {
       throw new NoSuchTableException("Table does not exist: %s", from.name());
-    }
-
-    // Check if the destination table already exists
-    try {
-      client.getTable(toTableRef);
-      // If getTable succeeds, the destination table exists
-      throw new AlreadyExistsException("Table already exists: %s", to.name());
-    } catch (NoSuchTableException e) {
-      // Destination table does not exist, proceed with throwing exception
     }
 
     if (!from.namespace().equals(to.namespace())) {
       throw new ValidationException("New table name must be in the same namespace");
     }
 
-    // TODO(b/354981675): Enable once supported by the API.
+    // Check if the destination table already exists
+    if (tableExists(to)) {
+      throw new AlreadyExistsException("Table already exists: %s", to.name());
+    }
+
+    // TODO: Enable once supported by BigQuery API.
     throw new UnsupportedOperationException("Table rename operation is unsupported.");
   }
 
@@ -262,9 +247,18 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     builder.setDatasetReference(datasetReference);
     builder.setExternalCatalogDatasetOptions(
         BigQueryMetastoreUtils.createExternalCatalogDatasetOptions(
-            datasetReference.getDatasetId(), metadata));
+            createDefaultStorageLocationUri(datasetReference.getDatasetId()), metadata));
 
-    client.createDataset(builder);
+    client.create(builder);
+  }
+
+  @Override
+  public List<Namespace> listNamespaces() {
+    try {
+      return listNamespaces(Namespace.empty());
+    } catch (NoSuchNamespaceException e) {
+      return ImmutableList.of();
+    }
   }
 
   /**
@@ -279,15 +273,19 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       // well), returns empty to unblock deletion.
       return ImmutableList.of();
     }
-    return client.listDatasets(projectId).stream()
-        .map(BigQueryMetastoreCatalog::getNamespace)
-        .collect(ImmutableList.toImmutableList());
+
+    ImmutableList<Namespace> namespaces =
+        client.list(projectId).stream()
+            .map(BigQueryMetastoreCatalog::toNamespace)
+            .collect(ImmutableList.toImmutableList());
+
+    return namespaces;
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
     try {
-      client.deleteDataset(toDatasetReference(namespace));
+      client.delete(toDatasetReference(namespace));
       // We don't delete the data folder for safety, which aligns with Hive Metastore's default
       // behavior.
       // We can support database or catalog level config controlling file deletion in the future.
@@ -299,7 +297,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    Dataset dataset = client.getDataset(toDatasetReference(namespace));
+    Dataset dataset = client.load(toDatasetReference(namespace));
 
     ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
     Map<String, String> existingParameters =
@@ -309,6 +307,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (existingParameters != null) {
       newParameters.putAll(existingParameters);
     }
+
     newParameters.putAll(properties);
 
     if (Objects.equals(existingParameters, newParameters)) {
@@ -330,7 +329,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
     try {
-      return getMetadata(client.getDataset(toDatasetReference(namespace)));
+      return toMetadata(client.load(toDatasetReference(namespace)));
     } catch (IllegalArgumentException e) {
       throw new NoSuchNamespaceException(e.getMessage());
     }
@@ -356,7 +355,13 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     return this.conf;
   }
 
-  private static Namespace getNamespace(Datasets dataset) {
+  private String createDefaultStorageLocationUri(String dbId) {
+    String warehouseLocation = conf.get(HIVE_METASTORE_WAREHOUSE_DIR);
+    Preconditions.checkNotNull(warehouseLocation, "Data warehouse location is not set");
+    return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
+  }
+
+  private static Namespace toNamespace(Datasets dataset) {
     return Namespace.of(dataset.getDatasetReference().getDatasetId());
   }
 
@@ -373,7 +378,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
         .setTableId(tableIdentifier.name());
   }
 
-  private static Map<String, String> getMetadata(Dataset dataset) {
+  private Map<String, String> toMetadata(Dataset dataset) {
     ExternalCatalogDatasetOptions options = dataset.getExternalCatalogDatasetOptions();
     Map<String, String> metadata = Maps.newHashMap();
     if (options != null) {
@@ -384,6 +389,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
         metadata.put("location", options.getDefaultStorageLocationUri());
       }
     }
+
     return metadata;
   }
 

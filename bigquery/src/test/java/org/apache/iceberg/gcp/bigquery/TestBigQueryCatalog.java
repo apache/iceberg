@@ -85,7 +85,6 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
 
   @TempDir private File tempFolder;
   private BigQueryMetastoreCatalog catalog;
-  private BigQueryMetastoreClient fakeBigQueryMetastoreClient;
   private String warehouseLocation;
 
   @BeforeEach
@@ -296,6 +295,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
           .as("Table location should match requested")
           .isEqualTo(tableLocation);
     }
+
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);

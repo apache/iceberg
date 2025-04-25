@@ -92,6 +92,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 ? ExceptionHandler.Interceptor.RetryResult.RETRY
                 : ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
           }
+
           return ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
         }
       };
@@ -144,12 +145,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public Dataset createDataset(Dataset dataset) {
+  public Dataset create(Dataset dataset) {
     Dataset response = null;
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              () -> create(dataset),
+              () -> internalCreate(dataset),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -161,7 +162,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @SuppressWarnings("FormatStringAnnotation")
-  private Dataset create(Dataset dataset) {
+  private Dataset internalCreate(Dataset dataset) {
     try {
       HttpResponse response =
           client
@@ -178,7 +179,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public Dataset getDataset(DatasetReference datasetReference) {
+  public Dataset load(DatasetReference datasetReference) {
     try {
       HttpResponse response =
           client
@@ -189,6 +190,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         throw new NoSuchNamespaceException(
             "Namespace does not exist: " + datasetReference.getDatasetId());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -197,7 +199,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public void deleteDataset(DatasetReference datasetReference) {
+  public void delete(DatasetReference datasetReference) {
     try {
       HttpResponse response =
           client
@@ -208,6 +210,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         throw new NoSuchNamespaceException(
             "Namespace does not exist: " + datasetReference.getDatasetId());
       }
+
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -217,7 +220,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   @Override
   public Dataset setDatasetParameters(
       DatasetReference datasetReference, Map<String, String> parameters) {
-    Dataset dataset = getDataset(datasetReference);
+    Dataset dataset = load(datasetReference);
     ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
         dataset.getExternalCatalogDatasetOptions() == null
             ? new ExternalCatalogDatasetOptions()
@@ -231,13 +234,13 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     dataset.setExternalCatalogDatasetOptions(
         externalCatalogDatasetOptions.setParameters(finalParameters));
 
-    return updateDataset(dataset);
+    return internalUpdate(dataset);
   }
 
   @Override
   public Dataset removeDatasetParameters(
       DatasetReference datasetReference, Set<String> parameters) {
-    Dataset dataset = getDataset(datasetReference);
+    Dataset dataset = load(datasetReference);
     ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
         dataset.getExternalCatalogDatasetOptions() == null
             ? new ExternalCatalogDatasetOptions()
@@ -251,11 +254,11 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     dataset.setExternalCatalogDatasetOptions(
         externalCatalogDatasetOptions.setParameters(finalParameters));
 
-    return updateDataset(dataset);
+    return internalUpdate(dataset);
   }
 
   @Override
-  public List<Datasets> listDatasets(String projectId) {
+  public List<Datasets> list(String projectId) {
     try {
       String nextPageToken = null;
       List<Datasets> datasets = Lists.newArrayList();
@@ -268,6 +271,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         if (result.getDatasets() != null) {
           datasets.addAll(result.getDatasets());
         }
+
       } while (nextPageToken != null && !nextPageToken.isEmpty());
       return datasets;
     } catch (IOException e) {
@@ -276,7 +280,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public Table createTable(Table table) {
+  public Table create(Table table) {
     // Ensure it is an Iceberg table supported by the BigQuery metastore catalog.
     validateTable(table);
     // TODO: Ensure table creation is idempotent when handling retries.
@@ -284,7 +288,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              () -> create(table),
+              () -> internalCreate(table),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -292,11 +296,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
+
     return response;
   }
 
   @SuppressWarnings("FormatStringAnnotation")
-  private Table create(Table table) {
+  private Table internalCreate(Table table) {
     try {
       HttpResponse response =
           client
@@ -316,7 +321,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public Table getTable(TableReference tableReference) {
+  public Table load(TableReference tableReference) {
     try {
       HttpResponse response =
           client
@@ -329,6 +334,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       return validateTable(convertExceptionIfUnsuccessful(response).parseAs(Table.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -337,7 +343,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public Table patchTable(TableReference tableReference, Table table) {
+  public Table update(TableReference tableReference, Table table) {
     // Ensure it is an Iceberg table supported by the BQ metastore catalog.
     validateTable(table);
 
@@ -356,7 +362,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              () -> patch(tableReference, updatedTable, table.getEtag()),
+              () -> internalUpdate(tableReference, updatedTable, table.getEtag()),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -364,11 +370,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
+
     return response;
   }
 
   @SuppressWarnings("FormatStringAnnotation")
-  private Table patch(TableReference tableReference, Table table, String etag) {
+  private Table internalUpdate(TableReference tableReference, Table table, String etag) {
     try {
       HttpResponse response =
           client
@@ -386,8 +393,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
           throw new BadRequestException(responseString);
         }
+
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -396,9 +405,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public void deleteTable(TableReference tableReference) {
+  public void delete(TableReference tableReference) {
     try {
-      getTable(tableReference); // Fetching it to validate it is a BigQuery Metastore table first
+      load(tableReference); // Fetching it to validate it is a BigQuery Metastore table first
 
       HttpResponse response =
           client
@@ -412,6 +421,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -420,8 +430,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   @SuppressWarnings("FormatStringAnnotation")
-  public List<Tables> listTables(
-      DatasetReference datasetReference, boolean filterUnsupportedTables) {
+  public List<Tables> list(DatasetReference datasetReference, boolean filterUnsupportedTables) {
     try {
       String nextPageToken = null;
       Stream<Tables> tablesStream = Stream.empty();
@@ -454,7 +463,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 .filter(
                     table -> {
                       try {
-                        getTable(table.getTableReference());
+                        load(table.getTableReference());
                       } catch (NoSuchTableException e) {
                         return false;
                       }
@@ -469,7 +478,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @SuppressWarnings("FormatStringAnnotation")
-  private Dataset updateDataset(Dataset dataset) {
+  private Dataset internalUpdate(Dataset dataset) {
     Preconditions.checkArgument(
         dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
     Preconditions.checkArgument(
@@ -488,6 +497,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -525,6 +535,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     if (!isValidIcebergTable(table)) {
       throw new NoSuchIcebergTableException("This table is not a valid Iceberg table: %s", table);
     }
+
     return table;
   }
 
@@ -578,7 +589,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     String message = retryException.getMessage();
     if (cause instanceof RuntimeException) {
       throw (RuntimeException) cause;
-
     } else {
       throw new RuntimeException(message, cause);
     }

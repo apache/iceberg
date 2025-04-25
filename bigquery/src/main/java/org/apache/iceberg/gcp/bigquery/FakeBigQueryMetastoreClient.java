@@ -48,7 +48,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
       throws IOException, GeneralSecurityException {}
 
   @Override
-  public Dataset createDataset(Dataset dataset) {
+  public Dataset create(Dataset dataset) {
     if (datasets.containsKey(dataset.getDatasetReference())) {
       throw new AlreadyExistsException(
           "Namespace already exists: %s", dataset.getDatasetReference());
@@ -60,17 +60,18 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Dataset getDataset(DatasetReference datasetReference) {
+  public Dataset load(DatasetReference datasetReference) {
     Dataset dataset = datasets.get(datasetReference);
     if (dataset == null) {
       throw new NoSuchNamespaceException(
           "Namespace does not exist: %s", datasetReference.getDatasetId());
     }
+
     return dataset;
   }
 
   @Override
-  public void deleteDataset(DatasetReference datasetReference) {
+  public void delete(DatasetReference datasetReference) {
     if (!datasets.containsKey(datasetReference)) {
       throw new NoSuchNamespaceException("Dataset not found: %s", datasetReference);
     }
@@ -88,10 +89,11 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   @Override
   public Dataset setDatasetParameters(
       DatasetReference datasetReference, Map<String, String> parameters) {
-    Dataset dataset = getDataset(datasetReference);
+    Dataset dataset = load(datasetReference);
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
     }
+
     Map<String, String> finalParameters = Maps.newHashMap(parameters);
     dataset.setExternalCatalogDatasetOptions(
         dataset.getExternalCatalogDatasetOptions().setParameters(finalParameters));
@@ -101,10 +103,11 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   @Override
   public Dataset removeDatasetParameters(
       DatasetReference datasetReference, Set<String> parameters) {
-    Dataset dataset = getDataset(datasetReference);
+    Dataset dataset = load(datasetReference);
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
     }
+
     Map<String, String> finalParameters =
         dataset.getExternalCatalogDatasetOptions().getParameters() == null
             ? Maps.newHashMap()
@@ -116,7 +119,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public List<DatasetList.Datasets> listDatasets(String projectId) {
+  public List<DatasetList.Datasets> list(String projectId) {
     return datasets.values().stream()
         .map(
             dataset -> {
@@ -128,7 +131,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Table createTable(Table table) {
+  public Table create(Table table) {
     if (tables.containsKey(table.getTableReference())) {
       throw new AlreadyExistsException("Table already exists: %s", table.getTableReference());
     }
@@ -139,24 +142,27 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Table getTable(TableReference tableReference) {
+  public Table load(TableReference tableReference) {
     Table table = tables.get(tableReference);
     if (table == null) {
       throw new NoSuchTableException("Table not found: %s", tableReference);
     }
+
     return table;
   }
 
   @Override
-  public Table patchTable(TableReference tableReference, Table table) {
-    Table existingTable = getTable(tableReference);
+  public Table update(TableReference tableReference, Table table) {
+    Table existingTable = load(tableReference);
     if (existingTable == null) {
       throw new NoSuchTableException("Table not found: %s", tableReference);
     }
+
     // Robust ETag validation
     if (table.getEtag() != null && !table.getEtag().equals(existingTable.getEtag())) {
       throw new CommitFailedException("Etag mismatch: concurrent modification");
     }
+
     // Update ETag
     existingTable.setEtag(generateEtag());
     existingTable.setExternalCatalogTableOptions(table.getExternalCatalogTableOptions());
@@ -164,15 +170,16 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public void deleteTable(TableReference tableReference) {
+  public void delete(TableReference tableReference) {
     if (!tables.containsKey(tableReference)) {
       throw new NoSuchTableException("Table not found: %s", tableReference);
     }
+
     tables.remove(tableReference);
   }
 
   @Override
-  public List<TableList.Tables> listTables(
+  public List<TableList.Tables> list(
       DatasetReference datasetReference, boolean filterUnsupportedTables) {
     return tables.values().stream()
         .filter(
@@ -198,10 +205,12 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
       throw new NoSuchNamespaceException(
           "Namespace does not exist: %s", datasetReference.getDatasetId());
     }
+
     // Robust ETag validation
     if (dataset.getEtag() != null && !dataset.getEtag().equals(existingDataset.getEtag())) {
       throw new CommitFailedException("Etag mismatch: concurrent modification");
     }
+
     // Update ETag
     dataset.setEtag(generateEtag());
     // Simulate update by replacing the existing dataset

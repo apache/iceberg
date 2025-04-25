@@ -91,10 +91,10 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testDoFresh_fetchLatestMetadataFromBigQuery() throws Exception {
+  public void testFetchLatestMetadataFromBigQuery() throws Exception {
     Table createdTable = createTestTable();
     reset(bigQueryMetaStoreClient);
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE)).thenReturn(createdTable);
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE)).thenReturn(createdTable);
 
     tableOps.refresh();
     assertThat(
@@ -105,7 +105,7 @@ public class BigQueryTableOperationsTest {
         .isEqualTo(tableOps.currentMetadataLocation());
 
     reset(bigQueryMetaStoreClient);
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenThrow(new NoSuchTableException("error message getTable"));
     // Refresh fails when table is not found but metadata already presents.
     assertThatThrownBy(() -> tableOps.refresh())
@@ -114,8 +114,8 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testDoFresh_failForNonIcebergTable() {
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
+  public void testFailForNonIcebergTable() {
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenReturn(new Table().setTableReference(TABLE_REFERENCE));
 
     assertThatThrownBy(() -> tableOps.refresh())
@@ -124,8 +124,8 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testDoFresh_noOpWhenMetadataAndTableNotFound() {
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
+  public void testNoOpWhenMetadataAndTableNotFound() {
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenThrow(new NoSuchTableException("error message getTable"));
     // Table not found won't cause errors when the metadata is null.
     assertThat(tableOps.currentMetadataLocation()).isNull();
@@ -133,41 +133,39 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testTableName_asExpected() {
+  public void testTableNameAsExpected() {
     assertThat(tableOps.tableName()).isEqualTo("db.tbl");
   }
 
   @Test
-  public void testDoCommit_useEtagForUpdateTable() throws Exception {
+  public void testUseEtagForUpdateTable() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
     reset(bigQueryMetaStoreClient);
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
-        .thenReturn(tableWithEtag, tableWithEtag);
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE)).thenReturn(tableWithEtag, tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = bigQueryMetastoreCatalog.loadTable(SPARK_TABLE_ID);
 
-    when(bigQueryMetaStoreClient.patchTable(any(), any())).thenReturn(tableWithEtag);
+    when(bigQueryMetaStoreClient.update(any(), any())).thenReturn(tableWithEtag);
     loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
     ArgumentCaptor<TableReference> tableReferenceArgumentCaptor =
         ArgumentCaptor.forClass(TableReference.class);
     ArgumentCaptor<Table> tableArgumentCaptor = ArgumentCaptor.forClass(Table.class);
     verify(bigQueryMetaStoreClient, times(1))
-        .patchTable(tableReferenceArgumentCaptor.capture(), tableArgumentCaptor.capture());
+        .update(tableReferenceArgumentCaptor.capture(), tableArgumentCaptor.capture());
     assertThat(tableReferenceArgumentCaptor.getValue()).isEqualTo(TABLE_REFERENCE);
     assertThat(tableArgumentCaptor.getValue().getEtag()).isEqualTo("etag");
   }
 
   @Test
-  public void testDoCommit_failWhenEtagMismatch() throws Exception {
+  public void testFailWhenEtagMismatch() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
     reset(bigQueryMetaStoreClient);
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
-        .thenReturn(tableWithEtag, tableWithEtag);
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE)).thenReturn(tableWithEtag, tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = bigQueryMetastoreCatalog.loadTable(SPARK_TABLE_ID);
 
-    when(bigQueryMetaStoreClient.patchTable(any(), any()))
+    when(bigQueryMetaStoreClient.update(any(), any()))
         .thenThrow(new ValidationException("error message etag mismatch"));
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
@@ -177,7 +175,7 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testDoCommit_failWhenMetadataLocationDiff() throws Exception {
+  public void testFailWhenMetadataLocationDiff() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
     Table tableWithNewMetadata =
         new Table()
@@ -190,12 +188,12 @@ public class BigQueryTableOperationsTest {
 
     reset(bigQueryMetaStoreClient);
     // Two invocations, for loadTable and commit.
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenReturn(tableWithEtag, tableWithNewMetadata);
 
     org.apache.iceberg.Table loadedTable = bigQueryMetastoreCatalog.loadTable(SPARK_TABLE_ID);
 
-    when(bigQueryMetaStoreClient.patchTable(any(), any())).thenReturn(tableWithEtag);
+    when(bigQueryMetaStoreClient.update(any(), any())).thenReturn(tableWithEtag);
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
@@ -203,10 +201,10 @@ public class BigQueryTableOperationsTest {
   }
 
   @Test
-  public void testCreateTable_doCommitSucceeds() throws Exception {
+  public void testCreateTableCommitSucceeds() throws Exception {
     var testTable = createTestTable();
-    when(bigQueryMetaStoreClient.createTable(any())).thenReturn(testTable);
-    when(bigQueryMetaStoreClient.getDataset(
+    when(bigQueryMetaStoreClient.create(any(Table.class))).thenReturn(testTable);
+    when(bigQueryMetaStoreClient.load(
             new DatasetReference().setProjectId(GCP_PROJECT).setDatasetId(DATASET_ID)))
         .thenReturn(
             new Dataset()
@@ -220,7 +218,7 @@ public class BigQueryTableOperationsTest {
 
   /** Creates a test table to have Iceberg metadata files in place. */
   private Table createTestTable() throws Exception {
-    when(bigQueryMetaStoreClient.getTable(TABLE_REFERENCE))
+    when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenThrow(new NoSuchTableException("error message getTable"));
     return BigQueryMetastoreTestUtils.createTestTable(
         tempFolder, bigQueryMetastoreCatalog, TABLE_REFERENCE);

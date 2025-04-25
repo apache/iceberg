@@ -39,21 +39,21 @@ public interface BigQueryMetastoreClient {
    *
    * @param dataset the dataset to create
    */
-  Dataset createDataset(Dataset dataset);
+  Dataset create(Dataset dataset);
 
   /**
    * Returns a dataset.
    *
    * @param datasetReference full dataset reference
    */
-  Dataset getDataset(DatasetReference datasetReference);
+  Dataset load(DatasetReference datasetReference);
 
   /**
    * Deletes a dataset.
    *
    * @param datasetReference full dataset reference
    */
-  void deleteDataset(DatasetReference datasetReference);
+  void delete(DatasetReference datasetReference);
 
   /**
    * Updates parameters of a dataset or adds them if did not exist, leaving already-existing ones
@@ -79,21 +79,21 @@ public interface BigQueryMetastoreClient {
    *
    * @param projectId the identifier of the project to list datasets under
    */
-  List<Datasets> listDatasets(String projectId);
+  List<Datasets> list(String projectId);
 
   /**
    * Creates and returns a new table.
    *
    * @param table body of the table to create
    */
-  Table createTable(Table table);
+  Table create(Table table);
 
   /**
    * Returns a table.
    *
    * @param tableReference full table reference
    */
-  Table getTable(TableReference tableReference);
+  Table load(TableReference tableReference);
 
   /**
    * Updates the catalog table options of an Iceberg table and returns the updated table.
@@ -101,14 +101,14 @@ public interface BigQueryMetastoreClient {
    * @param tableReference full table reference
    * @param table to patch
    */
-  Table patchTable(TableReference tableReference, Table table);
+  Table update(TableReference tableReference, Table table);
 
   /**
    * Deletes a table.
    *
    * @param tableReference full table reference
    */
-  void deleteTable(TableReference tableReference);
+  void delete(TableReference tableReference);
 
   /**
    * Returns all tables in a database.
@@ -117,5 +117,5 @@ public interface BigQueryMetastoreClient {
    * @param filterUnsupportedTables if true, fetches every item on the list to verify it is
    *     supported, in order to filter the list from unsupported Iceberg tables
    */
-  List<Tables> listTables(DatasetReference datasetReference, boolean filterUnsupportedTables);
+  List<Tables> list(DatasetReference datasetReference, boolean filterUnsupportedTables);
 }
