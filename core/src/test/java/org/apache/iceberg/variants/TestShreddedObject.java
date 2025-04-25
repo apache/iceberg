@@ -222,7 +222,7 @@ public class TestShreddedObject {
   public void testMultiByteOffsets(int len) {
     // Use a string exceeding 255 bytes to test value offset sizes of 2, 3, and 4 bytes
     String randomString = RandomUtil.generateString(len, random);
-    VariantPrimitive bigString = Variants.of(randomString);
+    VariantPrimitive<String> bigString = Variants.of(randomString);
 
     Map<String, VariantValue> data = Maps.newHashMap();
     data.putAll(FIELDS);

@@ -107,12 +107,6 @@ public class VariantTestUtil {
     return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
-  public static ByteBuffer valueBuffer(VariantValue value) {
-    ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
-    value.writeTo(buffer, 0);
-    return buffer;
-  }
-
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);

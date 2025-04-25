@@ -94,7 +94,7 @@ public class TestValueArray {
   public void testMultiByteOffsets(int len) {
     // Use a string exceeding 255 bytes to test value offset sizes of 2, 3, and 4 bytes
     String randomString = RandomUtil.generateString(len, random);
-    VariantPrimitive bigString = Variants.of(randomString);
+    VariantPrimitive<String> bigString = Variants.of(randomString);
 
     List<VariantValue> data = Lists.newArrayList();
     data.addAll(ELEMENTS);
@@ -119,12 +119,12 @@ public class TestValueArray {
 
   @Test
   public void testLargeArray() {
-    List<VariantPrimitive<String>> elements = Lists.newArrayList();
+    List<VariantValue> elements = Lists.newArrayList();
     for (int i = 0; i < 10_000; i += 1) {
       elements.add(Variants.of(RandomUtil.generateString(10, random)));
     }
 
-    ValueArray arr = createArray((List) elements);
+    ValueArray arr = createArray(elements);
     VariantValue value = roundTripLargeBuffer(arr);
 
     assertThat(value.type()).isEqualTo(PhysicalType.ARRAY);

@@ -27,8 +27,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -44,8 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -54,7 +50,6 @@ import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
@@ -910,7 +905,10 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     List<GenericRecord> arr =
-        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("typed_value", "drama")));
+
     GenericRecord var =
         record(
             variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
@@ -983,10 +981,11 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     List<GenericRecord> arr =
-        elements(
-            elementType,
-            Lists.newArrayList(
-                List.of(Variants.of("comedy"), Variants.ofNull(), Variants.of("drama"))));
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("value", serialize(Variants.ofNull()))),
+            record(elementType, Map.of("typed_value", "drama")));
+
     GenericRecord var =
         record(
             variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
@@ -1016,11 +1015,14 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, list(outerElementType));
     MessageType parquetSchema = parquetSchema(variantType);
 
-    ValueArray inner1 = Variants.array();
-    inner1.add(Variants.of("comedy"));
-    inner1.add(Variants.of("drama"));
-
-    List<GenericRecord> outer1 = elements(outerElementType, List.of(inner1, Variants.array()));
+    List<GenericRecord> inner1 =
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("typed_value", "drama")));
+    List<GenericRecord> outer1 =
+        List.of(
+            record(outerElementType, Map.of("typed_value", inner1)),
+            record(outerElementType, Map.of("typed_value", List.of())));
     GenericRecord var =
         record(
             variantType,
@@ -1052,67 +1054,86 @@ public class TestVariantReaders {
     GroupType shreddedFields = objectFields(fieldA, fieldB);
     GroupType elementType = element(shreddedFields);
     GroupType listType = list(elementType);
-    GroupType fieldC = field("c", listType);
-    GroupType objectFields = objectFields(fieldC);
-    GroupType variantType = variant("var", 2, objectFields);
+    GroupType variantType = variant("var", 2, listType);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    // Row 1
-    ByteBuffer shreddedBuffer1 =
-        VariantTestUtil.createObject(
-            TEST_METADATA_BUFFER, Map.of("a", Variants.of(1), "b", Variants.of("comedy")));
-    VariantValue shredded1 = Variants.value(TEST_METADATA, shreddedBuffer1);
-    ByteBuffer shreddedBuffer2 =
-        VariantTestUtil.createObject(
-            TEST_METADATA_BUFFER, Map.of("a", Variants.of(2), "b", Variants.of("drama")));
-    VariantValue shredded2 = Variants.value(TEST_METADATA, shreddedBuffer2);
-
-    List<GenericRecord> arr1 = elements(elementType, List.of(shredded1, shredded2));
-    GenericRecord element1 = record(fieldC, Map.of("typed_value", arr1));
-    GenericRecord c1 = record(objectFields, Map.of("c", element1));
+    // Row 1 with nested fully shredded object
+    GenericRecord shredded1 =
+        record(
+            shreddedFields,
+            Map.of(
+                "a",
+                record(fieldA, Map.of("typed_value", 1)),
+                "b",
+                record(fieldB, Map.of("typed_value", "comedy"))));
+    GenericRecord shredded2 =
+        record(
+            shreddedFields,
+            Map.of(
+                "a",
+                record(fieldA, Map.of("typed_value", 2)),
+                "b",
+                record(fieldB, Map.of("typed_value", "drama"))));
+    List<GenericRecord> arr1 =
+        List.of(
+            record(elementType, Map.of("typed_value", shredded1)),
+            record(elementType, Map.of("typed_value", shredded2)));
     GenericRecord var1 =
-        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", c1));
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", arr1));
     GenericRecord row1 = record(parquetSchema, Map.of("id", 1, "var", var1));
 
-    ShreddedObject expected1 = Variants.object(TEST_METADATA);
-    ValueArray expectedArray1 = Variants.array();
+    ValueArray expected1 = Variants.array();
     ShreddedObject expectedElement1 = Variants.object(TEST_METADATA);
     expectedElement1.put("a", Variants.of(1));
     expectedElement1.put("b", Variants.of("comedy"));
-    expectedArray1.add(expectedElement1);
+    expected1.add(expectedElement1);
     ShreddedObject expectedElement2 = Variants.object(TEST_METADATA);
     expectedElement2.put("a", Variants.of(2));
     expectedElement2.put("b", Variants.of("drama"));
-    expectedArray1.add(expectedElement2);
-    expected1.put("c", expectedArray1);
+    expected1.add(expectedElement2);
 
-    // Row 2
-    ByteBuffer shreddedBuffer3 =
-        VariantTestUtil.createObject(
-            TEST_METADATA_BUFFER, Map.of("a", Variants.of(3), "b", Variants.of("action")));
-    VariantValue shredded3 = Variants.value(TEST_METADATA, shreddedBuffer3);
-    ByteBuffer shreddedBuffer4 =
-        VariantTestUtil.createObject(
-            TEST_METADATA_BUFFER, Map.of("a", Variants.of(4), "b", Variants.of("horror")));
-    VariantValue shredded4 = Variants.value(TEST_METADATA, shreddedBuffer4);
-    List<GenericRecord> arr2 = elements(elementType, List.of(shredded3, shredded4));
-    GenericRecord element2 = record(fieldC, Map.of("typed_value", arr2));
-    GenericRecord c2 = record(objectFields, Map.of("c", element2));
+    // Row 2 with nested partially shredded object
+    GenericRecord shredded3 =
+        record(
+            shreddedFields,
+            Map.of(
+                "a",
+                record(fieldA, Map.of("typed_value", 3)),
+                "b",
+                record(fieldB, Map.of("typed_value", "action"))));
+    ShreddedObject baseObject3 = Variants.object(TEST_METADATA);
+    baseObject3.put("c", Variants.of("str"));
+
+    GenericRecord shredded4 =
+        record(
+            shreddedFields,
+            Map.of(
+                "a",
+                record(fieldA, Map.of("typed_value", 4)),
+                "b",
+                record(fieldB, Map.of("typed_value", "horror"))));
+    ShreddedObject baseObject4 = Variants.object(TEST_METADATA);
+    baseObject4.put("d", Variants.ofIsoDate("2024-01-30"));
+
+    List<GenericRecord> arr2 =
+        List.of(
+            record(elementType, Map.of("value", serialize(baseObject3), "typed_value", shredded3)),
+            record(elementType, Map.of("value", serialize(baseObject4), "typed_value", shredded4)));
     GenericRecord var2 =
-        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", c2));
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", arr2));
     GenericRecord row2 = record(parquetSchema, Map.of("id", 2, "var", var2));
 
-    ShreddedObject expected2 = Variants.object(TEST_METADATA);
-    ValueArray expectedArray2 = Variants.array();
+    ValueArray expected2 = Variants.array();
     ShreddedObject expectedElement3 = Variants.object(TEST_METADATA);
     expectedElement3.put("a", Variants.of(3));
     expectedElement3.put("b", Variants.of("action"));
-    expectedArray2.add(expectedElement3);
+    expectedElement3.put("c", Variants.of("str"));
+    expected2.add(expectedElement3);
     ShreddedObject expectedElement4 = Variants.object(TEST_METADATA);
     expectedElement4.put("a", Variants.of(4));
     expectedElement4.put("b", Variants.of("horror"));
-    expectedArray2.add(expectedElement4);
-    expected2.put("c", expectedArray2);
+    expectedElement4.put("d", Variants.ofIsoDate("2024-01-30"));
+    expected2.add(expectedElement4);
 
     // verify
     List<Record> actual = writeAndRead(parquetSchema, List.of(row1, row2));
@@ -1141,7 +1162,9 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     List<GenericRecord> arr1 =
-        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("typed_value", "drama")));
     GenericRecord var1 =
         record(
             variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr1));
@@ -1170,7 +1193,9 @@ public class TestVariantReaders {
 
     // Test array is read properly after a non-array
     List<GenericRecord> arr4 =
-        elements(elementType, List.of(Variants.of("action"), Variants.of("horror")));
+        List.of(
+            record(elementType, Map.of("typed_value", "action")),
+            record(elementType, Map.of("typed_value", "horror")));
     GenericRecord var4 =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", arr4));
     GenericRecord row4 = record(parquetSchema, Map.of("id", 4, "var", var4));
@@ -1226,7 +1251,9 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     List<GenericRecord> arr =
-        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("typed_value", "drama")));
     GenericRecord var =
         record(
             variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
@@ -1255,7 +1282,9 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     List<GenericRecord> arr =
-        elements(elementType, List.of(Variants.of("comedy"), Variants.of("drama")));
+        List.of(
+            record(elementType, Map.of("typed_value", "comedy")),
+            record(elementType, Map.of("typed_value", "drama")));
     GenericRecord var =
         record(
             variantType, Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", arr));
@@ -1301,6 +1330,27 @@ public class TestVariantReaders {
     assertThat(actualValue.asArray().get(0)).isNull();
   }
 
+  @Test
+  public void testArrayWithElementValueTypedValueConflict() {
+    // Test the invalid case that both value and typed_value of an element are not null
+    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    GroupType elementType = element(shreddedType);
+    GroupType variantType = variant("var", 2, list(elementType));
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    GenericRecord element =
+        record(elementType, Map.of("value", serialize(Variants.of(3)), "typed_value", "comedy"));
+    GenericRecord variant =
+        record(
+            variantType,
+            Map.of("metadata", VariantTestUtil.emptyMetadata(), "typed_value", List.of(element)));
+    GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
+
+    assertThatThrownBy(() -> writeAndRead(parquetSchema, record))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid variant, conflicting value and typed_value");
+  }
+
   private static ByteBuffer serialize(VariantValue value) {
     ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     value.writeTo(buffer, 0);
@@ -1320,102 +1370,6 @@ public class TestVariantReaders {
       record.put(entry.getKey(), entry.getValue());
     }
     return record;
-  }
-
-  private static List<GenericRecord> elements(GroupType elementType, List<VariantValue> elements) {
-    List<GenericRecord> elementRecords = Lists.newArrayList();
-    for (VariantValue element : elements) {
-      elementRecords.add(shred(elementType, element));
-    }
-
-    return elementRecords;
-  }
-
-  private static GenericRecord shred(GroupType fieldType, VariantValue value) {
-    checkField(fieldType);
-
-    switch (value.type()) {
-      case OBJECT:
-        return shredObject(fieldType, value.asObject());
-      case ARRAY:
-        return shredArray(fieldType, value.asArray());
-      default:
-        return shredPrimitive(fieldType, value.asPrimitive());
-    }
-  }
-
-  private static GenericRecord shredPrimitive(GroupType fieldType, VariantPrimitive<?> primitive) {
-    Type shreddedType = fieldType.getType("typed_value");
-    if (shreddedType.isPrimitive()
-        && primitive.type() != PhysicalType.NULL
-        && shreddedType(primitive).equals(shreddedType)) {
-      return record(fieldType, Map.of("typed_value", primitive.get()));
-    }
-
-    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(primitive)));
-  }
-
-  private static GenericRecord shredArray(GroupType fieldType, VariantArray array) {
-    Type shreddedType = fieldType.getType("typed_value");
-    if (shreddedType.getLogicalTypeAnnotation()
-        instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
-      checkListType(shreddedType.asGroupType());
-
-      List<GenericRecord> list = Lists.newArrayList();
-      for (int i = 0; i < array.numElements(); i++) {
-        list.add(
-            shred(
-                shreddedType
-                    .asGroupType()
-                    .getFields()
-                    .get(0)
-                    .asGroupType()
-                    .getFields()
-                    .get(0)
-                    .asGroupType(),
-                array.get(i)));
-      }
-
-      return record(fieldType, Map.of("typed_value", list));
-    }
-
-    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(array)));
-  }
-
-  private static GenericRecord shredObject(GroupType fieldType, VariantObject object) {
-    Type shreddedType = fieldType.getType("typed_value");
-    if (!shreddedType.isPrimitive()) {
-      Set<String> unshreddedFieldNames = Sets.newHashSet();
-      Iterables.addAll(unshreddedFieldNames, object.fieldNames());
-
-      // Shredded
-      Map shredded = Maps.newHashMap();
-      for (Type subType : shreddedType.asGroupType().getFields()) {
-        String subName = subType.getName();
-        VariantValue subValue = object.get(subName);
-        if (subValue != null) {
-          unshreddedFieldNames.remove(subName);
-          shredded.put(
-              subName, shred(shreddedType.asGroupType().getType(subName).asGroupType(), subValue));
-        }
-      }
-
-      // Unshredded
-      ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(unshreddedFieldNames, false);
-      Map<String, VariantValue> unshreddedFields =
-          unshreddedFieldNames.stream().collect(Collectors.toMap(name -> name, object::get));
-      ByteBuffer unshreddedBuffer = VariantTestUtil.createObject(metadataBuffer, unshreddedFields);
-
-      return record(
-          fieldType,
-          Map.of(
-              "typed_value",
-              record(shreddedType.asGroupType(), shredded),
-              "value",
-              unshreddedBuffer));
-    }
-
-    return record(fieldType, Map.of("value", VariantTestUtil.valueBuffer(object)));
   }
 
   /**
