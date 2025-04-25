@@ -47,6 +47,7 @@ import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.types.Types;
@@ -145,8 +146,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   @TestTemplate
   public void testMergeIntoWithBothMatchedAndNonMatchedPartitioned()
       throws NoSuchTableException, ParseException, IOException {
-
-    createAndInitTable("id INT, data STRING", null);
+    createAndInitTable("id INT, data STRING", "PARTITIONED BY (bucket(2, id))", null);
     createBranchIfNeeded();
     Table table = loadIcebergTable(spark, tableName);
     appendRecords(
@@ -184,7 +184,10 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         carriedOverAndUpdatedRows);
 
     Object[] newRow =
-        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
+        Iterables.getOnlyElement(
+            allRows.stream()
+                .filter(row -> (long) row[2] >= updateSnapshotFirstRowId)
+                .collect(Collectors.toList()));
     assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
   }
 
@@ -227,7 +230,10 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         carriedOverAndUpdatedRows);
 
     Object[] newRow =
-        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
+        Iterables.getOnlyElement(
+            allRows.stream()
+                .filter(row -> (long) row[2] >= updateSnapshotFirstRowId)
+                .collect(Collectors.toList()));
     assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
   }
 
