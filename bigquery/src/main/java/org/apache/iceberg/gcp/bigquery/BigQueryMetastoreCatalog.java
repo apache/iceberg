@@ -257,17 +257,15 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
    */
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (namespace.levels().length != 0) {
-      // BQMS does not support namespaces under database or tables, returns empty.
-      // It is called when dropping a namespace to make sure it's empty (listTables is called as
-      // well), returns empty to unblock deletion.
-      return ImmutableList.of();
-    }
+    List<Datasets> allDatasets = client.list(projectId);
 
     ImmutableList<Namespace> namespaces =
-        client.list(projectId).stream()
+        allDatasets.stream()
             .map(BigQueryMetastoreCatalog::toNamespace)
             .collect(ImmutableList.toImmutableList());
+    if (namespaces.isEmpty()) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
 
     return namespaces;
   }

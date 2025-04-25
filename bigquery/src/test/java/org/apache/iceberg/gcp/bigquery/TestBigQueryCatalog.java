@@ -57,7 +57,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @AfterEach
   public void after() throws Exception {
     // Drop all tables in all datasets
-    List<Namespace> namespaces = catalog().listNamespaces(Namespace.empty());
+    List<Namespace> namespaces = catalog().listNamespaces();
     for (Namespace namespace : namespaces) {
       List<TableIdentifier> tables = catalog().listTables(namespace);
       for (TableIdentifier table : tables) {
