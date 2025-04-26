@@ -19,15 +19,20 @@
 package org.apache.iceberg.nessie;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
+import org.apache.curator.shaded.com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -94,6 +99,14 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       api = null;
       hadoopConfig = null;
     }
+  }
+
+  @Test
+  @Override
+  public void testCreateNamespace() {
+    Namespace testNamespace = Namespace.of("testNamespace");
+    catalog.createNamespace(testNamespace, Maps.newHashMap());
+    assertEquals(true, catalog.namespaceExists(testNamespace));
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
@@ -193,8 +206,9 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Test
   @Override
-  @Disabled("Nessie currently returns an empty list instead of throwing a NoSuchNamespaceException")
   public void testListNonExistingNamespace() {
-    super.testListNonExistingNamespace();
+    assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("non_existing_namespace")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace non_existing_namespace does not exist!");
   }
 }
