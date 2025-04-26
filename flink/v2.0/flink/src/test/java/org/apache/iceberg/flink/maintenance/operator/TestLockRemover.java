@@ -294,18 +294,27 @@ class TestLockRemover extends OperatorTestBase {
   }
 
   private static class TestingLockFactory implements TriggerLockFactory {
+
+    private boolean open = false;
+
     @Override
     public void open() {
-      // Do nothing
+      open = true;
     }
 
     @Override
     public Lock createLock() {
+      if (!open) {
+        throw new IllegalStateException("Lock factory not open");
+      }
       return LOCK;
     }
 
     @Override
     public Lock createRecoveryLock() {
+      if (!open) {
+        throw new IllegalStateException("Lock factory not open");
+      }
       return RECOVERY_LOCK;
     }
 
