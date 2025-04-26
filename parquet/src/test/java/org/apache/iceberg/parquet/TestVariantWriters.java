@@ -76,6 +76,12 @@ public class TestVariantWriters {
               "c", Variants.of("string")));
   private static final ByteBuffer EMPTY_OBJECT_BUFFER =
       VariantTestUtil.createObject(TEST_METADATA_BUFFER, ImmutableMap.of());
+  private static final ByteBuffer ARRAY_IN_OBJECT_BUFFER =
+      VariantTestUtil.createObject(
+          TEST_METADATA_BUFFER,
+          ImmutableMap.of(
+              "a", Variants.of(123456789),
+              "c", array(Variants.of("string"), Variants.of("iceberg"))));
 
   private static final VariantMetadata EMPTY_METADATA =
       Variants.metadata(VariantTestUtil.emptyMetadata());
@@ -86,6 +92,8 @@ public class TestVariantWriters {
       (VariantObject) Variants.value(TEST_METADATA, SIMILAR_OBJECT_BUFFER);
   private static final VariantObject EMPTY_OBJECT =
       (VariantObject) Variants.value(TEST_METADATA, EMPTY_OBJECT_BUFFER);
+  private static final VariantObject ARRAY_IN_OBJECT =
+      (VariantObject) Variants.value(TEST_METADATA, ARRAY_IN_OBJECT_BUFFER);
 
   private static final ByteBuffer EMPTY_ARRAY_BUFFER = VariantTestUtil.createArray();
   private static final ByteBuffer TEST_ARRAY_BUFFER =
@@ -97,12 +105,17 @@ public class TestVariantWriters {
           array(),
           array(Variants.of("string"), Variants.of("iceberg")),
           Variants.of(34));
+  private static final ByteBuffer OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(TEST_OBJECT, EMPTY_OBJECT, SIMILAR_OBJECT);
+
   private static final VariantArray EMPTY_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, EMPTY_ARRAY_BUFFER);
   private static final VariantArray TEST_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, TEST_ARRAY_BUFFER);
   private static final VariantArray TEST_NESTED_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, NESTED_ARRAY_BUFFER);
+  private static final VariantArray TEST_OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, OBJECT_IN_ARRAY_BUFFER);
 
   private static final Variant[] VARIANTS =
       new Variant[] {
@@ -124,9 +137,11 @@ public class TestVariantWriters {
         Variant.of(EMPTY_METADATA, EMPTY_OBJECT),
         Variant.of(TEST_METADATA, TEST_OBJECT),
         Variant.of(TEST_METADATA, SIMILAR_OBJECT),
+        Variant.of(TEST_METADATA, ARRAY_IN_OBJECT),
         Variant.of(EMPTY_METADATA, EMPTY_ARRAY),
         Variant.of(EMPTY_METADATA, TEST_ARRAY),
         Variant.of(EMPTY_METADATA, TEST_NESTED_ARRAY),
+        Variant.of(TEST_METADATA, TEST_OBJECT_IN_ARRAY),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
