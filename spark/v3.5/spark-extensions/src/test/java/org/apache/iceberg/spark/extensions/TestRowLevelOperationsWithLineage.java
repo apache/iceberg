@@ -125,22 +125,26 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     List<Object[]> allRows = rowsWithLineageAndFilePos();
     List<Object[]> carriedOverAndUpdatedRows =
         allRows.stream()
-            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .filter(row -> (long) row[3] < updateSnapshotFirstRowId)
             .collect(Collectors.toList());
 
+    // Project sequence numbers first for easier comparison on the added row
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(100, "a", 0L, 1L, ANY, ANY),
-            row(101, "updated_b", 1L, updateSnapshot.sequenceNumber(), ANY, ANY),
-            row(102, "c", 2L, 1L, ANY, ANY),
-            row(103, "d", 3L, 1L, ANY, ANY),
-            row(104, "e", 4L, 1L, ANY, ANY)),
+            row(1L, 100, "a", 0L, ANY, ANY),
+            row(updateSnapshot.sequenceNumber(), 101, "updated_b", 1L, ANY, ANY),
+            row(1L, 102, "c", 2L, ANY, ANY),
+            row(1L, 103, "d", 3L, ANY, ANY),
+            row(1L, 104, "e", 4L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
     Object[] newRow =
-        allRows.stream().filter(row -> (long) row[2] >= updateSnapshotFirstRowId).findFirst().get();
-    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
+        Iterables.getOnlyElement(
+            allRows.stream()
+                .filter(row -> (long) row[3] >= updateSnapshotFirstRowId)
+                .collect(Collectors.toList()));
+    assertAddedRowLineage(row(updateSnapshot.sequenceNumber(), 200, "f"), newRow);
   }
 
   @TestTemplate
@@ -170,25 +174,26 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
 
     List<Object[]> carriedOverAndUpdatedRows =
         allRows.stream()
-            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .filter(row -> (long) row[3] < updateSnapshotFirstRowId)
             .collect(Collectors.toList());
 
+    // Project sequence numbers first for easier comparison on the added row
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(100, "a", 0L, 1L, ANY, ANY),
-            row(101, "updated_b", 1L, updateSnapshot.sequenceNumber(), ANY, ANY),
-            row(102, "c", 2L, 1L, ANY, ANY),
-            row(103, "d", 3L, 1L, ANY, ANY),
-            row(104, "e", 4L, 1L, ANY, ANY)),
+            row(1L, 100, "a", 0L, ANY, ANY),
+            row(updateSnapshot.sequenceNumber(), 101, "updated_b", 1L, ANY, ANY),
+            row(1L, 102, "c", 2L, ANY, ANY),
+            row(1L, 103, "d", 3L, ANY, ANY),
+            row(1L, 104, "e", 4L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
     Object[] newRow =
         Iterables.getOnlyElement(
             allRows.stream()
-                .filter(row -> (long) row[2] >= updateSnapshotFirstRowId)
+                .filter(row -> (long) row[3] >= updateSnapshotFirstRowId)
                 .collect(Collectors.toList()));
-    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
+    assertAddedRowLineage(row(updateSnapshot.sequenceNumber(), 200, "f"), newRow);
   }
 
   @TestTemplate
@@ -216,25 +221,26 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     List<Object[]> allRows = rowsWithLineageAndFilePos();
     List<Object[]> carriedOverAndUpdatedRows =
         allRows.stream()
-            .filter(row -> (long) row[2] < updateSnapshotFirstRowId)
+            .filter(row -> (long) row[3] < updateSnapshotFirstRowId)
             .collect(Collectors.toList());
 
+    // Project sequence numbers first for easier comparison on the added row
     assertEquals(
         "Rows which are carried over or updated should have expected lineage",
         ImmutableList.of(
-            row(100, "a", 0L, 1L, ANY, ANY),
-            row(101, "b", 1L, 1L, ANY, ANY),
-            row(102, "c", 2L, 1L, ANY, ANY),
-            row(103, "d", 3L, 1L, ANY, ANY),
-            row(104, "e", 4L, 1L, ANY, ANY)),
+            row(1L, 100, "a", 0L, ANY, ANY),
+            row(1L, 101, "b", 1L, ANY, ANY),
+            row(1L, 102, "c", 2L, ANY, ANY),
+            row(1L, 103, "d", 3L, ANY, ANY),
+            row(1L, 104, "e", 4L, ANY, ANY)),
         carriedOverAndUpdatedRows);
 
     Object[] newRow =
         Iterables.getOnlyElement(
             allRows.stream()
-                .filter(row -> (long) row[2] >= updateSnapshotFirstRowId)
+                .filter(row -> (long) row[3] >= updateSnapshotFirstRowId)
                 .collect(Collectors.toList()));
-    assertAddedRowLineage(row(200, "f", updateSnapshot.sequenceNumber()), newRow);
+    assertAddedRowLineage(row(updateSnapshot.sequenceNumber(), 200, "f"), newRow);
   }
 
   @TestTemplate
@@ -392,8 +398,9 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
 
   private List<Object[]> rowsWithLineageAndFilePos() {
     return sql(
-        "SELECT id, data, _row_id, _last_updated_sequence_number, _file, _pos FROM %s ORDER BY _row_id",
-        selectTarget());
+        "SELECT s._last_updated_sequence_number, s.id, s.data, s._row_id, files.first_row_id, s._pos FROM %s"
+            + " AS s JOIN %s.files AS files ON files.file_path = s._file ORDER BY s._row_id",
+        selectTarget(), selectTarget());
   }
 
   private List<Object[]> rowsWithLineage() {
@@ -468,29 +475,18 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     return branch != null ? table.snapshot(branch) : table.currentSnapshot();
   }
 
-  // Expected should have all data columns and the last updated sequence at the end
-  // Actual should all data columns, followed by row ID, last updated sequence, file, and then pos
+  // Expected should have last updated sequence number followed by data columns
+  // Actual should have the contents of expected followed by the file first row ID and position
   private void assertAddedRowLineage(Object[] expected, Object[] actual) {
-    // validate all the data columns
-    for (int pos = 0; pos < expected.length - 1; pos++) {
+    // validate the sequence number and all the data columns
+    for (int pos = 0; pos < expected.length; pos++) {
       assertThat(actual[pos]).isEqualTo(expected[pos]);
     }
 
-    // Determine the expected row ID from the firstRowId of the file and the pos
-    int actualRowIdPos = actual.length - 4;
-    int filePos = actual.length - 2;
-    int rowPositionPos = actual.length - 1;
-    String file = actual[filePos].toString();
-    long fileFirstRowId =
-        (Long)
-            sql("SELECT first_row_id FROM %s.files WHERE file_path = '%s'", selectTarget(), file)
-                .get(0)[0];
-    long rowPosition = (long) actual[rowPositionPos];
-    long expectedFirstRowId = fileFirstRowId + rowPosition;
-    assertThat(actual[actualRowIdPos]).isEqualTo(expectedFirstRowId);
-
-    int expectedLastSequencePos = expected.length - 1;
-    int actualLastSequencePos = 3;
-    assertThat(actual[actualLastSequencePos]).isEqualTo(expected[expectedLastSequencePos]);
+    int rowIdPos = expected.length;
+    int firstRowIdPos = rowIdPos + 1;
+    int positionPos = firstRowIdPos + 1;
+    long expectedRowId = (Long) actual[firstRowIdPos] + (Long) actual[positionPos];
+    assertThat(actual[rowIdPos]).isEqualTo(expectedRowId);
   }
 }
