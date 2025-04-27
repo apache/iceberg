@@ -20,6 +20,22 @@ package org.apache.iceberg.variants;
 
 /** An variant array value. */
 public interface VariantArray extends VariantValue {
+  /** Returns the {@link VariantValue} at {@code index} in this array. */
+  VariantValue get(int index);
+
+  /** Returns the number of fields stored in this array. */
+  int numElements();
+
+  @Override
+  default PhysicalType type() {
+    return PhysicalType.ARRAY;
+  }
+
+  @Override
+  default VariantArray asArray() {
+    return this;
+  }
+
   static String asString(VariantArray arr) {
     StringBuilder builder = new StringBuilder();
 
@@ -37,21 +53,5 @@ public interface VariantArray extends VariantValue {
     builder.append("])");
 
     return builder.toString();
-  }
-
-  /** Returns the {@link VariantValue} at {@code index} in this array. */
-  VariantValue get(int index);
-
-  /** Returns the number of fields stored in this array. */
-  int numElements();
-
-  @Override
-  default PhysicalType type() {
-    return PhysicalType.ARRAY;
-  }
-
-  @Override
-  default VariantArray asArray() {
-    return this;
   }
 }

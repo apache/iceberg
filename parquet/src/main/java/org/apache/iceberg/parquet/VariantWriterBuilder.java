@@ -173,8 +173,11 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE));
     int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST));
     int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST));
-    return ParquetVariantWriters.array(
-        valueDL, valueWriter, typedDL, repeatedDL, repeatedRL, elementWriter);
+
+    ParquetValueWriter<VariantValue> typedWriter =
+        ParquetVariantWriters.array(repeatedDL, repeatedRL, elementWriter);
+
+    return ParquetVariantWriters.shredded(valueDL, valueWriter, typedDL, typedWriter);
   }
 
   private static class LogicalTypeToVariantWriter

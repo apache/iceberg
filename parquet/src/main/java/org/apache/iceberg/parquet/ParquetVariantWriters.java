@@ -99,24 +99,14 @@ class ParquetVariantWriters {
         builder.build());
   }
 
-  public static ParquetValueWriter<?> array(
-      int valueDefinitionLevel,
-      ParquetValueWriter<?> valueWriter,
-      int typedDefinitionLevel,
+  public static ParquetValueWriter<VariantValue> array(
       int repeatedDefinitionLevel,
       int repeatedRepetitionLevel,
       ParquetValueWriter<?> elementWriter) {
-    ArrayWriter typedWriter =
-        new ArrayWriter(
-            repeatedDefinitionLevel,
-            repeatedRepetitionLevel,
-            (ParquetValueWriter<VariantValue>) elementWriter);
-
-    return new ArrayValueWriter(
-        valueDefinitionLevel,
-        (ParquetValueWriter<VariantValue>) valueWriter,
-        typedDefinitionLevel,
-        typedWriter);
+    return new ArrayWriter(
+        repeatedDefinitionLevel,
+        repeatedRepetitionLevel,
+        (ParquetValueWriter<VariantValue>) elementWriter);
   }
 
   private static class VariantWriter implements ParquetValueWriter<Variant> {
@@ -381,60 +371,23 @@ class ParquetVariantWriters {
     }
   }
 
-  private static class ArrayValueWriter implements ParquetValueWriter<VariantValue> {
-    private final int valueDefinitionLevel;
-    private final ParquetValueWriter<VariantValue> valueWriter;
-    private final int typedDefinitionLevel;
-    private final ArrayWriter typedWriter;
-    private final List<TripleWriter<?>> children;
-
-    private ArrayValueWriter(
-        int valueDefinitionLevel,
-        ParquetValueWriter<VariantValue> valueWriter,
-        int typedDefinitionLevel,
-        ArrayWriter typedWriter) {
-      this.valueDefinitionLevel = valueDefinitionLevel;
-      this.valueWriter = valueWriter;
-      this.typedDefinitionLevel = typedDefinitionLevel;
-      this.typedWriter = typedWriter;
-      this.children = children(valueWriter, typedWriter);
-    }
-
-    @Override
-    public void write(int repetitionLevel, VariantValue value) {
-      if (value.type() == PhysicalType.ARRAY) {
-        typedWriter.write(repetitionLevel, value);
-        writeNull(valueWriter, repetitionLevel, valueDefinitionLevel);
-      } else {
-        valueWriter.write(repetitionLevel, value);
-        writeNull(typedWriter, repetitionLevel, typedDefinitionLevel);
-      }
-    }
-
-    @Override
-    public List<TripleWriter<?>> columns() {
-      return children;
-    }
-
-    @Override
-    public void setColumnStore(ColumnWriteStore columnStore) {
-      valueWriter.setColumnStore(columnStore);
-      typedWriter.setColumnStore(columnStore);
-    }
-  }
-
-  private static class ArrayWriter implements ParquetValueWriter<VariantValue> {
+  private static class ArrayWriter implements TypedWriter {
     private final int definitionLevel;
     private final int repetitionLevel;
     private final ParquetValueWriter<VariantValue> writer;
     private final List<TripleWriter<?>> children;
 
-    private ArrayWriter(
+    protected ArrayWriter(
         int definitionLevel, int repetitionLevel, ParquetValueWriter<VariantValue> writer) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.writer = writer;
       this.children = writer.columns();
+    }
+
+    @Override
+    public Set<PhysicalType> types() {
+      return Set.of(PhysicalType.ARRAY);
     }
 
     @Override
