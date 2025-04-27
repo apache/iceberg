@@ -243,11 +243,7 @@ public class TestGlueCatalogView extends ViewCatalogTests<GlueCatalog> {
         .isEqualTo(UUID.fromString(((BaseView) view).operations().current().uuid()));
     assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
     assertThat(view.properties()).containsEntry("prop1", "val1").containsEntry("prop2", "val2");
-    assertThat(view.history())
-        .hasSize(1)
-        .first()
-        .extracting(ViewHistoryEntry::versionId)
-        .isEqualTo(1);
+    assertThat(view.history()).singleElement().extracting(ViewHistoryEntry::versionId).isEqualTo(1);
     assertThat(view.currentVersion().operation()).isEqualTo("create");
     assertThat(view.schema().schemaId()).isEqualTo(0);
     assertThat(view.schema().asStruct()).isEqualTo(SCHEMA.asStruct());

@@ -768,8 +768,7 @@ public class TestGlueCatalog {
         .getTables(Mockito.any(GetTablesRequest.class));
 
     List<TableIdentifier> views = glueCatalog.listViews(Namespace.of("db"));
-    assertThat(views).hasSize(1);
-    assertThat(views.get(0)).isEqualTo(TableIdentifier.of("db", "my_view"));
+    assertThat(views).hasSize(1).containsExactly(TableIdentifier.of("db", "my_view"));
   }
 
   @Test
