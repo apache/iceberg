@@ -3319,7 +3319,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     }
   }
 
-  private List<Namespace> concat(List<Namespace> starting, Namespace... additional) {
+  protected List<Namespace> concat(List<Namespace> starting, Namespace... additional) {
     List<Namespace> namespaces = Lists.newArrayList();
     namespaces.addAll(starting);
     namespaces.addAll(Arrays.asList(additional));

@@ -84,6 +84,8 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initCatalog("nessie", ImmutableMap.of());
+    Namespace namespace = Namespace.of("default");
+    catalog.createNamespace(namespace, Maps.newHashMap());
   }
 
   @AfterEach
@@ -202,6 +204,13 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + TABLE.namespace()
                 + "/"
                 + TABLE.name());
+  }
+
+  @Test
+  @Override
+  @Disabled("Nessie doesnt create default namespaces")
+  public void testListNestedNamespaces() {
+    super.testListNestedNamespaces();
   }
 
   @Test
