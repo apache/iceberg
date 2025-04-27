@@ -320,7 +320,7 @@ class TestLockRemover extends OperatorTestBase {
 
     @Override
     public void close() {
-      // Do nothing
+      open = false;
     }
   }
 
