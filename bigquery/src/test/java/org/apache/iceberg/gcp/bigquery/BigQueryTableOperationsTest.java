@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
@@ -32,9 +33,15 @@ import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
+import com.google.api.services.bigquery.model.StorageDescriptor;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
 import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Optional;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
@@ -53,7 +60,7 @@ import org.mockito.ArgumentCaptor;
 public class BigQueryTableOperationsTest {
 
   @TempDir private File tempFolder;
-
+  public static final String METADATA_LOCATION_PROP = "metadata_location";
   private static final String GCP_PROJECT = "my-project";
   private static final String GCP_REGION = "us";
   private static final String DATASET_ID = "db";
@@ -101,7 +108,7 @@ public class BigQueryTableOperationsTest {
             createdTable
                 .getExternalCatalogTableOptions()
                 .getParameters()
-                .getOrDefault(BigQueryMetastoreTestUtils.METADATA_LOCATION_PROP, ""))
+                .getOrDefault(METADATA_LOCATION_PROP, ""))
         .isEqualTo(tableOps.currentMetadataLocation());
 
     reset(bigQueryMetaStoreClient);
@@ -182,9 +189,7 @@ public class BigQueryTableOperationsTest {
             .setEtag("etag")
             .setExternalCatalogTableOptions(
                 new ExternalCatalogTableOptions()
-                    .setParameters(
-                        ImmutableMap.of(
-                            BigQueryMetastoreTestUtils.METADATA_LOCATION_PROP, "a/new/location")));
+                    .setParameters(ImmutableMap.of(METADATA_LOCATION_PROP, "a/new/location")));
 
     reset(bigQueryMetaStoreClient);
     // Two invocations, for loadTable and commit.
@@ -212,7 +217,7 @@ public class BigQueryTableOperationsTest {
                     new ExternalCatalogDatasetOptions()
                         .setDefaultStorageLocationUri("build/db_folder")));
 
-    Schema schema = BigQueryMetastoreTestUtils.getTestSchema();
+    Schema schema = testSchema();
     bigQueryMetastoreCatalog.createTable(SPARK_TABLE_ID, schema, PartitionSpec.unpartitioned());
   }
 
@@ -220,7 +225,50 @@ public class BigQueryTableOperationsTest {
   private Table createTestTable() throws Exception {
     when(bigQueryMetaStoreClient.load(TABLE_REFERENCE))
         .thenThrow(new NoSuchTableException("error message getTable"));
-    return BigQueryMetastoreTestUtils.createTestTable(
-        tempFolder, bigQueryMetastoreCatalog, TABLE_REFERENCE);
+    return createTestTable(tempFolder, bigQueryMetastoreCatalog, TABLE_REFERENCE);
+  }
+
+  public static Table createTestTable(
+      File tempFolder,
+      BigQueryMetastoreCatalog bigQueryMetastoreCatalog,
+      TableReference tableReference)
+      throws IOException {
+    Schema schema = testSchema();
+    TableIdentifier tableIdentifier =
+        TableIdentifier.of(tableReference.getDatasetId(), tableReference.getTableId());
+    String tableDir = tempFolder.toPath().resolve(tableReference.getTableId()).toString();
+
+    bigQueryMetastoreCatalog
+        .buildTable(tableIdentifier, schema)
+        .withLocation(tableDir)
+        .createTransaction()
+        .commitTransaction();
+
+    Optional<String> metadataLocation = metadataFilePath(tableDir);
+    assertThat(metadataLocation).isPresent();
+    return new Table()
+        .setTableReference(tableReference)
+        .setExternalCatalogTableOptions(
+            new ExternalCatalogTableOptions()
+                .setStorageDescriptor(new StorageDescriptor().setLocationUri(tableDir))
+                .setParameters(
+                    Collections.singletonMap(METADATA_LOCATION_PROP, metadataLocation.get())));
+  }
+
+  private static Schema testSchema() {
+    return new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get()));
+  }
+
+  private static Optional<String> metadataFilePath(String tableDir) throws IOException {
+    for (File file :
+        FileUtils.listFiles(new File(tableDir), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)) {
+      if (file.getCanonicalPath().endsWith(".json")) {
+        return Optional.of(file.getCanonicalPath());
+      }
+    }
+
+    return Optional.empty();
   }
 }

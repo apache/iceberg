@@ -90,7 +90,9 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     Preconditions.checkArgument(
-        properties.containsKey(PROJECT_ID), "GCP project must be specified");
+        properties.containsKey(PROJECT_ID),
+        "Invalid GCP project: %s must be specified",
+        PROJECT_ID);
 
     projectId = properties.get(PROJECT_ID);
     location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
@@ -120,7 +122,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       String initialProjectId,
       String initialLocation,
       BigQueryMetastoreClient bigQueryMetaStoreClient) {
-    Preconditions.checkArgument(bigQueryMetaStoreClient != null, "BigQuery client can not be null");
+    Preconditions.checkArgument(bigQueryMetaStoreClient != null, "Invalid BigQuery client: null");
     this.catalogName = inputName;
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.projectId = initialProjectId;
@@ -204,25 +206,31 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     validateNamespace(to.namespace());
 
     if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", to.namespace());
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s. Namespace does not exist: %s",
+          from.name(), to.name(), to.namespace());
     }
 
     if (!namespaceExists(from.namespace())) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", from.namespace());
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s. Namespace does not exist: %s",
+          from.name(), to.name(), from.namespace());
     }
 
-    // Check if the source table exists
     if (!tableExists(from)) {
-      throw new NoSuchTableException("Table does not exist: %s", from.name());
+      throw new NoSuchTableException(
+          "Cannot rename %s to %s. Table does not exist: %s", from.name(), to.name(), from.name());
     }
 
     if (!from.namespace().equals(to.namespace())) {
-      throw new ValidationException("New table name must be in the same namespace");
+      throw new ValidationException(
+          "Cannot rename %s to %s. New table name must be in the same namespace",
+          from.name(), to.name());
     }
 
-    // Check if the destination table already exists
     if (tableExists(to)) {
-      throw new AlreadyExistsException("Table already exists: %s", to.name());
+      throw new AlreadyExistsException(
+          "Cannot rename %s to %s. Table already exists: %s", from.name(), to.name(), to.name());
     }
 
     // TODO: Enable once supported by BigQuery API.
@@ -345,7 +353,9 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   private String createDefaultStorageLocationUri(String dbId) {
     String warehouseLocation = conf.get(HIVE_METASTORE_WAREHOUSE_DIR);
-    Preconditions.checkNotNull(warehouseLocation, "Data warehouse location is not set");
+    Preconditions.checkArgument(
+        warehouseLocation != null,
+        String.format("Invalid data warehouse location: %s not set", HIVE_METASTORE_WAREHOUSE_DIR));
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }
 
@@ -373,6 +383,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       if (options.getParameters() != null) {
         metadata.putAll(options.getParameters());
       }
+
       if (!Strings.isNullOrEmpty(options.getDefaultStorageLocationUri())) {
         metadata.put("location", options.getDefaultStorageLocationUri());
       }
@@ -381,7 +392,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     return metadata;
   }
 
-  private static void validateNamespace(Namespace namespace) {
+  private void validateNamespace(Namespace namespace) {
     Preconditions.checkArgument(
         namespace.levels().length == 1,
         String.format(

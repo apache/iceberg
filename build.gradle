@@ -663,17 +663,17 @@ project(':iceberg-bigquery') {
   }
 
   dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
     implementation project(':iceberg-gcp')
+
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
 
     implementation platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
     implementation "com.google.cloud:google-cloud-bigquery"
     implementation "com.google.cloud:google-cloud-core"
-
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
 
     compileOnly libs.hadoop3.common
     compileOnly (libs.hive4.metastore) {

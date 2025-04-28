@@ -47,7 +47,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> {
   @TempDir private File tempFolder;
   private BigQueryMetastoreCatalog catalog;
-  private String warehouseLocation;
 
   @BeforeEach
   public void before() throws Exception {
@@ -101,7 +100,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   protected BigQueryMetastoreCatalog initCatalog(
       String catalogName, Map<String, String> additionalProperties) {
 
-    warehouseLocation = tempFolder.toPath().resolve("hive-warehouse").toString();
+    String warehouseLocation = tempFolder.toPath().resolve("hive-warehouse").toString();
     FakeBigQueryMetastoreClient fakeBigQueryClient = new FakeBigQueryMetastoreClient();
 
     Map<String, String> properties =
@@ -137,6 +136,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
     return tmpCatalog;
   }
 
+  @Override
   @Test
   public void testRenameTable() {
     if (requiresNamespaceCreate()) {
