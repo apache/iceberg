@@ -102,7 +102,7 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
     - Add variant readers and writers ([\#12457](https://github.com/apache/iceberg/pull/12457))
     - Remove namespace/table/view HEAD endpoints from defaults ([\#12351](https://github.com/apache/iceberg/pull/12351))
     - Support nanosecond timestamps and unknown types ([\#12455](https://github.com/apache/iceberg/pull/12455))
-    - Write null for current-snapshot-id for V3+ ([\#12335](https://github.com/apache/iceberg/pull/12335))
+    - Write null for `current-snapshot-id` for V3+ ([\#12335](https://github.com/apache/iceberg/pull/12335))
     - Apply correct metric configs in GenericAppenderFactory ([\#12366](https://github.com/apache/iceberg/pull/12366))
     - Close FileIO instance in JdbcCatalog ([\#12540](https://github.com/apache/iceberg/pull/12540))
     - Add view-override catalog property ([\#12534](https://github.com/apache/iceberg/pull/12534))
