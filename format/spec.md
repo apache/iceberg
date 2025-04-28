@@ -266,7 +266,18 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-All columns of `unknown`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+
+Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The effective default value is produced by setting each fields' default in a new struct.
+
+For example, a struct column `point` with fields `x` (default 0) and `y` (default 0) can be defaulted to `{"x": 0, "y": 0}` or `null`. A non-null default is stored by setting `initial-default` or `write-default` to an empty struct (`{}`) that will use field values set from each field's `initial-default` or `write-default`, respectively.
+
+| `point` default | `point.x` default | `point.y` default | Data value   | Result value |
+|-----------------|-------------------|-------------------|--------------|--------------|
+| `null`          | `0`               | `0`               | (missing)    | `null` |
+| `null`          | `0`               | `0`               | `{"x": 3}`   | `{"x": 3, "y": 0}` |
+| `{}`            | `0`               | `0`               | (missing)    | `{"x": 0, "y": 0}` |
+| `{}`            | `0`               | `0`               | `{"y": -1}`  | `{"x": 0, "y": -1}` |
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
@@ -315,7 +326,7 @@ Struct evolution requires the following rules for default values:
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
 * When an optional field is added, the defaults may be null and should be explicitly set
-* When a new field is added to a struct with a default value, updating the struct's default is optional
+* When a field that is a struct type is added, its default may only be null or a non-null struct with no field values. Default values for fields must be stored in field metadata.
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
@@ -651,6 +662,22 @@ Notes:
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
+
+For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
+
+Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a "measurement" field that contains int64 and null values may have bounds, but if the field also contained a string value such as "n/a" or "0" then the field may not have bounds.
+
+The Variant bounds objects are serialized by concatenating the [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) of the metadata (containing the normalized field paths) and the bounds object.
+Field paths follow the JSON path format to use normalized path, such as `$['location']['latitude']` or `$['user.name']`. The special path `$` represents bounds for the variant root, indicating that the variant data consists of uniform primitive types, such as strings.
+
+Examples of valid field paths using normalized JSON path format are:
+
+* `$` -- the root of the Variant value
+* `$['event_type']` -- the `event_type` field in a Variant object
+* `$['user.name']` -- the `"user.name"` field in a Variant object
+* `$['location']['latitude']` -- the `latitude` field nested within a `location` object
+* `$['tags']` -- the `tags` array 
+* `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
 
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
@@ -1179,7 +1206,7 @@ Values should be stored in Avro using the Avro types and logical type annotation
 
 Optional fields, array elements, and map values must be wrapped in an Avro `union` with `null`. This is the only union type allowed in Iceberg data files.
 
-Optional fields must always set the Avro field default value to null.
+Optional fields without an Iceberg default must set the Avro field default value to null. Fields with a non-null Iceberg default must convert the default to an equivalent Avro default.
 
 Maps with non-string keys must use an array representation with the `map` logical type. The array representation or Avro’s map type may be used for maps with string keys.
 
@@ -1414,11 +1441,15 @@ Each partition field in `fields` is stored as a JSON object with the following p
 
 | V1       | V2       | V3       | Field            | JSON representation | Example      |
 |----------|----------|----------|------------------|---------------------|--------------|
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
-|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1            |
+|          |          | optional | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
 |          | required | required | **`field-id`**   | `JSON int`          | 1000         |
 | required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Notes:
+
+1. For partition fields with a transform with a single argument, only `source-id` is written. In case of a multi-argument transform, only `source-ids` is written.
 
 Supported partition transforms are listed below.
 
@@ -1454,12 +1485,14 @@ Each sort field in the fields list is stored as an object with the following pro
 | V1       | V2       | V3       | Field            | JSON representation | Example     |
 |----------|----------|----------|------------------|---------------------|-------------|
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
-|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1           |
+|          |          | optional | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
+Notes:
+
+1. For sort fields with a transform with a single argument, only `source-id` is written. In case of a multi-argument transform, only `source-ids` is written.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
@@ -1558,6 +1591,7 @@ The binary single-value serialization can be used to store the lower and upper b
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`geometry`**               | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
 | **`geography`**              | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
+| **`variant`**                | A serialized Variant of encoded v1 metadata concatenated with an encoded variant object. Object keys are normalized JSON paths to identify fields; values are lower or upper bound values. |
 
 ### JSON single-value serialization
 
@@ -1605,13 +1639,8 @@ All readers are required to read tables with unknown partition transforms, ignor
 Writing v3 metadata:
 
 * Partition Field and Sort Field JSON:
-    * `source-ids` was added and is required
-    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
-
-Reading v1 or v2 metadata for v3:
-
-* Partition Field and Sort Field JSON:
-    * `source-ids` should default to a single-value list of the value of `source-id`
+    * `source-ids` was added and must be written in the case of a multi-argument transform.
+    * `source-id` must be written in the case of single-argument transforms.
 
 Row-level delete changes:
 

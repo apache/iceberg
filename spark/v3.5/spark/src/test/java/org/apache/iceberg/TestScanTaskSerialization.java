@@ -67,7 +67,7 @@ public class TestScanTaskSerialization extends TestBase {
   private String tableLocation = null;
 
   @BeforeEach
-  public void setupTableLocation() throws Exception {
+  public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
   }
 

@@ -293,7 +293,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return firstRowId;
   }
 
-  public void setFirstRowId(long firstRowId) {
+  public void setFirstRowId(Long firstRowId) {
     this.firstRowId = firstRowId;
   }
 

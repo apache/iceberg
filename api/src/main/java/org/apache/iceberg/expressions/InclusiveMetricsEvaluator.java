@@ -556,8 +556,7 @@ public class InclusiveMetricsEvaluator {
       Integer id = bound.ref().fieldId();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         VariantObject fieldLowerBounds = parseBounds(lowerBounds.get(id));
-        return VariantExpressionUtil.castTo(
-            fieldLowerBounds.get(bound.fullFieldName()), bound.type());
+        return VariantExpressionUtil.castTo(fieldLowerBounds.get(bound.path()), bound.type());
       }
 
       return null;
@@ -567,8 +566,7 @@ public class InclusiveMetricsEvaluator {
       Integer id = bound.ref().fieldId();
       if (upperBounds != null && upperBounds.containsKey(id)) {
         VariantObject fieldUpperBounds = parseBounds(upperBounds.get(id));
-        return VariantExpressionUtil.castTo(
-            fieldUpperBounds.get(bound.fullFieldName()), bound.type());
+        return VariantExpressionUtil.castTo(fieldUpperBounds.get(bound.path()), bound.type());
       }
 
       return null;

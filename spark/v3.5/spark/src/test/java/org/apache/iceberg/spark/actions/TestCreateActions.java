@@ -36,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -77,12 +78,14 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
 import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCreateActions extends CatalogTestBase {
   private static final String CREATE_PARTITIONED_PARQUET =
       "CREATE TABLE %s (id INT, data STRING) " + "using parquet PARTITIONED BY (id) LOCATION '%s'";
@@ -337,7 +340,6 @@ public class TestCreateActions extends CatalogTestBase {
 
     String colName1 = "newCol1";
     String colName2 = "newCol2";
-    File location = Files.createTempDirectory(temp, "junit").toFile();
     spark
         .range(10)
         .selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1, "CAST(id as INT) " + colName2)
@@ -527,11 +529,7 @@ public class TestCreateActions extends CatalogTestBase {
     expectedProps.putAll(props);
     expectedProps.put("dogs", "sundance");
 
-    for (Map.Entry<String, String> entry : expectedProps.entrySet()) {
-      assertThat(table.properties())
-          .as("Property value is not the expected value")
-          .containsEntry(entry.getKey(), entry.getValue());
-    }
+    assertThat(table.properties()).containsAllEntriesOf(expectedProps);
   }
 
   @TestTemplate
@@ -549,37 +547,23 @@ public class TestCreateActions extends CatalogTestBase {
 
     String[] keys = {"provider", "format", "current-snapshot-id", "location", "sort-order"};
 
-    for (String entry : keys) {
-      assertThat(table.properties())
-          .as("Created table missing reserved property " + entry)
-          .containsKey(entry);
-    }
+    assertThat(table.properties())
+        .as("Created table missing reserved properties")
+        .containsKeys(keys);
 
-    assertThat(table.properties().get("provider")).as("Unexpected provider").isEqualTo("iceberg");
-    assertThat(table.properties().get("format"))
-        .as("Unexpected provider")
-        .isEqualTo("iceberg/parquet");
-    assertThat(table.properties().get("current-snapshot-id"))
-        .as("No current-snapshot-id found")
-        .isNotEqualTo("none");
-    assertThat(table.properties().get("location"))
-        .as("Location isn't correct")
-        .endsWith(destTableName);
+    assertThat(table.properties())
+        .containsEntry("provider", "iceberg")
+        .containsEntry("format", "iceberg/parquet")
+        .hasEntrySatisfying("current-snapshot-id", id -> assertThat(id).isNotEqualTo("none"))
+        .hasEntrySatisfying("location", loc -> assertThat(loc).endsWith(destTableName));
 
-    assertThat(table.properties().get("format-version"))
-        .as("Unexpected format-version")
-        .isEqualTo("1");
+    assertThat(table.properties()).containsEntry("format-version", "1");
     table.table().updateProperties().set("format-version", "2").commit();
-    assertThat(table.properties().get("format-version"))
-        .as("Unexpected format-version")
-        .isEqualTo("2");
+    assertThat(table.properties()).containsEntry("format-version", "2");
 
-    assertThat(table.properties().get("sort-order"))
-        .as("Sort-order isn't correct")
-        .isEqualTo("id ASC NULLS FIRST, data DESC NULLS LAST");
-    assertThat(table.properties().get("identifier-fields"))
-        .as("Identifier fields should be null")
-        .isNull();
+    assertThat(table.properties())
+        .containsEntry("sort-order", "id ASC NULLS FIRST, data DESC NULLS LAST")
+        .doesNotContainKey("identifier-fields");
 
     table
         .table()
@@ -588,9 +572,7 @@ public class TestCreateActions extends CatalogTestBase {
         .requireColumn("id")
         .setIdentifierFields("id")
         .commit();
-    assertThat(table.properties().get("identifier-fields"))
-        .as("Identifier fields aren't correct")
-        .isEqualTo("[id]");
+    assertThat(table.properties()).containsEntry("identifier-fields", "[id]");
   }
 
   @TestTemplate
@@ -995,9 +977,7 @@ public class TestCreateActions extends CatalogTestBase {
       throws NoSuchTableException, ParseException {
     List<Row> expected = spark.table(source).collectAsList();
     SparkTable destTable = loadTable(dest);
-    assertThat(destTable.properties().get(TableCatalog.PROP_PROVIDER))
-        .as("Provider should be iceberg")
-        .isEqualTo("iceberg");
+    assertThat(destTable.properties()).containsEntry(TableCatalog.PROP_PROVIDER, "iceberg");
     List<Row> actual = spark.table(dest).collectAsList();
     assertThat(actual)
         .as(
