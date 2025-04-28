@@ -241,9 +241,15 @@ public class RandomData {
 
   private static class SparkRandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Random random;
+    private final float nullPercentage;
 
     private SparkRandomDataGenerator(long seed) {
+      this(seed, DEFAULT_NULL_PERCENTAGE);
+    }
+
+    private SparkRandomDataGenerator(long seed, float nullPercentage) {
       this.random = new Random(seed);
+      this.nullPercentage = nullPercentage;
     }
 
     @Override
@@ -265,10 +271,14 @@ public class RandomData {
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
       // return null 5% of the time when the value is optional
-      if (field.isOptional() && random.nextInt(20) == 1) {
+      if (field.isOptional() && isNull()) {
         return null;
       }
       return fieldResult.get();
+    }
+
+    private boolean isNull() {
+      return random.nextFloat() < nullPercentage;
     }
 
     @Override
@@ -278,8 +288,7 @@ public class RandomData {
       GenericArrayData result = new GenericArrayData(arr);
 
       for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
+        if (list.isElementOptional() && isNull()) {
           arr[i] = null;
         } else {
           arr[i] = elementResult.get();
@@ -310,8 +319,7 @@ public class RandomData {
         keySet.add(key);
 
         keysArr[i] = key;
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
+        if (map.isValueOptional() && isNull()) {
           valuesArr[i] = null;
         } else {
           valuesArr[i] = valueResult.get();

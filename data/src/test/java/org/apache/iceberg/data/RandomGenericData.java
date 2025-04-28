@@ -73,7 +73,8 @@ public class RandomGenericData {
 
   public static Iterable<Record> generateDictionaryEncodableRecords(
       Schema schema, int numRecords, long seed, float nullPercentage) {
-    return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
+    return generateIcebergGenerics(
+        schema, numRecords, () -> new DictionaryEncodedGenerator(seed, nullPercentage));
   }
 
   private static Iterable<Record> generateIcebergGenerics(
@@ -131,7 +132,7 @@ public class RandomGenericData {
       super(seed);
     }
 
-    DictionaryEncodedGenerator(long seed, long nullPercentage) {
+    DictionaryEncodedGenerator(long seed, float nullPercentage) {
       super(seed, nullPercentage);
     }
 
@@ -218,8 +219,7 @@ public class RandomGenericData {
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
+        if (list.isElementOptional() && isNull()) {
           result.add(null);
         } else {
           result.add(elementResult.get());
@@ -251,8 +251,7 @@ public class RandomGenericData {
 
         keySet.add(key);
 
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
+        if (map.isValueOptional() && isNull()) {
           result.put(key, null);
         } else {
           result.put(key, valueResult.get());

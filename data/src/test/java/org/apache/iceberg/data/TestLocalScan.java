@@ -36,6 +36,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -263,9 +264,40 @@ public class TestLocalScan {
 
     append.commit();
 
-    Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
+    RecordComparator comparator = new RecordComparator();
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+
+    expected.sort(comparator);
+    records.sort(comparator);
     assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
-    assertThat(records).as("Random record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(records).as("Random record set should match").isEqualTo(expected);
+  }
+
+  private static class RecordComparator implements Comparator<Record> {
+    @Override
+    public int compare(Record r1, Record r2) {
+      // Compare by ID (never null)
+      int idCmp = Long.compare(r1.get(0, Long.class), r2.get(0, Long.class));
+      if (idCmp != 0) {
+        return idCmp;
+      }
+
+      // Compare by data, nulls first
+      String dataFirst = r1.get(1, String.class);
+      String dataSecond = r2.get(1, String.class);
+
+      if (dataFirst == null && dataSecond == null) {
+        return 0;
+      }
+      if (dataFirst == null) {
+        return -1;
+      }
+      if (dataSecond == null) {
+        return 1;
+      }
+
+      return dataFirst.compareTo(dataSecond);
+    }
   }
 
   @TestTemplate
