@@ -19,6 +19,9 @@
 package org.apache.iceberg.data;
 
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -54,7 +57,31 @@ public class GenericDataUtil {
       case FIXED:
         return ByteBuffers.toByteArray((ByteBuffer) value);
     }
+    return value;
+  }
 
+  /**
+   * Convert a value from Iceberg's generic data model to the internal data model.
+   *
+   * @param type a data type
+   * @param value value to convert
+   * @return the value in the internal data model representation
+   */
+  public static Object genericToInternal(Type type, Object value) {
+    if (null == value) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case DATE:
+        return DateTimeUtil.daysFromDate((LocalDate) value);
+      case TIME:
+        return DateTimeUtil.microsFromTime((LocalTime) value);
+      case TIMESTAMP:
+        return DateTimeUtil.microsFromTimestamp((LocalDateTime) value);
+      case FIXED:
+        return ByteBuffer.wrap((byte[]) value);
+    }
     return value;
   }
 }

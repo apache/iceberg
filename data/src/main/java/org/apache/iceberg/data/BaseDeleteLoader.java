@@ -128,7 +128,10 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private Iterable<StructLike> readEqDeletes(DeleteFile deleteFile, Schema projection) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, projection);
-    CloseableIterable<Record> copiedDeletes = CloseableIterable.transform(deletes, Record::copy);
+    // Deep copy is needed when reusing containers to avoid overwriting the delete set when dealing
+    // with non-primitive containers as described in https://github.com/apache/iceberg/issues/11239
+    CloseableIterable<Record> copiedDeletes =
+        CloseableIterable.transform(deletes, Record::deepCopyValues);
     CloseableIterable<StructLike> copiedDeletesAsStructs = toStructs(copiedDeletes, projection);
     return materialize(copiedDeletesAsStructs);
   }
@@ -230,15 +233,11 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    // We explicitly turn off reusing containers because when reading equality deletes
-    // for non-primitive-type columns
-    // it may result in not capturing the full delete set. See
-    // https://github.com/apache/iceberg/issues/11239
-    // for details.
     switch (format) {
       case AVRO:
         return Avro.read(inputFile)
             .project(projection)
+            .reuseContainers()
             .createResolvingReader(PlannedDataReader::create)
             .build();
 
@@ -246,13 +245,12 @@ public class BaseDeleteLoader implements DeleteLoader {
         return Parquet.read(inputFile)
             .project(projection)
             .filter(filter)
+            .reuseContainers()
             .createReaderFunc(newParquetReaderFunc(projection))
             .build();
 
       case ORC:
-        // reusing containers is built into the ORC reader, and doesn't have the same issue
-        // described above
-        // for Parquet and Avro
+        // reusing containers is automatic for ORC, no need to call 'reuseContainers'
         return ORC.read(inputFile)
             .project(projection)
             .filter(filter)

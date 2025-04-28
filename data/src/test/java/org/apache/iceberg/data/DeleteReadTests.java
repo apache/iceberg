@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -28,6 +30,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -56,15 +59,20 @@ public abstract class DeleteReadTests {
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "binaryData", Types.BinaryType.get()));
+          required(1, "id", Types.IntegerType.get()),
+          required(2, "data", Types.StringType.get()),
+          optional(3, "binaryData", Types.BinaryType.get()),
+          optional(
+              4,
+              "structData",
+              Types.StructType.of(optional(100, "structInnerData", Types.StringType.get()))),
+          optional(5, "fixedData", Types.FixedType.ofLength(10)));
 
   public static final Schema DATE_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "dt", Types.DateType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.required(3, "id", Types.IntegerType.get()));
+          required(1, "dt", Types.DateType.get()),
+          required(2, "data", Types.StringType.get()),
+          required(3, "id", Types.IntegerType.get()));
 
   // Partition spec used to create tables
   public static final PartitionSpec SPEC =
@@ -591,29 +599,57 @@ public abstract class DeleteReadTests {
   /** Regression test for https://github.com/apache/iceberg/issues/11239 */
   @TestTemplate
   public void testEqualityDeleteBinaryColumn() throws IOException {
+    testEqualityDeleteWithColumn(
+        "binaryData", (i) -> ByteBuffer.wrap(("binaryData_" + i).getBytes()));
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteStructColumn() throws IOException {
+    testEqualityDeleteWithColumn(
+        "structData",
+        (i) -> {
+          Record structRecord =
+              GenericRecord.create(table.schema().findType("structData").asStructType());
+          structRecord.setField("structInnerData", "structInnerData_" + i);
+          return structRecord;
+        });
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteFixedColumn() throws IOException {
+    testEqualityDeleteWithColumn("fixedData", (i) -> ("fixedData" + i).getBytes());
+  }
+
+  private <T> void testEqualityDeleteWithColumn(
+      String targetFieldName, Function<Integer, T> targetFieldValueSupplier) throws IOException {
     Record record = GenericRecord.create(table.schema());
-    List<Record> binaryDataRecords = Lists.newArrayList();
+    List<Record> targetFieldRecords = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
-      ByteBuffer binaryData = ByteBuffer.wrap(("binaryData_" + i).getBytes());
-      binaryDataRecords.add(
-          record.copy("id", i + 200, "data", "testData", "binaryData", binaryData));
+      targetFieldRecords.add(
+          record.copy(
+              "id",
+              i + 200,
+              "data",
+              "testData",
+              targetFieldName,
+              targetFieldValueSupplier.apply(i)));
     }
     DataFile binaryDataFile =
         FileHelpers.writeDataFile(
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            binaryDataRecords);
+            targetFieldRecords);
 
     table.newAppend().appendFile(binaryDataFile).commit();
 
-    Schema binaryDataSchema = table.schema().select("binaryData");
-    Record binaryDataDelete = GenericRecord.create(binaryDataSchema);
+    Schema fieldSchema = table.schema().select(targetFieldName);
+    Record dataDelete = GenericRecord.create(fieldSchema);
     List<Record> dataDeletes =
         Lists.newArrayList(
-            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_0").getBytes())),
-            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_1").getBytes())),
-            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_2").getBytes())));
+            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(0)),
+            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(1)),
+            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(2)));
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
@@ -621,12 +657,12 @@ public abstract class DeleteReadTests {
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
             dataDeletes,
-            binaryDataSchema);
+            fieldSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
     List<Record> allRecords = Lists.newArrayList(records);
-    allRecords.addAll(binaryDataRecords);
+    allRecords.addAll(targetFieldRecords);
     StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
     StructLikeSet actual = rowSet(tableName, table, "*");
 

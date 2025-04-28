@@ -34,6 +34,8 @@ public interface Record extends StructLike {
 
   Record copy();
 
+  Record deepCopyValues();
+
   Record copy(Map<String, Object> overwriteValues);
 
   default Record copy(String field, Object value) {
