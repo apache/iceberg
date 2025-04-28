@@ -1882,11 +1882,7 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream()
-              .anyMatch(
-                  change ->
-                      change instanceof MetadataUpdate.RemoveSnapshots
-                          || change instanceof MetadataUpdate.RemoveSnapshot);
+          changes.stream().anyMatch(change -> change instanceof MetadataUpdate.RemoveSnapshots);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;

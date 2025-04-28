@@ -428,7 +428,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotId);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
@@ -437,7 +437,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotId);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Remove snapshots should serialize to the correct JSON value")
@@ -1065,15 +1065,9 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.AddSnapshot) expectedUpdate, (MetadataUpdate.AddSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
-        if (actualUpdate instanceof MetadataUpdate.RemoveSnapshot) {
-          assertEqualsRemoveSnapshot(
-              (MetadataUpdate.RemoveSnapshot) expectedUpdate,
-              (MetadataUpdate.RemoveSnapshot) actualUpdate);
-        } else {
-          assertEqualsRemoveSnapshots(
-              (MetadataUpdate.RemoveSnapshots) expectedUpdate,
-              (MetadataUpdate.RemoveSnapshots) actualUpdate);
-        }
+        assertEqualsRemoveSnapshot(
+            (MetadataUpdate.RemoveSnapshots) expectedUpdate,
+            (MetadataUpdate.RemoveSnapshots) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef(
@@ -1285,10 +1279,10 @@ public class TestMetadataUpdateParser {
   }
 
   private static void assertEqualsRemoveSnapshot(
-      MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
-    assertThat(actual.snapshotId())
+      MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
+    assertThat(actual.snapshotIds())
         .as("Snapshot to remove should be the same")
-        .isEqualTo(expected.snapshotId());
+        .isEqualTo(expected.snapshotIds());
   }
 
   private static void assertEqualsRemoveSnapshots(

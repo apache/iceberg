@@ -1178,6 +1178,9 @@ acceptedBreaks:
       new: "class org.apache.iceberg.Metrics"
       justification: "Java serialization across versions is not guaranteed"
     org.apache.iceberg:iceberg-core:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.MetadataUpdate.RemoveSnapshot"
+      justification: "Removing deprecations for 1.10.0"
     - code: "java.method.removed"
       old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.CombinedScanTask,\
         \ org.apache.hadoop.conf.Configuration)"

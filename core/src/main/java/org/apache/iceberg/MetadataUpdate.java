@@ -329,30 +329,12 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; Use {@link MetadataUpdate.RemoveSnapshots}
-   *     instead.
-   */
-  @Deprecated
-  class RemoveSnapshot implements MetadataUpdate {
-    private final long snapshotId;
-
-    public RemoveSnapshot(long snapshotId) {
-      this.snapshotId = snapshotId;
-    }
-
-    public long snapshotId() {
-      return snapshotId;
-    }
-
-    @Override
-    public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
-    }
-  }
-
   class RemoveSnapshots implements MetadataUpdate {
     private final Set<Long> snapshotIds;
+
+    public RemoveSnapshots(Long snapshotId) {
+      this.snapshotIds = ImmutableSet.of(snapshotId);
+    }
 
     public RemoveSnapshots(Set<Long> snapshotIds) {
       this.snapshotIds = snapshotIds;
