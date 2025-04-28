@@ -559,17 +559,4 @@ public interface MetadataUpdate extends Serializable {
       builder.removeEncryptionKey(keyId);
     }
   }
-
-  /**
-   * Update to enable row lineage.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated
-  class EnableRowLineage implements MetadataUpdate {
-    @Override
-    public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.enableRowLineage();
-    }
-  }
 }

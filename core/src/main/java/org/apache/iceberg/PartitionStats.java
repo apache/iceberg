@@ -78,14 +78,6 @@ public class PartitionStats implements StructLike {
     return equalityDeleteFileCount;
   }
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0, use {@link #totalRecords()} instead.
-   */
-  @Deprecated
-  public long totalRecordCount() {
-    return totalRecordCount == null ? 0L : totalRecordCount;
-  }
-
   public Long totalRecords() {
     return totalRecordCount;
   }
