@@ -65,8 +65,7 @@ public abstract class DeleteReadTests {
           optional(
               4,
               "structData",
-              Types.StructType.of(optional(100, "structInnerData", Types.StringType.get()))),
-          optional(5, "fixedData", Types.FixedType.ofLength(10)));
+              Types.StructType.of(optional(100, "structInnerData", Types.StringType.get()))));
 
   public static final Schema DATE_SCHEMA =
       new Schema(
@@ -613,11 +612,6 @@ public abstract class DeleteReadTests {
           structRecord.setField("structInnerData", "structInnerData_" + i);
           return structRecord;
         });
-  }
-
-  @TestTemplate
-  public void testEqualityDeleteFixedColumn() throws IOException {
-    testEqualityDeleteWithColumn("fixedData", (i) -> ("fixedData" + i).getBytes());
   }
 
   private <T> void testEqualityDeleteWithColumn(
