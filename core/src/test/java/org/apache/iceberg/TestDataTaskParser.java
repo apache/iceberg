@@ -203,6 +203,7 @@ public class TestDataTaskParser {
                 1,
                 "file:/tmp/manifest1.avro",
                 null,
+                null,
                 null),
             new BaseSnapshot(
                 2L,
@@ -213,6 +214,7 @@ public class TestDataTaskParser {
                 summary2,
                 1,
                 "file:/tmp/manifest2.avro",
+                null,
                 null,
                 null));
 

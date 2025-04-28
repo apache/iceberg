@@ -322,7 +322,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         base.currentSchemaId(),
         manifestList.location(),
         nextRowId,
-        assignedRows);
+        assignedRows,
+        null);
   }
 
   protected abstract Map<String, String> summary();

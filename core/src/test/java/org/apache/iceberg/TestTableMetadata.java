@@ -116,6 +116,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -132,6 +133,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null,
             null,
             null);
 
@@ -256,6 +258,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -272,6 +275,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -361,6 +365,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -378,6 +383,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null,
             null,
             null);
 
@@ -437,7 +443,7 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
         new BaseSnapshot(
-            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null);
+            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null, null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -578,6 +584,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -594,6 +601,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -656,6 +664,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
     long currentSnapshotId = System.currentTimeMillis();
 
@@ -672,6 +681,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -751,6 +761,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -767,6 +778,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -859,6 +871,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -875,6 +888,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 

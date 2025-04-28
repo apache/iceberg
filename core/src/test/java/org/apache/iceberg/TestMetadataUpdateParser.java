@@ -377,7 +377,8 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             firstRowId,
-            addedRows);
+            addedRows,
+            "key-1");
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -409,7 +410,8 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             lastRowId,
-            addedRows);
+            addedRows,
+            "key-1");
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);

@@ -364,6 +364,18 @@ public class JsonUtil {
     writeLongFieldIf(value != null, key, value, generator);
   }
 
+  public static void writeStringFieldIfPresent(String key, String value, JsonGenerator generator)
+      throws IOException {
+    writeStringFieldIf(value != null, key, value, generator);
+  }
+
+  private static void writeStringFieldIf(
+      boolean condition, String key, String value, JsonGenerator generator) throws IOException {
+    if (condition) {
+      generator.writeStringField(key, value);
+    }
+  }
+
   public static <T> List<T> getObjectListOrNull(
       String property, JsonNode node, FromJson<T> fromJson) {
     if (!node.has(property)) {
