@@ -116,7 +116,7 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
 * Parquet
     - Implement Variant readers ([\#12139](https://github.com/apache/iceberg/pull/12139))
     - Implement Variant writers ([\#12323](https://github.com/apache/iceberg/pull/12323))
-    - Support unknown and timestamp(9) in internal model and generics ([\#12463](https://github.com/apache/iceberg/pull/12463))
+    - Support unknown and nanosecond timestamps in internal model and generics ([\#12463](https://github.com/apache/iceberg/pull/12463))
     - Implement Variant metrics ([\#12496](https://github.com/apache/iceberg/pull/12496))
 * ORC
     - Support timestamp(9), variant, and unknown in generics ([\#12567](https://github.com/apache/iceberg/pull/12567))
