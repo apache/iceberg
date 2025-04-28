@@ -1604,6 +1604,11 @@ Row-level delete changes:
     * These position delete files must be merged into the DV for a data file when one is created
     * Position delete files that contain deletes for more than one data file need to be kept in table metadata until all deletes are replaced by DVs
 
+Encryption changes:
+
+* Encryption keys are tracked by table metadata `encryption-keys`
+* The encryption key used for a snapshot is specified by `key-id`
+
 ### Version 2
 
 Writing v1 metadata:
