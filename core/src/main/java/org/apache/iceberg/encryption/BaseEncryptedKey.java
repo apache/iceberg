@@ -18,25 +18,40 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.util.List;
+import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class EncryptionTestHelpers {
+public class BaseEncryptedKey implements EncryptedKey {
+  private final String keyId;
+  private final ByteBuffer keyMetadata;
+  private final String encryptedById;
+  private final Map<String, String> properties;
 
-  private EncryptionTestHelpers() {}
+  public BaseEncryptedKey(
+      String keyId, ByteBuffer keyMetadata, String encryptedById, Map<String, String> properties) {
+    this.keyId = keyId;
+    this.keyMetadata = keyMetadata;
+    this.encryptedById = encryptedById;
+    this.properties = properties;
+  }
 
-  public static EncryptionManager createEncryptionManager() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
-    catalogProperties.put(
-        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
+  @Override
+  public String keyId() {
+    return keyId;
+  }
 
-    return EncryptionUtil.createEncryptionManager(
-        List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
+  @Override
+  public ByteBuffer encryptedKeyMetadata() {
+    return keyMetadata;
+  }
+
+  @Override
+  public String encryptedById() {
+    return encryptedById;
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties;
   }
 }

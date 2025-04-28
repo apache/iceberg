@@ -18,25 +18,15 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.util.List;
+import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class EncryptionTestHelpers {
+public interface EncryptedKey {
+  String keyId();
 
-  private EncryptionTestHelpers() {}
+  ByteBuffer encryptedKeyMetadata();
 
-  public static EncryptionManager createEncryptionManager() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
-    catalogProperties.put(
-        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
+  String encryptedById();
 
-    return EncryptionUtil.createEncryptionManager(
-        List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
-  }
+  Map<String, String> properties();
 }

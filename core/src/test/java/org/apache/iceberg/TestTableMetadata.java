@@ -198,6 +198,7 @@ public class TestTableMetadata {
             statisticsFiles,
             partitionStatisticsFiles,
             40,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -300,6 +301,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -421,6 +423,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -468,6 +471,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -509,6 +513,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -625,6 +630,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -713,6 +719,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -816,6 +823,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -923,6 +931,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -970,6 +979,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -1006,6 +1016,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -1053,6 +1064,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 0L,
+                ImmutableList.of(),
                 ImmutableList.of()))
         .isNotNull();
 
