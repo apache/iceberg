@@ -81,7 +81,7 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
 * Spec
     - Spec: Support geo type ([\#10981](https://github.com/apache/iceberg/pull/10981))
     - Spec: Allow Equality Deletes with Row Lineage and Define Behavior ([\#12230](https://github.com/apache/iceberg/pull/12230))
-    - Spec: Add implementation note on current-snapshot-id ([\#12334](https://github.com/apache/iceberg/pull/12334))
+    - Spec: Add implementation note on `current-snapshot-id` ([\#12334](https://github.com/apache/iceberg/pull/12334))
     - Spec: update to reflect lineage is required ([\#12580](https://github.com/apache/iceberg/pull/12580))
     - Spec: Update row lineage requirements for upgrading tables ([\#12781](https://github.com/apache/iceberg/pull/12781))
     - Spec: Clarify variant lower/upper bounds ([\#12658](https://github.com/apache/iceberg/pull/12658))
