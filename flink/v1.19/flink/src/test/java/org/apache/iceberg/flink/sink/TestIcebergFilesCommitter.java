@@ -55,9 +55,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -1119,23 +1119,13 @@ public class TestIcebergFilesCommitter extends TestBase {
         null);
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(
-        manifestPath.toAbsolutePath().toString(),
-        manifestPath.toFile().length(),
-        0,
-        ManifestContent.DATA,
-        0,
-        0,
-        0L,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        null,
-        null);
+  private ManifestFile createTestingManifestFile(Path manifestPath) throws IOException {
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(
+            PartitionSpec.unpartitioned(),
+            org.apache.iceberg.Files.localOutput(manifestPath.toFile()))) {
+      return writer.toManifestFile();
+    }
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
