@@ -982,12 +982,12 @@ The unified partition type looks like `Struct<field#1, field#2>`.
 
 Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`. The schema of each key is a struct with the following fields:
 
-| v1 | v2 |     v3     |     Field name        |   Type.              | Description |
-|----|----|------------|-----------------------|----------------------|-------------|
-|    |    | _required_ | **`key-id`**          | `string`             | ID of the encryption key |
-|    |    | _required_ | **`key-metadata`**.   | `string`             | Encrypted key and metadata, base64 encoded [1] |
-|    |    | _optional_ | **`encrypted-by-id`** | `string`             | Optional ID of the key used to encrypt or wrap `key-metadata` |
-|    |    | _optional_ | **`properties`**      | `map<string, string> | A string to string map of additional metadata used by the table's encryption scheme |
+| v1 | v2 |     v3     |     Field name               |   Type.              | Description |
+|----|----|------------|------------------------------|----------------------|-------------|
+|    |    | _required_ | **`key-id`**                 | `string`             | ID of the encryption key |
+|    |    | _required_ | **`encrypted-key-metadata`** | `string`             | Encrypted key and metadata, base64 encoded [1] |
+|    |    | _optional_ | **`encrypted-by-id`**        | `string`             | Optional ID of the key used to encrypt or wrap `key-metadata` |
+|    |    | _optional_ | **`properties`**             | `map<string, string> | A string to string map of additional metadata used by the table's encryption scheme |
 
 Notes:
 
