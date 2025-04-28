@@ -106,7 +106,7 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
     - Apply correct metric configs in GenericAppenderFactory ([\#12366](https://github.com/apache/iceberg/pull/12366))
     - Close FileIO instance in JdbcCatalog ([\#12540](https://github.com/apache/iceberg/pull/12540))
     - Add view-override catalog property ([\#12534](https://github.com/apache/iceberg/pull/12534))
-    - Use InternalData with Avro for readers. ([\#12476](https://github.com/apache/iceberg/pull/12476))
+    - Use InternalData with Avro for readers ([\#12476](https://github.com/apache/iceberg/pull/12476))
     - Fix missing data when writing unknown ([\#12581](https://github.com/apache/iceberg/pull/12581))
     - Bulk deletion in RemoveSnapshots ([\#11837](https://github.com/apache/iceberg/pull/11837))
     - Add update event for rewrite manifests ([\#12627](https://github.com/apache/iceberg/pull/12627))
