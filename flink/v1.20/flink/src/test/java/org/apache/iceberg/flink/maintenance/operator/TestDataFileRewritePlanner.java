@@ -183,14 +183,15 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
   }
 
   void assertRewriteFileGroup(
-      DataFileRewritePlanner.PlannedGroup actual, Table table, Set<DataFile> files) {
-    assertThat(actual.table().currentSnapshot().snapshotId())
+      DataFileRewritePlanner.PlannedGroup plannedGroup, Table table, Set<DataFile> files) {
+    assertThat(plannedGroup.table().currentSnapshot().snapshotId())
         .isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(actual.groupsPerCommit()).isEqualTo(1);
+    assertThat(plannedGroup.groupsPerCommit()).isEqualTo(1);
     assertThat(
-            actual.group().fileScanTasks().stream()
+            plannedGroup.group().fileScanTasks().stream()
                 .map(s -> s.file().location())
                 .collect(Collectors.toSet()))
-        .isEqualTo(files.stream().map(ContentFile::location).collect(Collectors.toSet()));
+        .containsExactlyInAnyOrderElementsOf(
+            files.stream().map(ContentFile::location).collect(Collectors.toList()));
   }
 }

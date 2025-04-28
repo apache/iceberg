@@ -48,7 +48,16 @@ class MaintenanceTaskInfraExtension implements BeforeEachCallback {
 
   @Override
   public void beforeEach(ExtensionContext context) {
-    init(StreamExecutionEnvironment.getExecutionEnvironment());
+    this.env = StreamExecutionEnvironment.getExecutionEnvironment();
+    this.source = new ManualSource<>(env, TypeInformation.of(Trigger.class));
+    // Adds the watermark to mimic the behaviour expected for the input of the maintenance tasks
+    this.triggerStream =
+        source
+            .dataStream()
+            .assignTimestampsAndWatermarks(new TableMaintenance.PunctuatedWatermarkStrategy())
+            .name(IGNORED_OPERATOR_NAME)
+            .forceNonParallel();
+    this.sink = new CollectingSink<>();
   }
 
   StreamExecutionEnvironment env() {
@@ -65,18 +74,5 @@ class MaintenanceTaskInfraExtension implements BeforeEachCallback {
 
   CollectingSink<TaskResult> sink() {
     return sink;
-  }
-
-  void init(StreamExecutionEnvironment newEnv) {
-    this.env = newEnv;
-    this.source = new ManualSource<>(env, TypeInformation.of(Trigger.class));
-    // Adds the watermark to mimic the behaviour expected for the input of the maintenance tasks
-    this.triggerStream =
-        source
-            .dataStream()
-            .assignTimestampsAndWatermarks(new TableMaintenance.PunctuatedWatermarkStrategy())
-            .name(IGNORED_OPERATOR_NAME)
-            .forceNonParallel();
-    this.sink = new CollectingSink<>();
   }
 }

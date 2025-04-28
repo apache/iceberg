@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.Configuration;
@@ -36,6 +35,7 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
@@ -95,7 +95,7 @@ public class DataFileRewritePlanner
   @Override
   public void processElement(Trigger value, Context ctx, Collector<PlannedGroup> out)
       throws Exception {
-    LOG.debug(
+    LOG.info(
         DataFileRewritePlanner.MESSAGE_PREFIX + "Creating rewrite plan",
         tableName,
         taskName,
@@ -121,30 +121,28 @@ public class DataFileRewritePlanner
           plan = planner.plan();
 
       long rewriteBytes = 0;
-      int totalGroupCount = 0;
-      List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
-      ListIterator<RewriteFileGroup> groupIterator = groups.listIterator();
-      while (groupIterator.hasNext()) {
+      List<RewriteFileGroup> groups = Lists.newArrayList();
+      for (CloseableIterator<RewriteFileGroup> groupIterator = plan.groups().iterator();
+          groupIterator.hasNext(); ) {
         RewriteFileGroup group = groupIterator.next();
         if (rewriteBytes + group.inputFilesSizeInBytes() > maxRewriteBytes) {
           // Keep going, maybe some other group might fit in
           LOG.info(
               DataFileRewritePlanner.MESSAGE_PREFIX
-                  + "Skipping group {} as max rewrite size reached",
+                  + "Skipping group as max rewrite size reached {}",
               tableName,
               taskName,
               taskIndex,
               ctx.timestamp(),
               group);
-          groupIterator.remove();
         } else {
           rewriteBytes += group.inputFilesSizeInBytes();
-          ++totalGroupCount;
+          groups.add(group);
         }
       }
 
       int groupsPerCommit =
-          IntMath.divide(totalGroupCount, partialProgressMaxCommits, RoundingMode.CEILING);
+          IntMath.divide(groups.size(), partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
           DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created {}",
@@ -155,7 +153,7 @@ public class DataFileRewritePlanner
           groups);
 
       for (RewriteFileGroup group : groups) {
-        LOG.debug(
+        LOG.info(
             DataFileRewritePlanner.MESSAGE_PREFIX + "Emitting {}",
             tableName,
             taskName,
@@ -165,7 +163,7 @@ public class DataFileRewritePlanner
         out.collect(new PlannedGroup(table, groupsPerCommit, group));
       }
     } catch (Exception e) {
-      LOG.info(
+      LOG.warn(
           DataFileRewritePlanner.MESSAGE_PREFIX + "Failed to plan data file rewrite groups",
           tableName,
           taskName,

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -300,7 +301,8 @@ public class TableMaintenance {
     }
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
-      return String.format("%s [%s]", streamBuilder.getClass().getSimpleName(), taskIndex);
+      return String.format(
+          Locale.ROOT, "%s [%d]", streamBuilder.getClass().getSimpleName(), taskIndex);
     }
   }
 

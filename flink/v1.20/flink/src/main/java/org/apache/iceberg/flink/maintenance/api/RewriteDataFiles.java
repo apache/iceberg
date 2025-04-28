@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
@@ -54,8 +55,8 @@ public class RewriteDataFiles {
     private long maxRewriteBytes = Long.MAX_VALUE;
 
     /**
-     * Allows committing compacted data files in batches. For more details description see {@link
-     * org.apache.iceberg.actions.RewriteDataFiles#PARTIAL_PROGRESS_ENABLED}.
+     * Allows committing compacted data files in batches. See {@link
+     * org.apache.iceberg.actions.RewriteDataFiles#PARTIAL_PROGRESS_ENABLED} for more details.
      *
      * @param newPartialProgressEnabled to enable partial commits
      */
@@ -65,9 +66,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the size of batches if {@link #partialProgressEnabled}. For more details
-     * description see {@link
-     * org.apache.iceberg.actions.RewriteDataFiles#PARTIAL_PROGRESS_MAX_COMMITS}.
+     * Configures the size of batches if {@link #partialProgressEnabled}. See {@link
+     * org.apache.iceberg.actions.RewriteDataFiles#PARTIAL_PROGRESS_MAX_COMMITS} for more details.
      *
      * @param newPartialProgressMaxCommits to target number of the commits per run
      */
@@ -88,8 +88,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the target file size. For more details description see {@link
-     * org.apache.iceberg.actions.RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
+     * Configures the target file size. See {@link
+     * org.apache.iceberg.actions.RewriteDataFiles#TARGET_FILE_SIZE_BYTES} for more details.
      *
      * @param targetFileSizeBytes target file size
      */
@@ -100,8 +100,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the min file size considered for rewriting. For more details description see
-     * {@link SizeBasedFileRewritePlanner#MIN_FILE_SIZE_BYTES}.
+     * Configures the min file size considered for rewriting. See {@link
+     * SizeBasedFileRewritePlanner#MIN_FILE_SIZE_BYTES} for more details.
      *
      * @param minFileSizeBytes min file size
      */
@@ -112,8 +112,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the max file size considered for rewriting. For more details description see
-     * {@link SizeBasedFileRewritePlanner#MAX_FILE_SIZE_BYTES}.
+     * Configures the max file size considered for rewriting. See {@link
+     * SizeBasedFileRewritePlanner#MAX_FILE_SIZE_BYTES} for more details.
      *
      * @param maxFileSizeBytes max file size
      */
@@ -124,8 +124,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the minimum file number after a rewrite is always initiated. For more details
-     * description see {@link SizeBasedFileRewritePlanner#MIN_INPUT_FILES}.
+     * Configures the minimum file number after a rewrite is always initiated. See description see
+     * {@link SizeBasedFileRewritePlanner#MIN_INPUT_FILES} for more details.
      *
      * @param minInputFiles min file number
      */
@@ -136,8 +136,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the minimum delete file number for a file after a rewrite is always initiated. For
-     * more details description see {@link BinPackRewriteFilePlanner#DELETE_FILE_THRESHOLD}.
+     * Configures the minimum delete file number for a file after a rewrite is always initiated. See
+     * {@link BinPackRewriteFilePlanner#DELETE_FILE_THRESHOLD} for more details.
      *
      * @param deleteFileThreshold min delete file number
      */
@@ -148,7 +148,7 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Every other option is overridden, and all the files are rewritten.
+     * Overrides other options and forces rewriting of all provided files.
      *
      * @param rewriteAll enables a full rewrite
      */
@@ -158,8 +158,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * Configures the group size for rewriting. For more details description see {@link
-     * SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES}.
+     * Configures the group size for rewriting. See {@link
+     * SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES} for more details.
      *
      * @param maxFileGroupSizeBytes file group size for rewrite
      */
@@ -172,11 +172,10 @@ public class RewriteDataFiles {
 
     /**
      * The input is a {@link DataStream} with {@link Trigger} events and every event should be
-     * immediately followed by a {@link org.apache.flink.streaming.api.watermark.Watermark} with the
-     * same timestamp as the event.
+     * immediately followed by a {@link Watermark} with the same timestamp as the event.
      *
      * <p>The output is a {@link DataStream} with the {@link TaskResult} of the run followed by the
-     * {@link org.apache.flink.streaming.api.watermark.Watermark}.
+     * {@link Watermark}.
      */
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {

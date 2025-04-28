@@ -49,6 +49,8 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     insert(table, 3, "c");
     insert(table, 4, "d");
 
+    assertFileNum(table, 4, 0);
+
     appendRewriteDataFiles(
         RewriteDataFiles.builder()
             .parallelism(2)
@@ -84,6 +86,8 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     insertPartitioned(table, 3, "p2");
     insertPartitioned(table, 4, "p2");
 
+    assertFileNum(table, 4, 0);
+
     appendRewriteDataFiles();
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
@@ -100,16 +104,19 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testFailure() throws Exception {
+  void testPlannerFailure() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
+
+    assertFileNum(table, 2, 0);
 
     appendRewriteDataFiles();
 
     runAndWaitForFailure(infra.env(), infra.source(), infra.sink());
 
-    // Check the metrics
+    // Check the metrics. The first task should be successful, but the second one should fail. This
+    // should be represented in the counters.
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<List<String>, Long>()
             .put(
@@ -219,11 +226,12 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     insert(table, 1, "a");
     insert(table, 2, "b");
 
+    assertFileNum(table, 2, 0);
+
     appendRewriteDataFiles();
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
 
-    // Check the metrics
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<List<String>, Long>()

@@ -82,12 +82,10 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       testHarness.open();
 
       testHarness.processElement(rewritten.get(0), EVENT_TIME);
-      // This should be committed synchronously
       assertDataFiles(
           table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
 
       testHarness.processElement(rewritten.get(1), EVENT_TIME);
-      // This should be committed synchronously
       assertDataFiles(
           table, rewritten.get(1).group().addedFiles(), rewritten.get(1).group().rewrittenFiles());
 
@@ -120,7 +118,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
       assertNoChange(table);
       testHarness.processElement(updateBatchSize(rewritten.get(1)), EVENT_TIME);
-      // This should be committed synchronously
+
       Set<DataFile> added = Sets.newHashSet(rewritten.get(0).group().addedFiles());
       added.addAll(rewritten.get(1).group().addedFiles());
       Set<DataFile> removed = Sets.newHashSet(rewritten.get(0).group().rewrittenFiles());
@@ -178,8 +176,6 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
                   .getValue()
                   .getMessage())
           .contains("Testing error");
-    } catch (Exception e) {
-      // do nothing
     }
   }
 
@@ -199,13 +195,12 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
   }
 
   private static void assertDataFiles(
-      Table actual, Set<DataFile> expectedAdded, Set<DataFile> expectedRemoved) {
-    actual.refresh();
+      Table table, Set<DataFile> expectedAdded, Set<DataFile> expectedRemoved) {
+    table.refresh();
 
-    Set<DataFile> actualAdded =
-        Sets.newHashSet(actual.currentSnapshot().addedDataFiles(actual.io()));
+    Set<DataFile> actualAdded = Sets.newHashSet(table.currentSnapshot().addedDataFiles(table.io()));
     Set<DataFile> actualRemoved =
-        Sets.newHashSet(actual.currentSnapshot().removedDataFiles(actual.io()));
+        Sets.newHashSet(table.currentSnapshot().removedDataFiles(table.io()));
     assertThat(actualAdded.stream().map(DataFile::location).collect(Collectors.toSet()))
         .isEqualTo(expectedAdded.stream().map(DataFile::location).collect(Collectors.toSet()));
     assertThat(actualRemoved.stream().map(DataFile::location).collect(Collectors.toSet()))

@@ -20,10 +20,8 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.time.Duration;
 import java.util.function.Supplier;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.flink.maintenance.operator.CollectingSink;
@@ -43,7 +41,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, null, () -> true);
+    runAndWaitForResult(env, triggerSource, collectingSink, false, () -> true);
   }
 
   void runAndWaitForSuccess(
@@ -52,17 +50,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       CollectingSink<TaskResult> collectingSink,
       Supplier<Boolean> waitForCondition)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, null, waitForCondition);
-  }
-
-  Configuration runAndWaitForSavepoint(
-      StreamExecutionEnvironment env,
-      ManualSource<Trigger> triggerSource,
-      CollectingSink<TaskResult> collectingSink,
-      File savepointDir)
-      throws Exception {
-
-    return runAndWaitForResult(env, triggerSource, collectingSink, false, savepointDir, () -> true);
+    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition);
   }
 
   void runAndWaitForFailure(
@@ -70,19 +58,17 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, true, null, () -> true);
+    runAndWaitForResult(env, triggerSource, collectingSink, true, () -> true);
   }
 
-  Configuration runAndWaitForResult(
+  void runAndWaitForResult(
       StreamExecutionEnvironment env,
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
       boolean generateFailure,
-      File savepointDir,
       Supplier<Boolean> waitForCondition)
       throws Exception {
     JobClient jobClient = null;
-    Configuration configuration;
     try {
       jobClient = env.executeAsync();
 
@@ -109,9 +95,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
 
       Awaitility.await().until(waitForCondition::get);
     } finally {
-      configuration = closeJobClient(jobClient, savepointDir);
+      closeJobClient(jobClient);
     }
-
-    return configuration;
   }
 }

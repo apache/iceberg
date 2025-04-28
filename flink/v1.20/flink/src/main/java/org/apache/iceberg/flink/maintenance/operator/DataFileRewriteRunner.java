@@ -89,7 +89,7 @@ public class DataFileRewriteRunner
       throws Exception {
     if (LOG.isDebugEnabled()) {
       LOG.debug(
-          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting files {} from {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting files for group {} with {} files",
           tableName,
           taskName,
           taskIndex,
@@ -98,7 +98,8 @@ public class DataFileRewriteRunner
           value.group().rewrittenFiles());
     } else {
       LOG.info(
-          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting {} files from {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX
+              + "Rewriting files for group {} with {} number of files",
           tableName,
           taskName,
           taskIndex,
@@ -214,14 +215,14 @@ public class DataFileRewriteRunner
           subTaskId,
           attemptId);
       writer.abort();
-    } catch (Exception inner) {
+    } catch (Exception e) {
       LOG.info(
           DataFileRewritePlanner.MESSAGE_PREFIX + "Exception in abort",
           tableName,
           taskName,
           taskIndex,
           timestamp,
-          inner);
+          e);
     }
   }
 

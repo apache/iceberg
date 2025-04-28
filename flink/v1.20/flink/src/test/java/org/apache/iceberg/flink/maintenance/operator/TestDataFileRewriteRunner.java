@@ -151,12 +151,6 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
       PartitionData newPartition = new PartitionData(table.spec().partitionType());
       newPartition.set(0, "p1");
       newPartition.set(1, 4);
-      PartitionData[] transformedPartitions = {
-        newPartition.copy(), newPartition.copy(), newPartition.copy()
-      };
-      transformedPartitions[0].set(1, 1);
-      transformedPartitions[1].set(1, 2);
-      transformedPartitions[2].set(1, 3);
       table.refresh();
 
       planned = planDataFileRewrite(tableLoader());
@@ -183,6 +177,12 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
       testHarness.processElement(oldCompact, System.currentTimeMillis());
       actual = testHarness.extractOutputValues();
       assertThat(actual).hasSize(4);
+      PartitionData[] transformedPartitions = {
+        newPartition.copy(), newPartition.copy(), newPartition.copy()
+      };
+      transformedPartitions[0].set(1, 1);
+      transformedPartitions[1].set(1, 2);
+      transformedPartitions[2].set(1, 3);
       assertRewriteFileGroup(
           actual.get(3),
           table,
@@ -306,15 +306,15 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
   void assertRewriteFileGroup(
       DataFileRewriteRunner.ExecutedGroup actual,
       Table table,
-      Collection<Record> records,
+      Collection<Record> expectedRecords,
       int expectedFileNum,
-      Set<StructLike> partitions)
+      Set<StructLike> expectedPartitions)
       throws IOException {
     assertThat(actual.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
     assertThat(actual.groupsPerCommit()).isEqualTo(1);
     assertThat(actual.group().addedFiles()).hasSize(expectedFileNum);
-    Collection<Record> writtenRecords = Lists.newArrayListWithExpectedSize(records.size());
-    Set<StructLike> writtenPartitions = Sets.newHashSetWithExpectedSize(partitions.size());
+    Collection<Record> writtenRecords = Lists.newArrayListWithExpectedSize(expectedRecords.size());
+    Set<StructLike> writtenPartitions = Sets.newHashSetWithExpectedSize(expectedPartitions.size());
     for (DataFile newDataFile : actual.group().addedFiles()) {
       assertThat(newDataFile.format()).isEqualTo(FileFormat.PARQUET);
       assertThat(newDataFile.content()).isEqualTo(FileContent.DATA);
@@ -333,8 +333,8 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
       }
     }
 
-    assertThat(writtenRecords).containsExactlyInAnyOrderElementsOf(records);
-    assertThat(writtenPartitions).isEqualTo(partitions);
+    assertThat(writtenRecords).containsExactlyInAnyOrderElementsOf(expectedRecords);
+    assertThat(writtenPartitions).isEqualTo(expectedPartitions);
   }
 
   private List<Record> records(Schema schema, Collection<List<Object>> data) {

@@ -151,6 +151,16 @@ public class OperatorTestBase {
     table.refresh();
   }
 
+  /**
+   * For the same identifier column id this methods simulate the following row operations: <tr>
+   * <li>add an equality delete on oldData
+   * <li>insert newData </tr>
+   *
+   * @param table to modify
+   * @param id the identifier column id
+   * @param oldData the old data to be deleted
+   * @param newData the new data to be inserted
+   */
   protected void update(Table table, Integer id, String oldData, String newData)
       throws IOException {
     DataFile dataFile =
@@ -161,6 +171,19 @@ public class OperatorTestBase {
     table.newRowDelta().addRows(dataFile).addDeletes(eqDelete).commit();
   }
 
+  /**
+   * For the same identifier column id this methods simulate the following row operations: <tr>
+   * <li>add an equality delete on oldData
+   * <li>insert tempData
+   * <li>add a position delete on tempData
+   * <li>insert newData </tr>
+   *
+   * @param table to modify
+   * @param id the identifier column id
+   * @param oldData the old data to be deleted
+   * @param tempData the temp data to be inserted and deleted with a position delete
+   * @param newData the new data to be inserted
+   */
   protected void update(Table table, Integer id, String oldData, String tempData, String newData)
       throws IOException {
     DataFile dataFile =

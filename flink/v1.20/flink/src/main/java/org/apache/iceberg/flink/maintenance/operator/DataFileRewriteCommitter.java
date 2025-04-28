@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
@@ -56,7 +55,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
 
   private transient Table table;
   private transient CommitService commitService;
-  private transient int processed;
   private transient Counter errorCounter;
   private transient Counter addedDataFileNumCounter;
   private transient Counter addedDataFileSizeCounter;
@@ -93,8 +91,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC);
     this.removedDataFileSizeCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC);
-
-    this.processed = 0;
   }
 
   @Override
@@ -110,7 +106,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       }
 
       commitService.offer(executedGroup.group());
-      ++processed;
     } catch (Exception e) {
       LOG.warn(
           DataFileRewritePlanner.MESSAGE_PREFIX + "Exception processing {}",
@@ -130,19 +125,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     try {
       if (commitService != null) {
         commitService.close();
-        if (processed != commitService.results().size()) {
-          throw new RuntimeException(
-              String.format(
-                  Locale.ROOT,
-                  DataFileRewritePlanner.MESSAGE_FORMAT_PREFIX
-                      + "From %d commits only %d were successful",
-                  tableName,
-                  taskName,
-                  taskIndex,
-                  mark.getTimestamp(),
-                  processed,
-                  commitService.results().size()));
-        }
       }
 
       LOG.info(
@@ -165,7 +147,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
 
     // Cleanup
     this.commitService = null;
-    this.processed = 0;
 
     super.processWatermark(mark);
   }
@@ -180,15 +161,15 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private class FlinkRewriteDataFilesCommitManager extends RewriteDataFilesCommitManager {
     private final long timestamp;
 
-    FlinkRewriteDataFilesCommitManager(Table table, long snapshotId, long timestamp) {
-      super(table, snapshotId);
+    FlinkRewriteDataFilesCommitManager(Table table, long startingSnapshotId, long timestamp) {
+      super(table, startingSnapshotId);
       this.timestamp = timestamp;
     }
 
     @Override
     public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
       super.commitFileGroups(fileGroups);
-      LOG.debug(
+      LOG.info(
           DataFileRewritePlanner.MESSAGE_PREFIX + "Committed {}",
           tableName,
           taskName,
