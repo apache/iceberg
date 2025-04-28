@@ -97,8 +97,14 @@ public class TestVariantWriters {
 
   private static final ByteBuffer EMPTY_ARRAY_BUFFER = VariantTestUtil.createArray();
   private static final ByteBuffer TEST_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"));
+  private static final ByteBuffer MIXED_TYPE_ARRAY_BUFFER =
       VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"), Variants.of(34));
   private static final ByteBuffer NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg")),
+          array(Variants.of("string"), Variants.of("iceberg")));
+  private static final ByteBuffer MIXED_NESTED_ARRAY_BUFFER =
       VariantTestUtil.createArray(
           array(Variants.of("string"), Variants.of("iceberg"), Variants.of(34)),
           array(Variants.of(34), Variants.ofNull()),
@@ -106,16 +112,25 @@ public class TestVariantWriters {
           array(Variants.of("string"), Variants.of("iceberg")),
           Variants.of(34));
   private static final ByteBuffer OBJECT_IN_ARRAY_BUFFER =
-      VariantTestUtil.createArray(TEST_OBJECT, EMPTY_OBJECT, SIMILAR_OBJECT);
+      VariantTestUtil.createArray(SIMILAR_OBJECT, SIMILAR_OBJECT);
+  private static final ByteBuffer MIXED_OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          SIMILAR_OBJECT, SIMILAR_OBJECT, Variants.of("iceberg"), Variants.of(34));
 
   private static final VariantArray EMPTY_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, EMPTY_ARRAY_BUFFER);
   private static final VariantArray TEST_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, TEST_ARRAY_BUFFER);
-  private static final VariantArray TEST_NESTED_ARRAY =
+  private static final VariantArray MIXED_TYPE_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_TYPE_ARRAY_BUFFER);
+  private static final VariantArray NESTED_ARRAY =
       (VariantArray) Variants.value(EMPTY_METADATA, NESTED_ARRAY_BUFFER);
-  private static final VariantArray TEST_OBJECT_IN_ARRAY =
+  private static final VariantArray MIXED_NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_NESTED_ARRAY_BUFFER);
+  private static final VariantArray OBJECT_IN_ARRAY =
       (VariantArray) Variants.value(TEST_METADATA, OBJECT_IN_ARRAY_BUFFER);
+  private static final VariantArray MIXED_OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, MIXED_OBJECT_IN_ARRAY_BUFFER);
 
   private static final Variant[] VARIANTS =
       new Variant[] {
@@ -140,8 +155,11 @@ public class TestVariantWriters {
         Variant.of(TEST_METADATA, ARRAY_IN_OBJECT),
         Variant.of(EMPTY_METADATA, EMPTY_ARRAY),
         Variant.of(EMPTY_METADATA, TEST_ARRAY),
-        Variant.of(EMPTY_METADATA, TEST_NESTED_ARRAY),
-        Variant.of(TEST_METADATA, TEST_OBJECT_IN_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_TYPE_ARRAY),
+        Variant.of(EMPTY_METADATA, NESTED_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_NESTED_ARRAY),
+        Variant.of(TEST_METADATA, OBJECT_IN_ARRAY),
+        Variant.of(TEST_METADATA, MIXED_OBJECT_IN_ARRAY),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),

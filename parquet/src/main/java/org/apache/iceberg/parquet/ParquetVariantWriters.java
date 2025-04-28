@@ -99,6 +99,7 @@ class ParquetVariantWriters {
         builder.build());
   }
 
+  @SuppressWarnings("unchecked")
   public static ParquetValueWriter<VariantValue> array(
       int repeatedDefinitionLevel,
       int repeatedRepetitionLevel,
