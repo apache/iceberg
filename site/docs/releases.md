@@ -125,7 +125,7 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
 * Spark
     - Rewrite V2 deletes to V3 DVs ([\#12250](https://github.com/apache/iceberg/pull/12250))
     - Detect dangling DVs properly ([\#12270](https://github.com/apache/iceberg/pull/12270))
-    - Add _row_id and _last_updated_sequence_number readers ([\#12836](https://github.com/apache/iceberg/pull/12836))
+    - Add `_row_id` and `_last_updated_sequence_number` readers ([\#12836](https://github.com/apache/iceberg/pull/12836))
 * Kafka Connect
     - Add SMTs for Debezium and AWS DMS ([\#11936](https://github.com/apache/iceberg/pull/11936))
     - Add config for transactional ID prefix ([\#11780](https://github.com/apache/iceberg/pull/11780))
