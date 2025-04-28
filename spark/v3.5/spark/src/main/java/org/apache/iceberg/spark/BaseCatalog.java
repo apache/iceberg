@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -26,6 +28,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
@@ -87,6 +90,11 @@ abstract class BaseCatalog
   @Override
   public boolean useNullableQuerySchema() {
     return useNullableQuerySchema;
+  }
+
+  @Override
+  public Set<TableCatalogCapability> capabilities() {
+    return ImmutableSet.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
   }
 
   private static boolean isSystemNamespace(String[] namespace) {

@@ -24,6 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -320,5 +324,126 @@ public class TestAlterTable extends CatalogTestBase {
           .hasMessageStartingWith(
               "Cannot specify the '%s' because it's a reserved table property", reservedProp);
     }
+  }
+
+  @TestTemplate
+  public void testAddColumnWithDefaultValues() {
+    // {type, default value, explicitly inserted value}
+    Object[][] cases =
+        new Object[][] {
+          {"int", 42, 99},
+          {"bigint", 123456789L, 987654321L},
+          {"float", 3.14f, 9.81f},
+          {"double", 2.71828, 1.618},
+          {"decimal(9,2)", new BigDecimal("123.45"), new BigDecimal("99.99")},
+          {"string", "DEFAULT_STRING", "EXPLICIT_STRING"},
+          {"boolean", true, false}
+        };
+
+    for (Object[] testCase : cases) {
+      String columnType = (String) testCase[0];
+      Object defaultValue = testCase[1];
+      Object explicitInsertedValue = testCase[2];
+      String table = String.format("%s_addcol_default", tableName);
+
+      try {
+        sql("CREATE TABLE %s (id INT) USING iceberg", table);
+        sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='3')", table);
+        sql("INSERT INTO %s VALUES (1)", table);
+        sql("INSERT INTO %s VALUES (2)", table);
+
+        String defaultValueSql = defaultValue.toString();
+        if (columnType.equals("boolean")) {
+          defaultValueSql = "true";
+        } else if (columnType.equals("string")) {
+          defaultValueSql = "'DEFAULT_STRING'";
+        }
+
+        // Add new column with default
+        sql("ALTER TABLE %s ADD COLUMN new_col %s DEFAULT %s", table, columnType, defaultValueSql);
+        Schema updatedSchema =
+            validationCatalog
+                .loadTable(TableIdentifier.of("default", "table_addcol_default"))
+                .schema();
+        Types.NestedField newField = updatedSchema.findField("new_col");
+        assertThat(newField).as("New field should exist").isNotNull();
+        assertThat(newField.initialDefault()).isEqualTo(defaultValue);
+        assertThat(newField.writeDefault()).isEqualTo(defaultValue);
+
+        // Insert explicit and default values
+        String explicitValSql =
+            columnType.equals("boolean")
+                ? "false"
+                : (columnType.equals("string")
+                    ? "'EXPLICIT_STRING'"
+                    : explicitInsertedValue.toString());
+        sql("INSERT INTO %s VALUES (3, %s)", table, explicitValSql);
+        sql("INSERT INTO %s VALUES (4, DEFAULT)", table);
+
+        List<Object[]> expectedRows =
+            Arrays.asList(
+                row(1, defaultValue),
+                row(2, defaultValue),
+                row(3, explicitInsertedValue),
+                row(4, defaultValue));
+
+        List<Object[]> actualRows = sql("SELECT * FROM %s ORDER BY id", table);
+
+        assertEquals(
+            String.format(
+                "Rows did not match for type: %s (default: %s, explicit: %s)",
+                columnType, defaultValue, explicitInsertedValue),
+            expectedRows,
+            actualRows);
+      } finally {
+        sql("DROP TABLE IF EXISTS %s", table);
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testAddListColumnWithDefaultValues() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s ADD COLUMN new_arr array<string> DEFAULT array('default')",
+                    tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Adding expression of type array for default value for field new_arr is not supported");
+  }
+
+  @TestTemplate
+  public void testAddMapColumnWithDefaultValuesFails() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s ADD COLUMN new_map map<string, string> DEFAULT map('defaultKey', 'defaultValue')",
+                    tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Adding expression of type map for field new_map is not supported");
+  }
+
+  @TestTemplate
+  public void testAddColumnWithUnsupportedDefaultValueFails() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s ADD COLUMN ts TIMESTAMP DEFAULT current_timestamp()",
+                    tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Adding expression of type current_timestamp for default value for field ts is not supported");
+  }
+
+  @TestTemplate
+  public void testAddStructColumnWithNestedFieldDefaultsFails() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s ADD COLUMN point STRUCT<x:int, y:int> DEFAULT named_struct(\"x\", 0, \"y\", 0)",
+                    tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Adding struct point with default value is not supported");
   }
 }

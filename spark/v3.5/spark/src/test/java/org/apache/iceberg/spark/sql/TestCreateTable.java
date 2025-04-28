@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -464,5 +465,26 @@ public class TestCreateTable extends CatalogTestBase {
         .cause()
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v2 table to v1");
+  }
+
+  @TestTemplate
+  public void testCreateTableWithDefaultValues() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, data STRING NOT NULL DEFAULT 'default_data') "
+            + "USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "default_data")),
+        sql("SELECT * FROM %s", selectTarget()));
   }
 }
