@@ -30,6 +30,8 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.JsonUtil;
 
 public class EncryptedKeyParser {
+  private EncryptedKeyParser() {}
+
   private static final String KEY_ID = "key-id";
   private static final String KEY_METADATA = "encrypted-key-metadata";
   private static final String ENCRYPTED_BY_ID = "encrypted-by-id";
