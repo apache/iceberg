@@ -188,8 +188,8 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.compression-codec                    | Table default                                                  | Write compression codec (e.g., `zstd`, `snappy`)                             |
 | spark.sql.iceberg.compression-level                    | Table default                                                  | Compression level for Parquet/Avro                                           |
 | spark.sql.iceberg.compression-strategy                 | Table default                                                  | Compression strategy for ORC                                                 |
-| spark.sql.iceberg.data-planning-mode                   | Table default                                                  | Scan planning mode for data files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                 |
-| spark.sql.iceberg.delete-planning-mode                 | Table default                                                  | Scan planning mode for delete files (`AUTO`, `LOCAL`, `DISTRIBUTED`)               |
+| spark.sql.iceberg.data-planning-mode                   | AUTO                                                           | Scan planning mode for data files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                 |
+| spark.sql.iceberg.delete-planning-mode                 | AUTO                                                           | Scan planning mode for delete files (`AUTO`, `LOCAL`, `DISTRIBUTED`)               |
 | spark.sql.iceberg.advisory-partition-size              | Table default                                                  | Advisory size (bytes) for data planning                                      |
 | spark.sql.iceberg.locality.enabled                     | false                                                          | Report locality information for task planning                                |
 | spark.sql.iceberg.executor-cache.enabled               | true                                                           | Enables cache for executor-side metadata                                     |
