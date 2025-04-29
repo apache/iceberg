@@ -33,7 +33,6 @@ import org.apache.iceberg.Schema;
  * <ul>
  *   <li>The appender's engine specific input type
  *       <ul>
- *         <li>{@link AppenderBuilder.WriteMode#APPENDER}
  *         <li>{@link AppenderBuilder.WriteMode#DATA_WRITER}
  *         <li>{@link AppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
  *       </ul>
@@ -125,8 +124,6 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
    * configuration when creating the {@link FileAppender}.
    */
   enum WriteMode {
-    /** Mode for appending data to a file. */
-    APPENDER,
     /** Mode for writing data files. */
     DATA_WRITER,
     /** Mode for writing equality delete files. */

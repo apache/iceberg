@@ -19,7 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -51,7 +51,7 @@ public final class ObjectModelRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
-  private static final Map<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
+  private static final ConcurrentMap<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
 
   /**
    * Registers a new object model.
@@ -75,7 +75,7 @@ public final class ObjectModelRegistry {
     } catch (RuntimeException e) {
       // failing to register an object model is normal and does not require a stack trace
       LOG.info(
-          "Unable to use register object model {} for data files: {}", objectModel, e.getMessage());
+          "Unable to register object model {} for data files: {}", objectModel, e.getMessage());
     }
   }
 
