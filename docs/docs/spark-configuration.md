@@ -145,6 +145,59 @@ Using those SQL commands requires adding Iceberg extensions to your Spark enviro
 
 ## Runtime configuration
 
+### Precedence of Configuration Settings
+Iceberg allows configurations to be specified at different levels. The effective configuration for a read or write operation is determined based on the following order of precedence:
+
+1. Read/Write Options – Explicitly passed to `.option(...)` in a read/write operation.
+
+2. Table Properties – Defined on the Iceberg table via `ALTER TABLE SET TBLPROPERTIES`.
+
+3. Spark SQL Configurations – Set globally in Spark via `spark.conf.set(...)`, `spark-defaults.conf`, or `--conf` in spark-submit.
+
+If a setting is not defined at a higher level, the next level is used as fallback. This allows flexibility while enabling global defaults when needed.
+
+### Spark SQL Options
+
+Iceberg supports setting various global behaviors using Spark SQL configuration options. These can be set via `spark.conf`, `SparkSession settings`, or Spark submit arguments.
+For example:
+
+```scala
+// disabling vectorization
+val spark = SparkSession.builder()
+  .appName("IcebergExample")
+  .master("local[*]")
+  .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
+  .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+  .config("spark.sql.iceberg.vectorization.enabled", "false")
+  .getOrCreate()
+```
+
+| Spark option                                           | Default                | Description                                                             |
+|--------------------------------------------------------|------------------------|-------------------------------------------------------------------------|
+| spark.sql.iceberg.vectorization.enabled                | Table property default | Enables vectorized Parquet reads                                        |
+| spark.sql.iceberg.parquet.reader-type                  | ICEBERG                | Sets Parquet reader implementation (`ICEBERG`,`COMET`)                  |
+| spark.sql.iceberg.check-nullability                    | true                   | Whether to perform the nullability check during writes                  |
+| spark.sql.iceberg.check-ordering                       | true                   | Whether to check the order of fields during writes                      |
+| spark.sql.iceberg.planning.preserve-data-grouping      | false                  | Whether to preserve the existing grouping of data while planning splits |
+| spark.sql.iceberg.aggregate-push-down.enabled          | true                   | Enables pushdown of aggregate functions (MAX, MIN, COUNT)               |
+| spark.sql.iceberg.distribution-mode                    | See [Spark Writes](spark-writes.md#writing-distribution-modes)   | Controls distribution strategy during writes                            |
+| spark.wap.id                                           | null                   | [Write-Audit-Publish](branching.md#audit-branch) snapshot staging ID    |
+| spark.wap.branch                                       | null                   | WAP branch name for snapshot commit                                     |
+| spark.sql.iceberg.compression-codec                    | Table default          | Write compression codec (e.g., `zstd`, `snappy`)                        |
+| spark.sql.iceberg.compression-level                    | Table default          | Compression level for Parquet/Avro                                      |
+| spark.sql.iceberg.compression-strategy                 | Table default          | Compression strategy (for ORC)                                          |
+| spark.sql.iceberg.data-planning-mode                   | Table default          | Override for data planning mode                                         |
+| spark.sql.iceberg.delete-planning-mode                 | Table default          | Override for delete planning mode                                       |
+| spark.sql.iceberg.advisory-partition-size              | Table default          | Advisory size (bytes) for data planning                                 |
+| spark.sql.iceberg.locality.enabled                     | false                  | Report locality information for task planning                           |
+| spark.sql.iceberg.executor-cache.enabled               | true                   | Enables cache for executor-side metadata                                |
+| spark.sql.iceberg.executor-cache.timeout               | 10 minutes             | Timeout for executor cache entries                                      |
+| spark.sql.iceberg.executor-cache.max-entry-size        | 64MB                   | Max size per cache entry                                                |
+| spark.sql.iceberg.executor-cache.max-total-size        | 128MB                  | Max total executor cache size                                           |
+| spark.sql.iceberg.executor-cache.locality.enabled      | false                  | Enables locality-aware executor cache usage                             |
+| spark.sql.iceberg.merge-schema                         | false                  | Enables automatic schema merge during write                             |
+| spark.sql.iceberg.report-column-stats                  | false                  | Reports column-level statistics for query optimization                  |
+
 ### Read options
 
 Spark read options are passed when configuring the DataFrameReader, like this:
