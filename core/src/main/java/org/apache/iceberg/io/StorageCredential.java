@@ -29,18 +29,27 @@ public interface StorageCredential extends Serializable {
 
   String prefix();
 
-  SerializableMap<String, String> config();
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link #serializableConfig()} instead.
+   */
+  @Deprecated
+  default Map<String, String> config() {
+    return serializableConfig();
+  }
+
+  SerializableMap<String, String> serializableConfig();
 
   @Value.Check
   default void validate() {
     Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
-    Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
+    Preconditions.checkArgument(
+        !serializableConfig().isEmpty(), "Invalid config: must be non-empty");
   }
 
   static StorageCredential create(String prefix, Map<String, String> config) {
     return ImmutableStorageCredential.builder()
         .prefix(prefix)
-        .config(SerializableMap.copyOf(config))
+        .serializableConfig(SerializableMap.copyOf(config))
         .build();
   }
 }
