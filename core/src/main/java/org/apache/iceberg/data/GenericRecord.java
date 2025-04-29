@@ -20,17 +20,15 @@ package org.apache.iceberg.data;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import java.time.OffsetDateTime;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -68,34 +66,11 @@ public class GenericRecord implements Record, StructLike {
     this.nameToPos = NAME_MAP_CACHE.get(struct);
   }
 
-  private GenericRecord(GenericRecord toCopy, boolean deepCopyValues) {
+  private GenericRecord(GenericRecord toCopy) {
     this.struct = toCopy.struct;
     this.size = toCopy.size;
-    if (deepCopyValues) {
-      this.values = new Object[toCopy.values.length];
-      for (int i = 0; i < toCopy.values.length; i++) {
-        this.values[i] = deepCopyValue(this.struct.fields().get(i).type(), toCopy.values[i]);
-      }
-    } else {
-      this.values = Arrays.copyOf(toCopy.values, toCopy.values.length);
-    }
+    this.values = Arrays.copyOf(toCopy.values, toCopy.values.length);
     this.nameToPos = toCopy.nameToPos;
-  }
-
-  private Object deepCopyValue(Type type, Object value) {
-    // First convert the generically typed value to its internal data model
-    // representation so that it can be used by [SingleValueParser]
-    Object genericValue = GenericDataUtil.genericToInternal(type, value);
-    Object deepCopyInternal =
-        SingleValueParser.fromJson(type, SingleValueParser.toJson(type, genericValue));
-    Object deepCopyGeneric = GenericDataUtil.internalToGeneric(type, deepCopyInternal);
-    if (Types.TimestampType.withZone().equals(type)) {
-      // GenericDataUtil.internalToGeneric returns an [OffsetDateTime]
-      // in this case, so we convert back to [LocalDateTime] to keep
-      // everything the same.
-      deepCopyGeneric = ((OffsetDateTime) deepCopyGeneric).toLocalDateTime();
-    }
-    return deepCopyGeneric;
   }
 
   private GenericRecord(GenericRecord toCopy, Map<String, Object> overwrite) {
@@ -157,12 +132,33 @@ public class GenericRecord implements Record, StructLike {
 
   @Override
   public GenericRecord copy() {
-    return new GenericRecord(this, false /* deepCopyValues */);
+    return new GenericRecord(this);
   }
 
   @Override
   public GenericRecord deepCopyValues() {
-    return new GenericRecord(this, true /* deepCopyValues */);
+    GenericRecord copy = new GenericRecord(this);
+    for (int i = 0; i < values.length; i++) {
+      copy.values[i] = deepCopyValue(values[i]);
+    }
+    return copy;
+  }
+
+  // This is currently scoped to types that were
+  // causing issues for equality deletes in
+  // https://github.com/apache/iceberg/issues/11239
+  private Object deepCopyValue(Object value) {
+    if (value instanceof ByteBuffer) {
+      ByteBuffer original = (ByteBuffer) value;
+      // Assumes original buffer is ready for reading
+      byte[] copyBytes = new byte[original.remaining()];
+      original.duplicate().get(copyBytes);
+      return ByteBuffer.wrap(copyBytes);
+    } else if (value instanceof GenericRecord) {
+      return ((GenericRecord) value).deepCopyValues();
+    } else {
+      return value;
+    }
   }
 
   @Override
