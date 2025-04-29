@@ -32,6 +32,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -135,7 +136,7 @@ public class RowDataProjection implements RowData {
             projectField,
             rowField);
 
-        return RowData.createFieldGetter(rowType.getTypeAt(position), position);
+        return FlinkRowData.createFieldGetter(rowType.getTypeAt(position), position);
 
       case LIST:
         Types.ListType projectedList = projectField.type().asListType();
@@ -150,10 +151,10 @@ public class RowDataProjection implements RowData {
             projectField,
             rowField);
 
-        return RowData.createFieldGetter(rowType.getTypeAt(position), position);
+        return FlinkRowData.createFieldGetter(rowType.getTypeAt(position), position);
 
       default:
-        return RowData.createFieldGetter(rowType.getTypeAt(position), position);
+        return FlinkRowData.createFieldGetter(rowType.getTypeAt(position), position);
     }
   }
 

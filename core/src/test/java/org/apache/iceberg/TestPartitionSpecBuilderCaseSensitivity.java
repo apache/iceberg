@@ -30,7 +30,6 @@ import org.junit.jupiter.api.Test;
 
 public class TestPartitionSpecBuilderCaseSensitivity {
 
-  private static final int V2_FORMAT_VERSION = 2;
   private static final Schema SCHEMA_WITHOUT_NAME_CONFLICTS =
       new Schema(
           required(1, "id", Types.IntegerType.get()),

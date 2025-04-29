@@ -160,6 +160,11 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(Types.VariantType variant) {
+    return null;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return null;
   }

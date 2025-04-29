@@ -52,12 +52,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   @Override
   public void setRowGroupInfo(
-      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    setRowGroupInfo(pageStore, metaData);
-  }
-
-  @Override
-  public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
     super.setRowGroupInfo(pageStore, metaData);
     this.rowStartPosInBatch =

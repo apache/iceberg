@@ -27,7 +27,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.apache.iceberg.avro.AvroDataTest;
+import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -38,7 +39,27 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestSchemaParser extends AvroDataTest {
+public class TestSchemaParser extends DataTest {
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
@@ -85,30 +106,31 @@ public class TestSchemaParser extends AvroDataTest {
 
   private static Stream<Arguments> primitiveTypesAndDefaults() {
     return Stream.of(
-        Arguments.of(Types.BooleanType.get(), false),
-        Arguments.of(Types.IntegerType.get(), 34),
-        Arguments.of(Types.LongType.get(), 4900000000L),
-        Arguments.of(Types.FloatType.get(), 12.21F),
-        Arguments.of(Types.DoubleType.get(), -0.0D),
-        Arguments.of(Types.DateType.get(), DateTimeUtil.isoDateToDays("2024-12-17")),
+        Arguments.of(Types.BooleanType.get(), Literal.of(false)),
+        Arguments.of(Types.IntegerType.get(), Literal.of(34)),
+        Arguments.of(Types.LongType.get(), Literal.of(4900000000L)),
+        Arguments.of(Types.FloatType.get(), Literal.of(12.21F)),
+        Arguments.of(Types.DoubleType.get(), Literal.of(-0.0D)),
+        Arguments.of(Types.DateType.get(), Literal.of(DateTimeUtil.isoDateToDays("2024-12-17"))),
         // Arguments.of(Types.TimeType.get(), DateTimeUtil.isoTimeToMicros("23:59:59.999999")),
         Arguments.of(
             Types.TimestampType.withZone(),
-            DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00")),
+            Literal.of(DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
         Arguments.of(
             Types.TimestampType.withoutZone(),
-            DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999")),
-        Arguments.of(Types.StringType.get(), "iceberg"),
-        Arguments.of(Types.UUIDType.get(), UUID.randomUUID()),
+            Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
+        Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
+        Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
         Arguments.of(
-            Types.FixedType.ofLength(4), ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
-        Arguments.of(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {0x0a, 0x0b})),
-        Arguments.of(Types.DecimalType.of(9, 2), new BigDecimal("12.34")));
+            Types.FixedType.ofLength(4),
+            Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
+        Arguments.of(Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
+        Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
   }
 
   @ParameterizedTest
   @MethodSource("primitiveTypesAndDefaults")
-  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Object defaultValue) {
+  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Literal<?> defaultValue) {
     Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
@@ -120,7 +142,9 @@ public class TestSchemaParser extends AvroDataTest {
                 .build());
 
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
-    assertThat(serialized.findField("col_with_default").initialDefault()).isEqualTo(defaultValue);
-    assertThat(serialized.findField("col_with_default").writeDefault()).isEqualTo(defaultValue);
+    assertThat(serialized.findField("col_with_default").initialDefault())
+        .isEqualTo(defaultValue.value());
+    assertThat(serialized.findField("col_with_default").writeDefault())
+        .isEqualTo(defaultValue.value());
   }
 }

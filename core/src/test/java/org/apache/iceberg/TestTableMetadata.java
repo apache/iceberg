@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
 import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
+import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,6 +57,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -105,7 +107,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -120,7 +131,9 @@ public class TestTableMetadata {
             null,
             null,
             7,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -162,7 +175,7 @@ public class TestTableMetadata {
     TableMetadata expected =
         new TableMetadata(
             null,
-            2,
+            MAX_FORMAT_VERSION,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             SEQ_NO,
@@ -184,6 +197,7 @@ public class TestTableMetadata {
             refs,
             statisticsFiles,
             partitionStatisticsFiles,
+            40,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -217,6 +231,7 @@ public class TestTableMetadata {
     assertThat(metadata.statisticsFiles()).isEqualTo(statisticsFiles);
     assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
     assertThat(metadata.refs()).isEqualTo(refs);
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -231,7 +246,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -246,7 +270,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     TableMetadata expected =
         new TableMetadata(
@@ -273,6 +299,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            0,
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -312,6 +339,7 @@ public class TestTableMetadata {
         .isEqualTo(previousSnapshot.allManifests(ops.io()));
     assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -322,7 +350,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -338,7 +375,9 @@ public class TestTableMetadata {
             null,
             null,
             7,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -359,7 +398,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -381,6 +420,7 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    0L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -393,7 +433,8 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
-        new BaseSnapshot(0, snapshotId, null, snapshotId, null, null, null, manifestList);
+        new BaseSnapshot(
+            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -404,7 +445,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -426,6 +467,7 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    0L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -444,7 +486,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -466,6 +508,7 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    0L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -521,7 +564,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -536,7 +588,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -570,6 +624,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            0L,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -586,7 +641,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
     long currentSnapshotId = System.currentTimeMillis();
 
     manifestList =
@@ -601,7 +665,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -646,6 +712,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            0L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -668,7 +735,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -683,7 +759,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -737,6 +815,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            0L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -763,7 +842,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -778,7 +866,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -832,6 +922,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            0L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -878,6 +969,7 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    0L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -913,6 +1005,7 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    0L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -959,6 +1052,7 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of(),
+                0L,
                 ImmutableList.of()))
         .isNotNull();
 
@@ -1234,7 +1328,6 @@ public class TestTableMetadata {
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .build();
@@ -1249,7 +1342,6 @@ public class TestTableMetadata {
     TableMetadata withStatisticsReplaced =
         TableMetadata.buildFrom(withStatistics)
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();
@@ -1271,11 +1363,9 @@ public class TestTableMetadata {
                 TableMetadata.newTableMetadata(
                     schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .setStatistics(
-                44,
                 new GenericStatisticsFile(
                     44, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();
@@ -1513,6 +1603,63 @@ public class TestTableMetadata {
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
+  @Test
+  public void testManifestListIndexProjection() throws IOException {
+    long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestListLocation =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
+
+    Schema manifestProjection =
+        ManifestFile.schema()
+            .select(
+                ManifestFile.PATH.name(),
+                ManifestFile.LENGTH.name(),
+                ManifestFile.SPEC_ID.name(),
+                ManifestFile.SNAPSHOT_ID.name());
+
+    try (CloseableIterable<ManifestFile> manifestIterable =
+        InternalData.read(FileFormat.AVRO, localInput(manifestListLocation))
+            .setRootType(GenericManifestFile.class)
+            .project(manifestProjection)
+            .reuseContainers()
+            .build()) {
+
+      List<ManifestFile> manifests = Lists.newArrayList(manifestIterable);
+      assertThat(manifests).hasSize(1);
+
+      manifests.forEach(
+          manifest -> {
+            // projected fields
+            assertThat(manifest)
+                .extracting(
+                    ManifestFile::path,
+                    ManifestFile::length,
+                    ManifestFile::partitionSpecId,
+                    ManifestFile::snapshotId)
+                .doesNotContainNull();
+
+            // not projected with defaults
+            assertThat(manifest.sequenceNumber()).isEqualTo(0);
+            assertThat(manifest.minSequenceNumber()).isEqualTo(0);
+            assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+
+            // not projected
+            assertThat(manifest)
+                .extracting(
+                    ManifestFile::addedFilesCount,
+                    ManifestFile::existingFilesCount,
+                    ManifestFile::deletedFilesCount,
+                    ManifestFile::addedRowsCount,
+                    ManifestFile::existingRowsCount,
+                    ManifestFile::deletedRowsCount,
+                    ManifestFile::partitions,
+                    ManifestFile::keyMetadata)
+                .containsOnlyNulls();
+          });
+    }
+  }
+
   private static Stream<Arguments> upgradeFormatVersionProvider() {
     // return a stream of all valid upgrade paths
     return IntStream.range(1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
@@ -1661,7 +1808,8 @@ public class TestTableMetadata {
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(
           ImmutableList.of(
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
@@ -1754,5 +1902,37 @@ public class TestTableMetadata {
     assertThat(updatedMetadata.lastUpdatedMillis()).isEqualTo(newMetadata.lastUpdatedMillis());
     assertThat(updatedMetadata.metadataFileLocation()).isEqualTo("updated-metadata-location");
     assertThat(updatedMetadata.previousFiles()).isEmpty();
+  }
+
+  @Test
+  public void testMetadataWithRemoveSpecs() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSpecs(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+
+    meta = TableMetadata.buildFrom(meta).removeSpecs(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+  }
+
+  @Test
+  public void testMetadataWithRemoveSchemas() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSchemas(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
+
+    meta = TableMetadata.buildFrom(meta).removeSchemas(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
 }

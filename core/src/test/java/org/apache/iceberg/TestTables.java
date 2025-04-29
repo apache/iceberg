@@ -39,7 +39,7 @@ public class TestTables {
 
   private TestTables() {}
 
-  private static TestTable upgrade(File temp, String name, int newFormatVersion) {
+  public static TestTable upgrade(File temp, String name, int newFormatVersion) {
     TestTable table = load(temp, name);
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
@@ -60,16 +60,21 @@ public class TestTables {
       SortOrder sortOrder,
       int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
-    }
 
-    ops.commit(
-        null,
-        newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
+  }
 
-    return new TestTable(ops, name);
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
+      TestTableOperations ops) {
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
   }
 
   public static TestTable create(
@@ -81,16 +86,47 @@ public class TestTables {
       int formatVersion,
       MetricsReporter reporter) {
     TestTableOperations ops = new TestTableOperations(name, temp);
+
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter, ops);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+
+    return createTable(
+        temp, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
+  }
+
+  private static TestTable createTable(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties,
+      SortOrder sortOrder,
+      MetricsReporter reporter,
+      TestTableOperations ops) {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
     ops.commit(
         null,
-        newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+        newTableMetadata(schema, spec, sortOrder, temp.toString(), properties, formatVersion));
 
-    return new TestTable(ops, name, reporter);
+    if (reporter != null) {
+      return new TestTable(ops, reporter);
+    } else {
+      return new TestTable(ops);
+    }
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -154,12 +190,12 @@ public class TestTables {
 
   public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTable tableWithCommitSucceedButStateUnknown(File temp, String name) {
     TestTableOperations ops = opsWithCommitSucceedButStateUnknown(temp, name);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTableOperations opsWithCommitSucceedButStateUnknown(File temp, String name) {
@@ -175,13 +211,13 @@ public class TestTables {
   public static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
-    private TestTable(TestTableOperations ops, String name) {
-      super(ops, name);
+    private TestTable(TestTableOperations ops) {
+      super(ops, ops.tableName);
       this.ops = ops;
     }
 
-    private TestTable(TestTableOperations ops, String name, MetricsReporter reporter) {
-      super(ops, name, reporter);
+    private TestTable(TestTableOperations ops, MetricsReporter reporter) {
+      super(ops, ops.tableName, reporter);
       this.ops = ops;
     }
 
@@ -222,18 +258,7 @@ public class TestTables {
     private int failCommits = 0;
 
     public TestTableOperations(String tableName, File location) {
-      this.tableName = tableName;
-      this.metadata = new File(location, "metadata");
-      this.fileIO = new LocalFileIO();
-      metadata.mkdirs();
-      refresh();
-      if (current != null) {
-        for (Snapshot snap : current.snapshots()) {
-          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
-        }
-      } else {
-        this.lastSnapshotId = 0;
-      }
+      this(tableName, location, new LocalFileIO());
     }
 
     public TestTableOperations(String tableName, File location, FileIO fileIO) {
@@ -311,9 +336,15 @@ public class TestTables {
 
     @Override
     public long newSnapshotId() {
-      long nextSnapshotId = lastSnapshotId + 1;
-      this.lastSnapshotId = nextSnapshotId;
-      return nextSnapshotId;
+      TableMetadata currentMetadata = current();
+      if (currentMetadata != null
+          && currentMetadata.propertyAsBoolean("random-snapshot-ids", false)) {
+        return SnapshotIdGeneratorUtil.generateSnapshotID();
+      } else {
+        long nextSnapshotId = lastSnapshotId + 1;
+        this.lastSnapshotId = nextSnapshotId;
+        return nextSnapshotId;
+      }
     }
   }
 

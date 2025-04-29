@@ -35,14 +35,26 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TestGenericData extends DataTest {
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
   }
 
   @Override
+  protected void writeAndValidate(Schema writeSchema, List<Record> expectedData)
+      throws IOException {
+    writeAndValidate(writeSchema, writeSchema, expectedData);
+  }
+
+  @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
-    List<Record> expected = RandomGenericData.generate(writeSchema, 100, 0L);
+    List<Record> data = RandomGenericData.generate(writeSchema, 100, 0L);
+    writeAndValidate(writeSchema, expectedSchema, data);
+  }
+
+  private void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
@@ -74,6 +86,21 @@ public class TestGenericData extends DataTest {
 
   @Override
   protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
     return true;
   }
 }

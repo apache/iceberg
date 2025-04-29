@@ -43,7 +43,16 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            1,
+            manifestList,
+            null,
+            null);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -52,6 +61,8 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
   }
 
   @Test
@@ -62,7 +73,16 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -71,6 +91,8 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isNull();
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
   }
 
   @Test
@@ -89,7 +111,9 @@ public class TestSnapshotJson {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
@@ -105,6 +129,40 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
+  }
+
+  @Test
+  public void testJsonConversionWithRowLineage() throws IOException {
+    int snapshotId = 23;
+    Long parentId = null;
+    Long firstRowId = 20L;
+    Long addedRows = 30L;
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            manifestList,
+            firstRowId,
+            addedRows);
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+
+    assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
+    assertThat(snapshot.operation()).isNull();
+    assertThat(snapshot.summary()).isNull();
+    assertThat(snapshot.schemaId()).isNull();
+    assertThat(snapshot.firstRowId()).isEqualTo(firstRowId);
+    assertThat(snapshot.addedRows()).isEqualTo(addedRows);
   }
 
   @Test
@@ -157,6 +215,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isNull();
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
@@ -170,7 +229,8 @@ public class TestSnapshotJson {
             new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(manifests);
     }
 

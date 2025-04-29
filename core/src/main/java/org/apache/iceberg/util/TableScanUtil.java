@@ -233,6 +233,9 @@ public class TableScanUtil {
   }
 
   public static long adjustSplitSize(long scanSize, int parallelism, long splitSize) {
+    Preconditions.checkArgument(parallelism > 0, "Parallelism must be > 0: %s", parallelism);
+    Preconditions.checkArgument(splitSize > 0, "Split size must be > 0: %s", splitSize);
+
     // use the configured split size if it produces at least one split per slot
     // otherwise, adjust the split size to target parallelism with a reasonable minimum
     // increasing the split size may cause expensive spills and is not done automatically

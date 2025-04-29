@@ -94,12 +94,17 @@ public class TestSparkMetadataColumns extends TestBase {
       {FileFormat.PARQUET, true, 1},
       {FileFormat.PARQUET, false, 2},
       {FileFormat.PARQUET, true, 2},
+      {FileFormat.PARQUET, false, 3},
+      {FileFormat.PARQUET, true, 3},
       {FileFormat.AVRO, false, 1},
       {FileFormat.AVRO, false, 2},
+      {FileFormat.AVRO, false, 3},
       {FileFormat.ORC, false, 1},
       {FileFormat.ORC, true, 1},
       {FileFormat.ORC, false, 2},
       {FileFormat.ORC, true, 2},
+      {FileFormat.ORC, false, 3},
+      {FileFormat.ORC, true, 3},
     };
   }
 

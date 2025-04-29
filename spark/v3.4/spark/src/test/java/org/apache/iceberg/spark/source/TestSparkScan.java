@@ -206,7 +206,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -234,17 +234,6 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
-    SparkScan scan = (SparkScan) scanBuilder.build();
-
-    Map<String, String> reportColStatsDisabled =
-        ImmutableMap.of(
-            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
-
-    Map<String, String> reportColStatsEnabled =
-        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
-
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
@@ -259,14 +248,52 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
-    checkColStatisticsNotReported(scan, 4L);
-    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    List<SimpleRecord> newRecords =
+        Lists.newArrayList(new SimpleRecord(5, "a"), new SimpleRecord(6, "b"));
+    spark
+        .createDataset(newRecords, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
 
-    Map<String, Long> expectedOneNDV = Maps.newHashMap();
-    expectedOneNDV.put("id", 4L);
-    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile2 =
+        new GenericStatisticsFile(
+            snapshotId2,
+            "/test/statistics/file2.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId2,
+                    2,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "6"))));
+
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    checkColStatisticsNotReported(scan, 6L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 6L));
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    Map<String, Long> expectedNDV = Maps.newHashMap();
+    expectedNDV.put("id", 6L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 6L, expectedNDV));
   }
 
   @Test
@@ -320,7 +347,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -380,7 +407,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(2),
                     ImmutableMap.of("ndv", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -407,7 +434,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT Equal
     builder = scanBuilder();
@@ -416,6 +443,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
+    // notEq can't be answered using column bounds because they are not exact
     assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
@@ -464,7 +492,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT GT
     builder = scanBuilder();
@@ -473,7 +501,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -521,7 +549,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT LT
     builder = scanBuilder();
@@ -530,7 +558,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -577,7 +605,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(8);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -586,7 +614,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(2);
   }
 
   @Test
@@ -734,7 +762,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -773,7 +801,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(0);
 
     // NOT IsNull
     builder = scanBuilder();
@@ -830,7 +858,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(0);
   }
 
   @Test
@@ -875,7 +903,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT (years(ts) = 47 AND bucket(id, 5) >= 2)
     builder = scanBuilder();

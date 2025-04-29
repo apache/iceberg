@@ -104,7 +104,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
         snapshotId());
     List<Blob> blobs = generateNDVBlobs();
     StatisticsFile statisticsFile = writeStatsFile(blobs);
-    table.updateStatistics().setStatistics(snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
     return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticsFile).build();
   }
 

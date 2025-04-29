@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.util.NaNUtil;
 
 /** Factory methods for creating {@link Expression expressions}. */
 public class Expressions {
@@ -99,6 +100,10 @@ public class Expressions {
 
   public static <T> UnboundTerm<T> truncate(String name, int width) {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
+  }
+
+  public static <T> UnboundTerm<T> extract(String name, String path, String type) {
+    return new UnboundExtract<>(ref(name), path, type);
   }
 
   public static <T> UnboundPredicate<T> isNull(String name) {
@@ -245,6 +250,9 @@ public class Expressions {
             && op != Operation.NOT_NAN,
         "Cannot create %s predicate inclusive a value",
         op);
+    Preconditions.checkArgument(
+        !NaNUtil.isNaN(lit.value()),
+        "Invalid expression literal: NaN, use isNaN or notNaN instead");
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
 

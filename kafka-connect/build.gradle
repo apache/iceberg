@@ -92,6 +92,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
 
   dependencies {
     implementation project(':iceberg-kafka-connect:iceberg-kafka-connect')
+    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms')
     implementation(libs.hadoop3.common) {
       exclude group: 'log4j'
       exclude group: 'org.slf4j'
@@ -174,6 +175,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     integrationImplementation libs.testcontainers
     integrationImplementation libs.httpcomponents.httpclient5
     integrationImplementation libs.awaitility
+    integrationImplementation libs.analyticsaccelerator.s3
   }
 
   task integrationTest(type: Test) {
@@ -197,8 +199,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/main/LICENSE"
+          from "$projectDir/main/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -212,8 +214,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.hive
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/hive/LICENSE"
+          from "$projectDir/hive/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -241,4 +243,20 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+}
+
+project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation libs.bson
+    implementation libs.slf4j.api
+    compileOnly libs.kafka.clients
+    compileOnly libs.kafka.connect.api
+    compileOnly libs.kafka.connect.json
+    compileOnly libs.kafka.connect.transforms
+  }
+
+  test {
+    useJUnitPlatform()
+  }
 }

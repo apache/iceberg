@@ -78,7 +78,7 @@ subprojects {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests/generated-src/generated
-          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
+          '-XepExcludedPaths:.*/(test|integration|generated-src|generated)/.*',
           '-Xep:AnnotateFormatMethod:ERROR',
           '-Xep:BadComparable:ERROR',
           '-Xep:BadInstanceof:ERROR',
@@ -153,9 +153,11 @@ subprojects {
           '-Xep:UnicodeEscape:ERROR',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLambdaArgumentParentheses:ERROR',
           '-Xep:UnnecessaryLongToIntConversion:ERROR',
           '-Xep:UnnecessaryMethodReference:ERROR',
           '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedTypeParameter:ERROR',
           '-Xep:UnusedVariable:ERROR',
           '-Xep:UseEnumSwitch:ERROR',
       )

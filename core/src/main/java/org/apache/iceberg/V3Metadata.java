@@ -22,10 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
@@ -48,7 +44,8 @@ class V3Metadata {
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
           ManifestFile.PARTITION_SUMMARIES,
-          ManifestFile.KEY_METADATA);
+          ManifestFile.KEY_METADATA,
+          ManifestFile.FIRST_ROW_ID);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v3 write schema.
@@ -56,36 +53,39 @@ class V3Metadata {
    * <p>This is used to maintain compatibility with v3 by writing manifest list files with the old
    * schema, instead of writing a sequence number into metadata files in v3 tables.
    */
-  static class IndexedManifestFile implements ManifestFile, IndexedRecord {
-    private static final org.apache.avro.Schema AVRO_SCHEMA =
-        AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
-
+  static class ManifestFileWrapper implements ManifestFile, StructLike {
     private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
+    private Long wrappedFirstRowId = null;
 
-    IndexedManifestFile(long commitSnapshotId, long sequenceNumber) {
+    ManifestFileWrapper(long commitSnapshotId, long sequenceNumber) {
       this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
     }
 
-    public ManifestFile wrap(ManifestFile file) {
+    public ManifestFile wrap(ManifestFile file, Long firstRowId) {
       this.wrapped = file;
+      this.wrappedFirstRowId = firstRowId;
       return this;
     }
 
     @Override
-    public org.apache.avro.Schema getSchema() {
-      return AVRO_SCHEMA;
+    public int size() {
+      return MANIFEST_LIST_SCHEMA.columns().size();
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedManifestFile wrapper via put");
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ManifestFileWrapper wrapper via set");
     }
 
     @Override
-    public Object get(int pos) {
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
       switch (pos) {
         case 0:
           return wrapped.path();
@@ -141,6 +141,22 @@ class V3Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          if (wrappedFirstRowId != null) {
+            // if first-row-id is assigned, ensure that it is valid
+            Preconditions.checkState(
+                wrapped.content() == ManifestContent.DATA && wrapped.firstRowId() == null,
+                "Found invalid first-row-id assignment: %s",
+                wrapped);
+            return wrappedFirstRowId;
+          } else if (wrapped.content() != ManifestContent.DATA) {
+            return null;
+          } else {
+            Preconditions.checkState(
+                wrapped.firstRowId() != null,
+                "Found unassigned first-row-id for file: " + wrapped.path());
+            return wrapped.firstRowId();
+          }
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -237,6 +253,11 @@ class V3Metadata {
     }
 
     @Override
+    public Long firstRowId() {
+      return wrapped.firstRowId();
+    }
+
+    @Override
     public ManifestFile copy() {
       return wrapped.copy();
     }
@@ -275,42 +296,47 @@ class V3Metadata {
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
         DataFile.SORT_ORDER_ID,
+        DataFile.FIRST_ROW_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
         DataFile.CONTENT_SIZE);
   }
 
-  static class IndexedManifestEntry<F extends ContentFile<F>>
-      implements ManifestEntry<F>, IndexedRecord {
-    private final org.apache.avro.Schema avroSchema;
+  static class ManifestEntryWrapper<F extends ContentFile<F>>
+      implements ManifestEntry<F>, StructLike {
+    private final int size;
     private final Long commitSnapshotId;
-    private final IndexedDataFile<?> fileWrapper;
+    private final DataFileWrapper<?> fileWrapper;
     private ManifestEntry<F> wrapped = null;
 
-    IndexedManifestEntry(Long commitSnapshotId, Types.StructType partitionType) {
-      this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
+    ManifestEntryWrapper(Long commitSnapshotId) {
+      this.size = entrySchema(Types.StructType.of()).columns().size();
       this.commitSnapshotId = commitSnapshotId;
-      this.fileWrapper = new IndexedDataFile<>(partitionType);
+      this.fileWrapper = new DataFileWrapper<>();
     }
 
-    public IndexedManifestEntry<F> wrap(ManifestEntry<F> entry) {
+    public ManifestEntryWrapper<F> wrap(ManifestEntry<F> entry) {
       this.wrapped = entry;
       return this;
     }
 
     @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
+    public int size() {
+      return size;
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedManifestEntry wrapper via put");
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ManifestEntryWrapper wrapper via set");
     }
 
     @Override
-    public Object get(int i) {
-      switch (i) {
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      switch (pos) {
         case 0:
           return wrapped.status().id();
         case 1:
@@ -339,7 +365,7 @@ class V3Metadata {
         case 4:
           return fileWrapper.wrap(wrapped.file());
         default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
     }
 
@@ -395,29 +421,37 @@ class V3Metadata {
   }
 
   /** Wrapper used to write DataFile or DeleteFile to v3 metadata. */
-  static class IndexedDataFile<F> implements ContentFile<F>, IndexedRecord {
-    private final org.apache.avro.Schema avroSchema;
-    private final IndexedStructLike partitionWrapper;
-    private ContentFile<F> wrapped = null;
+  static class DataFileWrapper<F extends ContentFile<F>> extends Delegates.DelegatingContentFile<F>
+      implements ContentFile<F>, StructLike {
+    private final int size;
 
-    IndexedDataFile(Types.StructType partitionType) {
-      this.avroSchema = AvroSchemaUtil.convert(fileType(partitionType), "data_file");
-      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
+    DataFileWrapper() {
+      super(null);
+      this.size = fileType(Types.StructType.of()).fields().size();
     }
 
     @SuppressWarnings("unchecked")
-    IndexedDataFile<F> wrap(ContentFile<?> file) {
-      this.wrapped = (ContentFile<F>) file;
+    DataFileWrapper<F> wrap(ContentFile<?> file) {
+      setWrapped((F) file);
       return this;
     }
 
     @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
+    public int size() {
+      return size;
     }
 
     @Override
-    public Object get(int pos) {
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify DataFileWrapper wrapper via set");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
       switch (pos) {
         case 0:
           return wrapped.content().id();
@@ -426,7 +460,7 @@ class V3Metadata {
         case 2:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 3:
-          return partitionWrapper.wrap(wrapped.partition());
+          return wrapped.partition();
         case 4:
           return wrapped.recordCount();
         case 5:
@@ -452,18 +486,24 @@ class V3Metadata {
         case 15:
           return wrapped.sortOrderId();
         case 16:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).referencedDataFile();
+          if (wrapped.content() == FileContent.DATA) {
+            return wrapped.firstRowId();
           } else {
             return null;
           }
         case 17:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentOffset();
+            return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
           }
         case 18:
+          if (wrapped.content() == FileContent.POSITION_DELETES) {
+            return ((DeleteFile) wrapped).contentOffset();
+          } else {
+            return null;
+          }
+        case 19:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
           } else {
@@ -474,11 +514,6 @@ class V3Metadata {
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedDataFile wrapper via put");
-    }
-
-    @Override
     public String manifestLocation() {
       return null;
     }
@@ -486,116 +521,6 @@ class V3Metadata {
     @Override
     public Long pos() {
       return null;
-    }
-
-    @Override
-    public int specId() {
-      return wrapped.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return wrapped.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return wrapped.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return wrapped.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return wrapped.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return wrapped.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return wrapped.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return wrapped.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return wrapped.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return wrapped.sortOrderId();
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return wrapped.dataSequenceNumber();
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return wrapped.fileSequenceNumber();
-    }
-
-    @Override
-    public F copy() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithStats(Set<Integer> requestedColumnIds) {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithoutStats() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
 }

@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
@@ -118,6 +120,7 @@ public class TestStructuredStreaming {
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Files.deleteIfExists(Paths.get(checkpoint + "/commits/.1.crc"));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -178,6 +181,7 @@ public class TestStructuredStreaming {
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Files.deleteIfExists(Paths.get(checkpoint + "/commits/.1.crc"));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -238,6 +242,7 @@ public class TestStructuredStreaming {
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Files.deleteIfExists(Paths.get(checkpoint + "/commits/.1.crc"));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();

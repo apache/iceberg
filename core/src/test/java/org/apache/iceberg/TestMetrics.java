@@ -355,17 +355,10 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(schema, record);
     assertThat(metrics.recordCount()).isEqualTo(1L);
-    if (fileFormat() != FileFormat.ORC) {
-      assertCounts(1, 1L, 0L, metrics);
-      assertCounts(2, 1L, 0L, metrics);
-      assertCounts(4, 3L, 0L, metrics);
-      assertCounts(6, 1L, 0L, metrics);
-    } else {
-      assertCounts(1, null, null, metrics);
-      assertCounts(2, null, null, metrics);
-      assertCounts(4, null, null, metrics);
-      assertCounts(6, null, null, metrics);
-    }
+    assertCounts(1, null, null, metrics);
+    assertCounts(2, null, null, metrics);
+    assertCounts(4, null, null, metrics);
+    assertCounts(6, null, null, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
     assertBounds(4, IntegerType.get(), null, null, metrics);

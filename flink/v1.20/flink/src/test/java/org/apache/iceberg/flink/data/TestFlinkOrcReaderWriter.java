@@ -43,10 +43,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestFlinkOrcReaderWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
 
+  /** Orc writers don't have notion of non-null / required fields. */
+  @Override
+  protected boolean allowsWritingNullValuesForRequiredFields() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1990L);
+    writeAndValidate(schema, expectedRecords);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
+    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
     File recordsFile = File.createTempFile("junit", null, temp.toFile());
@@ -69,7 +80,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
             .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
-      for (int i = 0; i < NUM_RECORDS; i++) {
+      for (int i = 0; i < expectedRecords.size(); i++) {
         assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
@@ -97,7 +108,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
             .build()) {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
-      for (int i = 0; i < NUM_RECORDS; i += 1) {
+      for (int i = 0; i < expectedRecords.size(); i += 1) {
         assertThat(records.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }

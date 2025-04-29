@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -51,6 +50,9 @@ import org.slf4j.LoggerFactory;
 public class RewriteTablePathUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathUtil.class);
+  // Use the POSIX separator instead of File.separator because File.separator is dependent on
+  // the client environment and not the target filesystem. POSIX is compatible with S3, GCS, etc
+  public static final String FILE_SEPARATOR = "/";
 
   private RewriteTablePathUtil() {}
 
@@ -126,9 +128,10 @@ public class RewriteTablePathUtil {
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
-        // TODO: update statistic file paths
-        metadata.statisticsFiles(),
+        updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
+        // TODO: update partition statistics file paths
         metadata.partitionStatisticsFiles(),
+        metadata.nextRowId(),
         metadata.changes());
   }
 
@@ -155,6 +158,20 @@ public class RewriteTablePathUtil {
       properties.put(
           propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
     }
+  }
+
+  private static List<StatisticsFile> updatePathInStatisticsFiles(
+      List<StatisticsFile> statisticsFiles, String sourcePrefix, String targetPrefix) {
+    return statisticsFiles.stream()
+        .map(
+            existing ->
+                new GenericStatisticsFile(
+                    existing.snapshotId(),
+                    newPath(existing.path(), sourcePrefix, targetPrefix),
+                    existing.fileSizeInBytes(),
+                    existing.fileFooterSizeInBytes(),
+                    existing.blobMetadata()))
+        .collect(Collectors.toList());
   }
 
   private static List<TableMetadata.MetadataLogEntry> updatePathInMetadataLogs(
@@ -186,7 +203,9 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation);
+              newManifestListLocation,
+              snapshot.firstRowId(),
+              snapshot.addedRows());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;
@@ -219,11 +238,7 @@ public class RewriteTablePathUtil {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
     List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
-    List<ManifestFile> manifestFilesToRewrite =
-        manifestFiles.stream()
-            .filter(mf -> manifestsToRewrite.contains(mf.path()))
-            .collect(Collectors.toList());
-    manifestFilesToRewrite.forEach(
+    manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
                 mf.path().startsWith(sourcePrefix),
@@ -237,15 +252,18 @@ public class RewriteTablePathUtil {
             outputFile,
             snapshot.snapshotId(),
             snapshot.parentId(),
-            snapshot.sequenceNumber())) {
+            snapshot.sequenceNumber(),
+            snapshot.firstRowId())) {
 
-      for (ManifestFile file : manifestFilesToRewrite) {
+      for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
         writer.add(newFile);
 
-        result.toRewrite().add(file);
-        result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        if (manifestsToRewrite.contains(file.path())) {
+          result.toRewrite().add(file);
+          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        }
       }
       return result;
     } catch (IOException e) {
@@ -354,7 +372,10 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    // keep deleted data file entries but exclude them from copyPlan
+    if (entry.isLive()) {
+      result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    }
     return result;
   }
 
@@ -381,16 +402,22 @@ public class RewriteTablePathUtil {
                 .withMetrics(metricsWithTargetPath)
                 .build();
         appendEntryWithFile(entry, writer, movedFile);
-        result
-            .copyPlan()
-            .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        // keep deleted position delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          result
+              .copyPlan()
+              .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        }
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // No need to rewrite equality delete files as they do not contain absolute file paths.
-        result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        // keep deleted equality delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          // No need to rewrite equality delete files as they do not contain absolute file paths.
+          result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        }
         return result;
 
       default:
@@ -534,18 +561,13 @@ public class RewriteTablePathUtil {
 
   /** Combine a base and relative path. */
   public static String combinePaths(String absolutePath, String relativePath) {
-    String combined = absolutePath;
-    if (!combined.endsWith("/")) {
-      combined += "/";
-    }
-    combined += relativePath;
-    return combined;
+    return maybeAppendFileSeparator(absolutePath) + relativePath;
   }
 
   /** Returns the file name of a path. */
   public static String fileName(String path) {
     String filename = path;
-    int lastIndex = path.lastIndexOf(File.separator);
+    int lastIndex = path.lastIndexOf(FILE_SEPARATOR);
     if (lastIndex != -1) {
       filename = path.substring(lastIndex + 1);
     }
@@ -554,15 +576,16 @@ public class RewriteTablePathUtil {
 
   /** Relativize a path. */
   public static String relativize(String path, String prefix) {
-    String toRemove = prefix;
-    if (!toRemove.endsWith("/")) {
-      toRemove += "/";
-    }
+    String toRemove = maybeAppendFileSeparator(prefix);
     if (!path.startsWith(toRemove)) {
       throw new IllegalArgumentException(
           String.format("Path %s does not start with %s", path, toRemove));
     }
     return path.substring(toRemove.length());
+  }
+
+  public static String maybeAppendFileSeparator(String path) {
+    return path.endsWith(FILE_SEPARATOR) ? path : path + FILE_SEPARATOR;
   }
 
   /**

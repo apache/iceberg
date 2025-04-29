@@ -26,13 +26,17 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 
 public class GenericParquetWriter extends BaseParquetWriter<Record> {
@@ -40,19 +44,72 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
 
   private GenericParquetWriter() {}
 
+  /**
+   * Build a writer for a Parquet schema.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #create(Schema, MessageType)} instead.
+   */
+  @Deprecated
   public static ParquetValueWriter<Record> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);
   }
 
-  @Override
+  public static ParquetValueWriter<Record> create(Schema schema, MessageType type) {
+    return INSTANCE.createWriter(schema.asStruct(), type);
+  }
+
+  /**
+   * Create a struct writer from a list of writers.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Types.StructType, MessageType)}
+   *     instead.
+   */
+  @Deprecated
   protected StructWriter<Record> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+    return ParquetValueWriters.recordWriter(null, writers);
+  }
+
+  @Override
+  protected StructWriter<Record> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
+  }
+
+  @Override
+  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.FixedWriter(desc);
+  }
+
+  @Override
+  protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.DateWriter(desc);
+  }
+
+  @Override
+  protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.TimeWriter(desc);
+  }
+
+  @Override
+  protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    LogicalTypeAnnotation.TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
+
+    if (isAdjustedToUTC) {
+      return new GenericParquetWriter.TimestamptzWriter(desc, fromParquet(unit));
+    } else {
+      return new GenericParquetWriter.TimestampWriter(desc, fromParquet(unit));
+    }
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
+  private static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
     DateWriter(ColumnDescriptor desc) {
       super(desc);
     }
@@ -63,7 +120,7 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
+  private static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
     TimeWriter(ColumnDescriptor desc) {
       super(desc);
     }
@@ -74,30 +131,36 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
-    TimestampWriter(ColumnDescriptor desc) {
+  private static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
+    private final ChronoUnit unit;
+
+    TimestampWriter(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public void write(int repetitionLevel, LocalDateTime value) {
-      column.writeLong(
-          repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+      column.writeLong(repetitionLevel, unit.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
     }
   }
 
-  static class TimestamptzWriter extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
-    TimestamptzWriter(ColumnDescriptor desc) {
+  private static class TimestamptzWriter
+      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+    private final ChronoUnit unit;
+
+    TimestamptzWriter(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public void write(int repetitionLevel, OffsetDateTime value) {
-      column.writeLong(repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value));
+      column.writeLong(repetitionLevel, unit.between(EPOCH, value));
     }
   }
 
-  static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
+  private static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
     private final int length;
 
     FixedWriter(ColumnDescriptor desc) {
@@ -113,6 +176,17 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
           value.length,
           length);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
+    }
+  }
+
+  private static ChronoUnit fromParquet(LogicalTypeAnnotation.TimeUnit unit) {
+    switch (unit) {
+      case MICROS:
+        return ChronoUnit.MICROS;
+      case NANOS:
+        return ChronoUnit.NANOS;
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
     }
   }
 }

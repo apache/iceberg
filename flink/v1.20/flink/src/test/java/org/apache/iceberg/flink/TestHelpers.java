@@ -59,6 +59,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
@@ -89,7 +90,7 @@ public class TestHelpers {
             .toArray(TypeSerializer[]::new);
     RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
-      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      fieldGetters[i] = FlinkRowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
 
     return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
@@ -187,21 +188,38 @@ public class TestHelpers {
       types.add(field.type());
     }
 
-    for (int i = 0; i < types.size(); i += 1) {
-      LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-      Object expected = expectedRecord.get(i, Object.class);
-      // The RowData.createFieldGetter won't return null for the required field. But in the
-      // projection case, if we are
-      // projecting a nested required field from an optional struct, then we should give a null for
-      // the projected field
-      // if the outer struct value is null. So we need to check the nullable for actualRowData here.
-      // For more details
-      // please see issue #2738.
-      Object actual =
-          actualRowData.isNullAt(i)
-              ? null
-              : RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
-      assertEquals(types.get(i), logicalType, expected, actual);
+    if (expectedRecord instanceof Record) {
+      Record expected = (Record) expectedRecord;
+      Types.StructType expectedType = expected.struct();
+      int pos = 0;
+      for (Types.NestedField field : structType.fields()) {
+        Types.NestedField expectedField = expectedType.field(field.fieldId());
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
+        Object actualValue =
+            FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
+        if (expectedField != null) {
+          assertEquals(
+              field.type(), logicalType, expected.getField(expectedField.name()), actualValue);
+        } else {
+          // convert the initial value to generic because that is the data model used to generate
+          // the expected records
+          assertEquals(
+              field.type(),
+              logicalType,
+              GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
+              actualValue);
+        }
+        pos += 1;
+      }
+
+    } else {
+      for (int i = 0; i < types.size(); i += 1) {
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
+        Object expected = expectedRecord.get(i, Object.class);
+        Object actual =
+            FlinkRowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+        assertEquals(types.get(i), logicalType, expected, actual);
+      }
     }
   }
 
@@ -249,6 +267,25 @@ public class TestHelpers {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
+        } else {
+          assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
+        }
+        break;
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           assertThat(expected)
               .as("Should expect a OffsetDataTime")
               .isInstanceOf(OffsetDateTime.class);

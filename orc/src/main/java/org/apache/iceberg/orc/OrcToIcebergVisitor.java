@@ -43,7 +43,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 .map(Optional::get)
                 .collect(Collectors.toList()));
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(structType)
+            .build());
   }
 
   @Override
@@ -63,7 +68,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
             : Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
 
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(listTypeWithElem)
+            .build());
   }
 
   @Override
@@ -86,7 +96,30 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
 
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(mapTypeWithKV)
+            .build());
+  }
+
+  @Override
+  public Optional<Types.NestedField> variant(
+      TypeDescription variant,
+      Optional<Types.NestedField> metadata,
+      Optional<Types.NestedField> value) {
+    boolean isOptional = ORCSchemaUtil.isOptional(variant);
+    Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(variant);
+
+    return icebergIdOpt.map(
+        fieldId ->
+            Types.NestedField.builder()
+                .withId(fieldId)
+                .isOptional(isOptional)
+                .ofType(Types.VariantType.get())
+                .withName(currentFieldName())
+                .build());
   }
 
   @Override
@@ -98,94 +131,112 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
       return Optional.empty();
     }
 
-    final Types.NestedField foundField;
-    int icebergID = icebergIdOpt.get();
-    String name = currentFieldName();
+    Types.NestedField.Builder builder =
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName());
     switch (primitive.getCategory()) {
       case BOOLEAN:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BooleanType.get());
+        builder.ofType(Types.BooleanType.get());
         break;
       case BYTE:
       case SHORT:
       case INT:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.IntegerType.get());
+        builder.ofType(Types.IntegerType.get());
         break;
       case LONG:
-        String longAttributeValue =
-            primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
-        ORCSchemaUtil.LongType longType =
-            longAttributeValue == null
-                ? ORCSchemaUtil.LongType.LONG
-                : ORCSchemaUtil.LongType.valueOf(longAttributeValue);
-        switch (longType) {
-          case TIME:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimeType.get());
-            break;
-          case LONG:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.LongType.get());
-            break;
-          default:
-            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
-        }
+        convertLong(primitive, builder);
         break;
       case FLOAT:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.FloatType.get());
+        builder.ofType(Types.FloatType.get());
         break;
       case DOUBLE:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DoubleType.get());
+        builder.ofType(Types.DoubleType.get());
         break;
       case STRING:
       case CHAR:
       case VARCHAR:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.StringType.get());
+        builder.ofType(Types.StringType.get());
         break;
       case BINARY:
-        String binaryAttributeValue =
-            primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
-        ORCSchemaUtil.BinaryType binaryType =
-            binaryAttributeValue == null
-                ? ORCSchemaUtil.BinaryType.BINARY
-                : ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
-        switch (binaryType) {
-          case UUID:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.UUIDType.get());
-            break;
-          case FIXED:
-            int fixedLength =
-                Integer.parseInt(primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_FIELD_LENGTH));
-            foundField =
-                Types.NestedField.of(
-                    icebergID, isOptional, name, Types.FixedType.ofLength(fixedLength));
-            break;
-          case BINARY:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BinaryType.get());
-            break;
-          default:
-            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
-        }
+        convertBinary(primitive, builder);
         break;
       case DATE:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DateType.get());
+        builder.ofType(Types.DateType.get());
         break;
       case TIMESTAMP:
-        foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
+        String unit = primitive.getAttributeValue(ORCSchemaUtil.TIMESTAMP_UNIT);
+        if (unit == null || ORCSchemaUtil.MICROS.equalsIgnoreCase(unit)) {
+          builder.ofType(Types.TimestampType.withoutZone());
+        } else if (unit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
+          builder.ofType(Types.TimestampNanoType.withoutZone());
+        } else {
+          throw new IllegalStateException("Invalid Timestamp type unit: %s" + unit);
+        }
+
         break;
       case TIMESTAMP_INSTANT:
-        foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
+        String tsUnit = primitive.getAttributeValue(ORCSchemaUtil.TIMESTAMP_UNIT);
+        if (tsUnit == null || ORCSchemaUtil.MICROS.equalsIgnoreCase(tsUnit)) {
+          builder.ofType(Types.TimestampType.withZone());
+        } else if (tsUnit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
+          builder.ofType(Types.TimestampNanoType.withZone());
+        } else {
+          throw new IllegalStateException("Invalid Timestamp type unit: %s" + tsUnit);
+        }
+
         break;
       case DECIMAL:
-        foundField =
-            Types.NestedField.of(
-                icebergID,
-                isOptional,
-                name,
-                Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
+        builder.ofType(Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
         break;
       default:
         throw new IllegalArgumentException("Can't handle " + primitive);
     }
-    return Optional.of(foundField);
+
+    return Optional.of(builder.build());
+  }
+
+  private static void convertLong(TypeDescription primitive, Types.NestedField.Builder builder) {
+    String longAttributeValue =
+        primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
+    ORCSchemaUtil.LongType longType =
+        longAttributeValue == null
+            ? ORCSchemaUtil.LongType.LONG
+            : ORCSchemaUtil.LongType.valueOf(longAttributeValue);
+    switch (longType) {
+      case TIME:
+        builder.ofType(Types.TimeType.get());
+        break;
+      case LONG:
+        builder.ofType(Types.LongType.get());
+        break;
+      default:
+        throw new IllegalStateException("Invalid Long type found in ORC type attribute");
+    }
+  }
+
+  private static void convertBinary(TypeDescription binary, Types.NestedField.Builder builder) {
+    String binaryAttributeValue =
+        binary.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
+    ORCSchemaUtil.BinaryType binaryType =
+        binaryAttributeValue == null
+            ? ORCSchemaUtil.BinaryType.BINARY
+            : ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
+    switch (binaryType) {
+      case UUID:
+        builder.ofType(Types.UUIDType.get());
+        break;
+      case FIXED:
+        int fixedLength =
+            Integer.parseInt(binary.getAttributeValue(ORCSchemaUtil.ICEBERG_FIELD_LENGTH));
+        builder.ofType(Types.FixedType.ofLength(fixedLength));
+        break;
+      case BINARY:
+        builder.ofType(Types.BinaryType.get());
+        break;
+      default:
+        throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
+    }
   }
 }

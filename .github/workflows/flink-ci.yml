@@ -47,6 +47,7 @@ on:
     - '.gitignore'
     - '.asf.yaml'
     - 'dev/**'
+    - 'docker/**'
     - 'mr/**'
     - 'kafka-connect/**'
     - 'spark/**'
@@ -55,10 +56,10 @@ on:
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
-    - 'README.md'
+    - '**/README.md'
     - 'CONTRIBUTING.md'
-    - 'LICENSE'
-    - 'NOTICE'
+    - '**/LICENSE'
+    - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -72,7 +73,7 @@ jobs:
     strategy:
       matrix:
         jvm: [11, 17, 21]
-        flink: ['1.18', '1.19', '1.20']
+        flink: ['1.19', '1.20', '2.0']
     env:
       SPARK_LOCAL_IP: localhost
     steps:

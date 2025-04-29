@@ -78,10 +78,10 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.7.1'
-  nessieVersion: '0.92.1'
-  flinkVersion: '1.19.1'
-  flinkVersionMajor: '1.19'
+  icebergVersion: '1.9.0'
+  nessieVersion: '0.103.3'
+  flinkVersion: '1.20.0'
+  flinkVersionMajor: '1.20'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'

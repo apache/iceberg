@@ -82,6 +82,24 @@ public final class ORCSchemaUtil {
 
   static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
+  /**
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
+   * to an ORC struct type.
+   */
+  static final String ICEBERG_STRUCT_TYPE_ATTRIBUTE = "iceberg.struct-type";
+
+  static final String VARIANT = "VARIANT";
+  static final String VARIANT_METADATA = "metadata";
+  static final String VARIANT_VALUE = "value";
+
+  /**
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit.
+   */
+  static final String TIMESTAMP_UNIT = "iceberg.timestamp-unit";
+
+  static final String MICROS = "MICROS";
+  static final String NANOS = "NANOS";
+
   private static final ImmutableMultimap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMultimap.<Type.TypeID, TypeDescription.Category>builder()
           .put(Type.TypeID.BOOLEAN, TypeDescription.Category.BOOLEAN)
@@ -109,7 +127,9 @@ public final class ORCSchemaUtil {
     final Types.StructType schemaRoot = schema.asStruct();
     for (Types.NestedField field : schemaRoot.asStructType().fields()) {
       TypeDescription orcColumnType = convert(field.fieldId(), field.type(), field.isRequired());
-      root.addField(field.name(), orcColumnType);
+      if (orcColumnType != null) {
+        root.addField(field.name(), orcColumnType);
+      }
     }
     return root;
   }
@@ -118,6 +138,8 @@ public final class ORCSchemaUtil {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
+      case UNKNOWN:
+        return null;
       case BOOLEAN:
         orcType = TypeDescription.createBoolean();
         break;
@@ -148,6 +170,18 @@ public final class ORCSchemaUtil {
         } else {
           orcType = TypeDescription.createTimestamp();
         }
+
+        orcType.setAttribute(TIMESTAMP_UNIT, MICROS);
+        break;
+      case TIMESTAMP_NANO:
+        Types.TimestampNanoType tsNanoType = (Types.TimestampNanoType) type;
+        if (tsNanoType.shouldAdjustToUTC()) {
+          orcType = TypeDescription.createTimestampInstant();
+        } else {
+          orcType = TypeDescription.createTimestamp();
+        }
+
+        orcType.setAttribute(TIMESTAMP_UNIT, NANOS);
         break;
       case STRING:
         orcType = TypeDescription.createString();
@@ -175,6 +209,12 @@ public final class ORCSchemaUtil {
                   .withPrecision(decimal.precision());
           break;
         }
+      case VARIANT:
+        orcType = TypeDescription.createStruct();
+        orcType.addField(VARIANT_METADATA, TypeDescription.createBinary());
+        orcType.addField(VARIANT_VALUE, TypeDescription.createBinary());
+        orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, VARIANT);
+        break;
       case STRUCT:
         {
           orcType = TypeDescription.createStruct();
@@ -288,7 +328,10 @@ public final class ORCSchemaUtil {
                   nestedField.type(),
                   isRequired && nestedField.isRequired(),
                   mapping);
-          orcType.addField(name, childType);
+
+          if (childType != null) {
+            orcType.addField(name, childType);
+          }
         }
         break;
       case LIST:
@@ -300,6 +343,7 @@ public final class ORCSchemaUtil {
                 list.elementType(),
                 isRequired && list.isElementRequired(),
                 mapping);
+        Preconditions.checkArgument(elementType != null, "Invalid element type: unknown");
         orcType = TypeDescription.createList(elementType);
         break;
       case MAP:
@@ -309,7 +353,15 @@ public final class ORCSchemaUtil {
         TypeDescription valueType =
             buildOrcProjection(
                 root, map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
+        Preconditions.checkArgument(keyType != null, "Invalid key type: unknown");
+        Preconditions.checkArgument(valueType != null, "Invalid value type: unknown");
         orcType = TypeDescription.createMap(keyType, valueType);
+        break;
+      case VARIANT:
+        orcType = TypeDescription.createStruct();
+        orcType.addField(VARIANT_METADATA, TypeDescription.createBinary());
+        orcType.addField(VARIANT_VALUE, TypeDescription.createBinary());
+        orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, VARIANT);
         break;
       default:
         if (mapping.containsKey(fieldId)) {
@@ -346,7 +398,11 @@ public final class ORCSchemaUtil {
           orcType = convert(fieldId, type, false);
         }
     }
-    orcType.setAttribute(ICEBERG_ID_ATTRIBUTE, fieldId.toString());
+
+    if (orcType != null) {
+      orcType.setAttribute(ICEBERG_ID_ATTRIBUTE, fieldId.toString());
+    }
+
     return orcType;
   }
 
@@ -407,6 +463,13 @@ public final class ORCSchemaUtil {
   private static boolean isSameType(TypeDescription orcType, Type icebergType) {
     if (icebergType.typeId() == Type.TypeID.TIMESTAMP) {
       Types.TimestampType tsType = (Types.TimestampType) icebergType;
+      return Objects.equals(
+          tsType.shouldAdjustToUTC()
+              ? TypeDescription.Category.TIMESTAMP_INSTANT
+              : TypeDescription.Category.TIMESTAMP,
+          orcType.getCategory());
+    } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      Types.TimestampNanoType tsType = (Types.TimestampNanoType) icebergType;
       return Objects.equals(
           tsType.shouldAdjustToUTC()
               ? TypeDescription.Category.TIMESTAMP_INSTANT

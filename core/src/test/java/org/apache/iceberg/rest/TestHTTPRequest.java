@@ -60,6 +60,17 @@ class TestHTTPRequest {
                 "http://localhost:8080/foo/v1/namespaces/ns/tables?pageToken=1234&pageSize=10")),
         Arguments.of(
             ImmutableHTTPRequest.builder()
+                .baseUri(
+                    URI.create("http://localhost:8080/foo/")) // trailing slash should be removed
+                .method(HTTPRequest.HTTPMethod.GET)
+                .path("v1/namespaces/ns/tables/") // trailing slash should be removed
+                .putQueryParameter("pageToken", "1234")
+                .putQueryParameter("pageSize", "10")
+                .build(),
+            URI.create(
+                "http://localhost:8080/foo/v1/namespaces/ns/tables?pageToken=1234&pageSize=10")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPRequest.HTTPMethod.GET)
                 .path("https://authserver.com/token") // absolute path HTTPS
@@ -67,11 +78,17 @@ class TestHTTPRequest {
             URI.create("https://authserver.com/token")),
         Arguments.of(
             ImmutableHTTPRequest.builder()
-                .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPRequest.HTTPMethod.GET)
                 .path("http://authserver.com/token") // absolute path HTTP
                 .build(),
-            URI.create("http://authserver.com/token")));
+            URI.create("http://authserver.com/token")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
+                .method(HTTPRequest.HTTPMethod.GET)
+                // absolute path with trailing slash: should be preserved
+                .path("http://authserver.com/token/")
+                .build(),
+            URI.create("http://authserver.com/token/")));
   }
 
   @Test
@@ -86,6 +103,18 @@ class TestHTTPRequest {
         .isInstanceOf(RESTException.class)
         .hasMessage(
             "Received a malformed path for a REST request: /v1/namespaces. Paths should not start with /");
+  }
+
+  @Test
+  public void relativePathWithoutBaseUri() {
+    assertThatThrownBy(
+            () ->
+                ImmutableHTTPRequest.builder()
+                    .method(HTTPRequest.HTTPMethod.GET)
+                    .path("v1/namespaces")
+                    .build())
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Received a request with a relative path and no base URI: v1/namespaces");
   }
 
   @Test

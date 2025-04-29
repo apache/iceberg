@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +37,7 @@ import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -182,9 +182,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     validateAndSetStartVersion();
 
     if (stagingDir == null) {
-      stagingDir = getMetadataLocation(table) + "copy-table-staging-" + UUID.randomUUID() + "/";
-    } else if (!stagingDir.endsWith("/")) {
-      stagingDir = stagingDir + "/";
+      stagingDir =
+          getMetadataLocation(table)
+              + "copy-table-staging-"
+              + UUID.randomUUID()
+              + RewriteTablePathUtil.FILE_SEPARATOR;
+    } else {
+      stagingDir = RewriteTablePathUtil.maybeAppendFileSeparator(stagingDir);
     }
   }
 
@@ -235,7 +239,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String jobDesc() {
-    if (startVersionName != null) {
+    if (startVersionName == null) {
       return String.format(
           "Replacing path prefixes '%s' with '%s' in the metadata files of table %s,"
               + "up to version '%s'.",
@@ -269,8 +273,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         ((HasTableOperations) newStaticTable(endVersionName, table.io())).operations().current();
 
     Preconditions.checkArgument(
-        endMetadata.statisticsFiles() == null || endMetadata.statisticsFiles().isEmpty(),
-        "Statistic files are not supported yet.");
+        endMetadata.partitionStatisticsFiles() == null
+            || endMetadata.partitionStatisticsFiles().isEmpty(),
+        "Partition statistics files are not supported yet.");
 
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
@@ -338,7 +343,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private RewriteResult<Snapshot> rewriteVersionFiles(TableMetadata endMetadata) {
     RewriteResult<Snapshot> result = new RewriteResult<>();
     result.toRewrite().addAll(endMetadata.snapshots());
-    result.copyPlan().add(rewriteVersionFile(endMetadata, endVersionName));
+    result.copyPlan().addAll(rewriteVersionFile(endMetadata, endVersionName));
 
     List<MetadataLogEntry> versions = endMetadata.previousFiles();
     for (int i = versions.size() - 1; i >= 0; i--) {
@@ -354,18 +359,50 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           new StaticTableOperations(versionFilePath, table.io()).current();
 
       result.toRewrite().addAll(tableMetadata.snapshots());
-      result.copyPlan().add(rewriteVersionFile(tableMetadata, versionFilePath));
+      result.copyPlan().addAll(rewriteVersionFile(tableMetadata, versionFilePath));
     }
 
     return result;
   }
 
-  private Pair<String, String> rewriteVersionFile(TableMetadata metadata, String versionFilePath) {
+  private Set<Pair<String, String>> rewriteVersionFile(
+      TableMetadata metadata, String versionFilePath) {
+    Set<Pair<String, String>> result = Sets.newHashSet();
     String stagingPath = RewriteTablePathUtil.stagingPath(versionFilePath, stagingDir);
     TableMetadata newTableMetadata =
         RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
-    return Pair.of(stagingPath, newPath(versionFilePath, sourcePrefix, targetPrefix));
+    result.add(
+        Pair.of(
+            stagingPath,
+            RewriteTablePathUtil.newPath(versionFilePath, sourcePrefix, targetPrefix)));
+
+    // include statistics files in copy plan
+    result.addAll(
+        statsFileCopyPlan(metadata.statisticsFiles(), newTableMetadata.statisticsFiles()));
+    return result;
+  }
+
+  private Set<Pair<String, String>> statsFileCopyPlan(
+      List<StatisticsFile> beforeStats, List<StatisticsFile> afterStats) {
+    Set<Pair<String, String>> result = Sets.newHashSet();
+    if (beforeStats.isEmpty()) {
+      return result;
+    }
+
+    Preconditions.checkArgument(
+        beforeStats.size() == afterStats.size(),
+        "Before and after path rewrite, statistic files count should be same");
+    for (int i = 0; i < beforeStats.size(); i++) {
+      StatisticsFile before = beforeStats.get(i);
+      StatisticsFile after = afterStats.get(i);
+      Preconditions.checkArgument(
+          before.fileSizeInBytes() == after.fileSizeInBytes(),
+          "Before and after path rewrite, statistic file size should be same");
+      result.add(
+          Pair.of(RewriteTablePathUtil.stagingPath(before.path(), stagingDir), after.path()));
+    }
+    return result;
   }
 
   /**
@@ -396,7 +433,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     result.append(rewriteResult);
     // add the manifest list copy plan itself to the result
-    result.copyPlan().add(Pair.of(outputPath, newPath(path, sourcePrefix, targetPrefix)));
+    result
+        .copyPlan()
+        .add(Pair.of(outputPath, RewriteTablePathUtil.newPath(path, sourcePrefix, targetPrefix)));
     return result;
   }
 
@@ -652,7 +691,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .buildPositionWriter();
       case PARQUET:
         return Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .withPartition(partition)
             .rowSchema(rowSchema)
             .withSpec(spec)
@@ -684,15 +723,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return table.io().newInputFile(path).exists();
   }
 
-  private static String newPath(String path, String sourcePrefix, String targetPrefix) {
-    return RewriteTablePathUtil.combinePaths(
-        targetPrefix, RewriteTablePathUtil.relativize(path, sourcePrefix));
-  }
-
   private String getMetadataLocation(Table tbl) {
     String currentMetadataPath =
         ((HasTableOperations) tbl).operations().current().metadataFileLocation();
-    int lastIndex = currentMetadataPath.lastIndexOf(File.separator);
+    int lastIndex = currentMetadataPath.lastIndexOf(RewriteTablePathUtil.FILE_SEPARATOR);
     String metadataDir = "";
     if (lastIndex != -1) {
       metadataDir = currentMetadataPath.substring(0, lastIndex + 1);

@@ -19,6 +19,7 @@
 package org.apache.iceberg.inmemory;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,24 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
   @BeforeEach
   public void before() {
-    this.catalog = initCatalog("in-memory-catalog", ImmutableMap.of());
+    this.catalog =
+        initCatalog(
+            "in-memory-catalog",
+            ImmutableMap.<String, String>builder()
+                .put(
+                    CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1")
+                .put(
+                    CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2")
+                .put(
+                    CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
+                    "catalog-default-key3")
+                .put(
+                    CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
+                    "catalog-override-key3")
+                .put(
+                    CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
+                    "catalog-override-key4")
+                .buildOrThrow());
   }
 
   @Override

@@ -52,6 +52,7 @@ public class TestLocalAliyunOSS {
   private final String bucketName = OSS_TEST_EXTENSION.testBucketName();
   private final Random random = new Random(1);
 
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   private static void assertThrows(Runnable runnable, String expectedErrorCode) {
     assertThatThrownBy(runnable::run)
         .isInstanceOf(OSSException.class)

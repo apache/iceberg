@@ -66,7 +66,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
             table.currentSnapshot().sequenceNumber(),
             tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     PartitionStatisticsFile partitionStatisticsFile =
         writePartitionStatsFile(

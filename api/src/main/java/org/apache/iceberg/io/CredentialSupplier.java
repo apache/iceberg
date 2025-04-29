@@ -25,7 +25,10 @@ package org.apache.iceberg.io;
  * needed to access the table's files. Systems that do not use FileIO can use this interface to get
  * the configured credential as a string, and use the credential for file access via other IO
  * libraries.
+ *
+ * @deprecated since 1.10.0, will be removed in 2.0.0
  */
+@Deprecated
 public interface CredentialSupplier {
   /** Returns the credential string */
   String getCredential();

@@ -343,6 +343,22 @@ public class TestSortOrder {
         .hasMessage("Unsupported type for identity: variant");
   }
 
+  @TestTemplate
+  public void testGeospatialUnsupported() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.required(5, "geog", Types.GeographyType.crs84()));
+
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geom").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geometry");
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geog").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geography");
+  }
+
   @Test
   public void testUnknownSupported() {
     int fieldId = 22;

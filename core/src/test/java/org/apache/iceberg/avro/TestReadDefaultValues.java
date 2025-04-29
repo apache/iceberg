@@ -28,6 +28,8 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -94,7 +96,7 @@ public class TestReadDefaultValues {
               Types.NestedField.optional("defaulted")
                   .withId(1000)
                   .ofType(type)
-                  .withInitialDefault(defaultValue)
+                  .withInitialDefault(Expressions.lit(defaultValue))
                   .build());
 
       Record expectedRecord = new Record(AvroSchemaUtil.convert(readerSchema.asStruct()));
@@ -119,7 +121,7 @@ public class TestReadDefaultValues {
     for (Object[] typeAndDefault : TYPES_WITH_DEFAULTS) {
       Type type = (Type) typeAndDefault[0];
       String defaultValueJson = (String) typeAndDefault[1];
-      Object defaultValue = SingleValueParser.fromJson(type, defaultValueJson);
+      Literal<?> defaultValue = Expressions.lit(SingleValueParser.fromJson(type, defaultValueJson));
 
       Schema readerSchema =
           new Schema(

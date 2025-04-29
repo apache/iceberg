@@ -43,8 +43,10 @@ public interface HTTPRequest {
 
   /**
    * Returns the base URI configured at the REST client level. The base URI is used to construct the
-   * full {@link #requestUri()}.
+   * full {@link #requestUri()}. May be null if the REST client does not have a base URI and the
+   * path is an absolute URI.
    */
+  @Nullable
   URI baseUri();
 
   /**
@@ -53,13 +55,17 @@ public interface HTTPRequest {
    */
   @Value.Lazy
   default URI requestUri() {
-    // if full path is provided, use the input path as path
-    String fullPath =
-        (path().startsWith("https://") || path().startsWith("http://"))
-            ? path()
-            : String.format("%s/%s", baseUri(), path());
+    String fullPath;
+    if (hasAbsolutePath()) {
+      // if path is an absolute URI, use it as is
+      fullPath = path();
+    } else {
+      String baseUri = RESTUtil.stripTrailingSlash(baseUri().toString());
+      fullPath = RESTUtil.stripTrailingSlash(String.format("%s/%s", baseUri, path()));
+    }
+
     try {
-      URIBuilder builder = new URIBuilder(RESTUtil.stripTrailingSlash(fullPath));
+      URIBuilder builder = new URIBuilder(fullPath);
       queryParameters().forEach(builder::addParameter);
       return builder.build();
     } catch (URISyntaxException e) {
@@ -122,5 +128,14 @@ public interface HTTPRequest {
           "Received a malformed path for a REST request: %s. Paths should not start with /",
           path());
     }
+
+    if (baseUri() == null && !hasAbsolutePath()) {
+      throw new RESTException(
+          "Received a request with a relative path and no base URI: %s", path());
+    }
+  }
+
+  private boolean hasAbsolutePath() {
+    return path().startsWith("https://") || path().startsWith("http://");
   }
 }

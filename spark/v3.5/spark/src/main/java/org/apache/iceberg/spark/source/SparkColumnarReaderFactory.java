@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -27,11 +29,17 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
-  private final int batchSize;
+  private final ParquetBatchReadConf parquetConf;
+  private final OrcBatchReadConf orcConf;
 
-  SparkColumnarReaderFactory(int batchSize) {
-    Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
-    this.batchSize = batchSize;
+  SparkColumnarReaderFactory(ParquetBatchReadConf conf) {
+    this.parquetConf = conf;
+    this.orcConf = null;
+  }
+
+  SparkColumnarReaderFactory(OrcBatchReadConf conf) {
+    this.orcConf = conf;
+    this.parquetConf = null;
   }
 
   @Override
@@ -49,8 +57,7 @@ class SparkColumnarReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new BatchDataReader(partition, batchSize);
-
+      return new BatchDataReader(partition, parquetConf, orcConf);
     } else {
       throw new UnsupportedOperationException(
           "Unsupported task group for columnar reads: " + partition.taskGroup());

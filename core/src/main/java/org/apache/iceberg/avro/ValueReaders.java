@@ -49,6 +49,9 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class ValueReaders {
   private ValueReaders() {}
@@ -139,6 +142,10 @@ public class ValueReaders {
         throw new IllegalArgumentException(
             "Invalid primitive type for decimal: " + schema.getType());
     }
+  }
+
+  public static ValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
@@ -650,6 +657,34 @@ public class ValueReaders {
     @Override
     public void skip(Decoder decoder) throws IOException {
       bytesReader.skip(decoder);
+    }
+  }
+
+  private static class VariantReader implements ValueReader<Variant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
+    private final ValueReader<ByteBuffer> metadataReader;
+    private final ValueReader<ByteBuffer> valueReader;
+
+    private VariantReader() {
+      this.metadataReader = ByteBufferReader.INSTANCE;
+      this.valueReader = ByteBufferReader.INSTANCE;
+    }
+
+    @Override
+    public Variant read(Decoder decoder, Object reuse) throws IOException {
+      VariantMetadata metadata =
+          VariantMetadata.from(metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata, metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
+      return Variant.of(metadata, value);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      metadataReader.skip(decoder);
+      valueReader.skip(decoder);
     }
   }
 

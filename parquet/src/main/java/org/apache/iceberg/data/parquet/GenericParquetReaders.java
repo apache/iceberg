@@ -35,9 +35,12 @@ import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
@@ -56,10 +59,82 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
-  @Override
+  /**
+   * Create a struct reader.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createStructReader(List, StructType)}
+   *     instead.
+   */
+  @Deprecated
   protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return ParquetValueReaders.recordReader(fieldReaders, structType);
+  }
+
+  @Override
+  protected ParquetValueReader<Record> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+    return ParquetValueReaders.recordReader(fieldReaders, structType);
+  }
+
+  @Override
+  protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.FixedReader(desc);
+  }
+
+  @Override
+  protected ParquetValueReader<?> dateReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.DateReader(desc);
+  }
+
+  @Override
+  protected ParquetValueReader<?> timeReader(ColumnDescriptor desc) {
+    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        time instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation,
+        "Invalid time logical type: " + time);
+
+    LogicalTypeAnnotation.TimeUnit unit =
+        ((LogicalTypeAnnotation.TimeLogicalTypeAnnotation) time).getUnit();
+    switch (unit) {
+      case MICROS:
+        return new GenericParquetReaders.TimeReader(desc);
+      case MILLIS:
+        return new GenericParquetReaders.TimeMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
+    }
+  }
+
+  @Override
+  protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return new GenericParquetReaders.TimestampInt96Reader(desc);
+    }
+
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    LogicalTypeAnnotation.TimeUnit unit =
+        ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) timestamp).getUnit();
+    switch (unit) {
+      case NANOS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzReader(desc, ChronoUnit.NANOS)
+            : new GenericParquetReaders.TimestampReader(desc, ChronoUnit.NANOS);
+      case MICROS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzReader(desc, ChronoUnit.MICROS)
+            : new GenericParquetReaders.TimestampReader(desc, ChronoUnit.MICROS);
+      case MILLIS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
+            : new GenericParquetReaders.TimestampMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    }
   }
 
   @Override
@@ -70,7 +145,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
+  private static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
     DateReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -81,18 +156,22 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    TimestampReader(ColumnDescriptor desc) {
+  private static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    private final ChronoUnit unit;
+
+    TimestampReader(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public LocalDateTime read(LocalDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
+      return EPOCH.plus(column.nextLong(), unit).toLocalDateTime();
     }
   }
 
-  static class TimestampMillisReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+  private static class TimestampMillisReader
+      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
     TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -103,7 +182,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+  private static class TimestampInt96Reader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
     private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     TimestampInt96Reader(ColumnDescriptor desc) {
@@ -123,18 +203,23 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class TimestamptzReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    TimestamptzReader(ColumnDescriptor desc) {
+  private static class TimestamptzReader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    private final ChronoUnit unit;
+
+    TimestamptzReader(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public OffsetDateTime read(OffsetDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
+      return EPOCH.plus(column.nextLong(), unit);
     }
   }
 
-  static class TimestamptzMillisReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+  private static class TimestamptzMillisReader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
     TimestamptzMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -145,7 +230,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+  private static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
     TimeMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -156,7 +241,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+  private static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
     TimeReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -167,7 +252,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+  private static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
     FixedReader(ColumnDescriptor desc) {
       super(desc);
     }

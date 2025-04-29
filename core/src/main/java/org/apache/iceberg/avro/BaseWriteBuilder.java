@@ -65,6 +65,12 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
   }
 
   @Override
+  public ValueWriter<?> variant(
+      Schema variant, ValueWriter<?> metadataResult, ValueWriter<?> valueResult) {
+    return ValueWriters.variants();
+  }
+
+  @Override
   public ValueWriter<?> primitive(Schema primitive) {
     LogicalType logicalType = primitive.getLogicalType();
     if (logicalType != null) {
@@ -76,6 +82,9 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
           return ValueWriters.longs();
 
         case "timestamp-micros":
+          return ValueWriters.longs();
+
+        case "timestamp-nanos":
           return ValueWriters.longs();
 
         case "decimal":

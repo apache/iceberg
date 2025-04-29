@@ -135,7 +135,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   @Override
   public Distribution requiredDistribution() {
     Distribution distribution = writeRequirements.distribution();
-    LOG.info("Requesting {} as write distribution for table {}", distribution, table.name());
+    LOG.debug("Requesting {} as write distribution for table {}", distribution, table.name());
     return distribution;
   }
 
@@ -147,14 +147,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   @Override
   public SortOrder[] requiredOrdering() {
     SortOrder[] ordering = writeRequirements.ordering();
-    LOG.info("Requesting {} as write ordering for table {}", ordering, table.name());
+    LOG.debug("Requesting {} as write ordering for table {}", ordering, table.name());
     return ordering;
   }
 
   @Override
   public long advisoryPartitionSizeInBytes() {
     long size = writeRequirements.advisoryPartitionSize();
-    LOG.info("Requesting {} bytes advisory partition size for table {}", size, table.name());
+    LOG.debug("Requesting {} bytes advisory partition size for table {}", size, table.name());
     return size;
   }
 

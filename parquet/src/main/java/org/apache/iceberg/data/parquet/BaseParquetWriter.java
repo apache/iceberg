@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.data.parquet;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -32,41 +36,31 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-/**
- * @deprecated since 1.8.0, will be made package-private in 1.9.0
- */
-@Deprecated
-public abstract class BaseParquetWriter<T> {
+abstract class BaseParquetWriter<T> {
+
+  protected ParquetValueWriter<T> createWriter(MessageType type) {
+    return createWriter(null, type);
+  }
 
   @SuppressWarnings("unchecked")
-  protected ParquetValueWriter<T> createWriter(MessageType type) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
+  protected ParquetValueWriter<T> createWriter(Types.StructType struct, MessageType type) {
+    return (ParquetValueWriter<T>)
+        TypeWithSchemaVisitor.visit(struct, type, new WriteBuilder(type));
   }
 
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
-      List<ParquetValueWriter<?>> writers);
+      Types.StructType struct, List<ParquetValueWriter<?>> writers);
 
-  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.FixedWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.DateWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> dateWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.TimeWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> timeWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    if (isAdjustedToUTC) {
-      return new GenericParquetWriter.TimestamptzWriter(desc);
-    } else {
-      return new GenericParquetWriter.TimestampWriter(desc);
-    }
-  }
+  protected abstract ParquetValueWriter<?> timestampWriter(
+      ColumnDescriptor desc, boolean isAdjustedToUTC);
 
-  private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+  private class WriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
     private WriteBuilder(MessageType type) {
@@ -75,14 +69,14 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> message(
-        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+        Types.StructType struct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
 
-      return struct(message.asGroupType(), fieldWriters);
+      return struct(struct, message.asGroupType(), fieldWriters);
     }
 
     @Override
     public ParquetValueWriter<?> struct(
-        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+        Types.StructType iceberg, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       for (int i = 0; i < fields.size(); i += 1) {
@@ -91,11 +85,12 @@ public abstract class BaseParquetWriter<T> {
         writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
-      return createStructWriter(writers);
+      return createStructWriter(iceberg, writers);
     }
 
     @Override
-    public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(
+        Types.ListType iceberg, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -111,7 +106,10 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> map(
-        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
+        Types.MapType iceberg,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -131,7 +129,8 @@ public abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
+    public ParquetValueWriter<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType iceberg, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
       if (logicalType != null) {
@@ -160,6 +159,17 @@ public abstract class BaseParquetWriter<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(
+        Types.VariantType iVariant, GroupType variant, ParquetValueWriter<?> result) {
+      return result;
+    }
+
+    @Override
+    public ParquetVariantVisitor<ParquetValueWriter<?>> variantVisitor() {
+      return new VariantWriterBuilder(type, Arrays.asList(currentPath()));
     }
   }
 
@@ -224,8 +234,8 @@ public abstract class BaseParquetWriter<T> {
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
       Preconditions.checkArgument(
-          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
-          "Cannot write timestamp in %s, only MICROS is supported",
+          !LogicalTypeAnnotation.TimeUnit.MILLIS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS and NANOS are supported",
           timestampType.getUnit());
       return Optional.of(timestampWriter(desc, timestampType.isAdjustedToUTC()));
     }

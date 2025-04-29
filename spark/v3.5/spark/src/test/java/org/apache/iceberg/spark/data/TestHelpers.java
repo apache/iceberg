@@ -79,8 +79,6 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.types.TimestampNTZType;
-import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
@@ -784,11 +782,6 @@ public class TestHelpers {
     for (int i = 0; i < actual.numFields(); i += 1) {
       StructField field = struct.fields()[i];
       DataType type = field.dataType();
-      // ColumnarRow.get doesn't support TimestampNTZType, causing tests to fail. the representation
-      // is identical to TimestampType so this uses that type to validate.
-      if (type instanceof TimestampNTZType) {
-        type = TimestampType$.MODULE$;
-      }
 
       assertEquals(
           context + "." + field.name(),
@@ -899,11 +892,14 @@ public class TestHelpers {
     file.put(3, 0); // specId
   }
 
+  // suppress the readable metrics and first-row-id that are not in manifest files
+  private static final Set<String> DERIVED_FIELDS = Set.of("readable_metrics", "first_row_id");
+
   public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
     StructField[] fields = metadataTable.schema().fields();
     return metadataTable.select(
         Stream.of(fields)
-            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .filter(f -> !DERIVED_FIELDS.contains(f.name()))
             .map(f -> new Column(f.name()))
             .toArray(Column[]::new));
   }

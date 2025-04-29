@@ -27,7 +27,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -49,6 +51,7 @@ import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -66,6 +69,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -540,7 +544,9 @@ public class SparkTableUtil {
 
     try {
       PartitionSpec spec =
-          SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
+          findCompatibleSpec(targetTable, spark, sourceTableIdentWithDB.unquotedString());
+
+      validatePartitionFilter(spec, partitionFilter, targetTable.name());
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(
@@ -750,7 +756,7 @@ public class SparkTableUtil {
         Math.min(
             partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+    MetricsConfig metricsConfig = MetricsConfig.forTable(targetTable);
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
@@ -1083,6 +1089,96 @@ public class SparkTableUtil {
         }
       }
       return service;
+    }
+  }
+
+  /**
+   * Returns the first partition spec in an IcebergTable that shares the same names and ordering as
+   * the partition columns provided. Throws an error if not found
+   */
+  public static PartitionSpec findCompatibleSpec(List<String> partitionNames, Table icebergTable) {
+    List<String> partitionNamesLower =
+        partitionNames.stream()
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toList());
+    for (PartitionSpec icebergSpec : icebergTable.specs().values()) {
+      boolean allIdentity =
+          icebergSpec.fields().stream().allMatch(field -> field.transform().isIdentity());
+      if (allIdentity) {
+        List<String> icebergPartNames =
+            icebergSpec.fields().stream()
+                .map(PartitionField::name)
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toList());
+        if (icebergPartNames.equals(partitionNamesLower)) {
+          return icebergSpec;
+        }
+      }
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot find a partition spec in Iceberg table %s that matches the partition"
+                + " columns (%s) in input table",
+            icebergTable, partitionNames));
+  }
+
+  /**
+   * Returns the first partition spec in an IcebergTable that shares the same names and ordering as
+   * the partition columns in a given Spark Table. Throws an error if not found
+   */
+  private static PartitionSpec findCompatibleSpec(
+      Table icebergTable, SparkSession spark, String sparkTable) throws AnalysisException {
+    List<String> parts = Lists.newArrayList(Splitter.on('.').limit(2).split(sparkTable));
+    String db = parts.size() == 1 ? "default" : parts.get(0);
+    String table = parts.get(parts.size() == 1 ? 0 : 1);
+
+    List<String> sparkPartNames =
+        spark.catalog().listColumns(db, table).collectAsList().stream()
+            .filter(org.apache.spark.sql.catalog.Column::isPartition)
+            .map(org.apache.spark.sql.catalog.Column::name)
+            .collect(Collectors.toList());
+    return findCompatibleSpec(sparkPartNames, icebergTable);
+  }
+
+  public static void validatePartitionFilter(
+      PartitionSpec spec, Map<String, String> partitionFilter, String tableName) {
+    List<PartitionField> partitionFields = spec.fields();
+    Set<String> partitionNames =
+        spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
+
+    boolean tablePartitioned = !partitionFields.isEmpty();
+    boolean partitionFilterPassed = !partitionFilter.isEmpty();
+
+    if (tablePartitioned && partitionFilterPassed) {
+      // Check to see there are sufficient partition columns to satisfy the filter
+      Preconditions.checkArgument(
+          partitionFields.size() >= partitionFilter.size(),
+          "Cannot add data files to target table %s because that table is partitioned, "
+              + "but the number of columns in the provided partition filter (%s) "
+              + "is greater than the number of partitioned columns in table (%s)",
+          tableName,
+          partitionFilter.size(),
+          partitionFields.size());
+
+      // Check for any filters of non-existent columns
+      List<String> unMatchedFilters =
+          partitionFilter.keySet().stream()
+              .filter(filterName -> !partitionNames.contains(filterName))
+              .collect(Collectors.toList());
+      Preconditions.checkArgument(
+          unMatchedFilters.isEmpty(),
+          "Cannot add files to target table %s. %s is partitioned but the specified partition filter "
+              + "refers to columns that are not partitioned: %s . Valid partition columns: [%s]",
+          tableName,
+          tableName,
+          unMatchedFilters,
+          String.join(",", partitionNames));
+    } else {
+      Preconditions.checkArgument(
+          !partitionFilterPassed,
+          "Cannot use partition filter with an unpartitioned table %s",
+          tableName);
     }
   }
 }

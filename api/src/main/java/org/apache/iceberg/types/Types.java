@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.types;
 
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -39,8 +41,8 @@ public class Types {
 
   private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES =
-      ImmutableMap.<String, PrimitiveType>builder()
+  private static final ImmutableMap<String, Type> TYPES =
+      ImmutableMap.<String, Type>builder()
           .put(BooleanType.get().toString(), BooleanType.get())
           .put(IntegerType.get().toString(), IntegerType.get())
           .put(LongType.get().toString(), LongType.get())
@@ -56,16 +58,40 @@ public class Types {
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
+          .put(VariantType.get().toString(), VariantType.get())
+          .put(GeometryType.crs84().toString(), GeometryType.crs84())
+          .put(GeographyType.crs84().toString(), GeographyType.crs84())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("geometry\\s*(?:\\(\\s*([^)]*?)\\s*\\))?", Pattern.CASE_INSENSITIVE);
+  private static final Pattern GEOGRAPHY_PARAMETERS =
+      Pattern.compile(
+          "geography\\s*(?:\\(\\s*([^,]*?)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static PrimitiveType fromPrimitiveString(String typeString) {
+  public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
+    }
+
+    Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString);
+    if (geometry.matches()) {
+      String crs = geometry.group(1);
+      Preconditions.checkArgument(!crs.contains(","), "Invalid CRS: %s", crs);
+      return GeometryType.of(crs);
+    }
+
+    Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString);
+    if (geography.matches()) {
+      String crs = geography.group(1);
+      String algorithmName = geography.group(2);
+      EdgeAlgorithm algorithm =
+          algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName);
+      return GeographyType.of(crs, algorithm);
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -79,6 +105,15 @@ public class Types {
     }
 
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+  }
+
+  public static PrimitiveType fromPrimitiveString(String typeString) {
+    Type type = fromTypeName(typeString);
+    if (type.isPrimitiveType()) {
+      return type.asPrimitiveType();
+    }
+
+    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -431,6 +466,20 @@ public class Types {
     }
 
     @Override
+    public boolean isVariantType() {
+      return true;
+    }
+
+    @Override
+    public VariantType asVariantType() {
+      return this;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new PrimitiveLikeHolder(toString());
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -522,6 +571,135 @@ public class Types {
     }
   }
 
+  public static class GeometryType extends PrimitiveType {
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
+    public static GeometryType crs84() {
+      return new GeometryType();
+    }
+
+    public static GeometryType of(String crs) {
+      return new GeometryType(crs);
+    }
+
+    private final String crs;
+
+    private GeometryType() {
+      crs = null;
+    }
+
+    private GeometryType(String crs) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeometryType)) {
+        return false;
+      }
+
+      GeometryType that = (GeometryType) o;
+      return Objects.equals(crs, that.crs);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeometryType.class, crs);
+    }
+
+    @Override
+    public String toString() {
+      if (crs == null) {
+        return "geometry";
+      }
+
+      return String.format("geometry(%s)", crs);
+    }
+  }
+
+  public static class GeographyType extends PrimitiveType {
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
+    public static GeographyType crs84() {
+      return new GeographyType();
+    }
+
+    public static GeographyType of(String crs) {
+      return new GeographyType(crs, null);
+    }
+
+    public static GeographyType of(String crs, EdgeAlgorithm algorithm) {
+      return new GeographyType(crs, algorithm);
+    }
+
+    private final String crs;
+    private final EdgeAlgorithm algorithm;
+
+    private GeographyType() {
+      this.crs = null;
+      this.algorithm = null;
+    }
+
+    private GeographyType(String crs, EdgeAlgorithm algorithm) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.algorithm = algorithm;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOGRAPHY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    public EdgeAlgorithm algorithm() {
+      return algorithm;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeographyType)) {
+        return false;
+      }
+
+      GeographyType that = (GeographyType) o;
+      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeographyType.class, crs, algorithm);
+    }
+
+    @Override
+    public String toString() {
+      if (algorithm != null) {
+        return String.format("geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm);
+      } else if (crs != null) {
+        return String.format("geography(%s)", crs);
+      } else {
+        return "geography";
+      }
+    }
+  }
+
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
       return new NestedField(true, id, name, type, null, null, null);
@@ -539,10 +717,22 @@ public class Types {
       return new NestedField(false, id, name, type, doc, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
       return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
       return new NestedField(isOptional, id, name, type, doc, null, null);
     }
@@ -559,14 +749,20 @@ public class Types {
       return new Builder(true, name);
     }
 
+    public static Builder builder() {
+      return new Builder();
+    }
+
     public static class Builder {
-      private final boolean isOptional;
-      private final String name;
+      private boolean isOptional = true;
+      private String name = null;
       private Integer id = null;
       private Type type = null;
       private String doc = null;
-      private Object initialDefault = null;
-      private Object writeDefault = null;
+      private Literal<?> initialDefault = null;
+      private Literal<?> writeDefault = null;
+
+      private Builder() {}
 
       private Builder(boolean isFieldOptional, String fieldName) {
         isOptional = isFieldOptional;
@@ -581,6 +777,26 @@ public class Types {
         this.doc = toCopy.doc;
         this.initialDefault = toCopy.initialDefault;
         this.writeDefault = toCopy.writeDefault;
+      }
+
+      public Builder asRequired() {
+        this.isOptional = false;
+        return this;
+      }
+
+      public Builder asOptional() {
+        this.isOptional = true;
+        return this;
+      }
+
+      public Builder isOptional(boolean fieldIsOptional) {
+        this.isOptional = fieldIsOptional;
+        return this;
+      }
+
+      public Builder withName(String fieldName) {
+        this.name = fieldName;
+        return this;
       }
 
       public Builder withId(int fieldId) {
@@ -598,18 +814,39 @@ public class Types {
         return this;
       }
 
+      /**
+       * Set the initial default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withInitialDefault(Object fieldInitialDefault) {
+        return withInitialDefault(Expressions.lit(fieldInitialDefault));
+      }
+
+      public Builder withInitialDefault(Literal<?> fieldInitialDefault) {
         initialDefault = fieldInitialDefault;
         return this;
       }
 
+      /**
+       * Set the write default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withWriteDefault(Object fieldWriteDefault) {
+        return withWriteDefault(Expressions.lit(fieldWriteDefault));
+      }
+
+      public Builder withWriteDefault(Literal<?> fieldWriteDefault) {
         writeDefault = fieldWriteDefault;
         return this;
       }
 
       public NestedField build() {
-        // the constructor validates the fields
+        Preconditions.checkNotNull(id, "Id cannot be null");
+        // the constructor validates the other fields
         return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
       }
     }
@@ -619,8 +856,8 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
-    private final Object initialDefault;
-    private final Object writeDefault;
+    private final Literal<?> initialDefault;
+    private final Literal<?> writeDefault;
 
     private NestedField(
         boolean isOptional,
@@ -628,10 +865,14 @@ public class Types {
         String name,
         Type type,
         String doc,
-        Object initialDefault,
-        Object writeDefault) {
+        Literal<?> initialDefault,
+        Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
+      Preconditions.checkArgument(
+          isOptional || !type.equals(UnknownType.get()),
+          "Cannot create required field with unknown type: %s",
+          name);
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
@@ -641,12 +882,15 @@ public class Types {
       this.writeDefault = castDefault(writeDefault, type);
     }
 
-    private static Object castDefault(Object defaultValue, Type type) {
+    private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
       if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return Expressions.lit(defaultValue).to(type).value();
+        Literal<?> typedDefault = defaultValue.to(type);
+        Preconditions.checkArgument(
+            typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+        return typedDefault;
       }
 
       return null;
@@ -698,12 +942,20 @@ public class Types {
       return doc;
     }
 
-    public Object initialDefault() {
+    public Literal<?> initialDefaultLiteral() {
       return initialDefault;
     }
 
-    public Object writeDefault() {
+    public Object initialDefault() {
+      return initialDefault != null ? initialDefault.value() : null;
+    }
+
+    public Literal<?> writeDefaultLiteral() {
       return writeDefault;
+    }
+
+    public Object writeDefault() {
+      return writeDefault != null ? writeDefault.value() : null;
     }
 
     @Override

@@ -23,14 +23,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -43,35 +40,28 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.io.CloseMode;
-import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.IcebergBuild;
-import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** An HttpClient for usage with the REST catalog. */
-public class HTTPClient implements RESTClient {
+public class HTTPClient extends BaseHTTPClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(HTTPClient.class);
-  private static final String SIGV4_ENABLED = "rest.sigv4-enabled";
-  private static final String SIGV4_REQUEST_INTERCEPTOR_IMPL =
-      "org.apache.iceberg.aws.RESTSigV4Signer";
   @VisibleForTesting static final String CLIENT_VERSION_HEADER = "X-Client-Version";
 
   @VisibleForTesting
@@ -88,36 +78,30 @@ public class HTTPClient implements RESTClient {
 
   @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
 
-  private final String uri;
+  private final URI baseUri;
   private final CloseableHttpClient httpClient;
+  private final Map<String, String> baseHeaders;
   private final ObjectMapper mapper;
+  private final AuthSession authSession;
+  private final boolean isRootClient;
 
   private HTTPClient(
-      String uri,
+      URI baseUri,
       HttpHost proxy,
       CredentialsProvider proxyCredsProvider,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
-      HttpRequestInterceptor requestInterceptor,
       Map<String, String> properties,
-      HttpClientConnectionManager connectionManager) {
-    this.uri = uri;
+      HttpClientConnectionManager connectionManager,
+      AuthSession session) {
+    this.baseUri = baseUri;
+    this.baseHeaders = baseHeaders;
     this.mapper = objectMapper;
+    this.authSession = session;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
 
     clientBuilder.setConnectionManager(connectionManager);
-
-    if (baseHeaders != null) {
-      clientBuilder.setDefaultHeaders(
-          baseHeaders.entrySet().stream()
-              .map(e -> new BasicHeader(e.getKey(), e.getValue()))
-              .collect(Collectors.toList()));
-    }
-
-    if (requestInterceptor != null) {
-      clientBuilder.addRequestInterceptorLast(requestInterceptor);
-    }
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
@@ -131,6 +115,27 @@ public class HTTPClient implements RESTClient {
     }
 
     this.httpClient = clientBuilder.build();
+    this.isRootClient = true;
+  }
+
+  /**
+   * Constructor for creating a child HTTPClient associated with an AuthSession. The returned child
+   * shares the same base uri, mapper, and HTTP client as the parent, thus not requiring any
+   * additional resource allocation.
+   */
+  private HTTPClient(HTTPClient parent, AuthSession authSession) {
+    this.baseUri = parent.baseUri;
+    this.httpClient = parent.httpClient;
+    this.mapper = parent.mapper;
+    this.baseHeaders = parent.baseHeaders;
+    this.authSession = authSession;
+    this.isRootClient = false;
+  }
+
+  @Override
+  public HTTPClient withAuthSession(AuthSession session) {
+    Preconditions.checkNotNull(session, "Invalid auth session: null");
+    return new HTTPClient(this, session);
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
@@ -146,7 +151,6 @@ public class HTTPClient implements RESTClient {
     }
   }
 
-  // Per the spec, the only currently defined / used "success" responses are 200 and 202.
   private static boolean isSuccessful(CloseableHttpResponse response) {
     int code = response.getCode();
     return code == HttpStatus.SC_OK
@@ -214,92 +218,64 @@ public class HTTPClient implements RESTClient {
     throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
-  private URI buildUri(String path, Map<String, String> params) {
-    // if full path is provided, use the input path as path
-    if (path.startsWith("/")) {
-      throw new RESTException(
-          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
-    }
-    String fullPath =
-        (path.startsWith("https://") || path.startsWith("http://"))
-            ? path
-            : String.format("%s/%s", uri, path);
-    try {
-      URIBuilder builder = new URIBuilder(fullPath);
-      if (params != null) {
-        params.forEach(builder::addParameter);
-      }
-      return builder.build();
-    } catch (URISyntaxException e) {
-      throw new RESTException(
-          "Failed to create request URI from base %s, params %s", fullPath, params);
-    }
-  }
-
-  /**
-   * Method to execute an HTTP request and process the corresponding response.
-   *
-   * @param method - HTTP method, such as GET, POST, HEAD, etc.
-   * @param queryParams - A map of query parameters
-   * @param path - URI to send the request to
-   * @param requestBody - Content to place in the request body
-   * @param responseType - Class of the Response type. Needs to have serializer registered with
-   *     ObjectMapper
-   * @param errorHandler - Error handler delegated for HTTP responses which handles server error
-   *     responses
-   * @param <T> - Class type of the response for deserialization. Must be registered with the
-   *     ObjectMapper.
-   * @return The response entity, parsed and converted to its type T
-   */
-  private <T> T execute(
-      Method method,
+  @Override
+  protected HTTPRequest buildRequest(
+      HTTPMethod method,
       String path,
       Map<String, String> queryParams,
-      Object requestBody,
-      Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(
-        method, path, queryParams, requestBody, responseType, headers, errorHandler, h -> {});
+      Object body) {
+
+    ImmutableHTTPRequest.Builder builder =
+        ImmutableHTTPRequest.builder()
+            .baseUri(baseUri)
+            .mapper(mapper)
+            .method(method)
+            .path(path)
+            .body(body)
+            .queryParameters(queryParams == null ? Map.of() : queryParams);
+
+    Map<String, String> allHeaders = Maps.newLinkedHashMap();
+    if (headers != null) {
+      allHeaders.putAll(headers);
+    }
+
+    allHeaders.putIfAbsent(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
+
+    // Many systems require that content type is set regardless and will fail,
+    // even on an empty bodied request.
+    // Encode maps as form data (application/x-www-form-urlencoded),
+    // and other requests are assumed to contain JSON bodies (application/json).
+    ContentType mimeType =
+        body instanceof Map
+            ? ContentType.APPLICATION_FORM_URLENCODED
+            : ContentType.APPLICATION_JSON;
+    allHeaders.putIfAbsent(HttpHeaders.CONTENT_TYPE, mimeType.getMimeType());
+
+    // Apply base headers now to mimic the behavior of
+    // org.apache.hc.client5.http.protocol.RequestDefaultHeaders
+    // We want these headers applied *before* the AuthSession authenticates the request.
+    if (baseHeaders != null) {
+      baseHeaders.forEach(allHeaders::putIfAbsent);
+    }
+
+    Preconditions.checkState(authSession != null, "Invalid auth session: null");
+    return authSession.authenticate(builder.headers(HTTPHeaders.of(allHeaders)).build());
   }
 
-  /**
-   * Method to execute an HTTP request and process the corresponding response.
-   *
-   * @param method - HTTP method, such as GET, POST, HEAD, etc.
-   * @param queryParams - A map of query parameters
-   * @param path - URL to send the request to
-   * @param requestBody - Content to place in the request body
-   * @param responseType - Class of the Response type. Needs to have serializer registered with
-   *     ObjectMapper
-   * @param errorHandler - Error handler delegated for HTTP responses which handles server error
-   *     responses
-   * @param responseHeaders The consumer of the response headers
-   * @param <T> - Class type of the response for deserialization. Must be registered with the
-   *     ObjectMapper.
-   * @return The response entity, parsed and converted to its type T
-   */
-  private <T> T execute(
-      Method method,
-      String path,
-      Map<String, String> queryParams,
-      Object requestBody,
+  @Override
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest req,
       Class<T> responseType,
-      Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
+    HttpUriRequestBase request = new HttpUriRequestBase(req.method().name(), req.requestUri());
 
-    if (requestBody instanceof Map) {
-      // encode maps as form data, application/x-www-form-urlencoded
-      addRequestHeaders(request, headers, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
-      request.setEntity(toFormEncoding((Map<?, ?>) requestBody));
-    } else if (requestBody != null) {
-      // other request bodies are serialized as JSON, application/json
-      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
-      request.setEntity(toJson(requestBody));
-    } else {
-      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
+    req.headers().entries().forEach(e -> request.addHeader(e.name(), e.value()));
+
+    String encodedBody = req.encodedBody();
+    if (encodedBody != null) {
+      request.setEntity(new StringEntity(encodedBody));
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -326,7 +302,7 @@ public class HTTPClient implements RESTClient {
       if (responseBody == null) {
         throw new RESTException(
             "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
-            responseType.getSimpleName(), method.name(), path, response.getCode());
+            responseType.getSimpleName(), req.method(), req.path(), response.getCode());
       }
 
       try {
@@ -339,123 +315,17 @@ public class HTTPClient implements RESTClient {
             responseType.getSimpleName());
       }
     } catch (IOException e) {
-      throw new RESTException(e, "Error occurred while processing %s request", method);
+      throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
-  }
-
-  @Override
-  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, null, headers, errorHandler);
-  }
-
-  @Override
-  public <T extends RESTResponse> T get(
-      String path,
-      Map<String, String> queryParams,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
-  }
-
-  @Override
-  public <T extends RESTResponse> T post(
-      String path,
-      RESTRequest body,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
-  }
-
-  @Override
-  public <T extends RESTResponse> T post(
-      String path,
-      RESTRequest body,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler,
-      Consumer<Map<String, String>> responseHeaders) {
-    return execute(
-        Method.POST, path, null, body, responseType, headers, errorHandler, responseHeaders);
-  }
-
-  @Override
-  public <T extends RESTResponse> T delete(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
-  }
-
-  @Override
-  public <T extends RESTResponse> T delete(
-      String path,
-      Map<String, String> queryParams,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, queryParams, null, responseType, headers, errorHandler);
-  }
-
-  @Override
-  public <T extends RESTResponse> T postForm(
-      String path,
-      Map<String, String> formData,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
-  }
-
-  private void addRequestHeaders(
-      HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
-    request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
-    // Many systems require that content type is set regardless and will fail, even on an empty
-    // bodied request.
-    request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
-    requestHeaders.forEach(request::setHeader);
   }
 
   @Override
   public void close() throws IOException {
-    httpClient.close(CloseMode.GRACEFUL);
-  }
-
-  @VisibleForTesting
-  static HttpRequestInterceptor loadInterceptorDynamically(
-      String impl, Map<String, String> properties) {
-    HttpRequestInterceptor instance;
-
-    DynConstructors.Ctor<HttpRequestInterceptor> ctor;
-    try {
-      ctor =
-          DynConstructors.builder(HttpRequestInterceptor.class)
-              .loader(HTTPClient.class.getClassLoader())
-              .impl(impl)
-              .buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize RequestInterceptor, missing no-arg constructor: %s", impl),
-          e);
+    // Do not close the AuthSession as it's managed by the owner of this HTTPClient.
+    // Only close the underlying Apache HTTP client if this is a root HTTPClient.
+    if (isRootClient) {
+      httpClient.close(CloseMode.GRACEFUL);
     }
-
-    try {
-      instance = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize, %s does not implement RequestInterceptor", impl), e);
-    }
-
-    DynMethods.builder("initialize")
-        .hiddenImpl(impl, Map.class)
-        .orNoop()
-        .build(instance)
-        .invoke(properties);
-
-    return instance;
   }
 
   static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
@@ -510,18 +380,29 @@ public class HTTPClient implements RESTClient {
   public static class Builder {
     private final Map<String, String> properties;
     private final Map<String, String> baseHeaders = Maps.newHashMap();
-    private String uri;
+    private URI uri;
     private ObjectMapper mapper = RESTObjectMapper.mapper();
     private HttpHost proxy;
     private CredentialsProvider proxyCredentialsProvider;
+    private AuthSession authSession;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
     }
 
-    public Builder uri(String path) {
-      Preconditions.checkNotNull(path, "Invalid uri for http client: null");
-      this.uri = RESTUtil.stripTrailingSlash(path);
+    public Builder uri(String baseUri) {
+      Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
+      try {
+        this.uri = URI.create(RESTUtil.stripTrailingSlash(baseUri));
+      } catch (IllegalArgumentException e) {
+        throw new RESTException(e, "Failed to create request URI from base %s", baseUri);
+      }
+      return this;
+    }
+
+    public Builder uri(URI baseUri) {
+      Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
+      this.uri = baseUri;
       return this;
     }
 
@@ -553,15 +434,14 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
+    public Builder withAuthSession(AuthSession session) {
+      this.authSession = session;
+      return this;
+    }
+
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
-
-      HttpRequestInterceptor interceptor = null;
-
-      if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
-        interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
-      }
 
       if (this.proxyCredentialsProvider != null) {
         Preconditions.checkNotNull(
@@ -574,21 +454,9 @@ public class HTTPClient implements RESTClient {
           proxyCredentialsProvider,
           baseHeaders,
           mapper,
-          interceptor,
           properties,
-          configureConnectionManager(properties));
+          configureConnectionManager(properties),
+          authSession);
     }
-  }
-
-  private StringEntity toJson(Object requestBody) {
-    try {
-      return new StringEntity(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8);
-    } catch (JsonProcessingException e) {
-      throw new RESTException(e, "Failed to write request body: %s", requestBody);
-    }
-  }
-
-  private StringEntity toFormEncoding(Map<?, ?> formData) {
-    return new StringEntity(RESTUtil.encodeFormData(formData), StandardCharsets.UTF_8);
   }
 }

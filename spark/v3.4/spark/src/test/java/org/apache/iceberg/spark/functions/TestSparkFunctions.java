@@ -24,7 +24,7 @@ import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DecimalType;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkFunctions {
 

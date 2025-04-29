@@ -189,6 +189,40 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateTableLikeInDiffIcebergCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    String catalog2 = catalogName + "2";
+    sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
+    sql("CREATE DATABASE %s", catalog2 + ".testdb");
+    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+
+    CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+
+    dropCatalog(catalog2, true);
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
+
+    CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
+    Map<String, String> options = catalogTable.getOptions();
+    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
+        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .isEqualTo(srcCatalogProps);
+  }
+
+  @TestTemplate
   public void testCreateTableLocation() {
     assumeThat(isHadoopCatalog)
         .as("HadoopCatalog does not support creating table with location")
@@ -339,11 +373,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                         3, "col1", Types.StringType.get(), "comment for col1"),
                     Types.NestedField.optional(4, "col2", Types.LongType.get()))
                 .asStruct());
-    // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
-    // incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
 
     // Adding an existing field should fail due to Flink's internal validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
@@ -432,6 +461,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot change column type: dt: string -> int");
   }
@@ -446,12 +476,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(1, "id", Types.IntegerType.get()),
                     Types.NestedField.optional(2, "dt", Types.StringType.get()))
                 .asStruct());
-    // Changing nullability from optional to required should fail
-    // because Iceberg's SchemaUpdate does not allow incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
-        .isInstanceOf(TableException.class)
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Cannot change column nullability: dt: optional -> required");
 
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
@@ -568,6 +592,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
@@ -575,12 +600,14 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
     // Dropping constraints is not supported yet
     assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(UnsupportedOperationException.class)
         .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }
@@ -660,10 +687,12 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
+    return catalogTable(getTableEnv().getCurrentCatalog(), DATABASE, name);
+  }
+
+  private CatalogTable catalogTable(String catalog, String database, String table)
+      throws TableNotExistException {
     return (CatalogTable)
-        getTableEnv()
-            .getCatalog(getTableEnv().getCurrentCatalog())
-            .get()
-            .getTable(new ObjectPath(DATABASE, name));
+        getTableEnv().getCatalog(catalog).get().getTable(new ObjectPath(database, table));
   }
 }

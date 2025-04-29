@@ -24,7 +24,7 @@ import java.util.List;
 public interface UpdatePartitionStatistics extends PendingUpdate<List<PartitionStatisticsFile>> {
   /**
    * Set the table's partition statistics file for given snapshot, replacing the previous partition
-   * statistics file for the snapshot if any exists.
+   * statistics file for the snapshot if any exists. No-op if the provided file is null.
    *
    * @return this for method chaining
    */

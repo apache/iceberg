@@ -131,7 +131,12 @@ public class ManifestFiles {
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
-        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
+        file,
+        manifest.partitionSpecId(),
+        specsById,
+        inheritableMetadata,
+        manifest.firstRowId(),
+        FileType.DATA_FILES);
   }
 
   /**
@@ -177,13 +182,32 @@ public class ManifestFiles {
       PartitionSpec spec,
       EncryptedOutputFile encryptedOutputFile,
       Long snapshotId) {
+    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null);
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
       case 2:
         return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
       case 3:
-        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -297,11 +321,14 @@ public class ManifestFiles {
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder) {
     // use metadata that will add the current snapshot's ID for the rewrite
+    // read first_row_id as null because this copies the incoming manifest before commit
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(
+            toCopy, specId, specsById, inheritableMetadata, null, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
+          null, // do not produce row IDs
           reader,
           outputFile,
           snapshotId,
@@ -315,6 +342,7 @@ public class ManifestFiles {
   static ManifestFile copyRewriteManifest(
       int formatVersion,
       int specId,
+      Long firstRowId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
@@ -324,9 +352,11 @@ public class ManifestFiles {
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(
+            toCopy, specId, specsById, inheritableMetadata, firstRowId, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
+          firstRowId,
           reader,
           outputFile,
           snapshotId,
@@ -340,12 +370,14 @@ public class ManifestFiles {
   @SuppressWarnings("Finally")
   private static ManifestFile copyManifestInternal(
       int formatVersion,
+      Long firstRowId,
       ManifestReader<DataFile> reader,
       EncryptedOutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
       ManifestEntry.Status allowedEntryStatus) {
-    ManifestWriter<DataFile> writer = write(formatVersion, reader.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer =
+        newWriter(formatVersion, reader.spec(), outputFile, snapshotId, firstRowId);
     boolean threw = true;
     try {
       for (ManifestEntry<DataFile> entry : reader.entries()) {

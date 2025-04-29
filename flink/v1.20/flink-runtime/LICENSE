@@ -267,14 +267,6 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Slice.
-
-Copyright: 2013-2020 Slice authors.
-Home page: https://github.com/airlift/slice
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This binary artifact contains JetBrains annotations.
 
 Copyright: 2000-2020 JetBrains s.r.o.
@@ -336,49 +328,10 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Animal Sniffer Annotations.
-
-Copyright: 2009-2018 codehaus.org
-Home page: https://www.mojohaus.org/animal-sniffer/animal-sniffer-annotations/
-License: https://www.mojohaus.org/animal-sniffer/animal-sniffer-annotations/license.html (MIT license)
-
-License text:
-| The MIT License
-|
-| Copyright (c) 2009 codehaus.org.
-|
-| Permission is hereby granted, free of charge, to any person obtaining a copy
-| of this software and associated documentation files (the "Software"), to deal
-| in the Software without restriction, including without limitation the rights
-| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-| copies of the Software, and to permit persons to whom the Software is
-| furnished to do so, subject to the following conditions:
-|
-| The above copyright notice and this permission notice shall be included in
-| all copies or substantial portions of the Software.
-|
-| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-| THE SOFTWARE.
-
---------------------------------------------------------------------------------
-
 This binary artifact contains Caffeine by Ben Manes.
 
 Copyright: 2014-2020 Ben Manes and contributors
 Home page: https://github.com/ben-manes/caffeine
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Apache Yetus audience annotations.
-
-Copyright: 2008-2020 The Apache Software Foundation.
-Home page: https://yetus.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -464,14 +417,11 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Project Nessie with the following in its NOTICE
-file:
+This binary artifact contains Project Nessie.
 
-| Dremio
-| Copyright 2015-2017 Dremio Corporation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
+Copyright: Copyright 2015-2025 Dremio Corporation
+Home page: https://projectnessie.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -508,3 +458,63 @@ This binary artifact contains failsafe.
 Copyright: Jonathan Halterman and friends
 Home page: https://failsafe.dev/
 License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Codehale Metrics.
+
+Copyright: (c) 2010-2013 Coda Hale, Yammer.com, 2014-2021 Dropwizard Team
+Home page: https://github.com/dropwizard/metrics
+License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains RoaringBitmap.
+
+Copyright: (c) 2013-... the RoaringBitmap authors
+Home page: https://github.com/RoaringBitmap/RoaringBitmap
+License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Eclipse Microprofile OpenAPI.
+
+Copyright: Copyright (c) 2017 Contributors to the Eclipse Foundation
+Home page: https://github.com/microprofile/microprofile-open-api
+License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Luben Zstd.
+
+Copyright: Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
+Home page: https://github.com/luben/zstd-jni/
+License: BSD-2 License
+License text:
+
+| Zstd-jni: JNI bindings to Zstd Library
+| 
+| Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
+| 
+| BSD License
+| 
+| Redistribution and use in source and binary forms, with or without modification,
+| are permitted provided that the following conditions are met:
+| 
+| * Redistributions of source code must retain the above copyright notice, this
+|   list of conditions and the following disclaimer.
+| 
+| * Redistributions in binary form must reproduce the above copyright notice, this
+|   list of conditions and the following disclaimer in the documentation and/or
+|   other materials provided with the distribution.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+| ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+| WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+| DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+| ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+| (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+| LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+| ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
