@@ -338,7 +338,7 @@ Note: Update the site name from `docs/latest` to `docs/1.8.0` in the copied `mkd
 
 Navigate to the source tarball and generate Javadoc:
 
-Note: Make sure that JDK version with Gradle is 17 or above.
+Note: When generating Javadoc, make sure to use JDK 17+.
 
 ```
 cd apache-iceberg-1.8.0
