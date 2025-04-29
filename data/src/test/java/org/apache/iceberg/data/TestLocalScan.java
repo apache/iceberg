@@ -264,40 +264,16 @@ public class TestLocalScan {
 
     append.commit();
 
-    RecordComparator comparator = new RecordComparator();
+    Comparator<Record> recordComparator =
+        Comparator.comparing((Record r) -> r.get(0, Long.class))
+            .thenComparing(
+                (Record r) -> r.get(1, String.class), Comparator.nullsFirst(String::compareTo));
     List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
 
-    expected.sort(comparator);
-    records.sort(comparator);
+    expected.sort(recordComparator);
+    records.sort(recordComparator);
     assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Random record set should match").isEqualTo(expected);
-  }
-
-  private static class RecordComparator implements Comparator<Record> {
-    @Override
-    public int compare(Record r1, Record r2) {
-      // Compare by ID (never null)
-      int idCmp = Long.compare(r1.get(0, Long.class), r2.get(0, Long.class));
-      if (idCmp != 0) {
-        return idCmp;
-      }
-
-      // Compare by data, nulls first
-      String dataFirst = r1.get(1, String.class);
-      String dataSecond = r2.get(1, String.class);
-
-      if (dataFirst == null && dataSecond == null) {
-        return 0;
-      }
-      if (dataFirst == null) {
-        return -1;
-      }
-      if (dataSecond == null) {
-        return 1;
-      }
-
-      return dataFirst.compareTo(dataSecond);
-    }
   }
 
   @TestTemplate

@@ -37,6 +37,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -51,13 +52,6 @@ public class RandomGenericData {
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     return Lists.newArrayList(
         generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
-  }
-
-  public static List<Record> generate(
-      Schema schema, int numRecords, long seed, float nullPercentage) {
-    return Lists.newArrayList(
-        generateIcebergGenerics(
-            schema, numRecords, () -> new RandomRecordGenerator(seed, nullPercentage)));
   }
 
   public static Iterable<Record> generateFallbackRecords(
@@ -187,6 +181,9 @@ public class RandomGenericData {
     }
 
     protected RandomDataGenerator(long seed, float nullPercentage) {
+      Preconditions.checkArgument(
+          0.0f <= nullPercentage && nullPercentage <= 1.0f,
+          "Percentage needs to be in the range (0.0, 1.0)");
       this.random = new Random(seed);
       this.nullPercentage = nullPercentage;
     }

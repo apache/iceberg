@@ -77,24 +77,7 @@ public class GenericsHelpers {
     for (int rowId = 0; rowId < batch.numRows(); rowId++) {
       InternalRow row = batch.getRow(rowId);
       Record expectedRecord = expectedRecords.next();
-      Types.StructType expectedRecordType = expectedRecord.struct();
-      List<Types.NestedField> fields = struct.fields();
-
-      for (int readPos = 0; readPos < fields.size(); readPos += 1) {
-        Types.NestedField field = fields.get(readPos);
-        Types.NestedField expectedField = expectedRecordType.field(field.fieldId());
-        Object expectedValue;
-        Object actualValue = row.isNullAt(readPos) ? null : row.get(readPos, convert(field.type()));
-        if (expectedField != null) {
-          expectedValue = expectedRecord.getField(expectedField.name());
-          assertEqualsUnsafe(field.type(), expectedValue, actualValue);
-        } else {
-          assertEqualsUnsafe(
-              field.type(),
-              GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
-              actualValue);
-        }
-      }
+      assertEqualsUnsafe(struct, expectedRecord, row);
     }
   }
 

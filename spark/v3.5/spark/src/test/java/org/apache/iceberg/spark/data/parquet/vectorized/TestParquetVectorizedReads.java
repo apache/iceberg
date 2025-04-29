@@ -143,17 +143,17 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   FileAppender<Record> getParquetWriter(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .named("test")
         .createWriterFunc(GenericParquetWriter::create)
+        .named("test")
         .build();
   }
 
   FileAppender<Record> getParquetV2Writer(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
         .named("test")
         .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
-        .createWriterFunc(GenericParquetWriter::create)
         .build();
   }
 

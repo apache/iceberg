@@ -59,9 +59,9 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
   FileAppender<Record> getParquetWriter(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
         .named("test")
         .set(TableProperties.PARQUET_DICT_SIZE_BYTES, "512000")
-        .createWriterFunc(GenericParquetWriter::create)
         .build();
   }
 

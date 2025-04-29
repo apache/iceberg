@@ -248,6 +248,9 @@ public class RandomData {
     }
 
     private SparkRandomDataGenerator(long seed, float nullPercentage) {
+      Preconditions.checkArgument(
+          0.0f <= nullPercentage && nullPercentage <= 1.0f,
+          "Percentage needs to be in the range (0.0, 1.0)");
       this.random = new Random(seed);
       this.nullPercentage = nullPercentage;
     }
