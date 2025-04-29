@@ -1923,7 +1923,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteMaxFilesOptionSinglePartition() {
+  public void testMaxFilesGreaterThanFileCount() {
     Table table = createTablePartitioned(1, 7);
     shouldHaveFiles(table, 7);
     Result result =
@@ -1934,6 +1934,26 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.refresh();
     int filesReWritten = result.rewrittenDataFilesCount();
     assertThat(filesReWritten).isEqualTo(7);
+  }
+
+  @TestTemplate
+  public void textMaxFilesRewriteToOnlyTruncateNeededPartitions() {
+    Table table = createTablePartitioned(2, 7);
+    shouldHaveFiles(table, 14);
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    List<Integer> rewrittenFilesPerPartition =
+        result.rewriteResults().stream()
+            .map(RewriteDataFiles.FileGroupRewriteResult::rewrittenDataFilesCount)
+            .sorted()
+            .collect(Collectors.toList());
+    assertThat(rewrittenFilesPerPartition).isEqualTo(Arrays.asList(3, 7));
+    assertThat(filesReWritten).isEqualTo(filesReWritten);
   }
 
   @TestTemplate

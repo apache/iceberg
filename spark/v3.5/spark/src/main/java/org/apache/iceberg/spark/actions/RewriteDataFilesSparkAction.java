@@ -366,11 +366,11 @@ public class RewriteDataFilesSparkAction
                           selectedFileGroups.add(newRewriteGroup(ctx, partition, fileScanTasks));
                         } else if (fileCountRunner.get() < maxFilesToRewrite) {
                           int remainingSize = maxFilesToRewrite - fileCountRunner.get();
-                          int fileScanTaskListSize = Math.min(fileScanTasks.size(), remainingSize);
+                          int scanTasksToRewrite = Math.min(fileScanTasks.size(), remainingSize);
                           selectedFileGroups.add(
                               newRewriteGroup(
-                                  ctx, partition, fileScanTasks.subList(0, fileScanTaskListSize)));
-                          fileCountRunner.getAndAdd(fileScanTaskListSize);
+                                  ctx, partition, fileScanTasks.subList(0, scanTasksToRewrite)));
+                          fileCountRunner.getAndAdd(scanTasksToRewrite);
                         }
                       });
             });
