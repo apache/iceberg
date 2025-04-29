@@ -307,6 +307,7 @@ class TestLockRemover extends OperatorTestBase {
       if (!open) {
         throw new IllegalStateException("Lock factory not open");
       }
+
       return LOCK;
     }
 
@@ -315,6 +316,7 @@ class TestLockRemover extends OperatorTestBase {
       if (!open) {
         throw new IllegalStateException("Lock factory not open");
       }
+
       return RECOVERY_LOCK;
     }
 
