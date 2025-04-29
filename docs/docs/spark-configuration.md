@@ -154,13 +154,13 @@ Iceberg allows configurations to be specified at different levels. The effective
 
 3. Table Properties – Defined on the Iceberg table via `ALTER TABLE SET TBLPROPERTIES`.
 
-4. Default Value
+4. Default Value.
 
 If a setting is not defined at a higher level, the next level is used as fallback. This allows flexibility while enabling global defaults when needed.
 
 ### Spark SQL Options
 
-Iceberg supports setting various global behaviors using Spark SQL configuration options. These can be set via `spark.conf`, `SparkSession settings`, or Spark submit arguments.
+Iceberg supports setting various global behaviors using Spark SQL configuration options. These can be set via `spark.conf`, `SparkSession` settings, or Spark submit arguments.
 For example:
 
 ```scala
