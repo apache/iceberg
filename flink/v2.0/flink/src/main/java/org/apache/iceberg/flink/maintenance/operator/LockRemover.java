@@ -125,6 +125,7 @@ public class LockRemover extends AbstractStreamOperator<Void>
           .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
     }
 
+    lockFactory.open();
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
   }
