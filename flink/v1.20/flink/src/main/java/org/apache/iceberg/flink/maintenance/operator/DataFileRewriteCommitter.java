@@ -98,6 +98,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     DataFileRewriteRunner.ExecutedGroup executedGroup = streamRecord.getValue();
     try {
       if (commitService == null) {
+        // Refresh the table to get the latest snapshot for the committer
+        table.refresh();
+
         FlinkRewriteDataFilesCommitManager commitManager =
             new FlinkRewriteDataFilesCommitManager(
                 table, executedGroup.snapshotId(), streamRecord.getTimestamp());

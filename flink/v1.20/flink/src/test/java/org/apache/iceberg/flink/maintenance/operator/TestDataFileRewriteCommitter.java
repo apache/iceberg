@@ -97,6 +97,35 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
   }
 
   @Test
+  void testNewTable() throws Exception {
+    Table table = createTable();
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten;
+
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+        testHarness = harness()) {
+      testHarness.open();
+
+      insert(table, 1, "p1");
+      insert(table, 2, "p2");
+      insert(table, 3, "p3");
+
+      List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
+      assertThat(planned).hasSize(1);
+      rewritten = executeRewrite(planned);
+      assertThat(rewritten).hasSize(1);
+
+      testHarness.processElement(rewritten.get(0), EVENT_TIME);
+      assertThat(testHarness.extractOutputValues()).isEmpty();
+
+      testHarness.processWatermark(EVENT_TIME);
+      assertThat(testHarness.extractOutputValues()).isEmpty();
+    }
+
+    assertDataFiles(
+        table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
+  }
+
+  @Test
   void testBatchSize() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");

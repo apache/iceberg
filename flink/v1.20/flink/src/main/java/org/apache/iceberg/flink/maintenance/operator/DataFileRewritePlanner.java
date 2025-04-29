@@ -50,7 +50,6 @@ import org.slf4j.LoggerFactory;
 public class DataFileRewritePlanner
     extends ProcessFunction<Trigger, DataFileRewritePlanner.PlannedGroup> {
   static final String MESSAGE_PREFIX = "[For table {} with {}[{}] at {}]: ";
-  static final String MESSAGE_FORMAT_PREFIX = "[For table %s with {%s}[{%d}] at {%d}]: ";
   private static final Logger LOG = LoggerFactory.getLogger(DataFileRewritePlanner.class);
 
   private final String tableName;
