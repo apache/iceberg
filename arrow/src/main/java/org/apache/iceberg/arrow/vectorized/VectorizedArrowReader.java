@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
-import static org.apache.iceberg.arrow.vectorized.ArrowVectorAccessors.getVectorAccessor;
-
 import java.util.Map;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
@@ -463,8 +461,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return new PositionVectorReader(true);
   }
 
-  public static VectorizedArrowReader rowIds(long baseRowId, VectorizedArrowReader idReader) {
-    return new RowIdVectorReader(baseRowId, idReader);
+  public static VectorizedArrowReader rowIds(Long baseRowId, VectorizedArrowReader idReader) {
+    if (baseRowId != null) {
+      return new RowIdVectorReader(baseRowId, idReader);
+    } else {
+      return nulls();
+    }
   }
 
   public static VectorizedArrowReader lastUpdated(
@@ -628,7 +630,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       ArrowBuf dataBuffer = vec.getDataBuffer();
       boolean isNullReader = ids.vector() == null;
       ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
-          isNullReader ? null : getVectorAccessor(ids);
+          isNullReader ? null : ArrowVectorAccessors.getVectorAccessor(ids);
       for (int i = 0; i < numValsToRead; i += 1) {
         long bufferOffset = (long) i * Long.BYTES;
         if (isNullReader || ids.nullabilityHolder().isNullAt(i) == 1) {
@@ -687,7 +689,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       ArrowBuf dataBuffer = vec.getDataBuffer();
       VectorHolder seqNumbers = seqReader.read(null, numValsToRead);
       ArrowVectorAccessor<?, String, ?, ?> accessor =
-          seqNumbers.vector() == null ? null : getVectorAccessor(seqNumbers);
+          seqNumbers.vector() == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbers);
       for (int i = 0; i < numValsToRead; i += 1) {
         long bufferOffset = (long) i * Long.BYTES;
         if (seqNumbers.vector() == null || seqNumbers.nullabilityHolder().isNullAt(i) == 1) {
