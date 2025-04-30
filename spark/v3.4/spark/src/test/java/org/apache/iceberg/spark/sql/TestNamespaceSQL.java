@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
-import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -103,9 +101,6 @@ public class TestNamespaceSQL extends CatalogTestBase {
   @TestTemplate
   public void testDefaultNamespace() {
     assumeThat(isHadoopCatalog).as("Hadoop has no default namespace configured").isFalse();
-    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
-        .as("REST has no default namespace configured")
-        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
 
     sql("USE %s", catalogName);
 
@@ -200,8 +195,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     List<Object[]> namespaces = sql("SHOW NAMESPACES IN %s", catalogName);
 
-    if (isHadoopCatalog
-        || catalogConfig.get(ICEBERG_CATALOG_TYPE).equals(ICEBERG_CATALOG_TYPE_REST)) {
+    if (isHadoopCatalog) {
       assertThat(namespaces)
           .singleElement()
           .satisfies(
