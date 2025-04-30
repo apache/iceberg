@@ -93,6 +93,8 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
 
   @Override
   void dropTables() {
+    deleteTopic(TEST_TOPIC1);
+    deleteTopic(TEST_TOPIC2);
     catalog().dropTable(TABLE_IDENTIFIER1);
     catalog().dropTable(TABLE_IDENTIFIER2);
   }
