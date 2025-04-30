@@ -23,12 +23,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkTruncateFunction extends TestBaseWithCatalog {
 
   @BeforeEach
