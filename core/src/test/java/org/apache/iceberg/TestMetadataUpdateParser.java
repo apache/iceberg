@@ -1065,7 +1065,7 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.AddSnapshot) expectedUpdate, (MetadataUpdate.AddSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
-        assertEqualsRemoveSnapshot(
+        assertEqualsRemoveSnapshots(
             (MetadataUpdate.RemoveSnapshots) expectedUpdate,
             (MetadataUpdate.RemoveSnapshots) actualUpdate);
         break;
@@ -1276,13 +1276,6 @@ public class TestMetadataUpdateParser {
     assertThat(actual.snapshot().timestampMillis())
         .isEqualTo(expected.snapshot().timestampMillis());
     assertThat(actual.snapshot().schemaId()).isEqualTo(expected.snapshot().schemaId());
-  }
-
-  private static void assertEqualsRemoveSnapshot(
-      MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
-    assertThat(actual.snapshotIds())
-        .as("Snapshot to remove should be the same")
-        .isEqualTo(expected.snapshotIds());
   }
 
   private static void assertEqualsRemoveSnapshots(

@@ -332,7 +332,7 @@ public interface MetadataUpdate extends Serializable {
   class RemoveSnapshots implements MetadataUpdate {
     private final Set<Long> snapshotIds;
 
-    public RemoveSnapshots(Long snapshotId) {
+    public RemoveSnapshots(long snapshotId) {
       this.snapshotIds = ImmutableSet.of(snapshotId);
     }
 
