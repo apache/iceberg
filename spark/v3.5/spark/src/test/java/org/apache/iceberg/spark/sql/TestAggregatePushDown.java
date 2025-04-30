@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -45,7 +46,9 @@ import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestAggregatePushDown extends CatalogTestBase {
 
   @BeforeAll
