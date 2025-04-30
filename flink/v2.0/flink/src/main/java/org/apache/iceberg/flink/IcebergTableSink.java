@@ -33,9 +33,9 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.legacy.api.constraints.UniqueConstraint;
 import org.apache.flink.types.RowKind;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.sink.IcebergSink;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
