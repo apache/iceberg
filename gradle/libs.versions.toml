@@ -51,7 +51,6 @@ guava = "33.4.7-jre"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.4.3"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
-hive4 = { strictly = "4.0.1"}
 immutables-value = "2.10.1"
 jackson-bom = "2.18.3"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
@@ -136,7 +135,6 @@ hadoop3-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
 hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
-hive4-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive4" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }

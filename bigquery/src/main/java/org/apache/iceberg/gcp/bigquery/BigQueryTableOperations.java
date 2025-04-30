@@ -71,7 +71,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     String metadataLocation = null;
     try {
       metadataLocation =
-          getMetadataLocationOrThrow(
+          loadMetadataLocationOrThrow(
               client.load(this.tableReference).getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
@@ -205,13 +205,12 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   // TODO: We need to make a decision on how to make the table queryable from Hive.
   // (could be a server side change or a client side change - that's TBD).
   private Table makeNewTable(TableMetadata metadata, String metadataFileLocation) {
-    boolean hiveEngineEnabled = hiveEngineEnabled(metadata);
     return new Table()
         .setExternalCatalogTableOptions(
             BigQueryMetastoreUtils.createExternalCatalogTableOptions(
                 metadata.location(),
                 buildTableParameters(metadataFileLocation, metadata),
-                hiveEngineEnabled));
+                hiveEngineEnabled(metadata)));
   }
 
   // Follow Iceberg's HiveTableOperations to populate more table parameters for HMS compatibility.
@@ -259,7 +258,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     }
   }
 
-  private String getMetadataLocationOrThrow(ExternalCatalogTableOptions tableOptions) {
+  private String loadMetadataLocationOrThrow(ExternalCatalogTableOptions tableOptions) {
     if (tableOptions == null || !tableOptions.getParameters().containsKey(METADATA_LOCATION_PROP)) {
       throw new ValidationException(
           "Table %s is not a valid BigQuery Metastore Iceberg table, metadata location not found",

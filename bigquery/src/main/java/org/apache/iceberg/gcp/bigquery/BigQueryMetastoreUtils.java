@@ -29,17 +29,17 @@ public final class BigQueryMetastoreUtils {
 
   private BigQueryMetastoreUtils() {}
 
-  public static final String HIVE_SERIALIZATION_LIBRARY =
+  private static final String HIVE_SERIALIZATION_LIBRARY =
       "org.apache.iceberg.mr.hive.HiveIcebergSerDe";
-  public static final String HIVE_FILE_INPUT_FORMAT =
+  private static final String HIVE_FILE_INPUT_FORMAT =
       "org.apache.iceberg.mr.hive.HiveIcebergInputFormat";
-  public static final String HIVE_FILE_OUTPUT_FORMAT =
+  private static final String HIVE_FILE_OUTPUT_FORMAT =
       "org.apache.iceberg.mr.hive.HiveIcebergOutputFormat";
 
-  public static final String SERIALIZATION_LIBRARY =
+  private static final String SERIALIZATION_LIBRARY =
       "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe";
-  public static final String FILE_INPUT_FORMAT = "org.apache.hadoop.mapred.FileInputFormat";
-  public static final String FILE_OUTPUT_FORMAT = "org.apache.hadoop.mapred.FileOutputFormat";
+  private static final String FILE_INPUT_FORMAT = "org.apache.hadoop.mapred.FileInputFormat";
+  private static final String FILE_OUTPUT_FORMAT = "org.apache.hadoop.mapred.FileOutputFormat";
 
   /**
    * Creates a new ExternalCatalogTableOptions object populated with the supported library constants

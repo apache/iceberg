@@ -74,6 +74,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 /** A client of Google Bigquery Metastore functions over the BigQuery service. */
 public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClient {
 
+  private final Bigquery client;
+  private final BigQueryOptions bigqueryOptions;
+
   public static final ExceptionHandler.Interceptor EXCEPTION_HANDLER_INTERCEPTOR =
       new ExceptionHandler.Interceptor() {
 
@@ -97,9 +100,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         }
       };
 
-  private final Bigquery client;
-  private final BigQueryOptions bigqueryOptions;
-
   // Retry config with error messages and regex for rate limit exceeded errors.
   private static final BigQueryRetryConfig DEFAULT_RETRY_CONFIG =
       BigQueryRetryConfig.newBuilder()
@@ -111,12 +111,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   public static final ExceptionHandler BIGQUERY_EXCEPTION_HANDLER =
       ExceptionHandler.newBuilder()
           .abortOn(RuntimeException.class)
-          .retryOn(
-              java.net.ConnectException
-                  .class) // Retry on connection failures due to transient network issues.
-          .retryOn(
-              java.net.UnknownHostException
-                  .class) // Retry to recover from temporary DNS resolution failures.
+          // Retry on connection failures due to transient network issues.
+          .retryOn(java.net.ConnectException.class)
+          // Retry to recover from temporary DNS resolution failures.
+          .retryOn(java.net.UnknownHostException.class)
           .addInterceptors(EXCEPTION_HANDLER_INTERCEPTOR)
           .build();
 
@@ -161,7 +159,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     return response;
   }
 
-  @SuppressWarnings("FormatStringAnnotation")
   private Dataset internalCreate(Dataset dataset) {
     try {
       HttpResponse response =
@@ -173,12 +170,11 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     } catch (AlreadyExistsException e) {
-      throw new AlreadyExistsException("Namespace already exists: " + dataset.getId());
+      throw new AlreadyExistsException("Namespace already exists: %s", dataset.getId());
     }
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public Dataset load(DatasetReference datasetReference) {
     try {
       HttpResponse response =
@@ -188,7 +184,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               .executeUnparsed();
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(
-            "Namespace does not exist: " + datasetReference.getDatasetId());
+            "Namespace does not exist: %s", datasetReference.getDatasetId());
       }
 
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
@@ -198,7 +194,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public void delete(DatasetReference datasetReference) {
     try {
       HttpResponse response =
@@ -208,7 +203,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               .executeUnparsed();
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(
-            "Namespace does not exist: " + datasetReference.getDatasetId());
+            "Namespace does not exist: %s", datasetReference.getDatasetId());
       }
 
       convertExceptionIfUnsuccessful(response);
@@ -313,7 +308,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     } catch (AlreadyExistsException e) {
-      throw new AlreadyExistsException(String.format("Table %s already exists", table), e);
+      throw new AlreadyExistsException(e, "Table %s already exists", table);
     }
   }
 

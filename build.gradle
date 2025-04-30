@@ -666,7 +666,6 @@ project(':iceberg-bigquery') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation project(':iceberg-gcp')
 
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
 
@@ -676,7 +675,7 @@ project(':iceberg-bigquery') {
     implementation "com.google.cloud:google-cloud-core"
 
     compileOnly libs.hadoop3.common
-    compileOnly (libs.hive4.metastore) {
+    compileOnly (libs.hive2.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho'

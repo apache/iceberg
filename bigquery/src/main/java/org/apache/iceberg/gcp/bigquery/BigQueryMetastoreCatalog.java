@@ -42,7 +42,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
@@ -63,11 +62,9 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable {
 
   // User provided properties.
-  public static final String PROJECT_ID = "gcp-project";
-  public static final String GCP_LOCATION = "gcp-location";
-  public static final String LIST_ALL_TABLES = "list-all-tables";
-
-  public static final String HIVE_METASTORE_WAREHOUSE_DIR = "hive.metastore.warehouse.dir";
+  public static final String PROJECT_ID = "gcp.bigquery.project-id";
+  public static final String GCP_LOCATION = "gcp.bigquery.location";
+  public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
 
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
 
@@ -78,9 +75,10 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private Configuration conf;
   private String projectId;
-  private String location;
+  private String projectLocation;
   private BigQueryMetastoreClient client;
   private boolean listAllTables;
+  private String warehouseLocation;
 
   // Must have a no-arg constructor to be dynamically loaded
   // initialize(String name, Map<String, String> properties) will be called to complete
@@ -88,19 +86,19 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public BigQueryMetastoreCatalog() {}
 
   @Override
-  public void initialize(String inputName, Map<String, String> properties) {
+  public void initialize(String name, Map<String, String> properties) {
     Preconditions.checkArgument(
         properties.containsKey(PROJECT_ID),
         "Invalid GCP project: %s must be specified",
         PROJECT_ID);
 
-    projectId = properties.get(PROJECT_ID);
-    location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
+    this.projectId = properties.get(PROJECT_ID);
+    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
 
     BigQueryOptions options =
         BigQueryOptions.newBuilder()
             .setProjectId(projectId)
-            .setLocation(location)
+            .setLocation(projectLocation)
             .setRetrySettings(ServiceOptions.getDefaultRetrySettings())
             .build();
 
@@ -112,7 +110,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       throw new ValidationException(e, "Creating BigQuery client failed due to a security issue");
     }
 
-    initialize(inputName, properties, projectId, location, client);
+    initialize(name, properties, projectId, projectLocation, client);
   }
 
   @VisibleForTesting
@@ -126,7 +124,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     this.catalogName = inputName;
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.projectId = initialProjectId;
-    this.location = initialLocation;
+    this.projectLocation = initialLocation;
     this.client = bigQueryMetaStoreClient;
 
     if (this.conf == null) {
@@ -137,15 +135,16 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     LOG.info("Using BigQuery Metastore Iceberg Catalog: {}", inputName);
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-      this.conf.set(
-          HIVE_METASTORE_WAREHOUSE_DIR,
-          LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
+      this.warehouseLocation =
+          LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    String fileIoImpl =
-        properties.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
-    this.fileIO = CatalogUtil.loadFileIO(fileIoImpl, properties, conf);
+    this.fileIO =
+        CatalogUtil.loadFileIO(
+            properties.getOrDefault(
+                CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO"),
+            properties,
+            conf);
 
     this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
   }
@@ -202,37 +201,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    validateNamespace(from.namespace());
-    validateNamespace(to.namespace());
-
-    if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s",
-          from.name(), to.name(), to.namespace());
-    }
-
-    if (!namespaceExists(from.namespace())) {
-      throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s",
-          from.name(), to.name(), from.namespace());
-    }
-
-    if (!tableExists(from)) {
-      throw new NoSuchTableException(
-          "Cannot rename %s to %s. Table does not exist: %s", from.name(), to.name(), from.name());
-    }
-
-    if (!from.namespace().equals(to.namespace())) {
-      throw new ValidationException(
-          "Cannot rename %s to %s. New table name must be in the same namespace",
-          from.name(), to.name());
-    }
-
-    if (tableExists(to)) {
-      throw new AlreadyExistsException(
-          "Cannot rename %s to %s. Table already exists: %s", from.name(), to.name(), to.name());
-    }
-
     // TODO: Enable once supported by BigQuery API.
     throw new UnsupportedOperationException("Table rename operation is unsupported.");
   }
@@ -241,7 +209,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     Dataset builder = new Dataset();
     DatasetReference datasetReference = toDatasetReference(namespace);
-    builder.setLocation(this.location);
+    builder.setLocation(this.projectLocation);
     builder.setDatasetReference(datasetReference);
     builder.setExternalCatalogDatasetOptions(
         BigQueryMetastoreUtils.createExternalCatalogDatasetOptions(
@@ -268,9 +236,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     List<Datasets> allDatasets = client.list(projectId);
 
     ImmutableList<Namespace> namespaces =
-        allDatasets.stream()
-            .map(BigQueryMetastoreCatalog::toNamespace)
-            .collect(ImmutableList.toImmutableList());
+        allDatasets.stream().map(this::toNamespace).collect(ImmutableList.toImmutableList());
     if (namespaces.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -352,14 +318,14 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   }
 
   private String createDefaultStorageLocationUri(String dbId) {
-    String warehouseLocation = conf.get(HIVE_METASTORE_WAREHOUSE_DIR);
     Preconditions.checkArgument(
-        warehouseLocation != null,
-        String.format("Invalid data warehouse location: %s not set", HIVE_METASTORE_WAREHOUSE_DIR));
+        this.warehouseLocation != null,
+        String.format(
+            "Invalid data warehouse location: %s not set", CatalogProperties.WAREHOUSE_LOCATION));
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }
 
-  private static Namespace toNamespace(Datasets dataset) {
+  private Namespace toNamespace(Datasets dataset) {
     return Namespace.of(dataset.getDatasetReference().getDatasetId());
   }
 

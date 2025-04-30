@@ -21,15 +21,11 @@ package org.apache.iceberg.gcp.bigquery;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
 import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -136,49 +132,12 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
     return tmpCatalog;
   }
 
-  @Override
-  @Test
-  public void testRenameTable() {
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(NS);
-    }
-
-    assertThat(catalog.tableExists(TABLE))
-        .as("Source table should not exist before create")
-        .isFalse();
-
-    catalog.buildTable(TABLE, SCHEMA).create();
-    assertThat(catalog.tableExists(TABLE)).as("Table should exist after create").isTrue();
-
-    assertThat(catalog.tableExists(RENAMED_TABLE))
-        .as("Destination table should not exist before rename")
-        .isFalse();
-
-    assertThatThrownBy(() -> catalog.renameTable(TABLE, RENAMED_TABLE))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Table rename operation is unsupported");
-
-    catalog.dropTable(TABLE);
-  }
-
   // TODO: BigQuery Metastore does not support V3 Spec yet.
   @Override
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
   public void createTableTransaction(int formatVersion) {
-    if (requiresNamespaceCreate()) {
-      catalog().createNamespace(NS);
-    }
-
-    catalog()
-        .newCreateTableTransaction(
-            TABLE,
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", String.valueOf(formatVersion)))
-        .commitTransaction();
-
-    assertThat(TableUtil.formatVersion(catalog().loadTable(TABLE))).isEqualTo(formatVersion);
+    super.createTableTransaction(formatVersion);
   }
 
   @Disabled("BigQuery Metastore does not support V3 Spec yet.")
@@ -188,4 +147,28 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Disabled("BigQuery Metastore does not support multi layer namespaces")
   @Test
   public void testLoadMetadataTable() {}
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTable() {
+    super.testRenameTable();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTableDestinationTableAlreadyExists() {
+    super.testRenameTableDestinationTableAlreadyExists();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void renameTableNamespaceMissing() {
+    super.renameTableNamespaceMissing();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTableMissingSourceTable() {
+    super.testRenameTableMissingSourceTable();
+  }
 }
