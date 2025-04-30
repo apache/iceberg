@@ -18,12 +18,4 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import java.util.Map;
-
-public class TestUnpartitionedWrites extends UnpartitionedWritesTestBase {
-
-  public TestUnpartitionedWrites(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-}
+public class TestUnpartitionedWrites extends UnpartitionedWritesTestBase {}
