@@ -112,7 +112,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     }
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-    testImplementation libs.junit.vintage.engine
     // runtime dependencies for running REST Catalog based integration test
     testRuntimeOnly libs.jetty.servlet
   }

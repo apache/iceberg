@@ -407,7 +407,6 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation libs.junit.vintage.engine
   }
 
   test {
