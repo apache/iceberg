@@ -77,11 +77,11 @@ public class GenericsHelpers {
       Iterator<Record> expectedRecords,
       ColumnarBatch batch,
       Map<Integer, Object> idToConstant,
-      Integer numRowsAlreadyRead) {
+      Integer batchFirstRowPos) {
     for (int rowPos = 0; rowPos < batch.numRows(); rowPos++) {
       InternalRow row = batch.getRow(rowPos);
       Record expectedRecord = expectedRecords.next();
-      assertEqualsUnsafe(struct, expectedRecord, row, idToConstant, numRowsAlreadyRead + rowPos);
+      assertEqualsUnsafe(struct, expectedRecord, row, idToConstant, batchFirstRowPos + rowPos);
     }
   }
 

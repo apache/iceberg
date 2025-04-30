@@ -628,12 +628,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       VectorHolder ids = idReader.read(null, numValsToRead);
       BigIntVector vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
       ArrowBuf dataBuffer = vec.getDataBuffer();
-      boolean isNullReader = ids.vector() == null;
       ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
-          isNullReader ? null : ArrowVectorAccessors.getVectorAccessor(ids);
+          ids.vector() == null ? null : ArrowVectorAccessors.getVectorAccessor(ids);
       for (int i = 0; i < numValsToRead; i += 1) {
         long bufferOffset = (long) i * Long.BYTES;
-        if (isNullReader || ids.nullabilityHolder().isNullAt(i) == 1) {
+        if (idsAccessor == null || isNull(ids, i)) {
           long rowId = firstRowId + (Long) positions.getObject(i);
           dataBuffer.setLong(bufferOffset, rowId);
         } else {
@@ -688,14 +687,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       BigIntVector vec = allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
       ArrowBuf dataBuffer = vec.getDataBuffer();
       VectorHolder seqNumbers = seqReader.read(null, numValsToRead);
-      ArrowVectorAccessor<?, String, ?, ?> accessor =
+      ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
           seqNumbers.vector() == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbers);
       for (int i = 0; i < numValsToRead; i += 1) {
         long bufferOffset = (long) i * Long.BYTES;
-        if (seqNumbers.vector() == null || seqNumbers.nullabilityHolder().isNullAt(i) == 1) {
+        if (seqAccessor == null || isNull(seqNumbers, i)) {
           dataBuffer.setLong(bufferOffset, lastUpdatedSeq);
         } else {
-          long materializedSeqNumber = accessor.getLong(i);
+          long materializedSeqNumber = seqAccessor.getLong(i);
           dataBuffer.setLong(bufferOffset, materializedSeqNumber);
         }
       }
@@ -723,6 +722,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public void close() {
       // don't close vectors as they are not owned by readers
     }
+  }
+
+  private static boolean isNull(VectorHolder holder, int index) {
+    return holder.nullabilityHolder().isNullAt(index) == 1;
   }
 
   private static BigIntVector allocateBigIntVector(Field field, int valueCount) {
