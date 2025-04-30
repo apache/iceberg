@@ -293,7 +293,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     return response;
   }
 
-  @SuppressWarnings("FormatStringAnnotation")
   private Table internalCreate(Table table) {
     try {
       HttpResponse response =
@@ -306,7 +305,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               .executeUnparsed();
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     } catch (AlreadyExistsException e) {
       throw new AlreadyExistsException(e, "Table %s already exists", table);
     }
