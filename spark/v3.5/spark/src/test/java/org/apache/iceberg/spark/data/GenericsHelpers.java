@@ -35,6 +35,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +50,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
 
@@ -67,6 +69,15 @@ public class GenericsHelpers {
       Object actualValue = actual.get(i);
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
+    }
+  }
+
+  public static void assertEqualsBatch(
+      Types.StructType struct, Iterator<Record> expectedRecords, ColumnarBatch batch) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      InternalRow row = batch.getRow(rowId);
+      Record expectedRecord = expectedRecords.next();
+      assertEqualsUnsafe(struct, expectedRecord, row);
     }
   }
 
@@ -289,11 +300,27 @@ public class GenericsHelpers {
     }
 
     switch (type.typeId()) {
+      case LONG:
+        assertThat(actual).as("Should be a long").isInstanceOf(Long.class);
+        if (expected instanceof Integer) {
+          assertThat(actual).as("Values didn't match").isEqualTo(((Number) expected).longValue());
+        } else {
+          assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        }
+        break;
+      case DOUBLE:
+        assertThat(actual).as("Should be a double").isInstanceOf(Double.class);
+        if (expected instanceof Float) {
+          assertThat(Double.doubleToLongBits((double) actual))
+              .as("Values didn't match")
+              .isEqualTo(Double.doubleToLongBits(((Number) expected).doubleValue()));
+        } else {
+          assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        }
+        break;
       case BOOLEAN:
       case INTEGER:
-      case LONG:
       case FLOAT:
-      case DOUBLE:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case DATE:
