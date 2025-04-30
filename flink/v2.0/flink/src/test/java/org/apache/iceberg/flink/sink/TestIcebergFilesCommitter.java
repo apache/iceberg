@@ -763,7 +763,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -813,7 +813,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -1119,13 +1119,17 @@ public class TestIcebergFilesCommitter extends TestBase {
         null);
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) throws IOException {
-    try (ManifestWriter<DataFile> writer =
+  private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
+      throws IOException {
+    ManifestWriter<DataFile> writer =
         ManifestFiles.write(
+            formatVersion,
             PartitionSpec.unpartitioned(),
-            org.apache.iceberg.Files.localOutput(manifestPath.toFile()))) {
-      return writer.toManifestFile();
-    }
+            table.io().newOutputFile(manifestPath.toString()),
+            0L);
+    writer.add(dataFile);
+    writer.close();
+    return writer.toManifestFile();
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
