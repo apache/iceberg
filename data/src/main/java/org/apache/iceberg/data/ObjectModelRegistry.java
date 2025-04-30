@@ -62,21 +62,15 @@ public final class ObjectModelRegistry {
    */
   @SuppressWarnings("CatchBlockLogException")
   public static void registerObjectModel(ObjectModel<?> objectModel) {
-    try {
-      Key key = new Key(objectModel.format(), objectModel.name());
-      if (OBJECT_MODELS.containsKey(key)) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Object model %s clashes with %s. Both serves %s",
-                objectModel.getClass(), OBJECT_MODELS.get(key), key));
-      }
-
-      OBJECT_MODELS.put(key, objectModel);
-    } catch (RuntimeException e) {
-      // failing to register an object model is normal and does not require a stack trace
-      LOG.info(
-          "Unable to register object model {} for data files: {}", objectModel, e.getMessage());
+    Key key = new Key(objectModel.format(), objectModel.name());
+    if (OBJECT_MODELS.containsKey(key)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Object model %s clashes with %s. Both serves %s",
+              objectModel.getClass(), OBJECT_MODELS.get(key), key));
     }
+
+    OBJECT_MODELS.put(key, objectModel);
   }
 
   @SuppressWarnings("CatchBlockLogException")
