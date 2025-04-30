@@ -20,10 +20,7 @@ package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.VariantArray;
@@ -64,7 +61,7 @@ public class ParquetSchemaProducer extends VariantVisitor<Type> {
     // Shred if all the elements are of a uniform type and build 3-level list
     Type shredType = elementResults.get(0);
     if (shredType != null
-            && elementResults.stream().allMatch(type -> Objects.equals(type, shredType))) {
+        && elementResults.stream().allMatch(type -> Objects.equals(type, shredType))) {
       return list(shredType);
     }
 
