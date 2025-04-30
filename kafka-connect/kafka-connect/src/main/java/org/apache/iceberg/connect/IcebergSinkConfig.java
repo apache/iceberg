@@ -340,7 +340,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public boolean dynamicTablesEnabled() {
-    return getBoolean(TABLES_DYNAMIC_PROP) || RecordRouter.DynamicRecordRouter.class.equals(tablesRouteWith());
+    return getBoolean(TABLES_DYNAMIC_PROP)
+        || RecordRouter.DynamicRecordRouter.class.equals(tablesRouteWith());
   }
 
   public <T extends RecordRouter> Class<T> tablesRouteWith() {
