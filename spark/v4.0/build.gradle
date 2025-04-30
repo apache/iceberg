@@ -256,7 +256,6 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark40.get()}"
-    integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.junit.jupiter
     integrationImplementation libs.junit.platform.launcher
     integrationImplementation libs.slf4j.simple

@@ -371,7 +371,9 @@ project(':iceberg-core') {
     testImplementation libs.sqlite.jdbc
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
-    testImplementation libs.guava.testlib
+    testImplementation(libs.guava.testlib) {
+      exclude group: 'junit'
+    }
     testImplementation libs.awaitility
   }
 }
@@ -413,7 +415,6 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation libs.junit.vintage.engine
   }
 
   test {
