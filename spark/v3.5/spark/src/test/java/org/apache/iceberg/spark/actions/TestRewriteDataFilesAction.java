@@ -1753,15 +1753,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Rewriter type already set to ");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Rewriter type already set to ");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Rewriter type already set to ");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
   }
 
   @TestTemplate

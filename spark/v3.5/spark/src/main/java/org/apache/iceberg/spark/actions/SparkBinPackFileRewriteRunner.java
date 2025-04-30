@@ -18,10 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.util.List;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -59,17 +56,16 @@ class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, group.maxOutputFileSize())
-        .option(
-            SparkWriteOptions.DISTRIBUTION_MODE,
-            distributionMode(group.fileScanTasks(), spec(group.outputSpecId())).modeName())
+        .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, group.outputSpecId())
         .mode("append")
         .save(groupId);
   }
 
   // invoke a shuffle if the original spec does not match the output spec
-  private DistributionMode distributionMode(List<FileScanTask> group, PartitionSpec outputSpec) {
-    boolean requiresRepartition = !group.get(0).spec().equals(outputSpec);
+  private DistributionMode distributionMode(RewriteFileGroup group) {
+    boolean requiresRepartition =
+        !group.fileScanTasks().get(0).spec().equals(spec(group.outputSpecId()));
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }
 }

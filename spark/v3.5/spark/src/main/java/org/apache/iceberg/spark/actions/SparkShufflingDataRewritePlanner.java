@@ -28,9 +28,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
- * Extends the {@link BinPackRewriteFilePlanner} with the possibility to set the expected
- * compression factor which modifies the expected output file size based on the expected compression
- * configuration parameter.
+ * Produces plans for shuffling rewrites. Since shuffle and sort could considerably improve the
+ * compression ratio, the planner introduces an additional {@link #COMPRESSION_FACTOR} option which
+ * is used when calculating the {@link #expectedOutputFiles(long)}.
  */
 class SparkShufflingDataRewritePlanner extends BinPackRewriteFilePlanner {
   /**

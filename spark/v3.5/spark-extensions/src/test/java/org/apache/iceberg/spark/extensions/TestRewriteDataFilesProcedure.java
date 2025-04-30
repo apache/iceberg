@@ -638,7 +638,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Rewriter type already set to ");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(

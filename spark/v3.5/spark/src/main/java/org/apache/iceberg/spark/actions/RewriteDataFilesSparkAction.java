@@ -111,36 +111,36 @@ public class RewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFilesSparkAction binPack() {
-    checkRunnerIsUnset();
+    ensureRunnerNotSet();
     this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
-    checkRunnerIsUnset();
+    ensureRunnerNotSet();
     this.runner = new SparkSortFileRewriteRunner(spark(), table, sortOrder);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort() {
-    checkRunnerIsUnset();
+    ensureRunnerNotSet();
     this.runner = new SparkSortFileRewriteRunner(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
-    checkRunnerIsUnset();
+    ensureRunnerNotSet();
     this.runner = new SparkZOrderFileRewriteRunner(spark(), table, Arrays.asList(columnNames));
     return this;
   }
 
-  private void checkRunnerIsUnset() {
+  private void ensureRunnerNotSet() {
     Preconditions.checkArgument(
         runner == null,
-        "Rewriter type already set to %s",
+        "Cannot set rewrite mode, it has already been set to %s",
         runner == null ? null : runner.description());
   }
 
