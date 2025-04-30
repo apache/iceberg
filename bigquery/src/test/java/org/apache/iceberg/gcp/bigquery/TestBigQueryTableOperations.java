@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.gcp.bigquery;
 
+import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -60,7 +62,6 @@ import org.mockito.ArgumentCaptor;
 public class TestBigQueryTableOperations {
 
   @TempDir private File tempFolder;
-  public static final String METADATA_LOCATION_PROP = "metadata_location";
   private static final String GCP_PROJECT = "my-project";
   private static final String GCP_REGION = "us";
   private static final String NS = "db";
@@ -139,6 +140,7 @@ public class TestBigQueryTableOperations {
         .thenThrow(new NoSuchTableException("error message getTable"));
     // Table not found won't cause errors when the metadata is null.
     assertThat(tableOps.currentMetadataLocation()).isNull();
+    assertThatNoException().isThrownBy(() -> tableOps.refresh());
   }
 
   @Test

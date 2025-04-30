@@ -313,7 +313,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public Table load(TableReference tableReference) {
     try {
       HttpResponse response =
@@ -325,17 +324,16 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                   tableReference.getTableId())
               .executeUnparsed();
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-        throw new NoSuchTableException(response.getStatusMessage());
+        throw new NoSuchTableException("%s", response.getStatusMessage());
       }
 
       return validateTable(convertExceptionIfUnsuccessful(response).parseAs(Table.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     }
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public Table update(TableReference tableReference, Table table) {
     // Ensure it is an Iceberg table supported by the BQ metastore catalog.
     validateTable(table);
@@ -367,7 +365,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     return response;
   }
 
-  @SuppressWarnings("FormatStringAnnotation")
   private Table internalUpdate(TableReference tableReference, Table table, String etag) {
     try {
       HttpResponse response =
@@ -384,20 +381,19 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         String responseString = response.parseAsString();
         if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
-          throw new BadRequestException(responseString);
+          throw new BadRequestException("%s", responseString);
         }
 
-        throw new NoSuchTableException(response.getStatusMessage());
+        throw new NoSuchTableException("%s", response.getStatusMessage());
       }
 
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     }
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public void delete(TableReference tableReference) {
     try {
       load(tableReference); // Fetching it to validate it is a BigQuery Metastore table first
@@ -412,17 +408,16 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               .executeUnparsed();
 
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-        throw new NoSuchTableException(response.getStatusMessage());
+        throw new NoSuchTableException("%s", response.getStatusMessage());
       }
 
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     }
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public List<Tables> list(DatasetReference datasetReference, boolean filterUnsupportedTables) {
     try {
       String nextPageToken = null;
@@ -435,7 +430,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 .setPageToken(nextPageToken)
                 .executeUnparsed();
         if (pageResponse.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-          throw new NoSuchNamespaceException(pageResponse.getStatusMessage());
+          throw new NoSuchNamespaceException("%s", pageResponse.getStatusMessage());
         }
         TableList result = convertExceptionIfUnsuccessful(pageResponse).parseAs(TableList.class);
         nextPageToken = result.getNextPageToken();
@@ -466,11 +461,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
       return tablesStream.collect(Collectors.toList());
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     }
   }
 
-  @SuppressWarnings("FormatStringAnnotation")
   private Dataset internalUpdate(Dataset dataset) {
     Preconditions.checkArgument(
         dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
@@ -488,12 +482,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
               .executeUnparsed();
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-        throw new NoSuchNamespaceException(response.getStatusMessage());
+        throw new NoSuchNamespaceException("%s", response.getStatusMessage());
       }
 
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException("%s", e);
     }
   }
 
@@ -536,7 +530,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
    * Converts BigQuery generic API errors to Iceberg exceptions, *without* handling the
    * resource-specific exceptions like NoSuchTableException, NoSuchNamespaceException, etc.
    */
-  @SuppressWarnings("FormatStringAnnotation")
   private static HttpResponse convertExceptionIfUnsuccessful(HttpResponse response)
       throws IOException {
     if (response.isSuccessStatusCode()) {
@@ -552,21 +545,21 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     switch (response.getStatusCode()) {
       case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED:
         throw new NotAuthorizedException(
-            errorMessage, "Not authorized to call the BigQuery API or access this resource");
+            "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_BAD_REQUEST:
-        throw new BadRequestException(errorMessage);
+        throw new BadRequestException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
-        throw new ForbiddenException(errorMessage);
+        throw new ForbiddenException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED:
-        throw new ValidationException(errorMessage);
+        throw new ValidationException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_NOT_FOUND:
         throw new IllegalArgumentException(errorMessage);
       case HttpStatusCodes.STATUS_CODE_SERVER_ERROR:
-        throw new ServiceFailureException(errorMessage);
+        throw new ServiceFailureException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE:
-        throw new ServiceUnavailableException(errorMessage);
+        throw new ServiceUnavailableException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_CONFLICT:
-        throw new AlreadyExistsException(errorMessage);
+        throw new AlreadyExistsException("%s", errorMessage);
       default:
         throw new HttpResponseException(response);
     }
