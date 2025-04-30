@@ -25,11 +25,8 @@ import java.nio.ByteOrder;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -403,19 +400,14 @@ class ParquetVariantUtil {
         return null;
       }
 
-      // Choose most common type as shredding type and build 3-level list
-      Type defaultTYpe = elementResults.get(0);
-      Type shredType =
-          elementResults.stream()
-              .filter(Objects::nonNull)
-              .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
-              .entrySet()
-              .stream()
-              .max(Map.Entry.comparingByValue())
-              .map(Map.Entry::getKey)
-              .orElse(defaultTYpe);
+      // Shred if all the elements are of a uniform type and build 3-level list
+      Type shredType = elementResults.get(0);
+      if (shredType != null
+          && elementResults.stream().allMatch(type -> Objects.equals(type, shredType))) {
+        return list(shredType);
+      }
 
-      return list(shredType);
+      return null;
     }
 
     private static GroupType list(Type shreddedType) {
