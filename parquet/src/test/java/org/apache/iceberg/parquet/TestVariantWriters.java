@@ -103,7 +103,7 @@ public class TestVariantWriters {
   private static final ByteBuffer NESTED_ARRAY_BUFFER =
       VariantTestUtil.createArray(
           array(Variants.of("string"), Variants.of("iceberg")),
-          array(Variants.of("string"), Variants.of("iceberg")));
+          array(Variants.of("apple"), Variants.of("banana")));
   private static final ByteBuffer MIXED_NESTED_ARRAY_BUFFER =
       VariantTestUtil.createArray(
           array(Variants.of("string"), Variants.of("iceberg"), Variants.of(34)),
