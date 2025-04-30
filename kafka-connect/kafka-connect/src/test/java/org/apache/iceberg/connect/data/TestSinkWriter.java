@@ -111,8 +111,7 @@ public class TestSinkWriter {
     when(tableConfig.routeRegex()).thenReturn(Pattern.compile("topic"));
 
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.tablesRouteWith())
-        .thenAnswer(invocation -> RecordRouter.TopicRecordRouter.class);
+    when(config.tablesRouteWith()).thenAnswer(invocation -> RecordRouter.TopicRecordRouter.class);
     when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(tableConfig);
 
