@@ -26,9 +26,9 @@ import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,10 +64,8 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   private transient Long startTime;
 
   public TaskResultAggregator(String tableName, String taskName, int taskIndex) {
-    org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
-        tableName, "Table name should no be null");
-    org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
-        taskName, "Task name should no be null");
+    Preconditions.checkNotNull(tableName, "Table name should no be null");
+    Preconditions.checkNotNull(taskName, "Task name should no be null");
 
     this.tableName = tableName;
     this.taskName = taskName;
