@@ -287,13 +287,12 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     return true;
   }
 
-  @SuppressWarnings("FormatStringAnnotation")
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
     try {
       return toMetadata(client.load(toDatasetReference(namespace)));
     } catch (IllegalArgumentException e) {
-      throw new NoSuchNamespaceException(e.getMessage());
+      throw new NoSuchNamespaceException("%s", e.getMessage());
     }
   }
 
