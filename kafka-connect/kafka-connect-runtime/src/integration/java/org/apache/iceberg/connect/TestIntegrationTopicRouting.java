@@ -25,15 +25,11 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.kafka.common.errors.TopicExistsException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class IntegrationTopicRoutingTest extends IntegrationTestBase {
+public class TestIntegrationTopicRouting extends IntegrationTestBase {
 
   private static final String TEST_DB = "test";
   private static final String TEST_TABLE1 = "table1";
@@ -93,6 +89,8 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
 
   @Override
   void dropTables() {
+    deleteTopic(TEST_TOPIC1);
+    deleteTopic(TEST_TOPIC2);
     catalog().dropTable(TABLE_IDENTIFIER1);
     catalog().dropTable(TABLE_IDENTIFIER2);
   }
