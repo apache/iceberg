@@ -25,6 +25,7 @@ on:
       - docs/**
       - site/**
       - format/**
+      - open-api/**
   workflow_dispatch:
 jobs:
   deploy:
