@@ -47,9 +47,10 @@ public class TestIcebergBuild {
   }
 
   /**
-   * This test is for Source Releases. When we have a source release we use a version.txt
-   * file in the parent directory of this module to actually set the "version" which should
-   * be included in the gradle build properties used by IcebergBuild.
+   * This test is for Source Releases. When we have a source release we use a version.txt file in
+   * the parent directory of this module to actually set the "version" which should be included in
+   * the gradle build properties used by IcebergBuild.
+   *
    * @throws IOException
    */
   @Test
