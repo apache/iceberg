@@ -178,7 +178,9 @@ public class TestVariantReaders {
   public void testUnshreddedVariantsWithShreddedSchema(
       VariantMetadata metadata, VariantValue expected) throws IOException {
     // the variant's Parquet schema has a shredded field that is unused by all data values
-    GroupType variantType = variant("var", 2, shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType variantType =
+        variant(
+            "var", 2, ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
@@ -225,7 +227,8 @@ public class TestVariantReaders {
 
   @Test
   public void testNullValueAndNullTypedValue() throws IOException {
-    GroupType variantType = variant("var", 2, shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType variantType =
+        variant("var", 2, ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
@@ -248,7 +251,7 @@ public class TestVariantReaders {
             .id(2)
             .required(PrimitiveTypeName.BINARY)
             .named("metadata")
-            .addField(shreddedPrimitive(PrimitiveTypeName.INT32))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32))
             .named("var");
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -267,7 +270,8 @@ public class TestVariantReaders {
 
   @Test
   public void testValueAndTypedValueConflict() {
-    GroupType variantType = variant("var", 2, shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType variantType =
+        variant("var", 2, ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
@@ -293,7 +297,8 @@ public class TestVariantReaders {
         variant(
             "var",
             2,
-            shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(32, false)));
+            ParquetSchemaProducer.shreddedPrimitive(
+                PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(32, false)));
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
@@ -326,8 +331,9 @@ public class TestVariantReaders {
 
   @Test
   public void testShreddedObject() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -354,8 +360,9 @@ public class TestVariantReaders {
 
   @Test
   public void testShreddedObjectMissingValueColumn() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType =
         Types.buildGroup(Type.Repetition.REQUIRED)
@@ -389,8 +396,9 @@ public class TestVariantReaders {
 
   @Test
   public void testShreddedObjectMissingField() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -417,8 +425,9 @@ public class TestVariantReaders {
 
   @Test
   public void testEmptyShreddedObject() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -446,11 +455,11 @@ public class TestVariantReaders {
     // field groups do not have value
     GroupType fieldA =
         Types.buildGroup(Type.Repetition.REQUIRED)
-            .addField(shreddedPrimitive(PrimitiveTypeName.INT32))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32))
             .named("a");
     GroupType fieldB =
         Types.buildGroup(Type.Repetition.REQUIRED)
-            .addField(shreddedPrimitive(PrimitiveTypeName.BINARY, STRING))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING))
             .named("b");
     GroupType objectFields =
         Types.buildGroup(Type.Repetition.OPTIONAL).addFields(fieldA, fieldB).named("typed_value");
@@ -515,11 +524,13 @@ public class TestVariantReaders {
 
   @Test
   public void testShreddedObjectWithinShreddedObject() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType innerFields = objectFields(fieldA, fieldB);
     GroupType fieldC = field("c", innerFields);
-    GroupType fieldD = field("d", shreddedPrimitive(PrimitiveTypeName.DOUBLE));
+    GroupType fieldD =
+        field("d", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.DOUBLE));
     GroupType outerFields = objectFields(fieldC, fieldD);
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -557,25 +568,25 @@ public class TestVariantReaders {
         Types.buildGroup(Type.Repetition.OPTIONAL)
             .optional(PrimitiveTypeName.BINARY)
             .named("value")
-            .addField(shreddedPrimitive(PrimitiveTypeName.INT32))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32))
             .named("a");
     GroupType fieldB =
         Types.buildGroup(Type.Repetition.OPTIONAL)
             .optional(PrimitiveTypeName.BINARY)
             .named("value")
-            .addField(shreddedPrimitive(PrimitiveTypeName.BINARY, STRING))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING))
             .named("b");
     GroupType fieldC =
         Types.buildGroup(Type.Repetition.OPTIONAL)
             .optional(PrimitiveTypeName.BINARY)
             .named("value")
-            .addField(shreddedPrimitive(PrimitiveTypeName.DOUBLE))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.DOUBLE))
             .named("c");
     GroupType fieldD =
         Types.buildGroup(Type.Repetition.OPTIONAL)
             .optional(PrimitiveTypeName.BINARY)
             .named("value")
-            .addField(shreddedPrimitive(PrimitiveTypeName.BOOLEAN))
+            .addField(ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BOOLEAN))
             .named("d");
     GroupType objectFields =
         Types.buildGroup(Type.Repetition.OPTIONAL)
@@ -609,8 +620,9 @@ public class TestVariantReaders {
 
   @Test
   public void testPartiallyShreddedObject() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -649,8 +661,9 @@ public class TestVariantReaders {
 
   @Test
   public void testPartiallyShreddedObjectFieldConflict() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -690,8 +703,9 @@ public class TestVariantReaders {
 
   @Test
   public void testPartiallyShreddedObjectMissingFieldConflict() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -731,8 +745,9 @@ public class TestVariantReaders {
 
   @Test
   public void testNonObjectWithNullShreddedFields() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -754,8 +769,9 @@ public class TestVariantReaders {
 
   @Test
   public void testNonObjectWithNonNullShreddedFields() {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -782,8 +798,9 @@ public class TestVariantReaders {
 
   @Test
   public void testEmptyPartiallyShreddedObjectConflict() {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -811,11 +828,13 @@ public class TestVariantReaders {
   @Test
   public void testMixedRecords() throws IOException {
     // tests multiple rows to check that Parquet columns are correctly advanced
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType innerFields = objectFields(fieldA, fieldB);
     GroupType fieldC = field("c", innerFields);
-    GroupType fieldD = field("d", shreddedPrimitive(PrimitiveTypeName.DOUBLE));
+    GroupType fieldD =
+        field("d", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.DOUBLE));
     GroupType outerFields = objectFields(fieldC, fieldD);
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
@@ -898,7 +917,7 @@ public class TestVariantReaders {
 
   @Test
   public void testSimpleArray() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType = variant("var", 2, list(elementType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -928,7 +947,7 @@ public class TestVariantReaders {
 
   @Test
   public void testNullArray() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(element(shreddedType)));
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -953,7 +972,7 @@ public class TestVariantReaders {
 
   @Test
   public void testEmptyArray() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(element(shreddedType)));
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -974,7 +993,7 @@ public class TestVariantReaders {
 
   @Test
   public void testArrayWithNull() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType = variant("var", 2, list(elementType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -1008,7 +1027,7 @@ public class TestVariantReaders {
 
   @Test
   public void testNestedArray() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType outerElementType = element(list(elementType));
     GroupType variantType = variant("var", 2, list(outerElementType));
@@ -1048,8 +1067,9 @@ public class TestVariantReaders {
 
   @Test
   public void testArrayWithNestedObject() throws IOException {
-    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
-    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType fieldA = field("a", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field("b", ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType shreddedFields = objectFields(fieldA, fieldB);
     GroupType elementType = element(shreddedFields);
     GroupType listType = list(elementType);
@@ -1155,7 +1175,7 @@ public class TestVariantReaders {
 
   @Test
   public void testArrayWithNonArray() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType = variant("var", 2, list(elementType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -1237,7 +1257,7 @@ public class TestVariantReaders {
 
   @Test
   public void testArrayMissingValueColumn() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType =
         Types.buildGroup(Type.Repetition.OPTIONAL)
@@ -1273,7 +1293,7 @@ public class TestVariantReaders {
 
   @Test
   public void testArrayMissingElementValueColumn() throws IOException {
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType =
         Types.buildGroup(Type.Repetition.REQUIRED).addField(shreddedType).named("element");
 
@@ -1305,7 +1325,7 @@ public class TestVariantReaders {
   @Test
   public void testArrayWithElementNullValueAndNullTypedValue() throws IOException {
     // Test the invalid case that both value and typed_value of an element are null
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType = variant("var", 2, list(elementType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -1332,7 +1352,7 @@ public class TestVariantReaders {
   @Test
   public void testArrayWithElementValueTypedValueConflict() {
     // Test the invalid case that both value and typed_value of an element are not null
-    Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+    Type shreddedType = ParquetSchemaProducer.shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType elementType = element(shreddedType);
     GroupType variantType = variant("var", 2, list(elementType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -1451,15 +1471,6 @@ public class TestVariantReaders {
         shreddedType.isRepetition(Type.Repetition.OPTIONAL),
         "Invalid shredded type repetition: %s should be OPTIONAL",
         shreddedType.getRepetition());
-  }
-
-  private static Type shreddedPrimitive(PrimitiveTypeName primitive) {
-    return ParquetSchemaProducer.shreddedPrimitive(primitive);
-  }
-
-  private static Type shreddedPrimitive(
-      PrimitiveTypeName primitive, LogicalTypeAnnotation annotation) {
-    return ParquetSchemaProducer.shreddedPrimitive(primitive, annotation);
   }
 
   private static Object toAvroValue(VariantPrimitive<?> variant) {
