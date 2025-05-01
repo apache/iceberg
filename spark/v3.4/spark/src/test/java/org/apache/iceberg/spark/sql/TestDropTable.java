@@ -18,47 +18,45 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.iceberg.spark.CatalogTestBase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestDropTable extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestDropTable extends CatalogTestBase {
 
-  public TestDropTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE %s (id INT, name STRING) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'test')", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() throws IOException {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testDropTable() throws IOException {
     dropTableInternal();
   }
 
-  @Test
+  @TestTemplate
   public void testDropTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
     dropTableInternal();
@@ -71,22 +69,25 @@ public class TestDropTable extends SparkCatalogTestBase {
         sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals(
-        "There should be 2 files for manifests and files", 2, manifestAndFiles.size());
-    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
+    assertThat(manifestAndFiles).as("There should be 2 files for manifests and files").hasSize(2);
+    assertThat(checkFilesExist(manifestAndFiles, true)).as("All files should exist").isTrue();
 
     sql("DROP TABLE %s", tableName);
-    Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
+    assertThat(validationCatalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
 
     if (catalogName.equals("testhadoop")) {
       // HadoopCatalog drop table without purge will delete the base table location.
-      Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
+      assertThat(checkFilesExist(manifestAndFiles, false))
+          .as("All files should be deleted")
+          .isTrue();
     } else {
-      Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
+      assertThat(checkFilesExist(manifestAndFiles, true))
+          .as("All files should not be deleted")
+          .isTrue();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPurgeTable() throws IOException {
     assertEquals(
         "Should have expected rows",
@@ -94,16 +95,15 @@ public class TestDropTable extends SparkCatalogTestBase {
         sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals(
-        "There should be 2 files for manifests and files", 2, manifestAndFiles.size());
-    Assert.assertTrue("All files should exist", checkFilesExist(manifestAndFiles, true));
+    assertThat(manifestAndFiles).as("There should be 2 files for manifests and files").hasSize(2);
+    assertThat(checkFilesExist(manifestAndFiles, true)).as("All files should exist").isTrue();
 
     sql("DROP TABLE %s PURGE", tableName);
-    Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
-    Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
+    assertThat(validationCatalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
+    assertThat(checkFilesExist(manifestAndFiles, false)).as("All files should be deleted").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
 
@@ -113,17 +113,20 @@ public class TestDropTable extends SparkCatalogTestBase {
         sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals(
-        "There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
-    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
+    assertThat(manifestAndFiles).as("There should be 2 files for manifests and files").hasSize(2);
+    assertThat(checkFilesExist(manifestAndFiles, true)).as("All files should exist").isTrue();
 
     assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(
             "Cannot purge table: GC is disabled (deleting files may corrupt other tables");
 
-    Assert.assertTrue("Table should not been dropped", validationCatalog.tableExists(tableIdent));
-    Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not been dropped")
+        .isTrue();
+    assertThat(checkFilesExist(manifestAndFiles, true))
+        .as("All files should not be deleted")
+        .isTrue();
   }
 
   private List<String> manifestsAndFiles() {

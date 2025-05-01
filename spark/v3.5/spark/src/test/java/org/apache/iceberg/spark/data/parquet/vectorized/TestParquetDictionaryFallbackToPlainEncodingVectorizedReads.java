@@ -20,15 +20,16 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
 import java.io.IOException;
-import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.data.RandomData;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -42,22 +43,23 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
   }
 
   @Override
-  Iterable<GenericData.Record> generateData(
+  Iterable<Record> generateData(
       Schema schema,
       int numRecords,
       long seed,
       float nullPercentage,
-      Function<GenericData.Record, GenericData.Record> transform) {
+      Function<Record, Record> transform) {
     // TODO: take into account nullPercentage when generating fallback encoding data
-    Iterable data = RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
+    Iterable data =
+        RandomGenericData.generateFallbackRecords(schema, numRecords, seed, numRecords / 20);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
   @Override
-  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile)
-      throws IOException {
+  FileAppender<Record> getParquetWriter(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
         .named("test")
         .set(TableProperties.PARQUET_DICT_SIZE_BYTES, "512000")
         .build();

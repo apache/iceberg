@@ -24,6 +24,7 @@ import static org.apache.spark.sql.functions.when;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -34,7 +35,9 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCreateTableAsSelect extends CatalogTestBase {
 
   @Parameter(index = 3)
@@ -92,8 +95,7 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
     assertThat(ctasTable.schema().asStruct())
         .as("Should have expected nullable schema")
         .isEqualTo(expectedSchema.asStruct());
-
-    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").hasSize(0);
+    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").isEmpty();
     assertEquals(
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
@@ -194,15 +196,10 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
-    assertThat(rtasTable.properties().get("prop1"))
-        .as("Should have updated table property")
-        .isEqualTo("newval1");
-    assertThat(rtasTable.properties().get("prop2"))
-        .as("Should have preserved table property")
-        .isEqualTo("val2");
-    assertThat(rtasTable.properties().get("prop3"))
-        .as("Should have new table property")
-        .isEqualTo("val3");
+    assertThat(rtasTable.properties())
+        .containsEntry("prop1", "newval1")
+        .containsEntry("prop2", "val2")
+        .containsEntry("prop3", "val3");
   }
 
   @TestTemplate
@@ -272,7 +269,7 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
     assertThat(ctasTable.schema().asStruct())
         .as("Should have expected nullable schema")
         .isEqualTo(expectedSchema.asStruct());
-    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").hasSize(0);
+    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").isEmpty();
     assertEquals(
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
