@@ -523,7 +523,7 @@ public class TestVariantReaders {
     GroupType innerFields = objectFields(List.of(fieldA, fieldB));
     GroupType fieldC = field("c", innerFields);
     GroupType fieldD = field("d", shreddedPrimitive(PrimitiveTypeName.DOUBLE));
-    GroupType outerFields = objectFields(List.of(fieldA, fieldB));
+    GroupType outerFields = objectFields(List.of(fieldC, fieldD));
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
