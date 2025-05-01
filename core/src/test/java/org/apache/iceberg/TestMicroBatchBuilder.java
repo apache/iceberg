@@ -157,13 +157,6 @@ public class TestMicroBatchBuilder extends TestBase {
     appendFiles.commit();
   }
 
-  private static void delete(DeleteFiles deleteFiles, List<DataFile> deletes) {
-    for (DataFile f : deletes) {
-      deleteFiles.deleteFile(f);
-    }
-    deleteFiles.commit();
-  }
-
   private static List<DataFile> files(String... names) {
     return Lists.transform(Lists.newArrayList(names), TestMicroBatchBuilder::file);
   }

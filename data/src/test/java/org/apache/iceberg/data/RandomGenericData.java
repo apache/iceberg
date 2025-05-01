@@ -37,6 +37,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -62,6 +63,12 @@ public class RandomGenericData {
   public static Iterable<Record> generateDictionaryEncodableRecords(
       Schema schema, int numRecords, long seed) {
     return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
+  }
+
+  public static Iterable<Record> generateDictionaryEncodableRecords(
+      Schema schema, int numRecords, long seed, float nullPercentage) {
+    return generateIcebergGenerics(
+        schema, numRecords, () -> new DictionaryEncodedGenerator(seed, nullPercentage));
   }
 
   private static Iterable<Record> generateIcebergGenerics(
@@ -92,6 +99,10 @@ public class RandomGenericData {
       super(seed);
     }
 
+    private RandomRecordGenerator(long seed, float nullPercentage) {
+      super(seed, nullPercentage);
+    }
+
     @Override
     public Record schema(Schema schema, Supplier<Object> structResult) {
       return (Record) structResult.get();
@@ -113,6 +124,10 @@ public class RandomGenericData {
   private static class DictionaryEncodedGenerator extends RandomRecordGenerator {
     DictionaryEncodedGenerator(long seed) {
       super(seed);
+    }
+
+    DictionaryEncodedGenerator(long seed, float nullPercentage) {
+      super(seed, nullPercentage);
     }
 
     @Override
@@ -155,11 +170,22 @@ public class RandomGenericData {
 
   public abstract static class RandomDataGenerator<T>
       extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Random random;
     private static final int MAX_ENTRIES = 20;
+    private static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
+
+    private final Random random;
+    private final float nullPercentage;
 
     protected RandomDataGenerator(long seed) {
+      this(seed, DEFAULT_NULL_PERCENTAGE);
+    }
+
+    protected RandomDataGenerator(long seed, float nullPercentage) {
+      Preconditions.checkArgument(
+          0.0f <= nullPercentage && nullPercentage <= 1.0f,
+          "Percentage needs to be in the range (0.0, 1.0)");
       this.random = new Random(seed);
+      this.nullPercentage = nullPercentage;
     }
 
     protected int getMaxEntries() {
@@ -174,11 +200,14 @@ public class RandomGenericData {
 
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
-      // return null 5% of the time when the value is optional
-      if (field.isOptional() && random.nextInt(20) == 1) {
+      if (field.isOptional() && isNull()) {
         return null;
       }
       return fieldResult.get();
+    }
+
+    private boolean isNull() {
+      return random.nextFloat() < nullPercentage;
     }
 
     @Override
@@ -187,8 +216,7 @@ public class RandomGenericData {
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
+        if (list.isElementOptional() && isNull()) {
           result.add(null);
         } else {
           result.add(elementResult.get());
@@ -220,8 +248,7 @@ public class RandomGenericData {
 
         keySet.add(key);
 
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
+        if (map.isValueOptional() && isNull()) {
           result.put(key, null);
         } else {
           result.put(key, valueResult.get());

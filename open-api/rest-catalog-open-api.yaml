@@ -4467,7 +4467,9 @@ components:
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
     UnauthorizedResponse:
       description:
-        Unauthorized. Authentication is required and has failed or has not yet been provided.
+        Unauthorized. The REST Catalog SHOULD respond with the 401 UnauthorizedResponse when
+        the access token provided is expired, revoked, malformed, or invalid for other reasons.
+        The client MAY request a new access token and retry the request.
       content:
         application/json:
           schema:
@@ -4575,7 +4577,9 @@ components:
 
     AuthenticationTimeoutResponse:
       description:
-        Credentials have timed out. If possible, the client should refresh credentials and retry.
+        This is an optional status response type that the REST Catalog can issue when the
+        token has expired. The client MAY request a new access token and retry the request.
+        401 UnauthorizedResponse SHOULD be preferred over this response type on token expiry.
       content:
         application/json:
           schema:

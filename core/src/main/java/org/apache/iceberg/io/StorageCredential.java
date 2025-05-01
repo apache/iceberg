@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SerializableMap;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -28,7 +29,7 @@ public interface StorageCredential extends Serializable {
 
   String prefix();
 
-  Map<String, String> config();
+  SerializableMap<String, String> config();
 
   @Value.Check
   default void validate() {
@@ -37,6 +38,9 @@ public interface StorageCredential extends Serializable {
   }
 
   static StorageCredential create(String prefix, Map<String, String> config) {
-    return ImmutableStorageCredential.builder().prefix(prefix).config(config).build();
+    return ImmutableStorageCredential.builder()
+        .prefix(prefix)
+        .config(SerializableMap.copyOf(config))
+        .build();
   }
 }

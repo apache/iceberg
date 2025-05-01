@@ -39,9 +39,11 @@ Set the version variable.
 export HIVE_VERSION=4.0.0
 ```
 
-Start the container, using the option `--platform linux/amd64` for a Mac with an M-Series chip:
+
+To accommodate both Intel-based (x86_64) and Apple Silicon (M1, M2, M3) Macs when running your Docker container, you can use the --platform flag to specify the desired architecture. Apple Silicon Macs use the arm64 architecture, while Intel Macs use the amd64 architecture. 
+Start the container, using the option `--platform linux/arm64` for a Mac with an M-Series chip:
 ```sh
-docker run -d --platform linux/amd64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
+docker run -d --platform linux/arm64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
 ```
 
 The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere. 

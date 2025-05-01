@@ -266,7 +266,18 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-All columns of `unknown`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+
+Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The effective default value is produced by setting each fields' default in a new struct.
+
+For example, a struct column `point` with fields `x` (default 0) and `y` (default 0) can be defaulted to `{"x": 0, "y": 0}` or `null`. A non-null default is stored by setting `initial-default` or `write-default` to an empty struct (`{}`) that will use field values set from each field's `initial-default` or `write-default`, respectively.
+
+| `point` default | `point.x` default | `point.y` default | Data value   | Result value |
+|-----------------|-------------------|-------------------|--------------|--------------|
+| `null`          | `0`               | `0`               | (missing)    | `null` |
+| `null`          | `0`               | `0`               | `{"x": 3}`   | `{"x": 3, "y": 0}` |
+| `{}`            | `0`               | `0`               | (missing)    | `{"x": 0, "y": 0}` |
+| `{}`            | `0`               | `0`               | `{"y": -1}`  | `{"x": 0, "y": -1}` |
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
@@ -315,7 +326,7 @@ Struct evolution requires the following rules for default values:
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
 * When an optional field is added, the defaults may be null and should be explicitly set
-* When a new field is added to a struct with a default value, updating the struct's default is optional
+* When a field that is a struct type is added, its default may only be null or a non-null struct with no field values. Default values for fields must be stored in field metadata.
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
@@ -404,8 +415,6 @@ On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequen
 
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
-Values for `_row_id` and `_last_updated_sequence_number` are either read from the data file or assigned at read time. As a result on read, rows in a table always have non-null values for these fields when lineage is enabled.
-
 When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
@@ -418,7 +427,7 @@ Engines may model operations as deleting/inserting rows or as modifications to r
 
 This example demonstrates how `_row_id` and `_last_updated_sequence_number` are assigned for a snapshot. This starts with a table with a `next-row-id` of 1000.
 
-Writing a new append snapshot would create snapshot metadata with `first-row-id` assigned to the table's `next-row-id`:
+Writing a new append snapshot creates snapshot metadata with `first-row-id` assigned to the table's `next-row-id`:
 
 ```json
 {
@@ -428,17 +437,21 @@ Writing a new append snapshot would create snapshot metadata with `first-row-id`
 }
 ```
 
-The snapshot's manifest list would contain existing manifests, plus new manifests with an assigned `first_row_id` based on the `added_rows_count` of previously listed added manifests:
+The snapshot's manifest list will contain existing manifests, plus new manifests that are each assigned a `first_row_id` based on the `added_rows_count` and `existing_rows_count` of preceding new manifests:
 
 | `manifest_path` | `added_rows_count` | `existing_rows_count` | `first_row_id`     |
 |-----------------|--------------------|-----------------------|--------------------|
 | ...             | ...                | ...                   | ...                |
 | existing        | 75                 | 0                     | 925                |
 | added1          | 100                | 25                    | 1000               |
-| added2          | 0                  | 100                   | 1100               |
-| added3          | 125                | 25                    | 1100               |
+| added2          | 0                  | 100                   | 1125               |
+| added3          | 125                | 25                    | 1225               |
 
-The first added file, `added1`, is assigned the same `first_row_id` as the snapshot and the following manifests are assigned `first_row_id` based on the number of rows added by the previously listed manifests. The second file, `added2`, does not change the `first_row_id` of the next manifest because it contains no added data files.
+The existing manifests are written with the `first_row_id` assigned when the manifests were added to the table.
+
+The first added manifest, `added1`, is assigned the same `first_row_id` as the snapshot and each of the remaining added manifests are assigned a `first_row_id` based on the number of rows in preceding manifests that were assigned a `first_row_id`.
+
+Note that the second file, `added2`, changes the `first_row_id` of the next manifest even though it contains no added data files because any data file without a `first_row_id` could be assigned one, even if it has existing status. This is optional if the writer knows that existing data files in the manifest have assigned `first_row_id` values.
 
 Within `added1`, the first added manifest, each data file's `first_row_id` follows a similar pattern:
 
@@ -450,21 +463,24 @@ Within `added1`, the first added manifest, each data file's `first_row_id` follo
 
 The `first_row_id` of the EXISTING file `data1` was already assigned, so the file metadata was copied into manifest `added1`.
 
-Files `data2` and `data3` are written with `null` for `first_row_id` and are assigned `first_row_id` at read time based on the manifest's `first_row_id` and the `record_count` of previously listed ADDED files in this manifest: (1,000 + 0) and (1,000 + 50).
+Files `data2` and `data3` are written with `null` for `first_row_id` and are assigned `first_row_id` at read time based on the manifest's `first_row_id` and the `record_count` of previous files without `first_row_id` in this manifest: (1,000 + 0) and (1,000 + 50).
 
 The snapshot then populates the total number of `added-rows` based on the sum of all added rows in the manifests: 100 (50 + 50)
 
-When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 225 rows were added (`added1`: 100 + `added2`: 0 + `added3`: 125), the new value is 1,000 + 225 = 1,225:
+When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 375 rows were in data files in manifests that were assigned a `first_row_id` (`added1` 100+25, `added2` 0+100, `added3` 125+25) the new value is 1,000 + 375 = 1,375.
 
 
 ##### Row Lineage for Upgraded Tables 
 
-Any snapshot without the field `first-row-id` does not have any lineage information and values for `_row_id` and `_last_updated_sequence_number` cannot be assigned accurately.  
+When a table is upgraded to v3, its `next-row-id` is initailized to 0 and existing snapshots are not modified (that is, `first-row-id` remains unset or null). For such snapshots without `first-row-id`, `first_row_id` values for data files and data manifests are null, and values for `_row_id` are read as null for all rows. When `first_row_id` is null, inherited row ID values are also null.
 
-All files that were added before upgrading to v3 must propagate null for all row-lineage related
-fields. The values for `_row_id` and `_last_updated_sequence_number` must always return null and when these rows are copied, 
-null must be explicitly written. After this point, rows are treated as if they were just created 
-and assigned `row_id` and `_last_updated_sequence_number` as if they were new rows.
+Snapshots that are created after upgrading to v3 must set the snapshot's `first-row-id` and assign row IDs to existing and added files in the snapshot. When writing the manifest list, all data manifests must be assigned a `first_row_id`, which assigns a `first_row_id` to all data files via inheritance.
+
+Note that:
+
+* Snapshots created before upgrading to v3 do not have row IDs.
+* After upgrading, new snapshots in different branches will assign disjoint ID ranges to existing data files, based on the table's `next-row-id` when the snapshot is committed. For a data file in multiple branches, a writer may write the `first_row_id` from another branch or may assign a new `first_row_id` to the data file (to avoid large metadata rewrites).
+* Existing rows will inherit `_last_updated_sequence_number` from their containing data file.
 
 
 ### Partitioning
@@ -647,6 +663,22 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
+For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
+
+Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a "measurement" field that contains int64 and null values may have bounds, but if the field also contained a string value such as "n/a" or "0" then the field may not have bounds.
+
+The Variant bounds objects are serialized by concatenating the [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) of the metadata (containing the normalized field paths) and the bounds object.
+Field paths follow the JSON path format to use normalized path, such as `$['location']['latitude']` or `$['user.name']`. The special path `$` represents bounds for the variant root, indicating that the variant data consists of uniform primitive types, such as strings.
+
+Examples of valid field paths using normalized JSON path format are:
+
+* `$` -- the root of the Variant value
+* `$['event_type']` -- the `event_type` field in a Variant object
+* `$['user.name']` -- the `"user.name"` field in a Variant object
+* `$['location']['latitude']` -- the `latitude` field nested within a `location` object
+* `$['tags']` -- the `tags` array 
+* `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
+
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
@@ -689,9 +721,11 @@ When reading v1 manifests with no sequence number column, sequence numbers for a
 
 When adding a new data file, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
 
-When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all added data files that preceded the file in the manifest.
+When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all data files that preceded the file in the manifest that also had a null `first_row_id`.
 
-The `first_row_id` is only inherited for added data files. The inherited value must be written into the data file metadata for existing and deleted entries. The value of `first_row_id` for delete files is always `null`.
+The inherited value of `first_row_id` must be written into data file metadata when creating existing and deleted entries. The value of `first_row_id` for delete files is always `null`.
+
+Any null (unassigned) `first_row_id` must be assigned via inheritance, even if the data file is existing. This ensures that row IDs are assigned to existing data files in upgraded tables in the first commit after upgrading to v3.
 
 ### Snapshots
 
@@ -708,7 +742,6 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
-|            |            | _required_ | **`added-rows`**             | Sum of the [`added_rows_count`](#manifest-lists) from all manifests added in this snapshot.                                        | 
 
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
@@ -732,11 +765,9 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 #### Snapshot Row IDs
 
-A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
+A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned based on the table's current `next-row-id`. The `first-row-id` field is required even if a commit does not assign any ID space.
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
-
-The snapshot's `added-rows` is the sum of all the  [`added_rows_count`](#manifest-lists) in all added manifests.
 
 
 ### Manifest Lists
@@ -786,9 +817,11 @@ Notes:
 
 #### First Row ID Assignment
 
-When adding a new data manifest file, its `first_row_id` field is assigned the value of the snapshot's `first_row_id` plus the sum of `added_rows_count` for all data manifests that preceded the manifest in the manifest list.
+The `first_row_id` for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read.
 
-The `first_row_id` is only assigned for new data manifests. Values for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`.
+The first manifest without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent manifests without a `first_row_id` are assigned one based on the previous manifest to be assigned a `first_row_id`. Each assigned `first_row_id` must increase by the row count of all files that will be assigned a `first_row_id` via inheritance in the last assigned manifest. That is, each `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the total record count of data files with a null `first_row_id` in the last assigned manifest.
+
+A simple and valid approach is to estimate the number of rows in data files that will be assigned a `first_row_id` using the the manifest's `added_rows_count` and `existing_rows_count`: `first_row_id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
 
 ### Scan Planning
 
@@ -907,11 +940,13 @@ Table metadata consists of the following fields:
 |            | _optional_ | _optional_ | **`refs`**                  | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null.                                                                                                                              |
 | _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
-|            |            | _optional_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                  |
+|            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                  |
 
 For serialization details, see Appendix C.
 
-When a new snapshot is added, the table's `next-row-id` should be updated to the previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
+When a new snapshot is added, the table's `next-row-id` should be increased by the sum of `record_count` for all data files that will be assigned a `first_row_id` via inheritance in the snapshot. The `next-row-id` must always be higher than any assigned row ID in the table.
+
+A simple and valid approach is estimate of the number of rows in data files that will be assigned a `first_row_id` using the manifests' `added_rows_count` and `existing_rows_count`. Using the last assigned manifest, this is `next-row-id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
 
 #### Table Statistics
 
@@ -1171,7 +1206,7 @@ Values should be stored in Avro using the Avro types and logical type annotation
 
 Optional fields, array elements, and map values must be wrapped in an Avro `union` with `null`. This is the only union type allowed in Iceberg data files.
 
-Optional fields must always set the Avro field default value to null.
+Optional fields without an Iceberg default must set the Avro field default value to null. Fields with a non-null Iceberg default must convert the default to an equivalent Avro default.
 
 Maps with non-string keys must use an array representation with the `map` logical type. The array representation or Avro’s map type may be used for maps with string keys.
 
@@ -1406,11 +1441,15 @@ Each partition field in `fields` is stored as a JSON object with the following p
 
 | V1       | V2       | V3       | Field            | JSON representation | Example      |
 |----------|----------|----------|------------------|---------------------|--------------|
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
-|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1            |
+|          |          | optional | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
 |          | required | required | **`field-id`**   | `JSON int`          | 1000         |
 | required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Notes:
+
+1. For partition fields with a transform with a single argument, only `source-id` is written. In case of a multi-argument transform, only `source-ids` is written.
 
 Supported partition transforms are listed below.
 
@@ -1446,12 +1485,14 @@ Each sort field in the fields list is stored as an object with the following pro
 | V1       | V2       | V3       | Field            | JSON representation | Example     |
 |----------|----------|----------|------------------|---------------------|-------------|
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
-|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1           |
+|          |          | optional | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
+Notes:
+
+1. For sort fields with a transform with a single argument, only `source-id` is written. In case of a multi-argument transform, only `source-ids` is written.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
@@ -1550,6 +1591,7 @@ The binary single-value serialization can be used to store the lower and upper b
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`geometry`**               | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
 | **`geography`**              | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
+| **`variant`**                | A serialized Variant of encoded v1 metadata concatenated with an encoded variant object. Object keys are normalized JSON paths to identify fields; values are lower or upper bound values. |
 
 ### JSON single-value serialization
 
@@ -1597,13 +1639,8 @@ All readers are required to read tables with unknown partition transforms, ignor
 Writing v3 metadata:
 
 * Partition Field and Sort Field JSON:
-    * `source-ids` was added and is required
-    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
-
-Reading v1 or v2 metadata for v3:
-
-* Partition Field and Sort Field JSON:
-    * `source-ids` should default to a single-value list of the value of `source-id`
+    * `source-ids` was added and must be written in the case of a multi-argument transform.
+    * `source-id` must be written in the case of single-argument transforms.
 
 Row-level delete changes:
 

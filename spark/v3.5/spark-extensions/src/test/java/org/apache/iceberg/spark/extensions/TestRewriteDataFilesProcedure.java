@@ -638,7 +638,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(
@@ -775,7 +775,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -815,7 +815,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -855,7 +855,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate

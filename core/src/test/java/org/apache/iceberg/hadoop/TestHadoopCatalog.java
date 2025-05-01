@@ -208,10 +208,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -243,10 +243,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -257,10 +257,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -273,10 +273,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     fs.mkdirs(new Path(metaLocation));
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     assertThat(catalog.dropTable(testTable)).isFalse();
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
   }
 
   @Test
@@ -342,11 +342,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
-    assertThat(fs1.isDirectory(new Path(metaLocation1))).isTrue();
+    assertThat(fs1.getFileStatus(new Path(metaLocation1)).isDirectory()).isTrue();
 
     String metaLocation2 = warehouseLocation + "/" + "db/ns2/ns3";
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
-    assertThat(fs2.isDirectory(new Path(metaLocation2))).isTrue();
+    assertThat(fs2.getFileStatus(new Path(metaLocation2)).isDirectory()).isTrue();
 
     assertThatThrownBy(() -> catalog.createNamespace(tbl1.namespace()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -463,7 +463,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     assertThat(catalog.dropNamespace(namespace1)).isTrue();
     String metaLocation = warehouseLocation + "/" + "db";
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test

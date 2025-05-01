@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -34,6 +33,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Context object with optional arguments for a Flink Scan. */
 @Internal

@@ -231,14 +231,14 @@ public class VariantTestUtil {
     return buffer;
   }
 
-  static ByteBuffer createArray(Serialized... values) {
+  public static ByteBuffer createArray(VariantValue... values) {
     int numElements = values.length;
     boolean isLarge = numElements > 0xFF;
 
     int dataSize = 0;
-    for (Serialized value : values) {
+    for (VariantValue value : values) {
       // TODO: produce size for every variant without serializing
-      dataSize += value.buffer().remaining();
+      dataSize += value.sizeInBytes();
     }
 
     // offset size is the size needed to store the length of the data section
@@ -260,13 +260,11 @@ public class VariantTestUtil {
     // write values and offsets
     int nextOffset = 0; // the first offset is always 0
     int index = 0;
-    for (Serialized value : values) {
+    for (VariantValue value : values) {
       // write the offset and value
       VariantUtil.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
-      // in a real implementation, the buffer should be passed to serialize
-      ByteBuffer valueBuffer = value.buffer();
-      int valueSize = writeBufferAbsolute(buffer, dataOffset + nextOffset, valueBuffer);
+      int valueSize = value.writeTo(buffer, dataOffset + nextOffset);
       // update next offset and index
       nextOffset += valueSize;
       index += 1;

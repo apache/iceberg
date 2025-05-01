@@ -265,7 +265,6 @@ public class TestUpdateRequirements {
 
   @Test
   public void addSchemaForView() {
-    int lastColumnId = 1;
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata,

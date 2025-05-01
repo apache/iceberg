@@ -24,6 +24,9 @@ import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTableForRowLineage
+import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTableForRowLineage
+import org.apache.spark.sql.catalyst.optimizer.RemoveRowLineageOutputFromOriginalTable
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
@@ -39,9 +42,12 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectCheckRule(_ => CheckViews)
+    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage}
+    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage}
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
+    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

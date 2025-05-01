@@ -54,7 +54,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -304,15 +303,13 @@ public class GCSFileIOTest {
   @Test
   public void singleStorageCredentialConfigured() {
     StorageCredential gcsCredential =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential",
+                "gcs.oauth2.token-expires-at",
+                "2000"));
 
     AccessToken expectedToken = new AccessToken("gcsTokenFromCredential", new Date(2000L));
 
@@ -335,26 +332,22 @@ public class GCSFileIOTest {
   @Test
   public void multipleStorageCredentialsConfigured() {
     StorageCredential gcsCredential1 =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri/1")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential1",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri/1",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential1",
+                "gcs.oauth2.token-expires-at",
+                "2000"));
 
     StorageCredential gcsCredential2 =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri/2")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential2",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri/2",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential2",
+                "gcs.oauth2.token-expires-at",
+                "2000"));
 
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(ImmutableList.of(gcsCredential1, gcsCredential2));

@@ -151,7 +151,6 @@ public class HTTPClient extends BaseHTTPClient {
     }
   }
 
-  // Per the spec, the only currently defined / used "success" responses are 200 and 202.
   private static boolean isSuccessful(CloseableHttpResponse response) {
     int code = response.getCode();
     return code == HttpStatus.SC_OK

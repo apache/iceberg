@@ -258,6 +258,11 @@
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
         <module name="IllegalImport">
+            <property name="id" value="BanFlinkPreconditions"/>
+            <property name="illegalClasses" value="org.apache.flink.util.Preconditions"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.com.google.common.base.Preconditions instead."/>
+        </module>
+        <module name="IllegalImport">
             <property name="id" value="GuavaClassesInAssertJ"/>
             <property name="illegalPkgs" value="org.assertj.core.util"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
@@ -438,6 +443,11 @@
             <property name="id" value="BanExpectedExceptionUsage"/>
             <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
             <message key="import.illegal" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanJUnit5AssumptionsUsage"/>
+            <property name="illegalPkgs" value="org.junit.jupiter.api.Assumptions"/>
+            <message key="import.illegal" value="Prefer using Assertions.assumeThat(...).isTrue() instead."/>
         </module>
         <module name="IllegalImport">
             <property name="id" value="BanHamcrestUsage"/>

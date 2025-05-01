@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
@@ -57,6 +58,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -153,7 +155,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     assertThat(expectedDataManifests).as("Should have 1 data manifest").hasSize(1);
     assertThat(expectedDeleteManifests).as("Should have 1 delete manifest").hasSize(1);
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".files").schema();
 
     // check delete files table
@@ -290,7 +295,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     sql("DELETE FROM %s WHERE id=1 AND data='b'", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
 
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
@@ -308,7 +316,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
     Dataset<Row> actualDeleteFilesDs =
         spark.sql("SELECT * FROM " + tableName + ".delete_files " + "WHERE partition.data='a'");
-    List<Row> actualDeleteFiles = actualDeleteFilesDs.collectAsList();
+    List<Row> actualDeleteFiles = TestHelpers.selectNonDerived(actualDeleteFilesDs).collectAsList();
 
     assertThat(actualDeleteFiles).as("Metadata table should return one delete file").hasSize(1);
     TestHelpers.assertEqualsSafe(
@@ -387,7 +395,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     List<Object[]> results = sql("DELETE FROM %s", tableName);
     assertThat(results).as("Table should be cleared").isEmpty();
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema =
         Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
@@ -421,7 +432,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
     // Check all files table
     Dataset<Row> actualFilesDs =
         spark.sql("SELECT * FROM " + tableName + ".all_files ORDER BY content");
-    List<Row> actualFiles = actualFilesDs.collectAsList();
+    List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
     List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     assertThat(actualFiles).as("Metadata table should return two files").hasSize(2);
@@ -469,7 +480,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     List<Object[]> results = sql("DELETE FROM %s", tableName);
     assertThat(results).as("Table should be cleared").isEmpty();
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema =
         Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
@@ -653,7 +667,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 + currentSnapshotId
                 + " ORDER BY content");
     List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<Record> expectedFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
