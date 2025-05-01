@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg;
 
-import static org.apache.iceberg.data.PartitionStatsHandler.DATA_FILE_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.DATA_RECORD_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.LAST_UPDATED_AT;
-import static org.apache.iceberg.data.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
-import static org.apache.iceberg.data.PartitionStatsHandler.PARTITION_FIELD_ID;
-import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
-import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT;
+import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
+import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
+import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,26 +46,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
-import org.apache.iceberg.PartitionData;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStats;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.TestTables;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
@@ -82,6 +65,11 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * This test covers {@link PartitionStatsHandler} from the core module. Since it relies on {@link
+ * InternalData}, and we cannot introduce a Parquet dependency in the core module, the test is
+ * placed externally.
+ */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionStatsHandler {
   private static final Schema SCHEMA =

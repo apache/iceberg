@@ -22,9 +22,12 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Collection;
+import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -45,7 +48,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
 @BenchmarkMode(Mode.SingleShotTime)
-public class PartitionStatsUtilBenchmark {
+public class PartitionStatsHandlerBenchmark {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -95,11 +98,17 @@ public class PartitionStatsUtilBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void benchmarkPartitionStats() {
-    Collection<PartitionStats> partitionStats =
-        PartitionStatsUtil.computeStats(table, table.currentSnapshot());
-    assertThat(partitionStats).hasSize(PARTITION_PER_MANIFEST);
+  public void benchmarkPartitionStats() throws IOException {
+    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
 
-    PartitionStatsUtil.sortStats(partitionStats, Partitioning.partitionType(table));
+    List<PartitionStats> stats;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            PartitionStatsHandler.schema(Partitioning.partitionType(table)),
+            Files.localInput(statisticsFile.path()))) {
+      stats = Lists.newArrayList(recordIterator);
+    }
+
+    assertThat(stats).hasSize(PARTITION_PER_MANIFEST);
   }
 }
