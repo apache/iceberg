@@ -624,25 +624,40 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      FieldVector positions = posReader.read(null, numValsToRead).vector();
-      VectorHolder ids = idReader.read(null, numValsToRead);
-      BigIntVector vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
-      ArrowBuf dataBuffer = vec.getDataBuffer();
-      ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
-          ids.vector() == null ? null : ArrowVectorAccessors.getVectorAccessor(ids);
-      for (int i = 0; i < numValsToRead; i += 1) {
-        long bufferOffset = (long) i * Long.BYTES;
-        if (idsAccessor == null || isNull(ids, i)) {
-          long rowId = firstRowId + (Long) positions.getObject(i);
-          dataBuffer.setLong(bufferOffset, rowId);
-        } else {
-          long materializedRowId = idsAccessor.getLong(i);
-          dataBuffer.setLong(bufferOffset, materializedRowId);
+      FieldVector positions = null;
+      FieldVector ids = null;
+
+      try {
+        positions = posReader.read(null, numValsToRead).vector();
+        VectorHolder idsHolder = idReader.read(null, numValsToRead);
+        ids = idsHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
+            ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
+
+        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        ArrowBuf dataBuffer = rowIds.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (idsAccessor == null || isNull(idsHolder, i)) {
+            long rowId = firstRowId + (Long) positions.getObject(i);
+            dataBuffer.setLong(bufferOffset, rowId);
+          } else {
+            long materializedRowId = idsAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedRowId);
+          }
+        }
+
+        rowIds.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(rowIds, MetadataColumns.ROW_ID, nulls);
+      } finally {
+        if (positions != null) {
+          positions.close();
+        }
+
+        if (ids != null) {
+          ids.close();
         }
       }
-
-      vec.setValueCount(numValsToRead);
-      return VectorHolder.vectorHolder(vec, MetadataColumns.ROW_ID, nulls);
     }
 
     @Override
@@ -684,23 +699,34 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      BigIntVector vec = allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
-      ArrowBuf dataBuffer = vec.getDataBuffer();
-      VectorHolder seqNumbers = seqReader.read(null, numValsToRead);
-      ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
-          seqNumbers.vector() == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbers);
-      for (int i = 0; i < numValsToRead; i += 1) {
-        long bufferOffset = (long) i * Long.BYTES;
-        if (seqAccessor == null || isNull(seqNumbers, i)) {
-          dataBuffer.setLong(bufferOffset, lastUpdatedSeq);
-        } else {
-          long materializedSeqNumber = seqAccessor.getLong(i);
-          dataBuffer.setLong(bufferOffset, materializedSeqNumber);
+      FieldVector seqNumbers = null;
+      try {
+        VectorHolder seqNumbersHolder = seqReader.read(null, numValsToRead);
+        seqNumbers = seqNumbersHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
+            seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
+
+        BigIntVector lastUpdatedSequenceNumbers =
+            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+        ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (seqAccessor == null || isNull(seqNumbersHolder, i)) {
+            dataBuffer.setLong(bufferOffset, lastUpdatedSeq);
+          } else {
+            long materializedSeqNumber = seqAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedSeqNumber);
+          }
+        }
+
+        lastUpdatedSequenceNumbers.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(
+            lastUpdatedSequenceNumbers, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER, nulls);
+      } finally {
+        if (seqNumbers != null) {
+          seqNumbers.close();
         }
       }
-
-      vec.setValueCount(numValsToRead);
-      return VectorHolder.vectorHolder(vec, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER, nulls);
     }
 
     @Override
