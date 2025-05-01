@@ -1467,8 +1467,6 @@ In some cases partition specs are stored using only the field list instead of th
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
-
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write using partition specs that use unknown transforms.
 
 ### Sort Orders
