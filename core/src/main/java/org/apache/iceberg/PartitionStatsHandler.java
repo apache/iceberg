@@ -139,7 +139,7 @@ public class PartitionStatsHandler {
     }
 
     StructType partitionType = Partitioning.partitionType(table);
-    List<PartitionStats> sortedStats = sortStats(stats, partitionType);
+    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
         table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
@@ -247,15 +247,12 @@ public class PartitionStatsHandler {
     return mergeStats(statsByManifest, table.specs());
   }
 
-  private static List<PartitionStats> sortStats(
+  private static List<PartitionStats> sortStatsByPartition(
       Collection<PartitionStats> stats, StructType partitionType) {
     List<PartitionStats> entries = Lists.newArrayList(stats);
-    entries.sort(partitionStatsCmp(partitionType));
+    entries.sort(
+        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
     return entries;
-  }
-
-  private static Comparator<PartitionStats> partitionStatsCmp(StructType partitionType) {
-    return Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType));
   }
 
   private static PartitionMap<PartitionStats> collectStats(
