@@ -32,7 +32,7 @@ import java.util.Set;
  * A client of Google BigQuery Metastore functions over the BigQuery service. Uses the Google
  * BigQuery API.
  */
-public interface BigQueryMetastoreClient {
+interface BigQueryMetastoreClient {
 
   /**
    * Creates and returns a new dataset.

@@ -80,8 +80,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   public static final ExceptionHandler.Interceptor EXCEPTION_HANDLER_INTERCEPTOR =
       new ExceptionHandler.Interceptor() {
 
-        private static final long serialVersionUID = -8429573486870467828L;
-
         @Override
         public RetryResult afterEval(Exception exception, RetryResult retryResult) {
           return ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
