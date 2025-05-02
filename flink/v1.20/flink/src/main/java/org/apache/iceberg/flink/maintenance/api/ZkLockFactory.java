@@ -19,15 +19,12 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.shared.SharedCount;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +41,8 @@ public class ZkLockFactory implements TriggerLockFactory {
   private final int baseSleepTimeMs;
   private final int maxRetries;
   private transient CuratorFramework client;
+  private transient SharedCount taskSharedCount;
+  private transient SharedCount recoverySharedCount;
 
   /**
    * Create Zookeeper lock factory
@@ -87,37 +86,50 @@ public class ZkLockFactory implements TriggerLockFactory {
       if (!client.blockUntilConnected(connectionTimeoutMs, TimeUnit.MILLISECONDS)) {
         throw new IllegalStateException("Connection to Zookeeper timed out");
       }
+      this.taskSharedCount = new SharedCount(client, LOCK_BASE_PATH + lockId + "/task", 0);
+      this.recoverySharedCount = new SharedCount(client, LOCK_BASE_PATH + lockId + "/recovery", 0);
+      taskSharedCount.start();
+      recoverySharedCount.start();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted while connecting to Zookeeper", e);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to initialize SharedCount", e);
     }
   }
 
   @Override
   public Lock createLock() {
-    return new ZkLock(client, LOCK_BASE_PATH + lockId + "/task");
+    return new ZkLock(taskSharedCount);
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new ZkLock(client, LOCK_BASE_PATH + lockId + "/recovery");
+    return new ZkLock(recoverySharedCount);
   }
 
   @Override
   public void close() throws IOException {
-    if (client != null) {
-      client.close();
+    try {
+      if (taskSharedCount != null) {
+        taskSharedCount.close();
+      }
+      if (recoverySharedCount != null) {
+        recoverySharedCount.close();
+      }
+    } finally {
+      if (client != null) {
+        client.close();
+      }
     }
   }
 
   /** Zookeeper lock implementation */
   private static class ZkLock implements Lock {
-    private final String lockPath;
-    private final CuratorFramework client;
+    private final SharedCount sharedCount;
 
-    private ZkLock(CuratorFramework client, String lockPath) {
-      this.client = client;
-      this.lockPath = lockPath;
+    private ZkLock(SharedCount sharedCount) {
+      this.sharedCount = sharedCount;
     }
 
     @Override
@@ -127,22 +139,10 @@ public class ZkLockFactory implements TriggerLockFactory {
         return false;
       }
 
-      String newInstanceId = UUID.randomUUID().toString();
       try {
-        client
-            .create()
-            .creatingParentsIfNeeded()
-            .forPath(lockPath, newInstanceId.getBytes(StandardCharsets.UTF_8));
-        return true;
-      } catch (KeeperException.NodeExistsException e) {
-        // Check if the lock creation was successful behind the scenes.
-        if (newInstanceId.equals(instanceId())) {
-          return true;
-        } else {
-          throw new UncheckedSQLException(e, "Failed to create %s lock", this);
-        }
+        return sharedCount.trySetCount(1);
       } catch (Exception e) {
-        LOG.info("Failed to acquire Zookeeper lock: {}", lockPath, e);
+        LOG.info("Failed to acquire Zookeeper lock ", e);
         return false;
       }
     }
@@ -150,34 +150,24 @@ public class ZkLockFactory implements TriggerLockFactory {
     @Override
     public boolean isHeld() {
       try {
-        return client.checkExists().forPath(lockPath) != null;
+        return sharedCount.getCount() == 1;
       } catch (Exception e) {
-        LOG.info("Failed to check Zookeeper lock status: {}", lockPath, e);
+        LOG.info("Failed to check Zookeeper lock status", e);
         return false;
       }
     }
 
     @Override
     public void unlock() {
-      // If the path is not exists, delete will fail.
       if (!isHeld()) {
         return;
       }
-      try {
-        client.delete().forPath(lockPath);
-      } catch (Exception e) {
-        LOG.info("Failed to release Zookeeper lock: {}", lockPath, e);
-        throw new RuntimeException("Failed to release lock", e);
-      }
-    }
 
-    public String instanceId() {
       try {
-        byte[] data = client.getData().forPath(lockPath);
-        return new String(data, StandardCharsets.UTF_8);
+        sharedCount.setCount(0);
       } catch (Exception e) {
-        LOG.info("Failed to get lock value: {}", lockPath, e);
-        return null;
+        LOG.info("Failed to release Zookeeper lock ", e);
+        throw new RuntimeException("Failed to release lock", e);
       }
     }
   }
