@@ -46,6 +46,14 @@ public class TestIcebergBuild {
     assertThat(IcebergBuild.version()).isNotEqualTo("unspecified");
   }
 
+  @Test
+  public void testVersionMatchesSystemProperty() {
+    assumeThat(System.getProperty("project.version")).isNotNull();
+    assertThat(IcebergBuild.version())
+        .isEqualTo(System.getProperty("project.version"))
+        .as("IcebergBuild.version() should match system property project.version");
+  }
+
   /**
    * This test is for Source Releases. When we have a source release we use a version.txt file in
    * the parent directory of this module to actually set the "version" which should be included in

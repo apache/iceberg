@@ -234,6 +234,8 @@ subprojects {
       events "failed"
       exceptionFormat "full"
     }
+
+    systemProperty 'project.version', project.version
   }
 
   plugins.withType(ScalaPlugin.class) {
