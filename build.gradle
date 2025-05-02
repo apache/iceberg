@@ -95,6 +95,7 @@ gitProperties {
   failOnNoGitDirectory = true
   keys = ['git.branch', 'git.build.version', 'git.closest.tag.name','git.commit.id.abbrev', 'git.commit.id',
           'git.commit.message.short', 'git.commit.time', 'git.tags']
+  version = projectVersion
 }
 generateGitProperties.outputs.upToDateWhen { false }
 
@@ -233,6 +234,8 @@ subprojects {
       events "failed"
       exceptionFormat "full"
     }
+
+    systemProperty 'project.version', project.version
   }
 
   plugins.withType(ScalaPlugin.class) {
