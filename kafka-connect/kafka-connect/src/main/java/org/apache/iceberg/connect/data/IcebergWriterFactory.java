@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -32,6 +33,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Tasks;
@@ -102,15 +104,16 @@ class IcebergWriterFactory {
     }
 
     PartitionSpec partitionSpec = spec;
+    Map<String, String> tableProps = Maps.newHashMap(config.autoCreateProps());
+    tableProps.put(
+        IcebergSinkConfig.CONNECT_SCHEMA_VERSION, sample.valueSchema().version().toString());
     AtomicReference<Table> result = new AtomicReference<>();
     Tasks.range(1)
         .retry(IcebergSinkConfig.CREATE_TABLE_RETRIES)
         .run(
             notUsed -> {
               try {
-                result.set(
-                    catalog.createTable(
-                        identifier, schema, partitionSpec, config.autoCreateProps()));
+                result.set(catalog.createTable(identifier, schema, partitionSpec, tableProps));
               } catch (AlreadyExistsException e) {
                 result.set(catalog.loadTable(identifier));
               }

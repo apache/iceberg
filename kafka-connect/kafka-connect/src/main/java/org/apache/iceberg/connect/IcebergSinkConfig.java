@@ -103,6 +103,14 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
+  public static final String CONNECT_SCHEMA_VERSION = "connect.schema.version";
+
+  public static final String SUPPORT_BACKWARD_COMPATIBILITY_CONFIG =
+      "iceberg.support-backward-compatibility";
+  public static final boolean SUPPORT_BACKWARD_COMPATIBILITY_DEFAULT = false;
+  public static final String SUPPORT_BACKWARD_COMPATIBILITY_DOC =
+      "config to decide whether to allow deletion of columns from iceberg table";
+
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
   public static String version() {
@@ -225,6 +233,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        SUPPORT_BACKWARD_COMPATIBILITY_CONFIG,
+        ConfigDef.Type.BOOLEAN,
+        SUPPORT_BACKWARD_COMPATIBILITY_DEFAULT,
+        Importance.HIGH,
+        SUPPORT_BACKWARD_COMPATIBILITY_DOC);
     return configDef;
   }
 
@@ -287,6 +301,10 @@ public class IcebergSinkConfig extends AbstractConfig {
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
+  }
+
+  public boolean supportBackwardCompatibility() {
+    return getBoolean(SUPPORT_BACKWARD_COMPATIBILITY_CONFIG);
   }
 
   public Map<String, String> catalogProps() {

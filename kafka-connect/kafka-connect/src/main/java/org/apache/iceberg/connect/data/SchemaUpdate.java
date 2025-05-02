@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -30,6 +31,8 @@ class SchemaUpdate {
     private final Map<String, AddColumn> addColumns = Maps.newHashMap();
     private final Map<String, UpdateType> updateTypes = Maps.newHashMap();
     private final Map<String, MakeOptional> makeOptionals = Maps.newHashMap();
+    private final Map<String, DeleteColumn> deleteColumns = Maps.newHashMap();
+    private final AtomicInteger version = new AtomicInteger(-1);
 
     Collection<AddColumn> addColumns() {
       return addColumns.values();
@@ -43,8 +46,15 @@ class SchemaUpdate {
       return makeOptionals.values();
     }
 
+    Collection<DeleteColumn> deleteColumns() {
+      return deleteColumns.values();
+    }
+
     boolean empty() {
-      return addColumns.isEmpty() && updateTypes.isEmpty() && makeOptionals.isEmpty();
+      return addColumns.isEmpty()
+          && updateTypes.isEmpty()
+          && makeOptionals.isEmpty()
+          && deleteColumns.isEmpty();
     }
 
     void addColumn(String parentName, String name, Type type) {
@@ -58,6 +68,18 @@ class SchemaUpdate {
 
     void makeOptional(String name) {
       makeOptionals.put(name, new MakeOptional(name));
+    }
+
+    void deleteColumn(String name) {
+      deleteColumns.put(name, new DeleteColumn(name));
+    }
+
+    void version(int currentVersion) {
+      this.version.set(currentVersion);
+    }
+
+    int version() {
+      return this.version.get();
     }
   }
 
@@ -111,6 +133,18 @@ class SchemaUpdate {
     private final String name;
 
     MakeOptional(String name) {
+      this.name = name;
+    }
+
+    String name() {
+      return name;
+    }
+  }
+
+  static class DeleteColumn extends SchemaUpdate {
+    private final String name;
+
+    DeleteColumn(String name) {
       this.name = name;
     }
 
