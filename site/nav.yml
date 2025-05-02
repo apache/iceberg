@@ -63,3 +63,6 @@ nav:
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
     - Implementation status: status.md
+  - PyIceberg: https://py.iceberg.apache.org/
+  - IcebergRust: https://rust.iceberg.apache.org/
+  - IcebergGo: https://pkg.go.dev/github.com/apache/iceberg-go/
