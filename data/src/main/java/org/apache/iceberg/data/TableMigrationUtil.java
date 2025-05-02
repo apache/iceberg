@@ -21,7 +21,6 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -46,11 +45,8 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TableMigrationUtil {
-  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -167,19 +163,10 @@ public class TableMigrationUtil {
 
       Path partitionDir = new Path(partitionUri);
       FileSystem fs = partitionDir.getFileSystem(conf);
-      List<FileStatus> fileStatus;
-      if (fs.exists(partitionDir)) {
-        fileStatus =
-            Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
-                .filter(FileStatus::isFile)
-                .collect(Collectors.toList());
-      } else {
-        LOG.info(
-            "Skipping partition {}: location {} does not exist in the filesystem.",
-            partition,
-            partitionUri);
-        fileStatus = Collections.emptyList();
-      }
+      List<FileStatus> fileStatus =
+          Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
+              .filter(FileStatus::isFile)
+              .collect(Collectors.toList());
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
           Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();

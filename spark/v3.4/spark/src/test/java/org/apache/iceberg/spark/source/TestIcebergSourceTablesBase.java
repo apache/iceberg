@@ -26,11 +26,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -2168,6 +2171,99 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         dropTable(tableIdentifier);
       }
     }
+  }
+
+  @Test
+  public void testSparkTableWithMissingFilesFailure() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    File parquetTablePath = temp.newFolder("table_missing_files");
+    String parquetTableLocation = parquetTablePath.toURI().toString();
+    spark.sql(
+        String.format(
+            "CREATE TABLE parquet_table (data string, id int) "
+                + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+            parquetTableLocation));
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.select("data", "id").write().mode("overwrite").insertInto("parquet_table");
+
+    // Add a Spark partition of which location is missing
+    spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
+    Path partitionLocationPath = parquetTablePath.toPath().resolve("id=1234");
+    java.nio.file.Files.delete(partitionLocationPath);
+
+    NameMapping mapping = MappingUtil.create(table.schema());
+    String mappingJson = NameMappingParser.toJson(mapping);
+
+    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
+
+    String stagingLocation = table.location() + "/metadata";
+
+    assertThatThrownBy(
+            () ->
+                SparkTableUtil.importSparkTable(
+                    spark,
+                    new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
+                    table,
+                    stagingLocation))
+        .hasMessageContaining("Unable to list files in partition")
+        .isInstanceOf(SparkException.class)
+        .hasRootCauseInstanceOf(FileNotFoundException.class);
+  }
+
+  @Test
+  public void testSparkTableWithIgnoreMissingFilesEnabled() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    File parquetTableDir = temp.newFolder("table_missing_files");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+    spark.sql(
+        String.format(
+            "CREATE TABLE parquet_table (data string, id int) "
+                + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+            parquetTableLocation));
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.select("data", "id").write().mode("overwrite").insertInto("parquet_table");
+
+    // Add a Spark partition of which location is missing
+    spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
+    Path partitionLocationPath = parquetTableDir.toPath().resolve("id=1234");
+    java.nio.file.Files.delete(partitionLocationPath);
+
+    NameMapping mapping = MappingUtil.create(table.schema());
+    String mappingJson = NameMappingParser.toJson(mapping);
+
+    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
+
+    String stagingLocation = table.location() + "/metadata";
+
+    SparkTableUtil.importSparkTable(
+        spark,
+        new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
+        table,
+        stagingLocation,
+        Collections.emptyMap(),
+        false,
+        true,
+        SparkTableUtil.migrationService(1));
+
+    List<Row> partitionsTableRows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .collectAsList();
+    assertThat(partitionsTableRows).as("Partitions table should have 2 rows").hasSize(2);
   }
 
   private void testWithFilter(String filterExpr, TableIdentifier tableIdentifier) {

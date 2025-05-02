@@ -20,8 +20,10 @@ package org.apache.iceberg.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -80,15 +82,16 @@ class TestTableMigrationUtil {
   }
 
   @Test
-  void testListPartitionLocationNotExists() {
+  void testListPartitionMissingFilesFailure() {
     String partitionUri = tempTableLocation.resolve("id=1").toUri().toString();
 
-    List<DataFile> dataFiles =
-        TableMigrationUtil.listPartition(
-            PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
-    assertThat(dataFiles)
-        .as("List partition of which location does not exist should return 0 DataFile")
-        .isEmpty();
+    assertThatThrownBy(
+            () ->
+                TableMigrationUtil.listPartition(
+                    PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null))
+        .hasMessageContaining("Unable to list files in partition")
+        .isInstanceOf(RuntimeException.class)
+        .hasRootCauseInstanceOf(FileNotFoundException.class);
   }
 
   private static void writePartitionFile(File outputDir) throws IOException {
