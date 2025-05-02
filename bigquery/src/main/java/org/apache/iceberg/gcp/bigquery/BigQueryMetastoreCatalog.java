@@ -26,6 +26,7 @@ import com.google.api.services.bigquery.model.TableReference;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
@@ -44,8 +45,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ServiceFailureException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -80,9 +79,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private boolean listAllTables;
   private String warehouseLocation;
 
-  // Must have a no-arg constructor to be dynamically loaded
-  // initialize(String name, Map<String, String> properties) will be called to complete
-  // initialization
   public BigQueryMetastoreCatalog() {}
 
   @Override
@@ -105,9 +101,9 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     try {
       client = new BigQueryMetastoreClientImpl(options);
     } catch (IOException e) {
-      throw new ServiceFailureException(e, "Creating BigQuery client failed");
+      throw new UncheckedIOException("Creating BigQuery client failed", e);
     } catch (GeneralSecurityException e) {
-      throw new ValidationException(e, "Creating BigQuery client failed due to a security issue");
+      throw new RuntimeException("Creating BigQuery client failed due to a security issue", e);
     }
 
     initialize(name, properties, projectId, projectLocation, client);
@@ -115,13 +111,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @VisibleForTesting
   void initialize(
-      String inputName,
+      String name,
       Map<String, String> properties,
       String initialProjectId,
       String initialLocation,
       BigQueryMetastoreClient bigQueryMetaStoreClient) {
     Preconditions.checkArgument(bigQueryMetaStoreClient != null, "Invalid BigQuery client: null");
-    this.catalogName = inputName;
+    this.catalogName = name;
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.projectId = initialProjectId;
     this.projectLocation = initialLocation;
@@ -132,7 +128,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       this.conf = new Configuration();
     }
 
-    LOG.info("Using BigQuery Metastore Iceberg Catalog: {}", inputName);
+    LOG.info("Using BigQuery Metastore Iceberg Catalog: {}", name);
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
       this.warehouseLocation =
