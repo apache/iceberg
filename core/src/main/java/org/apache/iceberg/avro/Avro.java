@@ -304,7 +304,6 @@ public class Avro {
     @Override
     public <D> FileAppender<D> build(WriteMode mode) throws IOException {
       switch (mode) {
-        case APPENDER:
         case DATA_WRITER:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
           this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);

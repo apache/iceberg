@@ -186,7 +186,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
 
   @Override
   public <D> FileAppender<D> appender() throws IOException {
-    return appenderBuilder.build(AppenderBuilder.WriteMode.APPENDER);
+    return appenderBuilder.build(AppenderBuilder.WriteMode.DATA_WRITER);
   }
 
   @Override

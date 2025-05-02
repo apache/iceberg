@@ -332,7 +332,6 @@ public class ORC {
     public <D> FileAppender<D> build(WriteMode mode) throws IOException {
       Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
       switch (mode) {
-        case APPENDER:
         case DATA_WRITER:
           this.createWriterFunc =
               (icebergSchema, typeDescription) ->
