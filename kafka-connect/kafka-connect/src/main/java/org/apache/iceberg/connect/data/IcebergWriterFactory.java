@@ -107,7 +107,7 @@ class IcebergWriterFactory {
     Map<String, String> tableProps = Maps.newHashMap(config.autoCreateProps());
     if (null != sample.valueSchema() && null != sample.valueSchema().version()) {
       tableProps.put(
-              IcebergSinkConfig.CONNECT_SCHEMA_VERSION, sample.valueSchema().version().toString());
+          IcebergSinkConfig.CONNECT_SCHEMA_VERSION, sample.valueSchema().version().toString());
     }
     AtomicReference<Table> result = new AtomicReference<>();
     Tasks.range(1)

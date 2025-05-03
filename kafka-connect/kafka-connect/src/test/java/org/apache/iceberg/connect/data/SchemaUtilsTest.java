@@ -141,7 +141,6 @@ public class SchemaUtilsTest {
     when(transaction.updateSchema()).thenReturn(updateSchema);
     when(transaction.updateProperties()).thenReturn(updateProperties);
 
-
     // the updates to "st.i" should be ignored as it already exists and is the same type
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
     consumer.addColumn("st", "i", IntegerType.get());
