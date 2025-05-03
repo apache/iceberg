@@ -163,8 +163,17 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Operation              | Java | PyIceberg | Rust | Go |
 |------------------------|------|-----------|------|----|
 | Append data            | Y    | Y         | Y    | N  |
+| Read position deletes  | Y    | Y         | N    | N  |
 | Write position deletes | Y    | N         | N    | N  |
+| Read equality deletes  | Y    | N         | N    | N  |
 | Write equality deletes | Y    | N         | N    | N  |
+
+### Table Spec V3
+
+| Operation              | Java | PyIceberg | Rust | Go |
+|------------------------|------|-----------|------|----|
+| Read deletion vectors  | Y    | Y         | N    | N  |
+| Write deletion vectors | Y    | N         | N    | N  |
 
 ## Catalogs
 
