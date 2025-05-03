@@ -25,7 +25,9 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
 
 public class TestTruncate {
@@ -83,6 +85,43 @@ public class TestTruncate {
     assertThat(trunc.apply(new BigDecimal("12.29"))).isEqualTo(new BigDecimal("12.20"));
     assertThat(trunc.apply(new BigDecimal("0.05"))).isEqualTo(new BigDecimal("0.00"));
     assertThat(trunc.apply(new BigDecimal("-0.05"))).isEqualTo(new BigDecimal("-0.10"));
+  }
+
+  @Test
+  public void testTruncateDecimalResultType() {
+    Types.DecimalType sourceType = Types.DecimalType.of(5, 3);
+
+    // Truncate unit = 0.001, possible truncated outputs -99.999, -99.998, ..., 99.999
+    // No widening needed
+    SerializableFunction<Object, Object> trunc1 = Truncate.get(1).bind(sourceType);
+    Type resultType = ((Transform<?, ?>) trunc1).getResultType(sourceType);
+    assertThat(resultType).isEqualTo(sourceType);
+
+    // Truncate unit = 0.009, possible truncated outputs -99.999, -99.990, ..., 99.999
+    // No widening needed
+    SerializableFunction<Object, Object> trunc9 = Truncate.get(9).bind(sourceType);
+    resultType = ((Transform<?, ?>) trunc9).getResultType(sourceType);
+    assertThat(resultType).isEqualTo(sourceType);
+
+    // Truncate unit = 1.000, possible truncated output -100.000, -99.000, ..., 99.000
+    // Needs 1 extra precision widening
+    SerializableFunction<Object, Object> trunc1000 = Truncate.get(1000).bind(sourceType);
+    resultType = ((Transform<?, ?>) trunc1000).getResultType(sourceType);
+    assertThat(resultType).isEqualTo(Types.DecimalType.of(6,3));
+
+    // Truncate unit = 99.999, possible truncated outputs -99.999, 0.000, 99.999
+    // No widening needed
+    SerializableFunction<Object, Object> trunc99999 = Truncate.get(99999).bind(sourceType);
+    resultType = ((Transform<?, ?>) trunc99999).getResultType(sourceType);
+    assertThat(resultType).isEqualTo(sourceType);
+
+    sourceType = Types.DecimalType.of(4, 2);
+
+    // Truncate unit = 10000.00, possible truncated outputs -10000.00, 0
+    // Needs 3 extra precision widening
+    SerializableFunction<Object, Object> trunc1000000 = Truncate.get(1000000).bind(sourceType);
+    resultType = ((Transform<?, ?>) trunc1000000).getResultType(sourceType);
+    assertThat(resultType).isEqualTo(Types.DecimalType.of(7, 2));
   }
 
   @Test

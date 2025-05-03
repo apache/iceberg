@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
@@ -32,12 +33,14 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
 class Truncate<T> implements Transform<T, T>, Function<T, T> {
+
   static <T> Truncate<T> get(int width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
     return new Truncate<>(width);
@@ -512,6 +515,34 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
+    }
+
+    @Override
+    public Type getResultType(Type sourceType) {
+      if (sourceType.typeId() != Type.TypeID.DECIMAL) {
+        // This should ideally not happen if canTransform and bind are used correctly,
+        // but it's good practice to validate the input type.
+        throw new IllegalArgumentException("Truncate transform requires a DECIMAL type, but got: " + sourceType);
+      }
+
+      Types.DecimalType decimal = (Types.DecimalType) sourceType;
+      int precision = decimal.precision();
+      int scale = decimal.scale();
+
+      // Convert truncate width into BigDecimal: w * 10^(-scale)
+      BigDecimal unit = new BigDecimal(unscaledWidth, scale);
+
+      // Determine input bound
+      BigDecimal minInput = BigDecimal.TEN.pow(precision - scale)
+              .subtract(BigDecimal.ONE.movePointLeft(scale))
+              .negate();
+
+      // Truncate input bounds, find the min value that can appear in truncated output
+      BigDecimal minTrunc = minInput.divide(unit, 0, RoundingMode.FLOOR).multiply(unit);
+      BigDecimal maxAbs = minTrunc.abs();
+      int finalPrecision = Math.max(maxAbs.precision(), precision);
+
+      return Types.DecimalType.of(finalPrecision, scale);
     }
   }
 }
