@@ -107,17 +107,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ## Table Update Operations
 
-### Table Spec V1
-
-| Operation         | Java | PyIceberg | Rust | Go |
-|-------------------|------|-----------|------|----|
-| Append data files | Y    | Y         | N    | Y  |
-| Rewrite files     | Y    | Y         | N    | N  |
-| Rewrite manifests | Y    | Y         | N    | N  |
-| Overwrite files   | Y    | Y         | N    | N  |
-| Delete files      | Y    | Y         | N    | N  |
-
-### Table Spec V2
+### Table Spec
 
 | Operation         | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
@@ -170,19 +160,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Rest Catalog
 
-#### Table Spec V1
-
-| Table Operation | Java | PyIceberg | Rust | Go |
-|-----------------|------|-----------|------|----|
-| listTable       | Y    | Y         | Y    | Y  |
-| createTable     | Y    | Y         | Y    | Y  |
-| dropTable       | Y    | Y         | Y    | Y  |
-| loadTable       | Y    | Y         | Y    | Y  |
-| updateTable     | Y    | Y         | Y    | Y  |
-| renameTable     | Y    | Y         | Y    | Y  |
-| tableExists     | Y    | Y         | Y    | Y  |
-
-#### Table Spec V2
+#### Table Spec
 
 | Table Operation | Java | PyIceberg | Rust | Go |
 |-----------------|------|-----------|------|----|
@@ -226,19 +204,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | MySQL    | Y    | Y         | Y    | Y  |
 | SQLite   | Y    | Y         | Y    | Y  |
 
-#### Table Spec V1
-
-| Table Operation | Java | PyIceberg | Rust | Go |
-|-----------------|------|-----------|------|----|
-| listTable       | Y    | Y         | Y    | Y  |
-| createTable     | Y    | Y         | Y    | Y  |
-| dropTable       | Y    | Y         | Y    | Y  |
-| loadTable       | Y    | Y         | Y    | Y  |
-| updateTable     | Y    | Y         | Y    | Y  |
-| renameTable     | Y    | Y         | Y    | Y  |
-| tableExists     | Y    | Y         | Y    | Y  |
-
-#### Table Spec V2
+#### Table Spec
 
 | Table Operation | Java | PyIceberg | Rust | Go |
 |-----------------|------|-----------|------|----|
@@ -274,19 +240,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 ### Glue Catalog
 
-#### Table Spec V1
-
-| Table Operation | Java | PyIceberg | Rust | Go |
-|-----------------|------|-----------|------|----|
-| listTable       | Y    | Y         | Y    | Y  |
-| createTable     | Y    | Y         | Y    | Y  |
-| dropTable       | Y    | Y         | Y    | Y  |
-| loadTable       | Y    | Y         | Y    | Y  |
-| updateTable     | Y    | Y         | Y    | Y  |
-| renameTable     | Y    | Y         | Y    | Y  |
-| tableExists     | Y    | Y         | Y    | Y  |
-
-#### Table Spec V2
+#### Table Spec
 
 | Table Operation | Java | PyIceberg | Rust | Go |
 |-----------------|------|-----------|------|----|
@@ -322,19 +276,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 ### Hive Metastore Catalog
 
-#### Table Spec V1
-
-| Table Operation | Java | PyIceberg | Rust | Go |
-|-----------------|------|-----------|------|----|
-| listTable       | Y    | Y         | Y    | Y  |
-| createTable     | Y    | Y         | Y    | Y  |
-| dropTable       | Y    | Y         | Y    | Y  |
-| loadTable       | Y    | Y         | Y    | Y  |
-| updateTable     | Y    | Y         | Y    | Y  |
-| renameTable     | Y    | Y         | Y    | Y  |
-| tableExists     | Y    | Y         | Y    | Y  |
-
-#### Table Spec V2
+#### Table Spec
 
 | Table Operation | Java | PyIceberg | Rust | Go |
 |-----------------|------|-----------|------|----|
