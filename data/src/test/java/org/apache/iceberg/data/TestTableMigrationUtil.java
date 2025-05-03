@@ -89,7 +89,7 @@ class TestTableMigrationUtil {
             () ->
                 TableMigrationUtil.listPartition(
                     PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null))
-        .hasMessageContaining("Unable to list files in partition")
+        .hasMessageContaining("Unable to list files in partition: " + partitionUri)
         .isInstanceOf(RuntimeException.class)
         .hasRootCauseInstanceOf(FileNotFoundException.class);
   }

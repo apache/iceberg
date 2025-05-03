@@ -2174,7 +2174,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public void testSparkTableWithMissingFilesFailure() throws IOException {
+  public void testImportSparkTableWithMissingFilesFailure() throws IOException {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
@@ -2190,17 +2190,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
 
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-    inputDF.select("data", "id").write().mode("overwrite").insertInto("parquet_table");
+    inputDF.write().mode("overwrite").insertInto("parquet_table");
 
     // Add a Spark partition of which location is missing
     spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
     Path partitionLocationPath = parquetTablePath.toPath().resolve("id=1234");
     java.nio.file.Files.delete(partitionLocationPath);
-
-    NameMapping mapping = MappingUtil.create(table.schema());
-    String mappingJson = NameMappingParser.toJson(mapping);
-
-    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
 
     String stagingLocation = table.location() + "/metadata";
 
@@ -2211,13 +2206,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                     new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
                     table,
                     stagingLocation))
-        .hasMessageContaining("Unable to list files in partition")
+        .hasMessageContaining(
+            "Unable to list files in partition: " + partitionLocationPath.toFile().toURI())
         .isInstanceOf(SparkException.class)
         .hasRootCauseInstanceOf(FileNotFoundException.class);
   }
 
   @Test
-  public void testSparkTableWithIgnoreMissingFilesEnabled() throws IOException {
+  public void testImportSparkTableWithIgnoreMissingFilesEnabled() throws IOException {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
@@ -2233,17 +2229,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
 
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-    inputDF.select("data", "id").write().mode("overwrite").insertInto("parquet_table");
+    inputDF.write().mode("overwrite").insertInto("parquet_table");
 
     // Add a Spark partition of which location is missing
     spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
     Path partitionLocationPath = parquetTableDir.toPath().resolve("id=1234");
     java.nio.file.Files.delete(partitionLocationPath);
-
-    NameMapping mapping = MappingUtil.create(table.schema());
-    String mappingJson = NameMappingParser.toJson(mapping);
-
-    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
 
     String stagingLocation = table.location() + "/metadata";
 
