@@ -39,6 +39,8 @@ import java.util.Map;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -97,9 +99,13 @@ public class SchemaUtilsTest {
   @Test
   public void testApplySchemaUpdates() {
     UpdateSchema updateSchema = mock(UpdateSchema.class);
+    UpdateProperties updateProperties = mock(UpdateProperties.class);
+    Transaction transaction = mock(Transaction.class);
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
-    when(table.updateSchema()).thenReturn(updateSchema);
+    when(table.newTransaction()).thenReturn(transaction);
+    when(transaction.updateSchema()).thenReturn(updateSchema);
+    when(transaction.updateProperties()).thenReturn(updateProperties);
 
     // the updates to "i" should be ignored as it already exists and is the same type
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
@@ -111,7 +117,6 @@ public class SchemaUtilsTest {
 
     SchemaUtils.applySchemaUpdates(table, consumer);
     verify(table).refresh();
-    verify(table).updateSchema();
 
     verify(updateSchema).addColumn(isNull(), eq("s"), isA(StringType.class));
     verify(updateSchema).updateColumn(eq("f"), isA(DoubleType.class));
@@ -122,14 +127,20 @@ public class SchemaUtilsTest {
     verify(updateSchema).addColumn(isNull(), anyString(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
+    verify(updateProperties).set(anyString(), anyString());
   }
 
   @Test
   public void testApplyNestedSchemaUpdates() {
     UpdateSchema updateSchema = mock(UpdateSchema.class);
+    UpdateProperties updateProperties = mock(UpdateProperties.class);
+    Transaction transaction = mock(Transaction.class);
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(NESTED_SCHEMA);
-    when(table.updateSchema()).thenReturn(updateSchema);
+    when(table.newTransaction()).thenReturn(transaction);
+    when(transaction.updateSchema()).thenReturn(updateSchema);
+    when(transaction.updateProperties()).thenReturn(updateProperties);
+
 
     // the updates to "st.i" should be ignored as it already exists and is the same type
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
@@ -141,7 +152,6 @@ public class SchemaUtilsTest {
 
     SchemaUtils.applySchemaUpdates(table, consumer);
     verify(table).refresh();
-    verify(table).updateSchema();
 
     verify(updateSchema).addColumn(eq("st"), eq("s"), isA(StringType.class));
     verify(updateSchema).updateColumn(eq("st.f"), isA(DoubleType.class));
@@ -152,6 +162,7 @@ public class SchemaUtilsTest {
     verify(updateSchema).addColumn(anyString(), anyString(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
+    verify(updateProperties).set(anyString(), anyString());
   }
 
   @Test
