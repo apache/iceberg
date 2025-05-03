@@ -105,6 +105,8 @@ class IcebergWriterFactory {
 
     PartitionSpec partitionSpec = spec;
     Map<String, String> tableProps = Maps.newHashMap(config.autoCreateProps());
+    // Saving the connect schema version in the table for future reference in case for schema
+    // evolution
     if (null != sample.valueSchema() && null != sample.valueSchema().version()) {
       tableProps.put(
           IcebergSinkConfig.CONNECT_SCHEMA_VERSION, sample.valueSchema().version().toString());
