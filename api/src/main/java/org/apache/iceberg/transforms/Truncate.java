@@ -542,8 +542,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
       // Truncate input bounds, find the min value that can appear in truncated output
       BigDecimal minTrunc = minInput.divide(unit, 0, RoundingMode.FLOOR).multiply(unit);
-      BigDecimal maxAbs = minTrunc.abs();
-      int finalPrecision = Math.max(maxAbs.precision(), precision);
+      int finalPrecision = Math.max(minTrunc.precision(), precision);
 
       return Types.DecimalType.of(finalPrecision, scale);
     }
