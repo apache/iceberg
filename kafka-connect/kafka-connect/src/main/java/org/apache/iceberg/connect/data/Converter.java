@@ -73,15 +73,15 @@ abstract class Converter {
           .appendOffset("+HHmm", "Z")
           .toFormatter(Locale.ROOT);
 
-  public Schema tableSchema() {
+  Schema tableSchema() {
     return tableSchema;
   }
 
-  public NameMapping nameMapping() {
+  NameMapping nameMapping() {
     return nameMapping;
   }
 
-  public IcebergSinkConfig config() {
+  IcebergSinkConfig config() {
     return config;
   }
 
