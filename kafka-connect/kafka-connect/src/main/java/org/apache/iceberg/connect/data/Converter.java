@@ -56,7 +56,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
@@ -171,38 +170,6 @@ abstract class Converter {
       StructType schema,
       int structFieldId,
       SchemaUpdate.Consumer schemaUpdateConsumer);
-
-  protected void handleNestedFieldRemoval(
-      NestedField field, SchemaUpdate.Consumer schemaUpdateConsumer) {
-    if (schemaUpdateConsumer == null) {
-      return;
-    }
-
-    Type fieldType = field.type();
-
-    if (fieldType.isStructType()) {
-      for (NestedField nestedField : fieldType.asStructType().fields()) {
-        if (nestedField.isRequired()) {
-          String fullPath = tableSchema.findColumnName(nestedField.fieldId());
-          schemaUpdateConsumer.deleteColumn(fullPath);
-        }
-        if (nestedField.type().isNestedType()) {
-          handleNestedFieldRemoval(nestedField, schemaUpdateConsumer);
-        }
-      }
-    } else if (fieldType.isListType()) {
-      NestedField elementField = fieldType.asListType().fields().get(0);
-      if (elementField.type().isNestedType()) {
-        handleNestedFieldRemoval(elementField, schemaUpdateConsumer);
-      }
-    } else if (fieldType.isMapType()) {
-      List<NestedField> mapFields = fieldType.asMapType().fields();
-      NestedField valueField = mapFields.get(1);
-      if (valueField.type().isNestedType()) {
-        handleNestedFieldRemoval(valueField, schemaUpdateConsumer);
-      }
-    }
-  }
 
   protected List<Object> convertListValue(
       Object value, ListType type, SchemaUpdate.Consumer schemaUpdateConsumer) {
