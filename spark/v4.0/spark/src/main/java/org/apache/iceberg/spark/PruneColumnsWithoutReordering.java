@@ -46,6 +46,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
+import org.apache.spark.sql.types.VariantType$;
 
 public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final StructType requestedType;
@@ -194,6 +195,11 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   }
 
   @Override
+  public Type variant(Types.VariantType variant) {
+    return Types.VariantType.get();
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     Set<Class<? extends DataType>> expectedType = TYPES.get(primitive.typeId());
     Preconditions.checkArgument(
@@ -238,5 +244,6 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
           .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
           .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
+          .put(TypeID.VARIANT, ImmutableSet.of(VariantType$.class))
           .buildOrThrow();
 }

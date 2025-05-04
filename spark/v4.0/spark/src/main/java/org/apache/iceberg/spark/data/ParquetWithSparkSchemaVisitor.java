@@ -35,6 +35,7 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 
 /**
  * Visitor for traversing a Parquet type with a companion Spark type.
@@ -152,6 +153,13 @@ public class ParquetWithSparkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
+      } else if (sType
+          instanceof
+          VariantType /* LogicalTypeAnnotation.variantType().equals(annotation) when variant logical type is added to Parquet */) {
+        VariantType variant = (VariantType) sType;
+
+        return visitor.variant(variant, group);
+
       }
 
       Preconditions.checkArgument(
@@ -209,6 +217,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   public T primitive(DataType sPrimitive, PrimitiveType primitive) {
     return null;
+  }
+
+  public T variant(VariantType sVariant, GroupType variant) {
+    throw new UnsupportedOperationException("Not implemented for variant");
   }
 
   protected String[] currentPath() {

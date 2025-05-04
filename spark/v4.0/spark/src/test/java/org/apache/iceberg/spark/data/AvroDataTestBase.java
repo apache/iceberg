@@ -89,6 +89,10 @@ public abstract class AvroDataTestBase {
     return false;
   }
 
+  protected boolean supportsVariant() {
+    return false;
+  }
+
   protected static final StructType SUPPORTED_PRIMITIVES =
       StructType.of(
           required(100, "id", LongType.get()),
@@ -108,8 +112,8 @@ public abstract class AvroDataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
-          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
-          );
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
+          required(118, "variant", Types.VariantType.get()));
 
   @TempDir protected Path temp;
 

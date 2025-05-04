@@ -37,7 +37,7 @@ import org.apache.iceberg.variants.Variants;
 public class RandomVariants {
   private RandomVariants() {}
 
-  public static Variant randomVariant(Random random) {
+  public static Variant randomVariant(Random random, PhysicalType... excludedTypes) {
     PhysicalType type = randomType(random);
     VariantMetadata metadata;
     if (type == PhysicalType.OBJECT || type == PhysicalType.ARRAY) {
@@ -52,12 +52,13 @@ public class RandomVariants {
       metadata = VariantMetadata.empty();
     }
 
-    return Variant.of(metadata, randomVariant(random, metadata, randomType(random)));
+    return Variant.of(metadata, randomVariant(random, metadata, randomType(random, excludedTypes)));
   }
 
-  private static PhysicalType randomType(Random random) {
-    PhysicalType[] types = PhysicalType.values();
-    return types[random.nextInt(types.length)];
+  private static PhysicalType randomType(Random random, PhysicalType... excludedTypes) {
+    List<PhysicalType> types = Lists.newArrayList(PhysicalType.values());
+    types.removeAll(List.of(excludedTypes));
+    return types.get(random.nextInt(types.size()));
   }
 
   private static VariantValue randomVariant(

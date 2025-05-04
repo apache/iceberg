@@ -25,6 +25,7 @@ import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -45,6 +46,10 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -52,6 +57,7 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 import scala.collection.Seq;
 
 public class GenericsHelpers {
@@ -212,6 +218,16 @@ public class GenericsHelpers {
             mapAsJavaMapConverter((scala.collection.Map<String, ?>) actual).asJava();
         assertEqualsSafe(type.asNestedType().asMapType(), (Map<?, ?>) expected, asMap);
         break;
+      case VARIANT:
+        assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
+        assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
+        assertThat(actual)
+            .as("Variant should match")
+            .isEqualTo(
+                new VariantVal(
+                    ((Record) expected).get(0, ByteBuffer.class).array(),
+                    ((Record) expected).get(1, ByteBuffer.class).array()));
+        break;
       case TIME:
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
@@ -294,6 +310,16 @@ public class GenericsHelpers {
       assertEqualsUnsafe(keyType, expectedPair.getKey(), actualKey);
       assertEqualsUnsafe(valueType, expectedPair.getValue(), actualValue);
     }
+  }
+
+  private static void assertEqualsUnsafe(Variant expected, VariantVal actual) {
+    VariantMetadata actualMetadata =
+        VariantMetadata.from(ByteBuffer.wrap(actual.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
+    VariantTestUtil.assertEqual(expected.metadata(), actualMetadata);
+    VariantTestUtil.assertEqual(
+        expected.value(),
+        VariantValue.from(
+            actualMetadata, ByteBuffer.wrap(actual.getValue()).order(ByteOrder.LITTLE_ENDIAN)));
   }
 
   private static void assertEqualsUnsafe(Type type, Object expected, Object actual) {
@@ -397,6 +423,11 @@ public class GenericsHelpers {
         assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
         assertThat(actual).as("Should be an ArrayBasedMapData").isInstanceOf(MapData.class);
         assertEqualsUnsafe(type.asNestedType().asMapType(), (Map<?, ?>) expected, (MapData) actual);
+        break;
+      case VARIANT:
+        assertThat(expected).as("Should expect a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
+        assertEqualsUnsafe((Variant) expected, (VariantVal) actual);
         break;
       case TIME:
       default:
