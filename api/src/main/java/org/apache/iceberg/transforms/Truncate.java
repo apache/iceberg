@@ -522,7 +522,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       if (sourceType.typeId() != Type.TypeID.DECIMAL) {
         // This should ideally not happen if canTransform and bind are used correctly,
         // but it's good practice to validate the input type.
-        throw new IllegalArgumentException("Truncate transform requires a DECIMAL type, but got: " + sourceType);
+        throw new IllegalArgumentException(
+            "Truncate transform requires a DECIMAL type, but got: " + sourceType);
       }
 
       Types.DecimalType decimal = (Types.DecimalType) sourceType;
@@ -533,7 +534,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       BigDecimal unit = new BigDecimal(unscaledWidth, scale);
 
       // Determine input bound
-      BigDecimal minInput = BigDecimal.TEN.pow(precision - scale)
+      BigDecimal minInput =
+          BigDecimal.TEN
+              .pow(precision - scale)
               .subtract(BigDecimal.ONE.movePointLeft(scale))
               .negate();
 

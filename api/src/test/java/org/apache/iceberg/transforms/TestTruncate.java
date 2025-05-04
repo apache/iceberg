@@ -107,7 +107,7 @@ public class TestTruncate {
     // Needs 1 extra precision widening
     SerializableFunction<Object, Object> trunc1000 = Truncate.get(1000).bind(sourceType);
     resultType = ((Transform<?, ?>) trunc1000).getResultType(sourceType);
-    assertThat(resultType).isEqualTo(Types.DecimalType.of(6,3));
+    assertThat(resultType).isEqualTo(Types.DecimalType.of(6, 3));
 
     // Truncate unit = 99.999, possible truncated outputs -99.999, 0.000, 99.999
     // No widening needed
