@@ -29,24 +29,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
@@ -55,6 +64,8 @@ import org.apache.iceberg.util.ThreadPools;
 public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
 
   public static final int PARTITION_FIELD_ID = 0;
   public static final String PARTITION_FIELD_NAME = "partition";
@@ -106,22 +117,32 @@ public class PartitionStatsHandler {
   }
 
   /**
-   * Computes and writes the {@link PartitionStatisticsFile} for a given table's current snapshot.
+   * Computes the stats incrementally after the snapshot that has partition stats file till the
+   * current snapshot and writes the combined result into a {@link PartitionStatisticsFile} after
+   * merging the stats for a given table's current snapshot.
+   *
+   * <p>Does a full compute if previous statistics file does not exist.
    *
    * @param table The {@link Table} for which the partition statistics is computed.
    * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
    *     present.
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
+    Preconditions.checkArgument(table != null, "Invalid table: null");
+
     if (table.currentSnapshot() == null) {
       return null;
     }
 
-    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+    return computeAndWrite(table, table.currentSnapshot().snapshotId(), true /* incremental */);
   }
 
   /**
-   * Computes and writes the {@link PartitionStatisticsFile} for a given table and snapshot.
+   * Computes the stats incrementally after the snapshot that has partition stats file till the
+   * given snapshot and writes the combined result into a {@link PartitionStatisticsFile} after
+   * merging the stats for a given snapshot.
+   *
+   * <p>Does a full compute if previous statistics file does not exist.
    *
    * @param table The {@link Table} for which the partition statistics is computed.
    * @param snapshotId snapshot for which partition statistics are computed.
@@ -130,18 +151,48 @@ public class PartitionStatsHandler {
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
-    Snapshot snapshot = table.snapshot(snapshotId);
-    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
+    Preconditions.checkArgument(table != null, "Invalid table: null");
+    return computeAndWrite(table, snapshotId, true /* incremental */);
+  }
 
-    Collection<PartitionStats> stats = computeStats(table, snapshot);
-    if (stats.isEmpty()) {
+  /**
+   * Fully computes the stats freshly and writes the result into a {@link PartitionStatisticsFile}
+   * for a given table's current snapshot.
+   *
+   * <p>Ignores the previous stats file. Use this method if current stats are corrupted and need
+   * full compute.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFileFullRefresh(Table table)
+      throws IOException {
+    Preconditions.checkArgument(table != null, "Invalid table: null");
+
+    if (table.currentSnapshot() == null) {
       return null;
     }
 
-    StructType partitionType = Partitioning.partitionType(table);
-    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
-    return writePartitionStatsFile(
-        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+    return computeAndWrite(table, table.currentSnapshot().snapshotId(), false /* incremental */);
+  }
+
+  /**
+   * Fully computes the stats freshly and writes the result into a {@link PartitionStatisticsFile}
+   * for a given snapshot.
+   *
+   * <p>Ignores the previous stats file. Use this method if current stats are corrupted and need
+   * full compute.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
+   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFileFullRefresh(
+      Table table, long snapshotId) throws IOException {
+    Preconditions.checkArgument(table != null, "Invalid table: null");
+    return computeAndWrite(table, snapshotId, false /* incremental */);
   }
 
   @VisibleForTesting
@@ -174,6 +225,9 @@ public class PartitionStatsHandler {
    */
   public static CloseableIterable<PartitionStats> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
+    Preconditions.checkArgument(schema != null, "Invalid schema: null");
+    Preconditions.checkArgument(inputFile != null, "Invalid input file: null");
+
     FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
     Preconditions.checkArgument(
         fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
@@ -230,34 +284,139 @@ public class PartitionStatsHandler {
     return stats;
   }
 
-  private static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
-    Preconditions.checkArgument(table != null, "table cannot be null");
-    Preconditions.checkArgument(Partitioning.isPartitioned(table), "table must be partitioned");
-    Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
+  private static PartitionStatisticsFile computeAndWrite(
+      Table table, long snapshotId, boolean incremental) throws IOException {
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
     StructType partitionType = Partitioning.partitionType(table);
-    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+
+    Collection<PartitionStats> stats;
+    if (incremental) {
+      PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
+      if (statisticsFile == null) {
+        LOG.info(
+            "No previous statistics file present for the table for incremental compute. Using full compute.");
+        stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
+      } else {
+        stats = incrementalComputeAndMerge(table, snapshot, partitionType, statisticsFile);
+      }
+    } else {
+      stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
+    }
+
+    if (stats.isEmpty()) {
+      // empty branch case
+      return null;
+    }
+
+    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
+    return writePartitionStatsFile(
+        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+  }
+
+  private static Collection<PartitionStats> incrementalComputeAndMerge(
+      Table table,
+      Snapshot snapshot,
+      StructType partitionType,
+      PartitionStatisticsFile previousStatsFile)
+      throws IOException {
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    // read previous stats, note that partition field will be read as GenericRecord
+    try (CloseableIterable<PartitionStats> oldStats =
+        readPartitionStatsFile(schema(partitionType), Files.localInput(previousStatsFile.path()))) {
+      oldStats.forEach(
+          partitionStats ->
+              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+    }
+
+    // incrementally compute the new stats, partition field will be written as PartitionData
+    PartitionMap<PartitionStats> incrementalStatsMap =
+        computeStatsDiff(table, table.snapshot(previousStatsFile.snapshotId()), snapshot);
+
+    // convert PartitionData into GenericRecord and merge stats
+    incrementalStatsMap.forEach(
+        (key, value) ->
+            statsMap.merge(
+                Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
+                value,
+                (existingEntry, newEntry) -> {
+                  existingEntry.appendStats(newEntry);
+                  return existingEntry;
+                }));
+
+    return statsMap.values();
+  }
+
+  private static GenericRecord partitionDataToRecord(PartitionData data) {
+    GenericRecord record = GenericRecord.create(data.getPartitionType());
+    for (int index = 0; index < record.size(); index++) {
+      record.set(index, data.get(index));
+    }
+
+    return record;
+  }
+
+  @VisibleForTesting
+  static PartitionStatisticsFile latestStatsFile(Table table, long snapshotId) {
+    List<PartitionStatisticsFile> partitionStatisticsFiles = table.partitionStatisticsFiles();
+    if (partitionStatisticsFiles.isEmpty()) {
+      return null;
+    }
+
+    Map<Long, PartitionStatisticsFile> stats =
+        partitionStatisticsFiles.stream()
+            .collect(Collectors.toMap(PartitionStatisticsFile::snapshotId, file -> file));
+    for (Snapshot snapshot : SnapshotUtil.ancestorsOf(snapshotId, table::snapshot)) {
+      if (stats.containsKey(snapshot.snapshotId())) {
+        return stats.get(snapshot.snapshotId());
+      }
+    }
+
+    throw new IncrementalComputeStatsFailedException(
+        "Unable to find previous stats with valid snapshot. Try full compute.");
+  }
+
+  private static PartitionMap<PartitionStats> computeStatsDiff(
+      Table table, Snapshot fromSnapshot, Snapshot toSnapshot) {
+    Set<Long> snapshotIdsRange =
+        Sets.newHashSet(
+            SnapshotUtil.ancestorIdsBetween(
+                toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
+    Predicate<ManifestFile> manifestFilePredicate =
+        manifestFile -> snapshotIdsRange.contains(manifestFile.snapshotId());
+    return computeStats(table, toSnapshot, manifestFilePredicate, true /* incremental */);
+  }
+
+  private static PartitionMap<PartitionStats> computeStats(
+      Table table, Snapshot snapshot, Predicate<ManifestFile> predicate, boolean incremental) {
+    StructType partitionType = Partitioning.partitionType(table);
+    List<ManifestFile> manifests =
+        snapshot.allManifests(table.io()).stream().filter(predicate).collect(Collectors.toList());
+
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
-        .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
+        .run(
+            manifest ->
+                statsByManifest.add(
+                    collectStatsForManifest(table, manifest, partitionType, incremental)));
 
-    return mergeStats(statsByManifest, table.specs());
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    for (PartitionMap<PartitionStats> stats : statsByManifest) {
+      mergePartitionMap(stats, statsMap);
+    }
+
+    return statsMap;
   }
 
-  private static List<PartitionStats> sortStatsByPartition(
-      Collection<PartitionStats> stats, StructType partitionType) {
-    List<PartitionStats> entries = Lists.newArrayList(stats);
-    entries.sort(
-        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
-    return entries;
-  }
-
-  private static PartitionMap<PartitionStats> collectStats(
-      Table table, ManifestFile manifest, StructType partitionType) {
-    try (ManifestReader<?> reader = openManifest(table, manifest)) {
+  private static PartitionMap<PartitionStats> collectStatsForManifest(
+      Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
+    List<String> projection = BaseScan.scanColumns(manifest.content());
+    try (ManifestReader<?> reader = ManifestFiles.open(manifest, table.io()).select(projection)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
       int specId = manifest.partitionSpecId();
       PartitionSpec spec = table.specs().get(specId);
@@ -275,9 +434,17 @@ public class PartitionStatsHandler {
                 ((PartitionData) file.partition()).copy(),
                 () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
-          stats.liveEntry(file, snapshot);
+          // Live can have both added and existing entries. Don't consider existing entries for
+          // incremental compute as it was already included in previous compute.
+          if (!incremental || entry.status() == ManifestEntry.Status.ADDED) {
+            stats.liveEntry(file, snapshot);
+          }
         } else {
-          stats.deletedEntry(snapshot);
+          if (incremental) {
+            stats.deletedEntryForIncrementalCompute(file, snapshot);
+          } else {
+            stats.deletedEntry(snapshot);
+          }
         }
       }
 
@@ -287,27 +454,30 @@ public class PartitionStatsHandler {
     }
   }
 
-  private static ManifestReader<?> openManifest(Table table, ManifestFile manifest) {
-    List<String> projection = BaseScan.scanColumns(manifest.content());
-    return ManifestFiles.open(manifest, table.io()).select(projection);
+  private static void mergePartitionMap(
+      PartitionMap<PartitionStats> fromMap, PartitionMap<PartitionStats> toMap) {
+    fromMap.forEach(
+        (key, value) ->
+            toMap.merge(
+                key,
+                value,
+                (existingEntry, newEntry) -> {
+                  existingEntry.appendStats(newEntry);
+                  return existingEntry;
+                }));
   }
 
-  private static Collection<PartitionStats> mergeStats(
-      Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
-    PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
+  private static List<PartitionStats> sortStatsByPartition(
+      Collection<PartitionStats> stats, StructType partitionType) {
+    List<PartitionStats> entries = Lists.newArrayList(stats);
+    entries.sort(
+        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+    return entries;
+  }
 
-    for (PartitionMap<PartitionStats> stats : statsByManifest) {
-      stats.forEach(
-          (key, value) ->
-              statsMap.merge(
-                  key,
-                  value,
-                  (existingEntry, newEntry) -> {
-                    existingEntry.appendStats(newEntry);
-                    return existingEntry;
-                  }));
+  public static class IncrementalComputeStatsFailedException extends RuntimeException {
+    public IncrementalComputeStatsFailedException(String message) {
+      super(message);
     }
-
-    return statsMap.values();
   }
 }
