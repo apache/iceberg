@@ -86,6 +86,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       if (!client.blockUntilConnected(connectionTimeoutMs, TimeUnit.MILLISECONDS)) {
         throw new IllegalStateException("Connection to Zookeeper timed out");
       }
+
       this.taskSharedCount = new SharedCount(client, LOCK_BASE_PATH + lockId + "/task", 0);
       this.recoverySharedCount = new SharedCount(client, LOCK_BASE_PATH + lockId + "/recovery", 0);
       taskSharedCount.start();
@@ -114,6 +115,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       if (taskSharedCount != null) {
         taskSharedCount.close();
       }
+
       if (recoverySharedCount != null) {
         recoverySharedCount.close();
       }
@@ -152,17 +154,12 @@ public class ZkLockFactory implements TriggerLockFactory {
       try {
         return sharedCount.getCount() == 1;
       } catch (Exception e) {
-        LOG.info("Failed to check Zookeeper lock status", e);
-        return false;
+        throw new RuntimeException("Failed to check Zookeeper lock status", e);
       }
     }
 
     @Override
     public void unlock() {
-      if (!isHeld()) {
-        return;
-      }
-
       try {
         sharedCount.setCount(0);
       } catch (Exception e) {
