@@ -1473,7 +1473,7 @@ The following table describes the possible values for the some of the field with
 
 ### Table Metadata and Snapshots
 
-Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON. 
+Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON.
 
 A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952).
 
