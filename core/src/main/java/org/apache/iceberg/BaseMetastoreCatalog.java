@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -135,6 +136,14 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 
   protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
+
+  protected String formatTableName(TableIdentifier table, boolean uniqueTableLocation) {
+    if (uniqueTableLocation) {
+      return String.format("%s-%s", table.name(), UUID.randomUUID().toString().replace("-", ""));
+    } else {
+      return table.name();
+    }
+  }
 
   protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
     private final TableIdentifier identifier;
