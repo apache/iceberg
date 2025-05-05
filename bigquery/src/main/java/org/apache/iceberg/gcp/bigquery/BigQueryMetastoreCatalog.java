@@ -229,10 +229,18 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
    */
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
+    if (!namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+    if (!namespace.isEmpty()) {
+      return ImmutableList.of();
+    }
+
     List<Datasets> allDatasets = client.list(projectId);
 
     ImmutableList<Namespace> namespaces =
         allDatasets.stream().map(this::toNamespace).collect(ImmutableList.toImmutableList());
+
     if (namespaces.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -279,6 +287,17 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
+
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    Preconditions.checkNotNull(properties, "Invalid properties to remove: null");
+
+    if (properties.isEmpty()) {
+      return false;
+    }
+
     client.removeParameters(toDatasetReference(namespace), properties);
     return true;
   }
@@ -309,12 +328,12 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public Configuration getConf() {
-    return this.conf;
+    return conf;
   }
 
   private String createDefaultStorageLocationUri(String dbId) {
     Preconditions.checkArgument(
-        this.warehouseLocation != null,
+        warehouseLocation != null,
         String.format(
             "Invalid data warehouse location: %s not set", CatalogProperties.WAREHOUSE_LOCATION));
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);

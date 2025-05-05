@@ -25,7 +25,7 @@ import com.google.api.services.bigquery.model.StorageDescriptor;
 import java.util.Map;
 
 /** Shared utilities for BigQuery Metastore specific functions and constants. */
-public final class BigQueryMetastoreUtils {
+final class BigQueryMetastoreUtils {
 
   private BigQueryMetastoreUtils() {}
 

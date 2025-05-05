@@ -42,7 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Handles BigQuery metastore table operations. */
-public final class BigQueryTableOperations extends BaseMetastoreTableOperations {
+final class BigQueryTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryTableOperations.class);
 
@@ -71,8 +71,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     String metadataLocation = null;
     try {
       metadataLocation =
-          loadMetadataLocationOrThrow(
-              client.load(this.tableReference).getExternalCatalogTableOptions());
+          loadMetadataLocationOrThrow(client.load(tableReference).getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
         // Re-throws the exception because the table must exist in this case.
@@ -144,7 +143,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   private void createTable(String newMetadataLocation, TableMetadata metadata) {
     LOG.debug("Creating a new Iceberg table: {}", tableName());
     Table tableBuilder = makeNewTable(metadata, newMetadataLocation);
-    tableBuilder.setTableReference(this.tableReference);
+    tableBuilder.setTableReference(tableReference);
     addConnectionIfProvided(tableBuilder, metadata.properties());
 
     client.create(tableBuilder);
@@ -161,7 +160,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
   /** Update table properties with concurrent update detection using etag. */
   private void updateTable(
       String oldMetadataLocation, String newMetadataLocation, TableMetadata metadata) {
-    Table table = client.load(this.tableReference);
+    Table table = client.load(tableReference);
     if (table.getEtag().isEmpty()) {
       throw new ValidationException(
           "Etag of legacy table %s is empty, manually update the table via the BigQuery API or"
