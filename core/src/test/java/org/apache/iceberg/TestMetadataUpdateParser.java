@@ -25,12 +25,16 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.encryption.BaseEncryptedKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -966,6 +970,35 @@ public class TestMetadataUpdateParser {
         .isEqualTo(json);
   }
 
+  @Test
+  public void testAddEncryptionKey() {
+    byte[] keyBytes = "key".getBytes(StandardCharsets.UTF_8);
+    String encodedKey = Base64.getEncoder().encodeToString(keyBytes);
+    String action = MetadataUpdateParser.ADD_ENCRYPTION_KEY;
+    String json =
+        "{\"action\":\"add-encryption-key\",\"encryption-key\":{\"key-id\":\"a\",\"encrypted-key-metadata\":\""
+            + encodedKey
+            + "\",\"encrypted-by-id\":\"b\"}}";
+    MetadataUpdate expected =
+        new MetadataUpdate.AddEncryptionKey(
+            new BaseEncryptedKey("a", ByteBuffer.wrap(keyBytes), "b", Map.of()));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("AddEncryptionKey should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testRemoveEncryptionKey() {
+    String action = MetadataUpdateParser.REMOVE_ENCRYPTION_KEY;
+    String json = "{\"action\":\"remove-encryption-key\",\"key-id\":\"a\"}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveEncryptionKey("a");
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("AddEncryptionKey should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -1085,6 +1118,16 @@ public class TestMetadataUpdateParser {
         assertEqualsRemoveSchemas(
             (MetadataUpdate.RemoveSchemas) expectedUpdate,
             (MetadataUpdate.RemoveSchemas) actualUpdate);
+        break;
+      case MetadataUpdateParser.ADD_ENCRYPTION_KEY:
+        assertEqualsAddEncryptionKey(
+            (MetadataUpdate.AddEncryptionKey) expectedUpdate,
+            (MetadataUpdate.AddEncryptionKey) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_ENCRYPTION_KEY:
+        assertEqualsRemoveEncryptionKey(
+            (MetadataUpdate.RemoveEncryptionKey) expectedUpdate,
+            (MetadataUpdate.RemoveEncryptionKey) actualUpdate);
         break;
       default:
         fail("Unrecognized metadata update action: " + action);
@@ -1322,6 +1365,20 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsRemoveSchemas(
       MetadataUpdate.RemoveSchemas expected, MetadataUpdate.RemoveSchemas actual) {
     assertThat(actual.schemaIds()).containsExactlyInAnyOrderElementsOf(expected.schemaIds());
+  }
+
+  private static void assertEqualsAddEncryptionKey(
+      MetadataUpdate.AddEncryptionKey expected, MetadataUpdate.AddEncryptionKey actual) {
+    assertThat(actual.key().keyId()).isEqualTo(expected.key().keyId());
+    assertThat(actual.key().encryptedKeyMetadata())
+        .isEqualTo(expected.key().encryptedKeyMetadata());
+    assertThat(actual.key().encryptedById()).isEqualTo(expected.key().encryptedById());
+    assertThat(actual.key().properties()).isEqualTo(expected.key().properties());
+  }
+
+  private void assertEqualsRemoveEncryptionKey(
+      MetadataUpdate.RemoveEncryptionKey expected, MetadataUpdate.RemoveEncryptionKey actual) {
+    assertThat(actual.keyId()).isEqualTo(expected.keyId());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
