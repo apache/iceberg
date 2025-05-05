@@ -118,12 +118,12 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
         metrics);
   }
 
-  public static S3InputFile fromLocation(
+  static S3InputFile fromLocation(
       String location, PrefixedS3Client client, MetricsContext metrics) {
     return fromLocation(location, 0, client, metrics);
   }
 
-  public static S3InputFile fromLocation(
+  static S3InputFile fromLocation(
       String location, long length, PrefixedS3Client client, MetricsContext metrics) {
     return new S3InputFile(
         client.s3(),

@@ -492,28 +492,19 @@ public class TestS3FileIO {
     io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
 
     // there should be a client for the generic and specific storage prefix available
-    assertThat(io.clientForStoragePath("s3")).isInstanceOf(PrefixedS3Client.class);
-    assertThat(io.clientForStoragePath("s3").s3()).isInstanceOf(S3Client.class);
-    assertThat(io.clientForStoragePath("s3").s3Async()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path"))
-        .isInstanceOf(PrefixedS3Client.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path").s3()).isInstanceOf(S3Client.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path").s3Async())
-        .isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client()).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
 
     S3FileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(io);
     assertThat(fileIO.credentials()).isEqualTo(io.credentials());
 
     // make sure there's a client for the generic and specific storage prefix available after ser/de
-    assertThat(fileIO.clientForStoragePath("s3")).isInstanceOf(PrefixedS3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3").s3()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3").s3Async()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path"))
-        .isInstanceOf(PrefixedS3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path").s3())
-        .isInstanceOf(S3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path").s3Async())
-        .isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @Test
@@ -526,28 +517,19 @@ public class TestS3FileIO {
     io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
 
     // there should be a client for the generic and specific storage prefix available
-    assertThat(io.clientForStoragePath("s3")).isInstanceOf(PrefixedS3Client.class);
-    assertThat(io.clientForStoragePath("s3").s3()).isInstanceOf(S3Client.class);
-    assertThat(io.clientForStoragePath("s3").s3Async()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path"))
-        .isInstanceOf(PrefixedS3Client.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path").s3()).isInstanceOf(S3Client.class);
-    assertThat(io.clientForStoragePath("s3://my-bucket/my-path").s3Async())
-        .isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client()).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
 
     S3FileIO fileIO = TestHelpers.roundTripSerialize(io);
     assertThat(fileIO.credentials()).isEqualTo(io.credentials());
 
     // make sure there's a client for the generic and specific storage prefix available after ser/de
-    assertThat(fileIO.clientForStoragePath("s3")).isInstanceOf(PrefixedS3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3").s3()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3").s3Async()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path"))
-        .isInstanceOf(PrefixedS3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path").s3())
-        .isInstanceOf(S3Client.class);
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/my-path").s3Async())
-        .isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @Test
@@ -657,10 +639,11 @@ public class TestS3FileIO {
         fileIO -> {
           // make sure there are two separate S3 clients for different prefixes and that the
           // underlying sync/async client is set
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar"))
-              .isNotSameAs(fileIO.clientForStoragePath("s3"));
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3()).isInstanceOf(S3Client.class);
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3Async())
+          assertThat(fileIO.client("s3://foo/bar"))
+              .isNotSameAs(fileIO.client())
+              .isInstanceOf(S3Client.class);
+          assertThat(fileIO.asyncClient("s3://foo/bar"))
+              .isNotSameAs(fileIO.asyncClient())
               .isInstanceOf(S3AsyncClient.class);
         });
 
@@ -681,10 +664,11 @@ public class TestS3FileIO {
         fileIO -> {
           // make sure there are two separate S3 clients for different prefixes and that the
           // underlying sync/async client is set
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar"))
-              .isNotSameAs(fileIO.clientForStoragePath("s3"));
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3()).isInstanceOf(S3Client.class);
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3Async())
+          assertThat(fileIO.client("s3://foo/bar"))
+              .isNotSameAs(fileIO.client())
+              .isInstanceOf(S3Client.class);
+          assertThat(fileIO.asyncClient("s3://foo/bar"))
+              .isNotSameAs(fileIO.asyncClient())
               .isInstanceOf(S3AsyncClient.class);
         });
 
@@ -705,10 +689,11 @@ public class TestS3FileIO {
         fileIO -> {
           // make sure there are two separate S3 clients for different prefixes and that the
           // underlying sync/async client is set
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar"))
-              .isNotSameAs(fileIO.clientForStoragePath("s3"));
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3()).isInstanceOf(S3Client.class);
-          assertThat(fileIO.clientForStoragePath("s3://foo/bar").s3Async())
+          assertThat(fileIO.client("s3://foo/bar"))
+              .isNotSameAs(fileIO.client())
+              .isInstanceOf(S3Client.class);
+          assertThat(fileIO.asyncClient("s3://foo/bar"))
+              .isNotSameAs(fileIO.asyncClient())
               .isInstanceOf(S3AsyncClient.class);
         });
   }
@@ -719,6 +704,8 @@ public class TestS3FileIO {
     fileIO.setCredentials(ImmutableList.of());
     fileIO.initialize(
         ImmutableMap.of(
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1",
             "s3.access-key-id",
             "keyIdFromProperties",
             "s3.secret-access-key",
@@ -728,9 +715,9 @@ public class TestS3FileIO {
 
     // make sure that the generic S3 Client is used for all storage paths if there are no storage
     // credentials configured
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1"))
-        .isSameAs(fileIO.clientForStoragePath("s3://random-bucket/"))
-        .isSameAs(fileIO.clientForStoragePath("s3a://random-bucket/tableX"));
+    assertThat(fileIO.client("s3://my-bucket/table1"))
+        .isSameAs(fileIO.client("s3://random-bucket/"))
+        .isSameAs(fileIO.client("s3a://random-bucket/tableX"));
 
     ObjectAssert<S3FileIOProperties> s3FileIOProperties =
         assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1").s3FileIOProperties());
@@ -760,6 +747,8 @@ public class TestS3FileIO {
     fileIO.setCredentials(ImmutableList.of(s3Credential));
     fileIO.initialize(
         ImmutableMap.of(
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1",
             "s3.access-key-id",
             "keyIdFromProperties",
             "s3.secret-access-key",
@@ -769,8 +758,8 @@ public class TestS3FileIO {
 
     // verify that the generic S3 client is used if the storage prefix doesn't match the prefixes in
     // the storage credentials
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1"))
-        .isNotSameAs(fileIO.clientForStoragePath("s3://custom-uri/table2"));
+    assertThat(fileIO.client("s3://my-bucket/table1"))
+        .isNotSameAs(fileIO.client("s3://custom-uri/table2"));
     ObjectAssert<S3FileIOProperties> genericProperties =
         assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1").s3FileIOProperties());
     genericProperties.extracting(S3FileIOProperties::accessKeyId).isEqualTo("keyIdFromProperties");
@@ -821,6 +810,8 @@ public class TestS3FileIO {
     fileIO.setCredentials(ImmutableList.of(s3Credential1, s3Credential2));
     fileIO.initialize(
         ImmutableMap.of(
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1",
             "s3.access-key-id",
             "keyIdFromProperties",
             "s3.secret-access-key",
@@ -830,9 +821,9 @@ public class TestS3FileIO {
 
     // verify that the generic S3 client is used if the storage prefix doesn't match the prefixes in
     // the storage credentials
-    assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1"))
-        .isNotSameAs(fileIO.clientForStoragePath("s3://custom-uri/1"))
-        .isNotSameAs(fileIO.clientForStoragePath("s3://custom-uri/2"));
+    assertThat(fileIO.client("s3://my-bucket/table1"))
+        .isNotSameAs(fileIO.client("s3://custom-uri/1"))
+        .isNotSameAs(fileIO.client("s3://custom-uri/2"));
     ObjectAssert<S3FileIOProperties> genericProperties =
         assertThat(fileIO.clientForStoragePath("s3://my-bucket/table1").s3FileIOProperties());
     genericProperties.extracting(S3FileIOProperties::accessKeyId).isEqualTo("keyIdFromProperties");
@@ -845,8 +836,7 @@ public class TestS3FileIO {
 
     // there are separate credentials configured for each storage path, so there should be separate
     // S3 client instances
-    assertThat(fileIO.clientForStoragePath("s3://custom-uri/1"))
-        .isNotSameAs(fileIO.clientForStoragePath("s3://custom-uri/2"));
+    assertThat(fileIO.client("s3://custom-uri/1")).isNotSameAs(fileIO.client("s3://custom-uri/2"));
     ObjectAssert<S3FileIOProperties> s3FileIOProperties1 =
         assertThat(fileIO.clientForStoragePath("s3://custom-uri/1/table1").s3FileIOProperties());
     s3FileIOProperties1

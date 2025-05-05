@@ -74,7 +74,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
         metrics);
   }
 
-  public static S3OutputFile fromLocation(
+  static S3OutputFile fromLocation(
       String location, PrefixedS3Client client, MetricsContext metrics) {
     return new S3OutputFile(
         client.s3(),

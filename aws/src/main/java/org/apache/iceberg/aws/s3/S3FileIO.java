@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -45,6 +42,7 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -95,6 +93,7 @@ public class S3FileIO
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String ROOT_PREFIX = "s3";
   private static volatile ExecutorService executorService;
 
   private String credential = null;
@@ -105,7 +104,7 @@ public class S3FileIO
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
   private List<StorageCredential> storageCredentials = ImmutableList.of();
-  private transient volatile Cache<String, PrefixedS3Client> s3ClientCache;
+  private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -228,7 +227,7 @@ public class S3FileIO
    */
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
-    S3FileIOProperties s3FileIOProperties = clientForStoragePath("s3").s3FileIOProperties();
+    S3FileIOProperties s3FileIOProperties = clientForStoragePath(ROOT_PREFIX).s3FileIOProperties();
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       Tasks.foreach(paths)
           .noRetry()
@@ -393,66 +392,53 @@ public class S3FileIO
     deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
-  /**
-   * Returns the {@link S3Client} that is configured for this {@link org.apache.iceberg.io.FileIO}
-   * instance.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     S3FileIO#clientForStoragePath(String)} instead.
-   */
-  @Deprecated
   public S3Client client() {
-    return clientForStoragePath("s3").s3();
+    return client(ROOT_PREFIX);
   }
 
-  /**
-   * Returns the {@link S3AsyncClient} that is configured for this {@link
-   * org.apache.iceberg.io.FileIO} instance.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     S3FileIO#clientForStoragePath(String)} instead.
-   */
-  @Deprecated
+  @SuppressWarnings("resource")
+  public S3Client client(String storagePath) {
+    return clientForStoragePath(storagePath).s3();
+  }
+
   public S3AsyncClient asyncClient() {
-    return clientForStoragePath("s3").s3Async();
+    return asyncClient(ROOT_PREFIX);
   }
 
-  public PrefixedS3Client clientForStoragePath(String storagePath) {
-    PrefixedS3Client client;
-    String matchingPrefix = "s3";
+  @SuppressWarnings("resource")
+  public S3AsyncClient asyncClient(String storagePath) {
+    return clientForStoragePath(storagePath).s3Async();
+  }
 
-    for (String storagePrefix : s3ClientCache().asMap().keySet()) {
+  @VisibleForTesting
+  PrefixedS3Client clientForStoragePath(String storagePath) {
+    PrefixedS3Client client;
+    String matchingPrefix = ROOT_PREFIX;
+
+    for (String storagePrefix : clientByPrefix().keySet()) {
       if (storagePath.startsWith(storagePrefix)
           && storagePrefix.length() > matchingPrefix.length()) {
         matchingPrefix = storagePrefix;
       }
     }
 
-    client = s3ClientCache().getIfPresent(matchingPrefix);
+    client = clientByPrefix().getOrDefault(matchingPrefix, null);
 
     Preconditions.checkState(
         null != client, "[BUG] S3 client for storage path not available: %s", storagePath);
     return client;
   }
 
-  private Cache<String, PrefixedS3Client> s3ClientCache() {
-    if (null == s3ClientCache) {
+  private Map<String, PrefixedS3Client> clientByPrefix() {
+    if (null == clientByPrefix) {
       synchronized (this) {
-        if (null == s3ClientCache) {
-          this.s3ClientCache =
-              Caffeine.newBuilder()
-                  .evictionListener(
-                      (RemovalListener<String, PrefixedS3Client>)
-                          (prefix, client, cause) -> {
-                            if (null != client) {
-                              client.close();
-                            }
-                          })
-                  .build();
+        if (null == clientByPrefix) {
+          this.clientByPrefix = Maps.newHashMap();
 
-          s3ClientCache.put("s3", new PrefixedS3Client("s3", properties, s3, s3Async));
+          clientByPrefix.put(
+              ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
           storageCredentials.stream()
-              .filter(c -> c.prefix().startsWith("s3"))
+              .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
               .collect(Collectors.toList())
               .forEach(
                   storageCredential -> {
@@ -462,7 +448,7 @@ public class S3FileIO
                             .putAll(storageCredential.config())
                             .buildKeepingLast();
 
-                    s3ClientCache.put(
+                    clientByPrefix.put(
                         storageCredential.prefix(),
                         new PrefixedS3Client(
                             storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
@@ -471,7 +457,7 @@ public class S3FileIO
       }
     }
 
-    return s3ClientCache;
+    return clientByPrefix;
   }
 
   private ExecutorService executorService() {
@@ -481,7 +467,7 @@ public class S3FileIO
           executorService =
               ThreadPools.newExitingWorkerPool(
                   "iceberg-s3fileio-delete",
-                  clientForStoragePath("s3").s3FileIOProperties().deleteThreads());
+                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads());
         }
       }
     }
@@ -521,7 +507,7 @@ public class S3FileIO
           DynConstructors.builder(MetricsContext.class)
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
-      MetricsContext context = ctor.newInstance("s3");
+      MetricsContext context = ctor.newInstance(ROOT_PREFIX);
       context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
@@ -534,9 +520,9 @@ public class S3FileIO
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
-      if (s3ClientCache != null) {
-        s3ClientCache.invalidateAll();
-        s3ClientCache.cleanUp();
+      if (clientByPrefix != null) {
+        clientByPrefix.values().forEach(PrefixedS3Client::close);
+        this.clientByPrefix = null;
       }
     }
   }

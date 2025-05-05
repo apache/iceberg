@@ -27,7 +27,7 @@ import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
-public class PrefixedS3Client implements AutoCloseable {
+class PrefixedS3Client implements AutoCloseable {
 
   private final String storagePrefix;
   private final S3FileIOProperties s3FileIOProperties;
@@ -36,7 +36,7 @@ public class PrefixedS3Client implements AutoCloseable {
   private transient volatile S3Client s3Client;
   private transient volatile S3AsyncClient s3AsyncClient;
 
-  public PrefixedS3Client(
+  PrefixedS3Client(
       String storagePrefix,
       Map<String, String> properties,
       SerializableSupplier<S3Client> s3,
