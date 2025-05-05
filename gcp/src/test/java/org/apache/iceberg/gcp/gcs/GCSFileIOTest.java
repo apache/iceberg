@@ -51,7 +51,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
@@ -89,7 +88,7 @@ public class GCSFileIOTest {
         .when(storage)
         .delete(any(Iterable.class));
 
-    io = new GCSFileIO(() -> storage, new GCPProperties());
+    io = new GCSFileIO(() -> storage);
   }
 
   @Test

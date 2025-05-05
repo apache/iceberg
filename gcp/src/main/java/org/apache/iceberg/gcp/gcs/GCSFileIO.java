@@ -86,6 +86,16 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   public GCSFileIO() {}
 
   /**
+   * Constructor with custom storage supplier.
+   *
+   * @param storageSupplier storage supplier
+   */
+  public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
+    this.storageSupplier = storageSupplier;
+    this.gcpProperties = new GCPProperties();
+  }
+
+  /**
    * Constructor with custom storage supplier and GCP properties.
    *
    * <p>Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this
@@ -93,7 +103,10 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    *
    * @param storageSupplier storage supplier
    * @param gcpProperties gcp properties
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     GCSFileIO#GCSFileIO(SerializableSupplier)} with {@link GCSFileIO#initialize(Map)} instead
    */
+  @Deprecated
   public GCSFileIO(SerializableSupplier<Storage> storageSupplier, GCPProperties gcpProperties) {
     this.storageSupplier = storageSupplier;
     this.gcpProperties = gcpProperties;
@@ -151,43 +164,45 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
     this.gcpProperties = new GCPProperties(propertiesWithCredentials);
 
-    this.storageSupplier =
-        () -> {
-          StorageOptions.Builder builder = StorageOptions.newBuilder();
+    if (null == storageSupplier) {
+      this.storageSupplier =
+          () -> {
+            StorageOptions.Builder builder = StorageOptions.newBuilder();
 
-          gcpProperties.projectId().ifPresent(builder::setProjectId);
-          gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
-          gcpProperties.serviceHost().ifPresent(builder::setHost);
+            gcpProperties.projectId().ifPresent(builder::setProjectId);
+            gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
+            gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-          // Google Cloud APIs default to automatically detect the credentials to use, which is
-          // in most cases the convenient way, especially in GCP.
-          // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault().
-          if (gcpProperties.noAuth()) {
-            // Explicitly allow "no credentials" for testing purposes.
-            builder.setCredentials(NoCredentials.getInstance());
-          }
-          gcpProperties
-              .oauth2Token()
-              .ifPresent(
-                  token -> {
-                    // Explicitly configure an OAuth token.
-                    AccessToken accessToken =
-                        new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
-                    if (gcpProperties.oauth2RefreshCredentialsEnabled()
-                        && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
-                      refreshHandler = OAuth2RefreshCredentialsHandler.create(properties);
-                      builder.setCredentials(
-                          OAuth2CredentialsWithRefresh.newBuilder()
-                              .setAccessToken(accessToken)
-                              .setRefreshHandler(refreshHandler)
-                              .build());
-                    } else {
-                      builder.setCredentials(OAuth2Credentials.create(accessToken));
-                    }
-                  });
+            // Google Cloud APIs default to automatically detect the credentials to use, which is
+            // in most cases the convenient way, especially in GCP.
+            // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault().
+            if (gcpProperties.noAuth()) {
+              // Explicitly allow "no credentials" for testing purposes.
+              builder.setCredentials(NoCredentials.getInstance());
+            }
+            gcpProperties
+                .oauth2Token()
+                .ifPresent(
+                    token -> {
+                      // Explicitly configure an OAuth token.
+                      AccessToken accessToken =
+                          new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
+                      if (gcpProperties.oauth2RefreshCredentialsEnabled()
+                          && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
+                        refreshHandler = OAuth2RefreshCredentialsHandler.create(properties);
+                        builder.setCredentials(
+                            OAuth2CredentialsWithRefresh.newBuilder()
+                                .setAccessToken(accessToken)
+                                .setRefreshHandler(refreshHandler)
+                                .build());
+                      } else {
+                        builder.setCredentials(OAuth2Credentials.create(accessToken));
+                      }
+                    });
 
-          return builder.build().getService();
-        };
+            return builder.build().getService();
+          };
+    }
 
     initMetrics(properties);
   }
