@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -682,56 +681,6 @@ public abstract class DeleteReadTests {
     List<Record> allRecords = Lists.newArrayList(records);
     allRecords.addAll(optionalColumnRecords);
     return allRecords;
-  }
-
-  private <T> void testEqualityDeleteWithColumn(
-      String targetFieldName, Function<Integer, T> targetFieldValueSupplier) throws IOException {
-    Record record = GenericRecord.create(table.schema());
-    List<Record> targetFieldRecords = Lists.newArrayList();
-    for (int i = 0; i < 10; i++) {
-      targetFieldRecords.add(
-          record.copy(
-              "id",
-              i + 200,
-              "data",
-              "testData",
-              targetFieldName,
-              targetFieldValueSupplier.apply(i)));
-    }
-    DataFile binaryDataFile =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            Row.of(0),
-            targetFieldRecords);
-
-    table.newAppend().appendFile(binaryDataFile).commit();
-
-    Schema fieldSchema = table.schema().select(targetFieldName);
-    Record dataDelete = GenericRecord.create(fieldSchema);
-    List<Record> dataDeletes =
-        Lists.newArrayList(
-            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(0)),
-            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(1)),
-            dataDelete.copy(targetFieldName, targetFieldValueSupplier.apply(2)));
-
-    DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            Row.of(0),
-            dataDeletes,
-            fieldSchema);
-
-    table.newRowDelta().addDeletes(eqDeletes).commit();
-
-    List<Record> allRecords = Lists.newArrayList(records);
-    allRecords.addAll(targetFieldRecords);
-    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
-    StructLikeSet actual = rowSet(tableName, table, "*");
-
-    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
-    checkDeleteCount(3L);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
