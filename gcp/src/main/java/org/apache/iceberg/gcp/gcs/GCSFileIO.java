@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.google.api.client.util.Lists;
+import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -66,13 +64,14 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String ROOT_STORAGE_PREFIX = "gs";
 
   private SerializableSupplier<Storage> storageSupplier;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
   private List<StorageCredential> storageCredentials = ImmutableList.of();
-  private transient volatile Cache<String, PrefixedStorage> storageCache;
+  private transient volatile Map<String, PrefixedStorage> storageByPrefix;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -88,6 +87,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    */
   public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
     this.storageSupplier = storageSupplier;
+    this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
   /**
@@ -138,31 +138,27 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     return properties.immutableMap();
   }
 
-  /**
-   * Returns the {@link Storage} client that is configured for this {@link
-   * org.apache.iceberg.io.FileIO} instance.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     GCSFileIO#clientForStoragePath(String)} instead.
-   */
-  @Deprecated
-  @SuppressWarnings("resource")
   public Storage client() {
-    return clientForStoragePath("gs").storage();
+    return client(ROOT_STORAGE_PREFIX);
   }
 
-  public PrefixedStorage clientForStoragePath(String storagePath) {
-    PrefixedStorage client;
-    String matchingPrefix = "gs";
+  @SuppressWarnings("resource")
+  public Storage client(String storagePath) {
+    return clientForStoragePath(storagePath).storage();
+  }
 
-    for (String storagePrefix : storageCache().asMap().keySet()) {
+  private PrefixedStorage clientForStoragePath(String storagePath) {
+    PrefixedStorage client;
+    String matchingPrefix = ROOT_STORAGE_PREFIX;
+
+    for (String storagePrefix : storageByPrefix().keySet()) {
       if (storagePath.startsWith(storagePrefix)
           && storagePrefix.length() > matchingPrefix.length()) {
         matchingPrefix = storagePrefix;
       }
     }
 
-    client = storageCache().getIfPresent(matchingPrefix);
+    client = storageByPrefix().getOrDefault(matchingPrefix, null);
 
     Preconditions.checkState(
         null != client, "[BUG] GCS client for storage path not available: %s", storagePath);
@@ -192,24 +188,17 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     }
   }
 
-  private Cache<String, PrefixedStorage> storageCache() {
-    if (null == storageCache) {
+  private Map<String, PrefixedStorage> storageByPrefix() {
+    if (null == storageByPrefix) {
       synchronized (this) {
-        if (null == storageCache) {
-          this.storageCache =
-              Caffeine.newBuilder()
-                  .evictionListener(
-                      (RemovalListener<String, PrefixedStorage>)
-                          (prefix, client, cause) -> {
-                            if (null != client) {
-                              client.close();
-                            }
-                          })
-                  .build();
+        if (null == storageByPrefix) {
+          this.storageByPrefix = Maps.newHashMap();
 
-          storageCache.put("gs", new PrefixedStorage("gs", properties, storageSupplier));
+          storageByPrefix.put(
+              ROOT_STORAGE_PREFIX,
+              new PrefixedStorage(ROOT_STORAGE_PREFIX, properties, storageSupplier));
           storageCredentials.stream()
-              .filter(c -> c.prefix().startsWith("gs"))
+              .filter(c -> c.prefix().startsWith(ROOT_STORAGE_PREFIX))
               .collect(Collectors.toList())
               .forEach(
                   storageCredential -> {
@@ -219,7 +208,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                             .putAll(storageCredential.config())
                             .buildKeepingLast();
 
-                    storageCache.put(
+                    storageByPrefix.put(
                         storageCredential.prefix(),
                         new PrefixedStorage(
                             storageCredential.prefix(),
@@ -230,16 +219,16 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       }
     }
 
-    return storageCache;
+    return storageByPrefix;
   }
 
   @Override
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
-      if (storageCache != null) {
-        storageCache.invalidateAll();
-        storageCache.cleanUp();
+      if (storageByPrefix != null) {
+        storageByPrefix.values().forEach(PrefixedStorage::close);
+        this.storageByPrefix = null;
       }
     }
   }
@@ -286,11 +275,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     Streams.stream(
             Iterators.partition(
                 blobIdsToDelete.iterator(),
-                clientForStoragePath("gs").gcpProperties().deleteBatchSize()))
+                clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
         .forEach(
             batch -> {
               if (!batch.isEmpty()) {
-                clientForStoragePath(batch.getFirst().toGsUtilUri()).storage().delete(batch);
+                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
               }
             });
   }

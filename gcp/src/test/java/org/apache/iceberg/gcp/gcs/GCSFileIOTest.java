@@ -251,7 +251,7 @@ public class GCSFileIOTest {
               Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli()),
               GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
               "/v1/credentials"));
-      client = fileIO.clientForStoragePath("gs").storage();
+      client = fileIO.client();
     }
 
     assertThat(client.getOptions().getCredentials())
@@ -272,7 +272,7 @@ public class GCSFileIOTest {
               "/v1/credentials",
               GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED,
               "false"));
-      client = fileIO.clientForStoragePath("gs").storage();
+      client = fileIO.client();
     }
 
     assertThat(client.getOptions().getCredentials()).isInstanceOf(OAuth2Credentials.class);
@@ -288,12 +288,12 @@ public class GCSFileIOTest {
 
       // make sure that the generic Storage Client is used for all storage paths if there are no
       // storage credentials configured
-      assertThat(fileIO.clientForStoragePath("gs://my-bucket/table1"))
-          .isSameAs(fileIO.clientForStoragePath("invalidStoragePath"))
-          .isSameAs(fileIO.clientForStoragePath("gs://random-bucket/"))
-          .isSameAs(fileIO.clientForStoragePath("gs://random-bucket/tableX"));
+      assertThat(fileIO.client("gs://my-bucket/table1"))
+          .isSameAs(fileIO.client("invalidStoragePath"))
+          .isSameAs(fileIO.client("gs://random-bucket/"))
+          .isSameAs(fileIO.client("gs://random-bucket/tableX"));
 
-      assertThat(fileIO.clientForStoragePath("gs").storage().getOptions().getCredentials())
+      assertThat(fileIO.client().getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
@@ -324,16 +324,11 @@ public class GCSFileIOTest {
           ImmutableMap.of(
               GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
 
-      assertThat(fileIO.clientForStoragePath("gs://custom-uri/table1"))
-          .isNotSameAs(fileIO.clientForStoragePath("gs://random-bucket/"))
-          .isNotSameAs(fileIO.clientForStoragePath("gs://random-bucket/tableX"));
+      assertThat(fileIO.client("gs://custom-uri/table1"))
+          .isNotSameAs(fileIO.client("gs://random-bucket/"))
+          .isNotSameAs(fileIO.client("gs://random-bucket/tableX"));
 
-      assertThat(
-              fileIO
-                  .clientForStoragePath("gs://custom-uri/table1")
-                  .storage()
-                  .getOptions()
-                  .getCredentials())
+      assertThat(fileIO.client("gs://custom-uri/table1").getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
@@ -347,16 +342,11 @@ public class GCSFileIOTest {
 
       // verify that the generic storage client is used for all storage prefixes that don't match
       // the storage credentials
-      assertThat(fileIO.clientForStoragePath("gs"))
-          .isSameAs(fileIO.clientForStoragePath("gs://random-bucket/tableX"))
-          .isSameAs(fileIO.clientForStoragePath("gs://bucketX/tableX"));
+      assertThat(fileIO.client("gs"))
+          .isSameAs(fileIO.client("gs://random-bucket/tableX"))
+          .isSameAs(fileIO.client("gs://bucketX/tableX"));
 
-      assertThat(
-              fileIO
-                  .clientForStoragePath("gs://random-bucket/table1")
-                  .storage()
-                  .getOptions()
-                  .getCredentials())
+      assertThat(fileIO.client("gs://random-bucket/table1").getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
@@ -390,38 +380,23 @@ public class GCSFileIOTest {
           ImmutableMap.of(
               GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
 
-      assertThat(fileIO.clientForStoragePath("gs://custom-uri/table1"))
-          .isNotSameAs(fileIO.clientForStoragePath("gs://custom-uri/1/table1"))
-          .isNotSameAs(fileIO.clientForStoragePath("gs://custom-uri/2/table1"));
+      assertThat(fileIO.client("gs://custom-uri/table1"))
+          .isNotSameAs(fileIO.client("gs://custom-uri/1/table1"))
+          .isNotSameAs(fileIO.client("gs://custom-uri/2/table1"));
 
-      assertThat(
-              fileIO
-                  .clientForStoragePath("gs://custom-uri/1/table1")
-                  .storage()
-                  .getOptions()
-                  .getCredentials())
+      assertThat(fileIO.client("gs://custom-uri/1/table1").getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
           .isEqualTo(new AccessToken("gcsTokenFromCredential1", new Date(2000L)));
 
-      assertThat(
-              fileIO
-                  .clientForStoragePath("gs://custom-uri/2/table1")
-                  .storage()
-                  .getOptions()
-                  .getCredentials())
+      assertThat(fileIO.client("gs://custom-uri/2/table1").getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
           .isEqualTo(new AccessToken("gcsTokenFromCredential2", new Date(3000L)));
 
-      assertThat(
-              fileIO
-                  .clientForStoragePath("gs://custom-uri/table1")
-                  .storage()
-                  .getOptions()
-                  .getCredentials())
+      assertThat(fileIO.client("gs://custom-uri/table1").getOptions().getCredentials())
           .isInstanceOf(OAuth2Credentials.class)
           .extracting("value")
           .extracting("temporaryAccess")
@@ -462,15 +437,9 @@ public class GCSFileIOTest {
     fileIO.initialize(
         Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
 
-    assertThat(fileIO.clientForStoragePath("gs")).isInstanceOf(PrefixedStorage.class);
-    assertThat(fileIO.clientForStoragePath("gs://bucket1/my-path/tableX"))
-        .isInstanceOf(PrefixedStorage.class);
-    assertThat(
-            fileIO
-                .clientForStoragePath("gs://bucket1/my-path/tableX")
-                .storage()
-                .getOptions()
-                .getCredentials())
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
         .isInstanceOf(OAuth2Credentials.class)
         .extracting("value")
         .extracting("temporaryAccess")
@@ -480,15 +449,9 @@ public class GCSFileIOTest {
     assertThat(roundTripIO).isNotNull();
     assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
 
-    assertThat(roundTripIO.clientForStoragePath("gs")).isInstanceOf(PrefixedStorage.class);
-    assertThat(roundTripIO.clientForStoragePath("gs://bucket1/my-path/tableX"))
-        .isInstanceOf(PrefixedStorage.class);
-    assertThat(
-            roundTripIO
-                .clientForStoragePath("gs://bucket1/my-path/tableX")
-                .storage()
-                .getOptions()
-                .getCredentials())
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
         .isInstanceOf(OAuth2Credentials.class)
         .extracting("value")
         .extracting("temporaryAccess")
@@ -524,15 +487,9 @@ public class GCSFileIOTest {
     fileIO.initialize(
         Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
 
-    assertThat(fileIO.clientForStoragePath("gs")).isInstanceOf(PrefixedStorage.class);
-    assertThat(fileIO.clientForStoragePath("gs://bucket1/my-path/tableX"))
-        .isInstanceOf(PrefixedStorage.class);
-    assertThat(
-            fileIO
-                .clientForStoragePath("gs://bucket1/my-path/tableX")
-                .storage()
-                .getOptions()
-                .getCredentials())
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
         .isInstanceOf(OAuth2Credentials.class)
         .extracting("value")
         .extracting("temporaryAccess")
@@ -541,15 +498,9 @@ public class GCSFileIOTest {
     GCSFileIO roundTripIO = TestHelpers.roundTripSerialize(fileIO);
     assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
 
-    assertThat(roundTripIO.clientForStoragePath("gs")).isInstanceOf(PrefixedStorage.class);
-    assertThat(roundTripIO.clientForStoragePath("gs://bucket1/my-path/tableX"))
-        .isInstanceOf(PrefixedStorage.class);
-    assertThat(
-            roundTripIO
-                .clientForStoragePath("gs://bucket1/my-path/tableX")
-                .storage()
-                .getOptions()
-                .getCredentials())
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
         .isInstanceOf(OAuth2Credentials.class)
         .extracting("value")
         .extracting("temporaryAccess")

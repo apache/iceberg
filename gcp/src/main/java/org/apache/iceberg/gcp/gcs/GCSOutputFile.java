@@ -31,18 +31,6 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
-  /**
-   * Creates a {@link GCSOutputFile} from the given parameters.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     GCSOutputFile#fromLocation(String, PrefixedStorage, MetricsContext)} instead.
-   */
-  @Deprecated
-  static GCSOutputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
-  }
-
   static GCSOutputFile fromLocation(
       String location, PrefixedStorage storage, MetricsContext metrics) {
     return new GCSOutputFile(

@@ -30,14 +30,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.SerializableSupplier;
 
-public class PrefixedStorage implements AutoCloseable {
+class PrefixedStorage implements AutoCloseable {
   private final String storagePrefix;
   private final GCPProperties gcpProperties;
   private SerializableSupplier<Storage> storage;
   private OAuth2RefreshCredentialsHandler refreshHandler = null;
   private transient volatile Storage storageClient;
 
-  public PrefixedStorage(
+  PrefixedStorage(
       String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");

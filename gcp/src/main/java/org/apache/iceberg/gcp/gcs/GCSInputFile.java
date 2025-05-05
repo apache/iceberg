@@ -28,39 +28,6 @@ import org.apache.iceberg.metrics.MetricsContext;
 class GCSInputFile extends BaseGCSFile implements InputFile {
   private Long blobSize;
 
-  /**
-   * Creates a {@link GCSInputFile} from the given parameters.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     GCSInputFile#fromLocation(String, PrefixedStorage, MetricsContext)} instead.
-   */
-  @Deprecated
-  static GCSInputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), null, gcpProperties, metrics);
-  }
-
-  /**
-   * Creates a {@link GCSInputFile} from the given parameters.
-   *
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     GCSInputFile#fromLocation(String, long, PrefixedStorage, MetricsContext)} instead.
-   */
-  @Deprecated
-  static GCSInputFile fromLocation(
-      String location,
-      long length,
-      Storage storage,
-      GCPProperties gcpProperties,
-      MetricsContext metrics) {
-    return new GCSInputFile(
-        storage,
-        BlobId.fromGsUtilUri(location),
-        length > 0 ? length : null,
-        gcpProperties,
-        metrics);
-  }
-
   static GCSInputFile fromLocation(
       String location, PrefixedStorage storage, MetricsContext metrics) {
     return fromLocation(location, 0L, storage, metrics);
