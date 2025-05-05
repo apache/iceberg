@@ -35,7 +35,7 @@ import org.apache.spark.sql.internal.SQLConf;
  * When you start the main method, it launches a spark-sql> prompt. At the prompt, you can enter a
  * line of SQL, which will then be executed, and the result will be displayed. If you want to debug
  * the code, you can set breakpoints in your IDE. Add '--add-opens java.base/sun.nio.ch=ALL-UNNAMED'
- * to VM options.
+ * and '--add-opens java.base/java.nio=ALL-UNNAMED' to VM options.
  */
 public final class SparkQueryRunner extends ExtensionsTestBase {
   private static final Joiner JOIN = Joiner.on("|").useForNull("NULL");
