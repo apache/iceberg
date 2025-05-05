@@ -177,9 +177,6 @@ public class TableProperties {
   public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
       "write.parquet.stats-enabled.column.";
 
-  public static final String PARQUET_COLUMN_STATS_ENABLED = "write.parquet.stats-enabled.default";
-  public static final boolean PARQUET_COLUMN_STATS_ENABLED_DEFAULT = true;
-
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
