@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import javax.xml.crypto.Data;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -75,15 +74,15 @@ class IcebergWriter implements RecordWriter {
         recordData = String.format(", record: %s", record.value().toString());
       }
       DataException ex =
-        new DataException(
-          String.format(
-            Locale.ROOT,
-            "topic: %s, partition, %d, offset: %d %s",
-            record.topic(),
-            record.kafkaPartition(),
-            record.kafkaOffset(),
-            recordData),
-          e);
+          new DataException(
+              String.format(
+                  Locale.ROOT,
+                  "topic: %s, partition, %d, offset: %d %s",
+                  record.topic(),
+                  record.kafkaPartition(),
+                  record.kafkaOffset(),
+                  recordData),
+              e);
       if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
         LOG.error("An error occurred converting record...", ex);
       } else {
