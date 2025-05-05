@@ -144,7 +144,10 @@ public class S3FileIO
    *
    * @param s3 s3 supplier
    * @param s3FileIOProperties S3 FileIO properties
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     S3FileIO#S3FileIO(SerializableSupplier)} with {@link S3FileIO#initialize(Map)} instead
    */
+  @Deprecated
   public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
     this(s3, null, s3FileIOProperties);
   }
@@ -157,7 +160,11 @@ public class S3FileIO
    * @param s3 s3 supplier
    * @param s3Async s3Async supplier
    * @param s3FileIOProperties S3 FileIO properties
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     S3FileIO#S3FileIO(SerializableSupplier, SerializableSupplier)} with {@link
+   *     S3FileIO#initialize(Map)} instead
    */
+  @Deprecated
   public S3FileIO(
       SerializableSupplier<S3Client> s3,
       SerializableSupplier<S3AsyncClient> s3Async,
