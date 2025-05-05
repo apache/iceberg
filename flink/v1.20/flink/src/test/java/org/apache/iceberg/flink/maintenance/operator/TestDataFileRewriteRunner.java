@@ -262,14 +262,15 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
       expected.addAll(batch);
     }
 
-    // First run with high limit
-    List<DataFileRewritePlanner.PlannedGroup> planWithNoLimit = planDataFileRewrite(tableLoader());
-    assertThat(planWithNoLimit).hasSize(1);
+    // First run with high target file size
+    List<DataFileRewritePlanner.PlannedGroup> planWithNoTargetFileSize =
+        planDataFileRewrite(tableLoader());
+    assertThat(planWithNoTargetFileSize).hasSize(1);
 
-    // Second run with limit
-    long limit =
-        planWithNoLimit.get(0).group().fileScanTasks().get(0).sizeBytes()
-            + planWithNoLimit.get(0).group().fileScanTasks().get(1).sizeBytes();
+    // Second run with low target file size
+    long targetFileSize =
+        planWithNoTargetFileSize.get(0).group().fileScanTasks().get(0).sizeBytes()
+            + planWithNoTargetFileSize.get(0).group().fileScanTasks().get(1).sizeBytes();
     List<DataFileRewritePlanner.PlannedGroup> planned;
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
@@ -282,7 +283,10 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                     11,
                     10_000_000,
                     ImmutableMap.of(
-                        MIN_INPUT_FILES, "2", TARGET_FILE_SIZE_BYTES, String.valueOf(limit))))) {
+                        MIN_INPUT_FILES,
+                        "2",
+                        TARGET_FILE_SIZE_BYTES,
+                        String.valueOf(targetFileSize))))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

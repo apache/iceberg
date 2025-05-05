@@ -135,13 +135,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
     // Find the task with the deletes
     FileScanTask withDelete = tasks.get(0).deletes().isEmpty() ? tasks.get(1) : tasks.get(0);
     assertThat(withDelete.deletes()).hasSize(2);
-    // Find the equality delete and the positional delete
-    if (withDelete.deletes().get(0).content() == FileContent.EQUALITY_DELETES) {
-      assertThat(withDelete.deletes().get(1).content()).isEqualTo(FileContent.POSITION_DELETES);
-    } else {
-      assertThat(withDelete.deletes().get(0).content()).isEqualTo(FileContent.POSITION_DELETES);
-      assertThat(withDelete.deletes().get(1).content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    }
+    assertThat(withDelete.deletes().stream().map(ContentFile::content).collect(Collectors.toList()))
+        .containsExactlyInAnyOrder(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES);
   }
 
   @Test
@@ -152,14 +147,15 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
     insertPartitioned(table, 3, "p2");
     insertPartitioned(table, 4, "p2");
 
-    // First run with high limit
-    List<DataFileRewritePlanner.PlannedGroup> planWithNoLimit = planDataFileRewrite(tableLoader());
-    assertThat(planWithNoLimit).hasSize(2);
+    // First run with high maxRewriteBytes
+    List<DataFileRewritePlanner.PlannedGroup> planWithNoMaxRewriteBytes =
+        planDataFileRewrite(tableLoader());
+    assertThat(planWithNoMaxRewriteBytes).hasSize(2);
 
-    // Second run with limit
-    long limit =
-        planWithNoLimit.get(0).group().fileScanTasks().get(0).sizeBytes()
-            + planWithNoLimit.get(1).group().fileScanTasks().get(0).sizeBytes()
+    // Second run with low maxRewriteBytes, the 2nd group should be removed from the plan
+    long maxRewriteBytes =
+        planWithNoMaxRewriteBytes.get(0).group().fileScanTasks().get(0).sizeBytes()
+            + planWithNoMaxRewriteBytes.get(1).group().fileScanTasks().get(0).sizeBytes()
             + 1;
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
@@ -170,7 +166,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     0,
                     tableLoader(),
                     11,
-                    limit,
+                    maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
       testHarness.open();
 

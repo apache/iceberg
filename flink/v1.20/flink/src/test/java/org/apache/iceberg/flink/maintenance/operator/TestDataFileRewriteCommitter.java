@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.executeRewrite;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
+import static org.apache.iceberg.metrics.CommitMetricsResult.TOTAL_DATA_FILES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -59,7 +61,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     }
 
     assertDataFiles(
-        table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
+        table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
   @Test
@@ -76,6 +78,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     assertThat(rewritten).hasSize(2);
     assertThat(rewritten.get(0).groupsPerCommit()).isEqualTo(1);
     assertThat(rewritten.get(1).groupsPerCommit()).isEqualTo(1);
+    ensureDifferentGroups(rewritten);
 
     try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
@@ -83,11 +86,17 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       testHarness.processElement(rewritten.get(0), EVENT_TIME);
       assertDataFiles(
-          table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
+          table,
+          rewritten.get(0).group().addedFiles(),
+          rewritten.get(0).group().rewrittenFiles(),
+          3);
 
       testHarness.processElement(rewritten.get(1), EVENT_TIME);
       assertDataFiles(
-          table, rewritten.get(1).group().addedFiles(), rewritten.get(1).group().rewrittenFiles());
+          table,
+          rewritten.get(1).group().addedFiles(),
+          rewritten.get(1).group().rewrittenFiles(),
+          2);
 
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
@@ -122,7 +131,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     }
 
     assertDataFiles(
-        table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
+        table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
   @Test
@@ -139,22 +148,23 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     assertThat(planned).hasSize(3);
     List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(3);
+    ensureDifferentGroups(rewritten);
 
     try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
-      testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
+      testHarness.processElement(setBatchSizeToTwo(rewritten.get(0)), EVENT_TIME);
       assertNoChange(table);
-      testHarness.processElement(updateBatchSize(rewritten.get(1)), EVENT_TIME);
+      testHarness.processElement(setBatchSizeToTwo(rewritten.get(1)), EVENT_TIME);
 
       Set<DataFile> added = Sets.newHashSet(rewritten.get(0).group().addedFiles());
       added.addAll(rewritten.get(1).group().addedFiles());
       Set<DataFile> removed = Sets.newHashSet(rewritten.get(0).group().rewrittenFiles());
       removed.addAll(rewritten.get(1).group().rewrittenFiles());
-      assertDataFiles(table, added, removed);
+      assertDataFiles(table, added, removed, 4);
 
-      testHarness.processElement(updateBatchSize(rewritten.get(2)), EVENT_TIME);
+      testHarness.processElement(setBatchSizeToTwo(rewritten.get(2)), EVENT_TIME);
       assertNoChange(table);
 
       assertThat(testHarness.extractOutputValues()).isEmpty();
@@ -165,7 +175,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     // This should be committed on close
     assertDataFiles(
-        table, rewritten.get(2).group().addedFiles(), rewritten.get(2).group().rewrittenFiles());
+        table, rewritten.get(2).group().addedFiles(), rewritten.get(2).group().rewrittenFiles(), 3);
   }
 
   @Test
@@ -189,11 +199,11 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         testHarness = harness()) {
       testHarness.open();
 
-      testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
+      testHarness.processElement(setBatchSizeToTwo(rewritten.get(0)), EVENT_TIME);
       assertNoChange(table);
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
 
-      DataFileRewriteRunner.ExecutedGroup group = spy(updateBatchSize(rewritten.get(1)));
+      DataFileRewriteRunner.ExecutedGroup group = spy(setBatchSizeToTwo(rewritten.get(1)));
       when(group.group()).thenThrow(new RuntimeException("Testing error"));
       testHarness.processElement(group, EVENT_TIME);
 
@@ -218,15 +228,38 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
             tableLoader()));
   }
 
-  private static DataFileRewriteRunner.ExecutedGroup updateBatchSize(
+  private static DataFileRewriteRunner.ExecutedGroup setBatchSizeToTwo(
       DataFileRewriteRunner.ExecutedGroup from) {
     return new DataFileRewriteRunner.ExecutedGroup(from.snapshotId(), 2, from.group());
   }
 
+  // Ensure that the groups are different, so the tests are not accidentally passing
+  private static void ensureDifferentGroups(List<DataFileRewriteRunner.ExecutedGroup> rewritten) {
+    List<String> resultFiles =
+        rewritten.stream()
+            .flatMap(task -> task.group().addedFiles().stream().map(ContentFile::location))
+            .collect(Collectors.toList());
+    assertThat(resultFiles).hasSize(Set.copyOf(resultFiles).size());
+  }
+
+  /**
+   * Assert that the number of the data files in the table is as expected. Additionally, tests that
+   * the last commit contains the expected added and removed files.
+   *
+   * @param table the table to check
+   * @param expectedAdded the expected added data files
+   * @param expectedRemoved the expected removed data files
+   * @param expectedCurrent the expected current data files count
+   */
   private static void assertDataFiles(
-      Table table, Set<DataFile> expectedAdded, Set<DataFile> expectedRemoved) {
+      Table table,
+      Set<DataFile> expectedAdded,
+      Set<DataFile> expectedRemoved,
+      long expectedCurrent) {
     table.refresh();
 
+    assertThat(table.currentSnapshot().summary().get(TOTAL_DATA_FILES))
+        .isEqualTo(String.valueOf(expectedCurrent));
     Set<DataFile> actualAdded = Sets.newHashSet(table.currentSnapshot().addedDataFiles(table.io()));
     Set<DataFile> actualRemoved =
         Sets.newHashSet(table.currentSnapshot().removedDataFiles(table.io()));

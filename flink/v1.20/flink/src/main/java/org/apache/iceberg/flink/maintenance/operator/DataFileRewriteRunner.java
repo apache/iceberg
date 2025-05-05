@@ -89,7 +89,7 @@ public class DataFileRewriteRunner
       throws Exception {
     if (LOG.isDebugEnabled()) {
       LOG.debug(
-          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting files for group {} with {} files",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting files for group {} with files: {}",
           tableName,
           taskName,
           taskIndex,
