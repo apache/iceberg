@@ -1477,7 +1477,6 @@ Table metadata is serialized as a JSON object according to the following table. 
 
 A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952).
 
-
 |Metadata field|JSON representation|Example|
 |--- |--- |--- |
 |**`format-version`**|`JSON int`|`1`|
