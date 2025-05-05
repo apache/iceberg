@@ -142,7 +142,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       }
 
       try {
-        return sharedCount.trySetCount(1);
+        return sharedCount.trySetCount(sharedCount.getVersionedValue(), 1);
       } catch (Exception e) {
         LOG.info("Failed to acquire Zookeeper lock ", e);
         return false;
