@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import javax.xml.crypto.Data;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -32,8 +33,13 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class IcebergWriter implements RecordWriter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergWriter.class);
+
   private final Table table;
   private final String tableName;
   private final IcebergSinkConfig config;
@@ -56,7 +62,7 @@ class IcebergWriter implements RecordWriter {
   }
 
   @Override
-  public void write(SinkRecord record) {
+  public void write(SinkRecord record) throws DataException {
     try {
       // ignore tombstones...
       if (record.value() != null) {
@@ -64,14 +70,24 @@ class IcebergWriter implements RecordWriter {
         writer.write(row);
       }
     } catch (Exception e) {
-      throw new DataException(
+      String recordData = "";
+      if (this.config.errorLogIncludeMessages()) {
+        recordData = String.format(", record: %s", record.value().toString());
+      }
+      DataException ex = new DataException(
           String.format(
               Locale.ROOT,
-              "An error occurred converting record, topic: %s, partition, %d, offset: %d",
+              "topic: %s, partition, %d, offset: %d %s",
               record.topic(),
               record.kafkaPartition(),
-              record.kafkaOffset()),
+              record.kafkaOffset(),
+              recordData),
           e);
+      if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
+        LOG.error("An error occurred converting record...", ex);
+      } else {
+        throw ex;
+      }
     }
   }
 
