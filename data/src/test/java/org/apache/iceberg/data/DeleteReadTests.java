@@ -41,6 +41,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -595,23 +596,92 @@ public abstract class DeleteReadTests {
     checkDeleteCount(1L);
   }
 
-  /** Regression test for https://github.com/apache/iceberg/issues/11239 */
   @TestTemplate
   public void testEqualityDeleteBinaryColumn() throws IOException {
-    testEqualityDeleteWithColumn(
-        "binaryData", (i) -> ByteBuffer.wrap(("binaryData_" + i).getBytes()));
+    List<Record> allRecords = appendOptionalColumnRecords();
+
+    Record binaryDataDelete = GenericRecord.create(table.schema().select("binaryData"));
+    List<Record> equalityDeletes =
+        Lists.newArrayList(
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_0").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_1").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_2").getBytes())));
+    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
+    testEqualityDeletes(equalityDeletes, expected);
   }
 
   @TestTemplate
   public void testEqualityDeleteStructColumn() throws IOException {
-    testEqualityDeleteWithColumn(
-        "structData",
-        (i) -> {
-          Record structRecord =
-              GenericRecord.create(table.schema().findType("structData").asStructType());
-          structRecord.setField("structInnerData", "structInnerData_" + i);
-          return structRecord;
-        });
+    List<Record> allRecords = appendOptionalColumnRecords();
+
+    Record structDataDelete = GenericRecord.create(table.schema().select("structData"));
+    Record structRecord0 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    Record structRecord1 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    Record structRecord2 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    structRecord0.setField("structInnerData", "structInnerData_0");
+    structRecord1.setField("structInnerData", "structInnerData_1");
+    structRecord2.setField("structInnerData", "structInnerData_2");
+    List<Record> equalityDeletes =
+        Lists.newArrayList(
+            structDataDelete.copy("structData", structRecord0),
+            structDataDelete.copy("structData", structRecord1),
+            structDataDelete.copy("structData", structRecord2));
+    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
+    testEqualityDeletes(equalityDeletes, expected);
+  }
+
+  private void testEqualityDeletes(List<Record> equalityDeletes, StructLikeSet expected)
+      throws IOException {
+    if (equalityDeletes.isEmpty()) {
+      throw new IllegalArgumentException("Expected equality deletes in testEqualityDeletes");
+    }
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            equalityDeletes,
+            equalityDeletes.get(0).struct().asSchema());
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    StructLikeSet actual = rowSet(tableName, table, "*");
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(equalityDeletes.size());
+  }
+
+  private List<Record> appendOptionalColumnRecords() throws IOException {
+    Record record = GenericRecord.create(table.schema());
+    List<Record> optionalColumnRecords = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      Record structRecord =
+          GenericRecord.create(table.schema().findType("structData").asStructType());
+      structRecord.setField("structInnerData", "structInnerData_" + i);
+      optionalColumnRecords.add(
+          record.copy(
+              ImmutableMap.of(
+                  "id",
+                  i + 200,
+                  "data",
+                  "testData",
+                  "binaryData",
+                  ByteBuffer.wrap(("binaryData_" + i).getBytes()),
+                  "structData",
+                  structRecord)));
+    }
+    DataFile binaryDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            optionalColumnRecords);
+
+    table.newAppend().appendFile(binaryDataFile).commit();
+    List<Record> allRecords = Lists.newArrayList(records);
+    allRecords.addAll(optionalColumnRecords);
+    return allRecords;
   }
 
   private <T> void testEqualityDeleteWithColumn(

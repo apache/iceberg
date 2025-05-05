@@ -128,10 +128,7 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private Iterable<StructLike> readEqDeletes(DeleteFile deleteFile, Schema projection) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, projection);
-    // Deep copy is needed when reusing containers to avoid overwriting the delete set when dealing
-    // with non-primitive containers as described in https://github.com/apache/iceberg/issues/11239
-    CloseableIterable<Record> copiedDeletes =
-        CloseableIterable.transform(deletes, Record::deepCopyValues);
+    CloseableIterable<Record> copiedDeletes = CloseableIterable.transform(deletes, Record::copy);
     CloseableIterable<StructLike> copiedDeletesAsStructs = toStructs(copiedDeletes, projection);
     return materialize(copiedDeletesAsStructs);
   }
