@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.encryption.BaseEncryptedKey;
 import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -52,9 +53,10 @@ public class EncryptedKeyParser {
     generator.writeStringField(
         KEY_METADATA,
         Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(key.encryptedKeyMetadata())));
-    generator.writeStringField(ENCRYPTED_BY_ID, key.encryptedById());
 
-    if (key.properties() != null) {
+    JsonUtil.writeStringFieldIfPresent(ENCRYPTED_BY_ID, key.encryptedById(), generator);
+
+    if (key.properties() != null && !key.properties().isEmpty()) {
       JsonUtil.writeStringMap(PROPERTIES, key.properties(), generator);
     }
 
@@ -69,8 +71,14 @@ public class EncryptedKeyParser {
     String keyId = JsonUtil.getString(KEY_ID, node);
     ByteBuffer keyMetadata =
         ByteBuffer.wrap(Base64.getDecoder().decode(JsonUtil.getString(KEY_METADATA, node)));
-    String encryptedById = JsonUtil.getString(ENCRYPTED_BY_ID, node);
-    Map<String, String> properties = JsonUtil.getStringMapOrNull(PROPERTIES, node);
+    String encryptedById = JsonUtil.getStringOrNull(ENCRYPTED_BY_ID, node);
+
+    Map<String, String> properties;
+    if (node.has(PROPERTIES)) {
+      properties = JsonUtil.getStringMap(PROPERTIES, node);
+    } else {
+      properties = ImmutableMap.of();
+    }
 
     return new BaseEncryptedKey(keyId, keyMetadata, encryptedById, properties);
   }

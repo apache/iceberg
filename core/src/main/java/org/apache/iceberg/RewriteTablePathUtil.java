@@ -132,7 +132,7 @@ public class RewriteTablePathUtil {
         // TODO: update partition statistics file paths
         metadata.partitionStatisticsFiles(),
         metadata.nextRowId(),
-        metadata.keys(),
+        metadata.encryptionKeys(),
         metadata.changes());
   }
 

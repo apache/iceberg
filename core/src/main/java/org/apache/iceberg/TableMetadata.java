@@ -262,7 +262,7 @@ public class TableMetadata implements Serializable {
   private final List<PartitionStatisticsFile> partitionStatisticsFiles;
   private final List<MetadataUpdate> changes;
   private final long nextRowId;
-  private final List<EncryptedKey> keys;
+  private final List<EncryptedKey> encryptionKeys;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
@@ -295,7 +295,7 @@ public class TableMetadata implements Serializable {
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
       long nextRowId,
-      List<EncryptedKey> keys,
+      List<EncryptedKey> encryptionKeys,
       List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
@@ -315,7 +315,7 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
-    Preconditions.checkArgument(keys != null, "Keys cannot be null");
+    Preconditions.checkArgument(encryptionKeys != null, "Encryption keys cannot be null");
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -338,7 +338,7 @@ public class TableMetadata implements Serializable {
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
-    this.keys = keys;
+    this.encryptionKeys = encryptionKeys;
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;
@@ -590,8 +590,8 @@ public class TableMetadata implements Serializable {
     return nextRowId;
   }
 
-  public List<EncryptedKey> keys() {
-    return keys;
+  public List<EncryptedKey> encryptionKeys() {
+    return encryptionKeys;
   }
 
   /** Updates the schema */
@@ -925,7 +925,7 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
     private long nextRowId;
-    private final List<EncryptedKey> keys;
+    private final List<EncryptedKey> encryptionKeys;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -966,7 +966,7 @@ public class TableMetadata implements Serializable {
       this.startingChangeCount = 0;
       this.snapshotLog = Lists.newArrayList();
       this.previousFiles = Lists.newArrayList();
-      this.keys = Lists.newArrayList();
+      this.encryptionKeys = Lists.newArrayList();
       this.refs = Maps.newHashMap();
       this.statisticsFiles = Maps.newHashMap();
       this.partitionStatisticsFiles = Maps.newHashMap();
@@ -996,7 +996,7 @@ public class TableMetadata implements Serializable {
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots());
-      this.keys = Lists.newArrayList(base.keys);
+      this.encryptionKeys = Lists.newArrayList(base.encryptionKeys);
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
 
@@ -1011,7 +1011,8 @@ public class TableMetadata implements Serializable {
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
       this.keysById =
-          keys.stream().collect(Collectors.toMap(EncryptedKey::keyId, Function.identity()));
+          encryptionKeys.stream()
+              .collect(Collectors.toMap(EncryptedKey::keyId, Function.identity()));
 
       this.nextRowId = base.nextRowId;
     }
@@ -1517,13 +1518,13 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder addEncryptedKey(EncryptedKey key) {
+    public Builder addEncryptionKey(EncryptedKey key) {
       if (keysById.containsKey(key.keyId())) {
         // already exists
         return this;
       }
 
-      keys.add(key);
+      encryptionKeys.add(key);
       keysById.put(key.keyId(), key);
 
       changes.add(new MetadataUpdate.AddEncryptionKey(key));
@@ -1531,8 +1532,8 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder removeEncryptedKey(String keyId) {
-      boolean removed = keys.removeIf(key -> key.keyId().equals(keyId));
+    public Builder removeEncryptionKey(String keyId) {
+      boolean removed = encryptionKeys.removeIf(key -> key.keyId().equals(keyId));
       keysById.remove(keyId);
 
       if (removed) {
@@ -1620,7 +1621,7 @@ public class TableMetadata implements Serializable {
               .flatMap(List::stream)
               .collect(Collectors.toList()),
           nextRowId,
-          keys,
+          encryptionKeys,
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 

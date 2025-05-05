@@ -557,7 +557,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder builder) {
-      builder.addEncryptedKey(key);
+      builder.addEncryptionKey(key);
     }
   }
 
@@ -574,7 +574,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder builder) {
-      builder.removeEncryptedKey(keyId);
+      builder.removeEncryptionKey(keyId);
     }
   }
 

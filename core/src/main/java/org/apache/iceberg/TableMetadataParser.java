@@ -231,9 +231,9 @@ public class TableMetadataParser {
       generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
     }
 
-    if (metadata.keys() != null) {
+    if (metadata.encryptionKeys() != null && !metadata.encryptionKeys().isEmpty()) {
       generator.writeArrayFieldStart(ENCRYPTION_KEYS);
-      for (EncryptedKey key : metadata.keys()) {
+      for (EncryptedKey key : metadata.encryptionKeys()) {
         EncryptedKeyParser.toJson(key, generator);
       }
       generator.writeEndArray();
