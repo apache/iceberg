@@ -1680,6 +1680,23 @@ Row-level delete changes:
     * These position delete files must be merged into the DV for a data file when one is created
     * Position delete files that contain deletes for more than one data file need to be kept in table metadata until all deletes are replaced by DVs
 
+Row lineage changes:
+
+* Writers must set the table's `next-row-id` and use the existing `next-row-id` as the `first-row-id` to create a new snapshot
+    * When a table is upgraded to v3, `next_row_id` should be initialized to 0
+    * It is recommended to increment `next-row-id` by the total `added_rows_count` and `existing_rows_count` of all manifests assigned a `first_row_id`
+* Writers must assign a `first_row_id` to new data manifests when writing a manifest list
+    * It is recommended to increment `first_row_id` by a manifest's `added_rows_count` and `existing_rows_count`
+* Readers must assign a `first_row_id` for any data file that does not have an assigned value written in a manifest
+    * Readers must increment `first_row_id` by the data file's `record_count`
+* When writing an existing data file into a new manifest, its `first_row_id` must be written into the manifest
+* When a data file has a non-null `first_row_id`, readers must:
+    * Replace any null or missing `_row_id` with the data file's `first_row_id` plus the row's `_pos`
+    * Replace any null or missing `_last_updated_sequence_number` to the data file's `data_sequence_number`
+    * Read any non-null `_row_id` or `_last_updated_sequence_number` without modification
+* When a data file has a null `first_row_id`, readers must produce null for `_row_id` and `_last_updated_sequence_number`
+* When writing an existing row into a new data file, writers must write `_row_id` and `_last_updated_sequence_number` if they are non-null
+
 Encryption changes:
 
 * Encryption keys are tracked by table metadata `encryption-keys`
