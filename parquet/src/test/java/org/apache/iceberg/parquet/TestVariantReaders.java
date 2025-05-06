@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.parquet.ParquetSchemaProducer.checkField;
-import static org.apache.iceberg.parquet.ParquetSchemaProducer.field;
-import static org.apache.iceberg.parquet.ParquetSchemaProducer.shreddedPrimitive;
+import static org.apache.iceberg.parquet.ParquetVariantUtil.ParquetSchemaProducer.checkField;
+import static org.apache.iceberg.parquet.ParquetVariantUtil.ParquetSchemaProducer.field;
+import static org.apache.iceberg.parquet.ParquetVariantUtil.ParquetSchemaProducer.shreddedPrimitive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
