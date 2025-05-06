@@ -52,7 +52,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -197,7 +197,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
 
     SparkActions.get(spark)
         .rewritePositionDeletes(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
     table.refresh();
     deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());

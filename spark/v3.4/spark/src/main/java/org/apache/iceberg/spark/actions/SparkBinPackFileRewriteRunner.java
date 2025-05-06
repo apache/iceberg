@@ -18,19 +18,18 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.util.List;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
+class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
 
-  SparkBinPackDataRewriter(SparkSession spark, Table table) {
+  SparkBinPackFileRewriteRunner(SparkSession spark, Table table) {
     super(spark, table);
   }
 
@@ -40,14 +39,14 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   @Override
-  protected void doRewrite(String groupId, List<FileScanTask> group) {
+  protected void doRewrite(String groupId, RewriteFileGroup group) {
     // read the files packing them into splits of the required size
     Dataset<Row> scanDF =
         spark()
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputSize(group)))
+            .option(SparkReadOptions.SPLIT_SIZE, group.inputSplitSize())
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
             .load(groupId);
 
@@ -56,16 +55,17 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
-        .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+        .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, group.maxOutputFileSize())
         .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
-        .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
+        .option(SparkWriteOptions.OUTPUT_SPEC_ID, group.outputSpecId())
         .mode("append")
         .save(groupId);
   }
 
   // invoke a shuffle if the original spec does not match the output spec
-  private DistributionMode distributionMode(List<FileScanTask> group) {
-    boolean requiresRepartition = !group.get(0).spec().equals(outputSpec());
+  private DistributionMode distributionMode(RewriteFileGroup group) {
+    boolean requiresRepartition =
+        !group.fileScanTasks().get(0).spec().equals(spec(group.outputSpecId()));
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }
 }
