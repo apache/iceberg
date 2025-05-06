@@ -54,6 +54,7 @@ public class GenericDataUtil {
       case FIXED:
         return ByteBuffers.toByteArray((ByteBuffer) value);
     }
+
     return value;
   }
 }

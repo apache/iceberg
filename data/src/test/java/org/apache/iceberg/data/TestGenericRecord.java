@@ -62,7 +62,7 @@ public class TestGenericRecord {
   }
 
   @Test
-  public void deepCopyValues() {
+  public void testDeepCopyValues() {
     Schema schema =
         new Schema(
             optional(0, "binaryData", Types.BinaryType.get()),

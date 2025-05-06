@@ -40,6 +40,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -597,7 +598,7 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteBinaryColumn() throws IOException {
-    List<Record> allRecords = appendOptionalColumnRecords();
+    writeOptionalTestDataFile();
 
     Record binaryDataDelete = GenericRecord.create(table.schema().select("binaryData"));
     List<Record> equalityDeletes =
@@ -605,13 +606,13 @@ public abstract class DeleteReadTests {
             binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_0").getBytes())),
             binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_1").getBytes())),
             binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_2").getBytes())));
-    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
     testEqualityDeletes(equalityDeletes, expected);
   }
 
   @TestTemplate
   public void testEqualityDeleteStructColumn() throws IOException {
-    List<Record> allRecords = appendOptionalColumnRecords();
+    writeOptionalTestDataFile();
 
     Record structDataDelete = GenericRecord.create(table.schema().select("structData"));
     Record structRecord0 =
@@ -628,15 +629,14 @@ public abstract class DeleteReadTests {
             structDataDelete.copy("structData", structRecord0),
             structDataDelete.copy("structData", structRecord1),
             structDataDelete.copy("structData", structRecord2));
-    StructLikeSet expected = rowSetWithoutIds(table, allRecords, 200, 201, 202);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
     testEqualityDeletes(equalityDeletes, expected);
   }
 
   private void testEqualityDeletes(List<Record> equalityDeletes, StructLikeSet expected)
       throws IOException {
-    if (equalityDeletes.isEmpty()) {
-      throw new IllegalArgumentException("Expected equality deletes in testEqualityDeletes");
-    }
+    Preconditions.checkArgument(
+        !equalityDeletes.isEmpty(), "Expected equality deletes in testEqualityDeletes");
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
@@ -651,14 +651,14 @@ public abstract class DeleteReadTests {
     checkDeleteCount(equalityDeletes.size());
   }
 
-  private List<Record> appendOptionalColumnRecords() throws IOException {
+  private void writeOptionalTestDataFile() throws IOException {
     Record record = GenericRecord.create(table.schema());
-    List<Record> optionalColumnRecords = Lists.newArrayList();
+    List<Record> recordsWithOptionalColumns = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
       Record structRecord =
           GenericRecord.create(table.schema().findType("structData").asStructType());
       structRecord.setField("structInnerData", "structInnerData_" + i);
-      optionalColumnRecords.add(
+      recordsWithOptionalColumns.add(
           record.copy(
               ImmutableMap.of(
                   "id",
@@ -675,12 +675,10 @@ public abstract class DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            optionalColumnRecords);
+            recordsWithOptionalColumns);
 
     table.newAppend().appendFile(binaryDataFile).commit();
-    List<Record> allRecords = Lists.newArrayList(records);
-    allRecords.addAll(optionalColumnRecords);
-    return allRecords;
+    records.addAll(recordsWithOptionalColumns);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
