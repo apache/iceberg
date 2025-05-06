@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.parquet.ParquetSchemaProducer.checkField;
 import static org.apache.iceberg.parquet.ParquetSchemaProducer.field;
-import static org.apache.iceberg.parquet.ParquetSchemaProducer.objectFields;
 import static org.apache.iceberg.parquet.ParquetSchemaProducer.shreddedPrimitive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -331,7 +331,7 @@ public class TestVariantReaders {
   public void testShreddedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -359,7 +359,7 @@ public class TestVariantReaders {
   public void testShreddedObjectMissingValueColumn() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType =
         Types.buildGroup(Type.Repetition.REQUIRED)
             .id(2)
@@ -394,7 +394,7 @@ public class TestVariantReaders {
   public void testShreddedObjectMissingField() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -422,7 +422,7 @@ public class TestVariantReaders {
   public void testEmptyShreddedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -520,10 +520,10 @@ public class TestVariantReaders {
   public void testShreddedObjectWithinShreddedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType innerFields = objectFields(List.of(fieldA, fieldB));
+    GroupType innerFields = objectFields(fieldA, fieldB);
     GroupType fieldC = field("c", innerFields);
     GroupType fieldD = field("d", shreddedPrimitive(PrimitiveTypeName.DOUBLE));
-    GroupType outerFields = objectFields(List.of(fieldC, fieldD));
+    GroupType outerFields = objectFields(fieldC, fieldD);
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -614,7 +614,7 @@ public class TestVariantReaders {
   public void testPartiallyShreddedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -654,7 +654,7 @@ public class TestVariantReaders {
   public void testPartiallyShreddedObjectFieldConflict() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -695,7 +695,7 @@ public class TestVariantReaders {
   public void testPartiallyShreddedObjectMissingFieldConflict() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -736,7 +736,7 @@ public class TestVariantReaders {
   public void testNonObjectWithNullShreddedFields() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -759,7 +759,7 @@ public class TestVariantReaders {
   public void testNonObjectWithNonNullShreddedFields() {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -787,7 +787,7 @@ public class TestVariantReaders {
   public void testEmptyPartiallyShreddedObjectConflict() {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType objectFields = objectFields(List.of(fieldA, fieldB));
+    GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -816,10 +816,10 @@ public class TestVariantReaders {
     // tests multiple rows to check that Parquet columns are correctly advanced
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType innerFields = objectFields(List.of(fieldA, fieldB));
+    GroupType innerFields = objectFields(fieldA, fieldB);
     GroupType fieldC = field("c", innerFields);
     GroupType fieldD = field("d", shreddedPrimitive(PrimitiveTypeName.DOUBLE));
-    GroupType outerFields = objectFields(List.of(fieldC, fieldD));
+    GroupType outerFields = objectFields(fieldC, fieldD);
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
@@ -1053,7 +1053,7 @@ public class TestVariantReaders {
   public void testArrayWithNestedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
-    GroupType shreddedFields = objectFields(List.of(fieldA, fieldB));
+    GroupType shreddedFields = objectFields(fieldA, fieldB);
     GroupType elementType = element(shreddedFields);
     GroupType listType = list(elementType);
     GroupType variantType = variant("var", 2, listType);
@@ -1479,6 +1479,14 @@ public class TestVariantReaders {
         .named("value")
         .addField(shreddedType)
         .named(name);
+  }
+
+  private static GroupType objectFields(GroupType... fields) {
+    for (GroupType fieldType : fields) {
+      checkField(fieldType);
+    }
+
+    return Types.buildGroup(Type.Repetition.OPTIONAL).addFields(fields).named("typed_value");
   }
 
   private static GroupType element(Type shreddedType) {

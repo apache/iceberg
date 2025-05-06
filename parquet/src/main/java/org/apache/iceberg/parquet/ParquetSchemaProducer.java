@@ -33,7 +33,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
-public class ParquetSchemaProducer extends VariantVisitor<Type> {
+class ParquetSchemaProducer extends VariantVisitor<Type> {
   @Override
   public Type object(VariantObject object, List<String> names, List<Type> typedValues) {
     if (object.numFields() < 1) {
