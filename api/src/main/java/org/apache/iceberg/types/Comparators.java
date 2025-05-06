@@ -18,13 +18,19 @@
  */
 package org.apache.iceberg.types;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.UnicodeUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantValue;
 
 public class Comparators {
 
@@ -120,6 +126,124 @@ public class Comparators {
     }
   }
 
+  private static class VariantComparator implements Comparator<Variant> {
+    private static final VariantComparator INSTANCE = new VariantComparator();
+
+    private VariantComparator() {}
+
+    @Override
+    public int compare(Variant o1, Variant o2) {
+      VariantValue value1 = o1.value();
+      VariantValue value2 = o2.value();
+      // Compare based on the type of the VariantValue
+      if (value1.type() != value2.type()) {
+        return value1.type().compareTo(value2.type());
+      }
+      return compareElements(value1, value2);
+    }
+
+    private static int compareElements(Object elem1, Object elem2) {
+      if (elem1 instanceof VariantArray && elem2 instanceof VariantArray) {
+        return compareVariantArrays((VariantArray) elem1, (VariantArray) elem2);
+      } else if (elem1 instanceof VariantObject && elem2 instanceof VariantObject) {
+        return compareVariantObjects((VariantObject) elem1, (VariantObject) elem2);
+      } else {
+        VariantValue value1 = (VariantValue) elem1;
+        VariantValue value2 = (VariantValue) elem2;
+        switch (value1.type()) {
+          case INT8:
+          case INT16:
+          case INT32:
+          case INT64:
+            return forType(Types.IntegerType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case FLOAT:
+            return forType(Types.FloatType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case DOUBLE:
+            return forType(Types.DoubleType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case DECIMAL4:
+          case DECIMAL8:
+          case DECIMAL16:
+            BigDecimal decimalType = ((BigDecimal) value1.asPrimitive().get());
+            int precision = decimalType.precision();
+            int scale = decimalType.scale();
+            return forType(Types.DecimalType.of(precision, scale))
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case DATE:
+            return forType(Types.DateType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case TIMESTAMPTZ:
+            return forType(Types.TimestampType.withoutZone())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case TIMESTAMPNTZ:
+            return forType(Types.TimestampNanoType.withoutZone())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case BINARY:
+            return forType(Types.BinaryType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          case STRING:
+            return forType(Types.StringType.get())
+                .compare(value1.asPrimitive().get(), value2.asPrimitive().get());
+          default:
+            throw new UnsupportedOperationException("Unsupported Variant type for comparison");
+        }
+      }
+    }
+
+    private static int compareVariantObjects(VariantObject obj1, VariantObject obj2) {
+      List<String> keys1 = Lists.newArrayList(obj1.fieldNames());
+      List<String> keys2 = Lists.newArrayList(obj2.fieldNames());
+
+      if (keys1.isEmpty() || keys2.isEmpty()) {
+        return (keys1.isEmpty() && keys2.isEmpty()) ? 0 : (keys1.isEmpty() ? -1 : 1);
+      }
+
+      if (keys1.size() > keys2.size()) {
+        return 1;
+      } else if (keys1.size() < keys2.size()) {
+        return -1;
+      }
+
+      for (int i = 0; i < keys1.size(); i++) {
+        String key1 = keys1.get(i);
+        String key2 = keys2.get(i);
+        int keyComparison = key1.compareTo(key2);
+        if (keyComparison != 0) {
+          return keyComparison;
+        }
+        int valueComparison = compareElements(obj1.get(key1), obj2.get(key2));
+        if (valueComparison != 0) {
+          return valueComparison;
+        }
+      }
+      return 0;
+    }
+
+    public static int compareVariantArrays(VariantArray array1, VariantArray array2) {
+      int len1 = array1.numElements();
+      int len2 = array2.numElements();
+
+      if (len1 > len2) {
+        return 1;
+      } else if (len1 < len2) {
+        return -1;
+      }
+
+      for (int i = 0; i < len1; i++) {
+        Object elem1 = array1.get(i);
+        Object elem2 = array2.get(i);
+        int comparison = compareElements(elem1, elem2);
+        if (comparison != 0) {
+          return comparison;
+        }
+      }
+
+      return 0;
+    }
+  }
+
   private static class ListComparator<T> implements Comparator<List<T>> {
     private final Comparator<T> elementComparator;
 
@@ -173,6 +297,10 @@ public class Comparators {
 
   public static Comparator<CharSequence> charSequences() {
     return CharSeqComparator.INSTANCE;
+  }
+
+  public static Comparator<Variant> variantComparator() {
+    return VariantComparator.INSTANCE;
   }
 
   public static Comparator<CharSequence> filePath() {

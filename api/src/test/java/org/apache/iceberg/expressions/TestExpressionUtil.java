@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -26,13 +28,22 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionUtil {
@@ -47,12 +58,16 @@ public class TestExpressionUtil {
           Types.NestedField.required(7, "time", Types.DateType.get()),
           Types.NestedField.optional(8, "data", Types.StringType.get()),
           Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
-          Types.NestedField.optional(10, "test", Types.IntegerType.get()));
+          Types.NestedField.optional(10, "test", Types.IntegerType.get()),
+          Types.NestedField.optional(11, "variant", Types.VariantType.get()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
   private static final Types.StructType FLOAT_TEST =
       Types.StructType.of(Types.NestedField.optional(1, "test", Types.FloatType.get()));
+
+  private static final Function<Object, Integer> HASH_FUNC =
+      Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
 
   @Test
   public void testUnchangedUnaryPredicates() {
@@ -433,6 +448,50 @@ public class TestExpressionUtil {
             ExpressionUtil.toSanitizedString(STRUCT, Expressions.equal("date", "2022-04-29"), true))
         .as("Sanitized string should be identical except for descriptive literal")
         .isEqualTo("date = (date)");
+  }
+
+  @Test
+  public void testSanitizeVariantObject() {
+    Variant variant = mock(Variant.class);
+    VariantObject mockObject = mock(VariantObject.class);
+    when(variant.value()).thenReturn(mockObject);
+    when(mockObject.type()).thenReturn(PhysicalType.OBJECT);
+    when(mockObject.asObject()).thenReturn(mockObject);
+    when(mockObject.fieldNames()).thenReturn(List.of("field1", "field2"));
+    VariantValue mockField1 = VariantTestUtil.createVariantMockField(PhysicalType.STRING, "value1");
+    VariantValue mockField2 = VariantTestUtil.createVariantMockField(PhysicalType.INT32, 42);
+    when(mockObject.get("field1")).thenReturn(mockField1);
+    when(mockObject.get("field2")).thenReturn(mockField2);
+    String formattedString = String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply("value1"));
+    assertEquals(
+        Expressions.equal(
+            "test", "{hash-field1: " + formattedString + ",hash-field2: (2-digit-int)}"),
+        ExpressionUtil.sanitize(Expressions.equal("test", variant)));
+  }
+
+  @Test
+  public void testSanitizeVariantArray() {
+    Variant variant = mock(Variant.class);
+    VariantArray mockArray = mock(VariantArray.class);
+    when(variant.value()).thenReturn(mockArray);
+    when(mockArray.type()).thenReturn(PhysicalType.ARRAY);
+    when(mockArray.asArray()).thenReturn(mockArray);
+    when(mockArray.numElements()).thenReturn(4);
+
+    VariantValue[] mockFields = {
+      VariantTestUtil.createVariantMockField(PhysicalType.STRING, "value1"),
+      VariantTestUtil.createVariantMockField(PhysicalType.FLOAT, 42.0),
+      VariantTestUtil.createVariantMockField(PhysicalType.DATE, 10),
+      VariantTestUtil.createVariantMockField(PhysicalType.TIMESTAMPNTZ, 10),
+    };
+
+    for (int i = 0; i < mockFields.length; i++) {
+      when(mockArray.get(i)).thenReturn(mockFields[i]);
+    }
+    String formattedString = String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply("value1"));
+    assertEquals(
+        Expressions.equal("test", "[" + formattedString + ",(2-digit-float),(date),(timestamp)]"),
+        ExpressionUtil.sanitize(Expressions.equal("test", variant)));
   }
 
   @Test
