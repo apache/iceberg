@@ -20,6 +20,36 @@
 project(":iceberg-gcp-bundle") {
 
   apply plugin: 'com.gradleup.shadow'
+  apply plugin: 'me.champeau.jmh'
+  apply plugin: 'io.morethan.jmhreport'
+
+  def jmhReportDir = project.property("jmhJsonOutputPath").toString().replace(".json", "")
+  mkdir(file(jmhReportDir))
+
+  jmh {
+    jmhVersion = '1.37'
+    failOnError = true
+    forceGC = true
+    includeTests = true
+    humanOutputFile = file(jmhOutputPath)
+    resultsFile = file(jmhJsonOutputPath)
+    resultFormat = 'JSON'
+    includes = [jmhIncludeRegex]
+    zip64 = true
+  }
+
+  jmhReport {
+    jmhResultPath = file(jmhJsonOutputPath)
+    jmhReportOutput = file(jmhReportDir)
+  }
+
+  jmhCompileGeneratedClasses {
+    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+      options.errorprone.enabled = false
+    }
+  }
+
+  tasks.jmh.finalizedBy tasks.jmhReport
 
   tasks.jar.dependsOn tasks.shadowJar
 

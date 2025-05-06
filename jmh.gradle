@@ -48,6 +48,9 @@ if (sparkVersions.contains("3.5")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
 }
 
+//jmhProjects.add(project(":iceberg-gcp"))
+//jmhProjects.add(project(":iceberg-gcp-bundle"))
+
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
   apply plugin: 'io.morethan.jmhreport'
