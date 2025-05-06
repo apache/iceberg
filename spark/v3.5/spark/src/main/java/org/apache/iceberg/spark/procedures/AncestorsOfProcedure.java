@@ -96,7 +96,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
 
   @Override
   public String description() {
-    return "AncestorsOf";
+    return "AncestorsOfProcedure";
   }
 
   private InternalRow[] toOutputRow(Table table, List<Long> snapshotIds) {
