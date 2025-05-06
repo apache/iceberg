@@ -36,6 +36,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -46,6 +47,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,6 +59,7 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -217,6 +220,52 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  @Test
+  public void testParquetRowGroupSize() throws IOException {
+    // verify parquet row group size should be close to configured size
+    int recordCount = 100000;
+    int columnCount = 50;
+
+    List<Types.NestedField> columns =
+        IntStream.rangeClosed(1, columnCount)
+            .mapToObj(i -> optional(i, "stringCol" + i, Types.StringType.get()))
+            .collect(ImmutableList.toImmutableList());
+    Schema schema = new Schema(columns);
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= recordCount; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      for (Types.NestedField column : columns) {
+        String value = column.name().repeat(10) + i;
+        record.put(column.name(), value);
+      }
+
+      records.add(record);
+    }
+
+    long actualSize =
+        write(
+            file,
+            schema,
+            ImmutableMap.of("write.parquet.row-group-size-bytes", "1048576"),
+            ParquetAvroWriter::buildWriter,
+            records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      ParquetMetadata footer = reader.getFooter();
+      for (int i = 1; i < footer.getBlocks().size() - 1; i++) {
+        assertThat(footer.getBlocks().get(i).getCompressedSize())
+            .isBetween((long) 900 * 1024, (long) 1200 * 1024);
+      }
+
+      assertThat(footer.getBlocks().get(footer.getBlocks().size() - 1).getCompressedSize())
+          .isLessThan((long) 1200 * 1024);
+    }
   }
 
   private Pair<File, Long> generateFile(
