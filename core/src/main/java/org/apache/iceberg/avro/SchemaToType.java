@@ -30,15 +30,15 @@ import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
+  private int nextId;
 
   SchemaToType(Schema root) {
     this.root = root;
+    this.nextId = 1;
     if (root.getType() == Schema.Type.RECORD) {
-      this.nextId = root.getFields().size();
+      this.nextId = root.getFields().size() + 1;
     }
   }
-
-  private int nextId = 1;
 
   private int getElementId(Schema schema) {
     if (schema.getObjectProp(AvroSchemaUtil.ELEMENT_ID_PROP) != null) {
@@ -84,7 +84,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
 
     if (Objects.equals(root, record)) {
-      this.nextId = 0;
+      this.nextId = 1;
     }
 
     for (int i = 0; i < fields.size(); i += 1) {
