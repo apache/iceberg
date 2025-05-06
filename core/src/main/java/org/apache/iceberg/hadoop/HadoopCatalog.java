@@ -191,7 +191,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     Preconditions.checkArgument(
         namespace.levels().length >= 1, "Missing database in table identifier: %s", namespace);
 
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    Path nsPath = new Path(warehouseLocation + "/", SLASH.join(namespace.levels()));
     Set<TableIdentifier> tblIdents = Sets.newHashSet();
 
     try {
@@ -284,7 +284,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
           "Cannot create namespace " + namespace + ": metadata is not supported");
     }
 
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    Path nsPath = new Path(warehouseLocation + "/", SLASH.join(namespace.levels()));
 
     if (isNamespace(nsPath)) {
       throw new AlreadyExistsException("Namespace already exists: %s", namespace);
@@ -303,7 +303,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     Path nsPath =
         namespace.isEmpty()
             ? new Path(warehouseLocation)
-            : new Path(warehouseLocation, SLASH.join(namespace.levels()));
+            : new Path(warehouseLocation + "/", SLASH.join(namespace.levels()));
+
     if (!isNamespace(nsPath)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -333,7 +334,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    Path nsPath = new Path(warehouseLocation + "/", SLASH.join(namespace.levels()));
 
     if (!isNamespace(nsPath) || namespace.isEmpty()) {
       return false;
@@ -364,7 +365,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    Path nsPath = new Path(warehouseLocation + "/", SLASH.join(namespace.levels()));
 
     if (!isNamespace(nsPath) || namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
