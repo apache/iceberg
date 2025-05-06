@@ -1687,9 +1687,10 @@ Row lineage changes:
     * When committing a new snapshot `next-row-id` must be incremented by at least the number of newly assigned row ids in the snapshot
     * It is recommended to increment `next-row-id` by the total `added_rows_count` and `existing_rows_count` of all manifests assigned a `first_row_id`
 * Writers must assign a `first_row_id` to new data manifests when writing a manifest list
-    * When writing a new manifest list each `first_row_id` must be incremented by at least the number of newly assigned row ids in each manifest
+    * When writing a new manifest list each `first_row_id` must be incremented by at least the number of newly assigned row ids in the manifest
     * It is recommended to increment `first_row_id` by a manifest's `added_rows_count` and `existing_rows_count`
-* Readers must assign a `first_row_id` for any data file that does not have an assigned value written in a manifest
+* When writing a manifest, new data files must be written with a null `first_row_id` so that the value is assigned at read time based on the manifest's `first_row_id`
+* When a manifest has a non-null `first_row_id`, readers must assign a `first_row_id` to any data file that has a missing or null value in that manifest
     * Readers must increment `first_row_id` by the data file's `record_count`
 * When writing an existing data file into a new manifest, its `first_row_id` must be written into the manifest
 * When a data file has a non-null `first_row_id`, readers must:
