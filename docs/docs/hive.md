@@ -271,7 +271,7 @@ CREATE TABLE target LIKE source STORED BY ICEBERG;
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
-tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/catalog/Catalog.html), or an implementation of the [`Tables`](../../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/Tables.html) interface, and Hive needs to be configured accordingly to operate on these different types of table.
+tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/catalog/Catalog.html), or an implementation of the [`Tables`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/Tables.html) interface, and Hive needs to be configured accordingly to operate on these different types of table.
 
 #### Hive catalog tables
 
