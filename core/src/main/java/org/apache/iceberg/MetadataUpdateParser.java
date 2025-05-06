@@ -61,6 +61,8 @@ public class MetadataUpdateParser {
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
   static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
   static final String REMOVE_SCHEMAS = "remove-schemas";
+  static final String ADD_ENCRYPTION_KEY = "add-encryption-key";
+  static final String REMOVE_ENCRYPTION_KEY = "remove-encryption-key";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -134,6 +136,12 @@ public class MetadataUpdateParser {
   // RemoveSchemas
   private static final String SCHEMA_IDS = "schema-ids";
 
+  // AddEncryptionKey
+  private static final String ENCRYPTION_KEY = "encryption-key";
+
+  // RemoveEncryptionKey
+  private static final String KEY_ID = "key-id";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -160,6 +168,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
           .put(MetadataUpdate.RemoveSchemas.class, REMOVE_SCHEMAS)
+          .put(MetadataUpdate.AddEncryptionKey.class, ADD_ENCRYPTION_KEY)
+          .put(MetadataUpdate.RemoveEncryptionKey.class, REMOVE_ENCRYPTION_KEY)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -265,6 +275,12 @@ public class MetadataUpdateParser {
       case REMOVE_SCHEMAS:
         writeRemoveSchemas((MetadataUpdate.RemoveSchemas) metadataUpdate, generator);
         break;
+      case ADD_ENCRYPTION_KEY:
+        writeAddEncryptionKey((MetadataUpdate.AddEncryptionKey) metadataUpdate, generator);
+        break;
+      case REMOVE_ENCRYPTION_KEY:
+        writeRemoveEncryptionKey((MetadataUpdate.RemoveEncryptionKey) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -340,6 +356,10 @@ public class MetadataUpdateParser {
         return readRemovePartitionSpecs(jsonNode);
       case REMOVE_SCHEMAS:
         return readRemoveSchemas(jsonNode);
+      case ADD_ENCRYPTION_KEY:
+        return readAddEncryptionKey(jsonNode);
+      case REMOVE_ENCRYPTION_KEY:
+        return readRemoveEncryptionKey(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -481,6 +501,17 @@ public class MetadataUpdateParser {
   private static void writeRemoveSchemas(
       MetadataUpdate.RemoveSchemas metadataUpdate, JsonGenerator gen) throws IOException {
     JsonUtil.writeIntegerArray(SCHEMA_IDS, metadataUpdate.schemaIds(), gen);
+  }
+
+  private static void writeAddEncryptionKey(
+      MetadataUpdate.AddEncryptionKey update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(ENCRYPTION_KEY);
+    EncryptedKeyParser.toJson(update.key(), gen);
+  }
+
+  private static void writeRemoveEncryptionKey(
+      MetadataUpdate.RemoveEncryptionKey update, JsonGenerator gen) throws IOException {
+    gen.writeStringField(KEY_ID, update.keyId());
   }
 
   private static MetadataUpdate readAssignUUID(JsonNode node) {
@@ -638,5 +669,19 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readRemoveSchemas(JsonNode node) {
     return new MetadataUpdate.RemoveSchemas(JsonUtil.getIntegerSet(SCHEMA_IDS, node));
+  }
+
+  private static MetadataUpdate readAddEncryptionKey(JsonNode node) {
+    JsonNode keyNode = node.get(ENCRYPTION_KEY);
+    Preconditions.checkArgument(
+        keyNode != null && keyNode.isObject(),
+        "Invalid encryption key, must be non-null object: %s",
+        keyNode);
+    return new MetadataUpdate.AddEncryptionKey(EncryptedKeyParser.fromJson(keyNode));
+  }
+
+  private static MetadataUpdate readRemoveEncryptionKey(JsonNode node) {
+    String keyId = JsonUtil.getString(KEY_ID, node);
+    return new MetadataUpdate.RemoveEncryptionKey(keyId);
   }
 }
