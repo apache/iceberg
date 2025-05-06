@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg;
 
-public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerBase {
+public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 
-  public String format() {
-    return FileFormat.PARQUET.name();
+  public FileFormat format() {
+    return FileFormat.PARQUET;
   }
 }

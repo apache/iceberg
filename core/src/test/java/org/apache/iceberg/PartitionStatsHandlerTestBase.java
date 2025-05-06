@@ -59,9 +59,9 @@ import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public abstract class PartitionStatsHandlerBase {
+public abstract class PartitionStatsHandlerTestBase {
 
-  public abstract String format();
+  public abstract FileFormat format();
 
   private static final Schema SCHEMA =
       new Schema(
@@ -76,20 +76,22 @@ public abstract class PartitionStatsHandlerBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  private final Map<String, String> formatProperty =
-      ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format());
+  private final Map<String, String> fileFormatProperty =
+      ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format().name());
 
   @Test
   public void testPartitionStatsOnEmptyTable() throws Exception {
     Table testTable =
-        TestTables.create(tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2, formatProperty);
+        TestTables.create(
+            tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2, fileFormatProperty);
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable)).isNull();
   }
 
   @Test
   public void testPartitionStatsOnEmptyBranch() throws Exception {
     Table testTable =
-        TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2, formatProperty);
+        TestTables.create(
+            tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2, fileFormatProperty);
     testTable.manageSnapshots().createBranch("b1").commit();
     long branchSnapshot = testTable.refs().get("b1").snapshotId();
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, branchSnapshot)).isNull();
@@ -99,7 +101,7 @@ public abstract class PartitionStatsHandlerBase {
   public void testPartitionStatsOnInvalidSnapshot() throws Exception {
     Table testTable =
         TestTables.create(
-            tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2, formatProperty);
+            tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2, fileFormatProperty);
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable, 42L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Snapshot not found: 42");
@@ -114,7 +116,7 @@ public abstract class PartitionStatsHandlerBase {
             SCHEMA,
             PartitionSpec.unpartitioned(),
             2,
-            formatProperty);
+            fileFormatProperty);
 
     DataFile dataFile = FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of());
     testTable.newAppend().appendFile(dataFile).commit();
@@ -167,7 +169,7 @@ public abstract class PartitionStatsHandlerBase {
 
     Table testTable =
         TestTables.create(
-            tempDir("test_all_type"), "test_all_type", schema, spec, 2, formatProperty);
+            tempDir("test_all_type"), "test_all_type", schema, spec, 2, fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema);
@@ -223,7 +225,7 @@ public abstract class PartitionStatsHandlerBase {
             SCHEMA,
             spec,
             2,
-            formatProperty);
+            fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema);
@@ -292,7 +294,7 @@ public abstract class PartitionStatsHandlerBase {
             SCHEMA,
             SPEC,
             2,
-            formatProperty);
+            fileFormatProperty);
 
     DataFile dataFile1 =
         FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));

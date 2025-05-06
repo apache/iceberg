@@ -19,11 +19,11 @@
 package org.apache.iceberg.avro;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionStatsHandlerBase;
+import org.apache.iceberg.PartitionStatsHandlerTestBase;
 
-public class TestAvroPartitionStatsHandler extends PartitionStatsHandlerBase {
+public class TestAvroPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 
-  public String format() {
-    return FileFormat.AVRO.name();
+  public FileFormat format() {
+    return FileFormat.AVRO;
   }
 }
