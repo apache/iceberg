@@ -26,6 +26,7 @@ import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -64,18 +65,86 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private AuthSessionCache sessionCache;
 
   public OAuth2Manager(String managerName) {
-    super(managerName + "-token-refresh");
+    super(managerName);
     this.name = managerName;
   }
 
   @Override
+  public OAuth2Manager withClient(RESTClient restClient) {
+    Preconditions.checkArgument(restClient != null, "Invalid REST client: null");
+    refreshClient = restClient.withAuthSession(AuthSession.EMPTY);
+    return this;
+  }
+
+  @Override
+  public OAuth2Util.AuthSession authSession(AuthScope scope) {
+    Preconditions.checkArgument(null != scope, "Invalid auth scope: null");
+    Preconditions.checkState(
+        refreshClient != null, "cannot create AuthSession: no RESTClient available");
+    if (sessionCache == null) {
+      sessionCache = newSessionCache(name, scope.properties());
+    }
+
+    AuthConfig config = AuthConfig.fromProperties(scope.properties());
+    keepRefreshed(config.keepRefreshed());
+    if (scope instanceof AuthScopes.Initial) {
+      warnIfDeprecatedTokenEndpointUsed(scope.properties());
+      return initSession(config);
+    } else if (scope instanceof AuthScopes.Catalog) {
+      return catalogSession(config);
+    } else if (scope instanceof AuthScopes.Contextual) {
+      return contextualSession((AuthScopes.Contextual) scope);
+    } else if (scope instanceof AuthScopes.Table) {
+      return tableSession((AuthScopes.Table) scope);
+    } else {
+      return genericSession(scope, config);
+    }
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Override
+  @Deprecated
   public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    warnIfDeprecatedTokenEndpointUsed(properties);
-    AuthConfig config =
-        ImmutableAuthConfig.builder()
-            .from(AuthConfig.fromProperties(properties))
-            .keepRefreshed(false) // no token refresh during init
-            .build();
+    return (OAuth2Util.AuthSession) super.initSession(initClient, properties);
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Override
+  @Deprecated
+  public OAuth2Util.AuthSession catalogSession(
+      RESTClient sharedClient, Map<String, String> properties) {
+    return (OAuth2Util.AuthSession) super.catalogSession(sharedClient, properties);
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Override
+  @Deprecated
+  public OAuth2Util.AuthSession contextualSession(
+      SessionCatalog.SessionContext context, AuthSession parent) {
+    return (OAuth2Util.AuthSession) super.contextualSession(context, parent);
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Override
+  @Deprecated
+  public OAuth2Util.AuthSession tableSession(
+      TableIdentifier table, Map<String, String> properties, AuthSession parent) {
+    return (OAuth2Util.AuthSession) super.tableSession(table, properties, parent);
+  }
+
+  private OAuth2Util.AuthSession initSession(AuthConfig config) {
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
     if (config.credential() != null && !config.credential().isEmpty()) {
@@ -85,31 +154,24 @@ public class OAuth2Manager extends RefreshingAuthManager {
       this.startTimeMillis = System.currentTimeMillis();
       this.authResponse =
           OAuth2Util.fetchToken(
-              initClient.withAuthSession(session),
+              refreshClient.withAuthSession(session),
               Map.of(),
               config.credential(),
               config.scope(),
               config.oauth2ServerUri(),
               config.optionalOAuthParams());
       return OAuth2Util.AuthSession.fromTokenResponse(
-          initClient, null, authResponse, startTimeMillis, session);
+          refreshClient, null, authResponse, startTimeMillis, session);
     } else if (config.token() != null) {
       return OAuth2Util.AuthSession.fromAccessToken(
-          initClient, null, config.token(), null, session);
+          refreshClient, null, config.token(), null, session);
     }
     return session;
   }
 
-  @Override
-  public OAuth2Util.AuthSession catalogSession(
-      RESTClient sharedClient, Map<String, String> properties) {
-    // This client will be used for token refreshes; it should not have an auth session.
-    this.refreshClient = sharedClient.withAuthSession(AuthSession.EMPTY);
-    this.sessionCache = newSessionCache(name, properties);
-    AuthConfig config = AuthConfig.fromProperties(properties);
+  private OAuth2Util.AuthSession catalogSession(AuthConfig config) {
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    keepRefreshed(config.keepRefreshed());
     // authResponse comes from the init phase: this means we already fetched a token
     // so reuse it now and turn token refresh on.
     if (authResponse != null) {
@@ -122,7 +184,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     } else if (config.credential() != null && !config.credential().isEmpty()) {
       OAuthTokenResponse response =
           OAuth2Util.fetchToken(
-              sharedClient.withAuthSession(session),
+              refreshClient.withAuthSession(session),
               Map.of(),
               config.credential(),
               config.scope(),
@@ -134,36 +196,41 @@ public class OAuth2Manager extends RefreshingAuthManager {
     return session;
   }
 
-  @Override
-  public OAuth2Util.AuthSession contextualSession(
-      SessionCatalog.SessionContext context, AuthSession parent) {
+  private OAuth2Util.AuthSession contextualSession(AuthScopes.Contextual scope) {
     return maybeCreateChildSession(
-        context.credentials(),
-        context.properties(),
-        ignored -> context.sessionId(),
-        (OAuth2Util.AuthSession) parent);
+        scope.properties(),
+        ignored -> scope.context().sessionId(),
+        (OAuth2Util.AuthSession) scope.parent(),
+        scope.cacheable());
   }
 
-  @Override
-  public OAuth2Util.AuthSession tableSession(
-      TableIdentifier table, Map<String, String> properties, AuthSession parent) {
+  private OAuth2Util.AuthSession tableSession(AuthScopes.Table scope) {
     return maybeCreateChildSession(
-        Maps.filterKeys(properties, TABLE_SESSION_ALLOW_LIST::contains),
-        properties,
-        properties::get,
-        (OAuth2Util.AuthSession) parent);
+        Maps.filterKeys(scope.properties(), TABLE_SESSION_ALLOW_LIST::contains),
+        scope.properties()::get,
+        (OAuth2Util.AuthSession) scope.parent(),
+        scope.cacheable());
+  }
+
+  private OAuth2Util.AuthSession genericSession(AuthScope scope, AuthConfig config) {
+    OAuth2Util.AuthSession parent;
+    if (scope.parent() == null) {
+      Map<String, String> headers = OAuth2Util.authHeaders(config.token());
+      parent = new OAuth2Util.AuthSession(headers, config);
+    } else {
+      parent = (OAuth2Util.AuthSession) scope.parent();
+    }
+    return maybeCreateChildSession(
+        scope.properties(), scope.properties()::get, parent, scope.cacheable());
   }
 
   @Override
   public void close() {
-    try {
+    // Don't close the RESTClient, as it is shared and managed externally
+    AuthSessionCache cache = sessionCache;
+    this.sessionCache = null;
+    try (cache) {
       super.close();
-    } finally {
-      AuthSessionCache cache = sessionCache;
-      this.sessionCache = null;
-      if (cache != null) {
-        cache.close();
-      }
     }
   }
 
@@ -171,35 +238,63 @@ public class OAuth2Manager extends RefreshingAuthManager {
     return new AuthSessionCache(managerName, sessionTimeout(properties));
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #maybeCreateChildSession(Map,
+   *     Function, OAuth2Util.AuthSession, boolean)} instead.
+   */
+  @Deprecated
   protected OAuth2Util.AuthSession maybeCreateChildSession(
       Map<String, String> credentials,
       Map<String, String> properties,
       Function<String, String> cacheKeyFunc,
       OAuth2Util.AuthSession parent) {
-    if (credentials != null) {
+    return maybeCreateChildSession(
+        RESTUtil.merge(properties, credentials), cacheKeyFunc, parent, true);
+  }
+
+  private OAuth2Util.AuthSession maybeCreateChildSession(
+      Map<String, String> properties,
+      Function<String, String> cacheKeyFunc,
+      OAuth2Util.AuthSession parent,
+      boolean cacheable) {
+    if (properties != null && !properties.isEmpty()) {
       // use the bearer token without exchanging
-      if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        String token = credentials.get(OAuth2Properties.TOKEN);
-        return sessionCache.cachedSession(
-            cacheKeyFunc.apply(OAuth2Properties.TOKEN),
-            k -> newSessionFromAccessToken(token, properties, parent));
+      if (properties.containsKey(OAuth2Properties.TOKEN)) {
+        String token = properties.get(OAuth2Properties.TOKEN);
+        if (cacheable) {
+          return sessionCache.cachedSession(
+              cacheKeyFunc.apply(OAuth2Properties.TOKEN),
+              k -> newSessionFromAccessToken(token, properties, parent));
+        } else {
+          return newSessionFromAccessToken(token, properties, parent);
+        }
       }
 
-      if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
+      if (properties.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
-        String credential = credentials.get(OAuth2Properties.CREDENTIAL);
-        return sessionCache.cachedSession(
-            cacheKeyFunc.apply(OAuth2Properties.CREDENTIAL),
-            k -> newSessionFromCredential(credential, parent));
+        String credential = properties.get(OAuth2Properties.CREDENTIAL);
+        if (cacheable) {
+          return sessionCache.cachedSession(
+              cacheKeyFunc.apply(OAuth2Properties.CREDENTIAL),
+              k -> newSessionFromCredential(credential, parent));
+        } else {
+          return newSessionFromCredential(credential, parent);
+        }
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
-        if (credentials.containsKey(tokenType)) {
+        if (properties.containsKey(tokenType)) {
+          Preconditions.checkNotNull(
+              parent.token(), "invalid token exchange request: no actor token");
           // exchange the token for an access token using the token exchange flow
-          String token = credentials.get(tokenType);
-          return sessionCache.cachedSession(
-              cacheKeyFunc.apply(tokenType),
-              k -> newSessionFromTokenExchange(token, tokenType, parent));
+          String token = properties.get(tokenType);
+          if (cacheable) {
+            return sessionCache.cachedSession(
+                cacheKeyFunc.apply(tokenType),
+                k -> newSessionFromTokenExchange(token, tokenType, parent));
+          } else {
+            return newSessionFromTokenExchange(token, tokenType, parent);
+          }
         }
       }
     }
