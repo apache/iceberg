@@ -1987,15 +1987,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .collect(Collectors.toList());
   }
 
-  private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
-    rewrite.validateAndInitOptions();
-    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
-
-    return rewrite.toGroupStream(
-        new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);
-  }
-
   protected List<Object[]> currentData() {
     return rowsToJava(
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
