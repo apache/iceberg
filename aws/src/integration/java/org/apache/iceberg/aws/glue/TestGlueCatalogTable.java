@@ -21,7 +21,11 @@ package org.apache.iceberg.aws.glue;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,24 +49,25 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTableVersionsRequest;
 import software.amazon.awssdk.services.glue.model.TableInput;
-import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -158,8 +163,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     try {
-      glueCatalog.createTable(identifier, schema, partitionSpec, TABLE_LOCATION_PROPERTIES);
-      glueCatalog.loadTable(identifier);
+      glueCatalogWithoutWarehouse.createTable(
+          identifier, schema, partitionSpec, TEST_BUCKET_PATH + "/" + tableName, ImmutableMap.of());
+      glueCatalogWithoutWarehouse.loadTable(identifier);
     } catch (RuntimeException e) {
       throw new RuntimeException(
           "Create and load table without warehouse location should succeed", e);
@@ -343,28 +349,72 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testRenameTableFailsToDeleteOldTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
-    // delete the old table metadata, so that drop old table will fail
+
+    // Create a spy on the Glue client
+    // Spy will simulate a time-out when trying to drop the old table during rename after new table
+    // already created
+    GlueClient glueClientSpy = spy(GLUE);
+    doAnswer(
+            invocation -> {
+              DeleteTableRequest originalRequest = invocation.getArgument(0);
+              if (originalRequest.name().equals(tableName)) {
+                DeleteTableRequest requestWithTimeout =
+                    originalRequest.toBuilder()
+                        // Inject short timeout threshold to the original request
+                        .overrideConfiguration(
+                            AwsRequestOverrideConfiguration.builder()
+                                .apiCallTimeout(Duration.ofMillis(1))
+                                .build())
+                        .build();
+                return GLUE.deleteTable(requestWithTimeout);
+              }
+              return invocation.callRealMethod();
+            })
+        .when(glueClientSpy)
+        .deleteTable(any(DeleteTableRequest.class));
+
+    final GlueCatalog glueCatalogWithCustomClient = new GlueCatalog();
+
+    glueCatalogWithCustomClient.initialize(
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
+        new AwsProperties(),
+        new S3FileIOProperties(),
+        glueClientSpy,
+        null,
+        ImmutableMap.of());
+
     String newTableName = tableName + "_2";
-    GLUE.updateTable(
-        UpdateTableRequest.builder()
-            .databaseName(namespace)
-            .tableInput(TableInput.builder().name(tableName).parameters(Maps.newHashMap()).build())
-            .build());
+
+    // Test the rename operation. Expected sequence:
+    // 1. New table is created successfully
+    // 2. Attempt to delete old table times out
+    // 3. Rollback is triggered, which deletes the new table
+    // 4. Rename operation throws timeout exception
     assertThatThrownBy(
             () ->
-                glueCatalog.renameTable(
+                glueCatalogWithCustomClient.renameTable(
                     TableIdentifier.of(namespace, tableName),
                     TableIdentifier.of(namespace, newTableName)))
-        .isInstanceOf(ValidationException.class)
+        .isInstanceOf(ApiCallTimeoutException.class)
         .as("should fail to rename")
-        .hasMessageContaining("Input Glue table is not an iceberg table");
+        .hasMessageContaining(
+            "Client execution did not complete before the specified timeout configuration");
+
+    // New table created during rename should be dropped in rollback
     assertThatThrownBy(
             () ->
                 GLUE.getTable(
                     GetTableRequest.builder().databaseName(namespace).name(newTableName).build()))
         .isInstanceOf(EntityNotFoundException.class)
-        .as("renamed table should be deleted")
-        .hasMessageContaining("not found");
+        .as("renamed table should be deleted during rollback")
+        .hasMessageContaining("Entity Not Found");
+
+    // Old table should not be dropped in rollback
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    assertThat(response.table().databaseName()).isEqualTo(namespace);
+    assertThat(response.table().name()).isEqualTo(tableName);
   }
 
   @Test
@@ -457,7 +507,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(false);
-    glueCatalog.initialize(
+    GlueCatalog glueCatalogWithArchive = new GlueCatalog();
+    glueCatalogWithArchive.initialize(
         CATALOG_NAME,
         TEST_BUCKET_PATH,
         properties,
@@ -465,8 +516,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
         GLUE,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalogWithArchive.createTable(
+        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    Table table = glueCatalogWithArchive.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
         DataFiles.builder(partitionSpec)
             .withPath("/path/to/data-a.parquet")
@@ -484,7 +536,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasSize(2);
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalog.initialize(CATALOG_NAME, ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
