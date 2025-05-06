@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
@@ -564,5 +565,67 @@ public class TestJsonUtil {
 
     assertThat(JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree(json)))
         .isEqualTo(itemsWithNullableValues);
+  }
+
+  @Test
+  public void testGetStringMapOrNull() throws JsonProcessingException {
+    String json = "{\"test\": {\"property\": \"value\"}}";
+    Map<String, String> map = JsonUtil.getStringMapOrNull("test", JsonUtil.mapper().readTree(json));
+    assertThat(map).isEqualTo(Map.of("property", "value"));
+
+    assertThat(JsonUtil.getStringMapOrNull("missing", JsonUtil.mapper().readTree(json))).isNull();
+  }
+
+  @Test
+  public void testGetObjectList() throws JsonProcessingException {
+    String json = "{\"test\": [{\"id\": 1}, {\"id\": 2}], \"not-a-list\": \"value\"}";
+    List<Long> list =
+        JsonUtil.getObjectList(
+            "test", JsonUtil.mapper().readTree(json), node -> JsonUtil.getLong("id", node));
+
+    assertThat(list).isEqualTo(List.of(1L, 2L));
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getObjectList(
+                    "missing",
+                    JsonUtil.mapper().readTree(json),
+                    node -> JsonUtil.getLong("id", node)))
+        .hasMessage("Cannot parse missing list: missing")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getObjectList(
+                    "not-a-list",
+                    JsonUtil.mapper().readTree(json),
+                    node -> JsonUtil.getLong("id", node)))
+        .hasMessage("Cannot parse JSON array from non-array value: not-a-list: \"value\"")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  public void testGetObjectListOrNull() throws JsonProcessingException {
+    String json = "{\"test\": [{\"id\": 1}, {\"id\": 2}], \"not-a-list\": \"value\"}";
+    List<Long> list =
+        JsonUtil.getObjectListOrNull(
+            "test", JsonUtil.mapper().readTree(json), node -> JsonUtil.getLong("id", node));
+
+    assertThat(list).isEqualTo(List.of(1L, 2L));
+
+    List<Long> missingList =
+        JsonUtil.getObjectListOrNull(
+            "missing", JsonUtil.mapper().readTree(json), node -> JsonUtil.getLong("id", node));
+
+    assertThat(missingList).isNull();
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getObjectList(
+                    "not-a-list",
+                    JsonUtil.mapper().readTree(json),
+                    node -> new AtomicLong(JsonUtil.getLong("id", node))))
+        .hasMessage("Cannot parse JSON array from non-array value: not-a-list: \"value\"")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }
