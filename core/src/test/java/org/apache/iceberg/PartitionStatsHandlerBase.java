@@ -42,36 +42,27 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assumptions;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * This test covers {@link PartitionStatsHandler} from the core module. Since it relies on {@link
- * InternalData}, and we cannot introduce a Parquet dependency in the core module, the test is
- * placed externally.
- */
-@ExtendWith(ParameterizedTestExtension.class)
-public class TestPartitionStatsHandler {
+public abstract class PartitionStatsHandlerBase {
+
+  public abstract String format();
+
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "c1", Types.IntegerType.get()),
@@ -85,22 +76,20 @@ public class TestPartitionStatsHandler {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  @Parameters(name = "fileFormat = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
-  }
-
-  @Parameter private FileFormat format;
+  private final Map<String, String> formatProperty =
+      ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format());
 
   @Test
   public void testPartitionStatsOnEmptyTable() throws Exception {
-    Table testTable = TestTables.create(tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2);
+    Table testTable =
+        TestTables.create(tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2, formatProperty);
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable)).isNull();
   }
 
   @Test
   public void testPartitionStatsOnEmptyBranch() throws Exception {
-    Table testTable = TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2);
+    Table testTable =
+        TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2, formatProperty);
     testTable.manageSnapshots().createBranch("b1").commit();
     long branchSnapshot = testTable.refs().get("b1").snapshotId();
     assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, branchSnapshot)).isNull();
@@ -109,7 +98,8 @@ public class TestPartitionStatsHandler {
   @Test
   public void testPartitionStatsOnInvalidSnapshot() throws Exception {
     Table testTable =
-        TestTables.create(tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2);
+        TestTables.create(
+            tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2, formatProperty);
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable, 42L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Snapshot not found: 42");
@@ -123,10 +113,10 @@ public class TestPartitionStatsHandler {
             "unpartitioned_table",
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            2);
+            2,
+            formatProperty);
 
-    List<Record> records = prepareRecords(testTable.schema());
-    DataFile dataFile = FileHelpers.writeDataFile(testTable, outputFile(), records);
+    DataFile dataFile = FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of());
     testTable.newAppend().appendFile(dataFile).commit();
 
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable))
@@ -177,7 +167,7 @@ public class TestPartitionStatsHandler {
 
     Table testTable =
         TestTables.create(
-            tempDir("test_all_type"), "test_all_type", schema, spec, SortOrder.unsorted(), 2);
+            tempDir("test_all_type"), "test_all_type", schema, spec, 2, formatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema);
@@ -232,8 +222,8 @@ public class TestPartitionStatsHandler {
             "test_partition_stats_optional",
             SCHEMA,
             spec,
-            SortOrder.unsorted(),
-            2);
+            2,
+            formatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema);
@@ -293,34 +283,25 @@ public class TestPartitionStatsHandler {
   }
 
   @SuppressWarnings("checkstyle:MethodLength")
-  @TestTemplate // Tests for all the table formats (PARQUET, ORC, AVRO)
+  @Test
   public void testPartitionStats() throws Exception {
-    Assumptions.assumeThat(format)
-        .as("ORC internal readers and writers are not supported")
-        .isNotEqualTo(FileFormat.ORC);
-
     Table testTable =
         TestTables.create(
-            tempDir("partition_stats_" + format.name()),
-            "partition_stats_compute_" + format.name(),
+            tempDir("partition_stats_compute"),
+            "partition_stats_compute",
             SCHEMA,
             SPEC,
             2,
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+            formatProperty);
 
-    List<Record> records = prepareRecords(testTable.schema());
     DataFile dataFile1 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("foo", "A"), records.subList(0, 3));
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
     DataFile dataFile2 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("foo", "B"), records.subList(3, 4));
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "B"));
     DataFile dataFile3 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("bar", "A"), records.subList(4, 5));
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("bar", "A"));
     DataFile dataFile4 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("bar", "B"), records.subList(5, 7));
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("bar", "B"));
 
     for (int i = 0; i < 3; i++) {
       // insert same set of seven records thrice to have a new manifest files
@@ -343,7 +324,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
             0,
-            9L,
+            3 * dataFile1.recordCount(),
             3,
             3 * dataFile1.fileSizeInBytes(),
             0L,
@@ -356,7 +337,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
             0,
-            3L,
+            3 * dataFile2.recordCount(),
             3,
             3 * dataFile2.fileSizeInBytes(),
             0L,
@@ -369,7 +350,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "A"),
             0,
-            3L,
+            3 * dataFile3.recordCount(),
             3,
             3 * dataFile3.fileSizeInBytes(),
             0L,
@@ -382,7 +363,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
             0,
-            6L,
+            3 * dataFile4.recordCount(),
             3,
             3 * dataFile4.fileSizeInBytes(),
             0L,
@@ -393,7 +374,7 @@ public class TestPartitionStatsHandler {
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
-    DeleteFile posDeletes = commitPositionDeletes(testTable, dataFile1);
+    DeleteFile posDeletes = commitPositionDeletes(testTable);
     Snapshot snapshot2 = testTable.currentSnapshot();
 
     DeleteFile eqDeletes = commitEqualityDeletes(testTable);
@@ -407,7 +388,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
             0,
-            9L,
+            3 * dataFile1.recordCount(),
             3,
             3 * dataFile1.fileSizeInBytes(),
             0L,
@@ -420,7 +401,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
             0,
-            3L,
+            3 * dataFile2.recordCount(),
             3,
             3 * dataFile2.fileSizeInBytes(),
             0L,
@@ -433,7 +414,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "A"),
             0,
-            3L,
+            3 * dataFile3.recordCount(),
             3,
             3 * dataFile3.fileSizeInBytes(),
             posDeletes.recordCount(),
@@ -446,7 +427,7 @@ public class TestPartitionStatsHandler {
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
             0,
-            6L,
+            3 * dataFile4.recordCount(),
             3,
             3 * dataFile4.fileSizeInBytes(),
             0L,
@@ -458,34 +439,12 @@ public class TestPartitionStatsHandler {
             snapshot1.snapshotId()));
   }
 
-  private OutputFile outputFile() throws IOException {
-    return Files.localOutput(File.createTempFile("data", null, tempDir("stats")));
-  }
-
   private static StructLike partitionRecord(
       Types.StructType partitionType, String val1, String val2) {
     GenericRecord record = GenericRecord.create(partitionType);
     record.set(0, val1);
     record.set(1, val2);
     return record;
-  }
-
-  private static List<Record> prepareRecords(Schema schema) {
-    GenericRecord record = GenericRecord.create(schema);
-    List<Record> records = Lists.newArrayList();
-    // foo 4 records, bar 3 records
-    // foo, A -> 3 records
-    records.add(record.copy("c1", 0, "c2", "foo", "c3", "A"));
-    records.add(record.copy("c1", 1, "c2", "foo", "c3", "A"));
-    records.add(record.copy("c1", 2, "c2", "foo", "c3", "A"));
-    // foo, B -> 1 record
-    records.add(record.copy("c1", 3, "c2", "foo", "c3", "B"));
-    // bar, A -> 1 record
-    records.add(record.copy("c1", 4, "c2", "bar", "c3", "A"));
-    // bar, B -> 2 records
-    records.add(record.copy("c1", 5, "c2", "bar", "c3", "B"));
-    records.add(record.copy("c1", 6, "c2", "bar", "c3", "B"));
-    return records;
   }
 
   private static void computeAndValidatePartitionStats(
@@ -521,49 +480,17 @@ public class TestPartitionStatsHandler {
         .containsExactlyInAnyOrder(expectedValues);
   }
 
-  private DeleteFile commitEqualityDeletes(Table testTable) throws IOException {
-    Schema deleteRowSchema = testTable.schema().select("c1");
-    Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes =
-        Lists.newArrayList(dataDelete.copy("c1", 1), dataDelete.copy("c1", 2));
-
-    DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            testTable,
-            Files.localOutput(File.createTempFile("junit", null, tempDir("eq_delete"))),
-            TestHelpers.Row.of("foo", "A"),
-            dataDeletes,
-            deleteRowSchema);
-    testTable.newRowDelta().addDeletes(eqDeletes).commit();
-    return eqDeletes;
+  private DeleteFile commitEqualityDeletes(Table testTable) {
+    DeleteFile eqDelete =
+        FileGenerationUtil.generateEqualityDeleteFile(testTable, TestHelpers.Row.of("foo", "A"));
+    testTable.newRowDelta().addDeletes(eqDelete).commit();
+    return eqDelete;
   }
 
-  private DeleteFile commitPositionDeletes(Table testTable, DataFile dataFile1) throws IOException {
-    List<PositionDelete<?>> deletes = Lists.newArrayList();
-    for (long i = 0; i < 2; i++) {
-      deletes.add(
-          positionDelete(testTable.schema(), dataFile1.location(), i, (int) i, String.valueOf(i)));
-    }
-
-    DeleteFile posDeletes =
-        FileHelpers.writePosDeleteFile(
-            testTable,
-            Files.localOutput(File.createTempFile("junit", null, tempDir("pos_delete"))),
-            TestHelpers.Row.of("bar", "A"),
-            deletes);
-    testTable.newRowDelta().addDeletes(posDeletes).commit();
-    return posDeletes;
-  }
-
-  private static PositionDelete<GenericRecord> positionDelete(
-      Schema tableSchema, CharSequence path, Long position, Object... values) {
-    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
-    GenericRecord nested = GenericRecord.create(tableSchema);
-    for (int i = 0; i < values.length; i++) {
-      nested.set(i, values[i]);
-    }
-
-    posDelete.set(path, position, nested);
+  private DeleteFile commitPositionDeletes(Table testTable) {
+    DeleteFile posDelete =
+        FileGenerationUtil.generatePositionDeleteFile(testTable, TestHelpers.Row.of("bar", "A"));
+    testTable.newRowDelta().addDeletes(posDelete).commit();
     return posDelete;
   }
 
