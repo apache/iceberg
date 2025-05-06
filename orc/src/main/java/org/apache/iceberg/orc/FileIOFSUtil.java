@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
+import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -80,6 +81,11 @@ class FileIOFSUtil {
 
     @Override
     public boolean delete(Path f, boolean recursive) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BulkDelete createBulkDelete(Path path) throws IllegalArgumentException, IOException {
       throw new UnsupportedOperationException();
     }
 
