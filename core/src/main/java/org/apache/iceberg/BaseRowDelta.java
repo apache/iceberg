@@ -163,15 +163,18 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
-      validateNoSimultaneousForDeletedFiles();
+      validateNoConflictingFileAndPositionDeletes();
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
   }
 
-  /** Validates that the data files removed in this commit do not overlap with delete files added */
+  /**
+   * Validates that the data files removed in this commit do not overlap with data files with delete
+   * files added
+   */
   @SuppressWarnings("CollectionUndefinedEquality")
-  private void validateNoSimultaneousForDeletedFiles() {
+  private void validateNoConflictingFileAndPositionDeletes() {
     List<CharSequence> deletedFileWithNewDVs =
         deletedDataFiles.stream()
             .map(DataFile::path)
