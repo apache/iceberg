@@ -1684,8 +1684,10 @@ Row lineage changes:
 
 * Writers must set the table's `next-row-id` and use the existing `next-row-id` as the `first-row-id` to create a new snapshot
     * When a table is upgraded to v3, `next_row_id` should be initialized to 0
+    * When committing a new snapshot `next-row-id` must be incremented by at least the number of newly assigned row ids in the snapshot
     * It is recommended to increment `next-row-id` by the total `added_rows_count` and `existing_rows_count` of all manifests assigned a `first_row_id`
 * Writers must assign a `first_row_id` to new data manifests when writing a manifest list
+    * When writing a new manifest list each `first_row_id` must be incremented by at least the number of newly assigned row ids in each manifest
     * It is recommended to increment `first_row_id` by a manifest's `added_rows_count` and `existing_rows_count`
 * Readers must assign a `first_row_id` for any data file that does not have an assigned value written in a manifest
     * Readers must increment `first_row_id` by the data file's `record_count`
