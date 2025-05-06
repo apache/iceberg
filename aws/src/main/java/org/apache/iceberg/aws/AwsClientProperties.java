@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
@@ -98,7 +99,7 @@ public class AwsClientProperties implements Serializable {
   }
 
   public AwsClientProperties(Map<String, String> properties) {
-    this.allProperties = SerializableMap.copyOf(properties);
+    this.allProperties = new HashMap<>(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
