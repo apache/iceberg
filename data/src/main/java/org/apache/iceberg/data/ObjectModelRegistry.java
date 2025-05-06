@@ -19,7 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -36,10 +36,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
- * org.apache.iceberg.data.AppenderBuilder}, {@link DataWriterBuilder}, {@link
- * EqualityDeleteWriterBuilder}, {@link PositionDeleteWriterBuilder}). Based on the `file format`
- * and the requested `object model name` the registry returns the correct reader and writer
- * builders. These builders could be used to generate the readers and writers.
+ * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
+ * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
+ * the registry returns the correct reader and writer builders. These builders could be used to
+ * generate the readers and writers.
  *
  * <p>The available {@link ObjectModel}s are registered by the {@link
  * #registerObjectModel(ObjectModel)} method. These {@link ObjectModel}s will be used to create the
@@ -49,9 +49,13 @@ import org.slf4j.LoggerFactory;
 public final class ObjectModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
-  private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
+  private static final List<String> CLASSES_TO_REGISTER =
+      ImmutableList.of(
+          "org.apache.iceberg.arrow.vectorized.ArrowReader",
+          "org.apache.iceberg.flink.data.FlinkObjectModels",
+          "org.apache.iceberg.spark.source.SparkObjectModels");
 
-  private static final ConcurrentMap<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
+  private static final Map<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
 
   /**
    * Registers a new object model.
@@ -116,9 +120,10 @@ public final class ObjectModelRegistry {
    * @param <E> type for the engine specific schema expected by the appender
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> org.apache.iceberg.data.AppenderBuilder<?, E> appenderBuilder(
+  public static <E> AppenderBuilder<?, E> appenderBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return ((ObjectModel<E>) OBJECT_MODELS.get(new Key(format, objectModelName)))
+        .appenderBuilder(outputFile.encryptingOutputFile(), ObjectModel.WriteMode.DATA_WRITER);
   }
 
   /**
@@ -133,7 +138,7 @@ public final class ObjectModelRegistry {
    */
   public static <E> DataWriterBuilder<?, E> writerBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(format, objectModelName, outputFile, ObjectModel.WriteMode.DATA_WRITER);
   }
 
   /**
@@ -148,7 +153,8 @@ public final class ObjectModelRegistry {
    */
   public static <E> EqualityDeleteWriterBuilder<?, E> equalityDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(
+        format, objectModelName, outputFile, ObjectModel.WriteMode.EQUALITY_DELETE_WRITER);
   }
 
   /**
@@ -164,15 +170,19 @@ public final class ObjectModelRegistry {
    */
   public static <E> PositionDeleteWriterBuilder<?, E> positionDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(
+        format, objectModelName, outputFile, ObjectModel.WriteMode.POSITION_DELETE_WRITER);
   }
 
   @SuppressWarnings("unchecked")
   private static <B extends AppenderBuilder<B, E>, E> WriteBuilder<?, ?, E> writerFor(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+      FileFormat format,
+      String objectModelName,
+      EncryptedOutputFile outputFile,
+      ObjectModel.WriteMode mode) {
     return new WriteBuilder<>(
         ((ObjectModel<E>) OBJECT_MODELS.get(new Key(format, objectModelName)))
-            .<B>appenderBuilder(outputFile.encryptingOutputFile()),
+            .<B>appenderBuilder(outputFile.encryptingOutputFile(), mode),
         outputFile.encryptingOutputFile().location(),
         format);
   }

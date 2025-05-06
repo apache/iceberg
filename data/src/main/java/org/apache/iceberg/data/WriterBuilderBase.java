@@ -47,8 +47,8 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
   B schema(Schema newSchema);
 
   /**
-   * Sets the engine specific schema for the input. Used by the {@link
-   * AppenderBuilder#build(AppenderBuilder.WriteMode)} to configure the engine specific converters.
+   * Sets the engine specific schema for the input. Used by the {@link AppenderBuilder#build()} to
+   * configure the engine specific converters.
    */
   B engineSchema(E engineSchema);
 

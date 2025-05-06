@@ -54,16 +54,15 @@ import org.apache.iceberg.util.ArrayUtil;
  *
  * The builder wraps the file format specific {@link AppenderBuilder}. To allow further engine and
  * file format specific configuration changes for the given writer the {@link
- * AppenderBuilder#build(AppenderBuilder.WriteMode)} method is called with the correct parameter to
- * create the appender used internally to provide the required functionality.
+ * AppenderBuilder#build()} method is called to create the appender used internally to provide the
+ * required functionality.
  *
  * @param <A> type of the appender
  * @param <E> engine specific schema of the input records used for appender initialization
  */
 @SuppressWarnings("unchecked")
 class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A, E>, E>
-    implements org.apache.iceberg.data.AppenderBuilder<B, E>,
-        DataWriterBuilder<B, E>,
+    implements DataWriterBuilder<B, E>,
         EqualityDeleteWriterBuilder<B, E>,
         PositionDeleteWriterBuilder<B, E> {
   private final AppenderBuilder<A, E> appenderBuilder;
@@ -185,11 +184,6 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
   }
 
   @Override
-  public <D> FileAppender<D> appender() throws IOException {
-    return appenderBuilder.build(AppenderBuilder.WriteMode.DATA_WRITER);
-  }
-
-  @Override
   public <D> DataWriter<D> dataWriter() throws IOException {
     Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
     Preconditions.checkArgument(
@@ -197,13 +191,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
         "Partition must not be null when creating data writer for partitioned spec");
 
     return new DataWriter<>(
-        appenderBuilder.build(AppenderBuilder.WriteMode.DATA_WRITER),
-        format,
-        location,
-        spec,
-        partition,
-        keyMetadata,
-        sortOrder);
+        appenderBuilder.build(), format, location, spec, partition, keyMetadata, sortOrder);
   }
 
   @Override
@@ -227,7 +215,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
                 IntStream.of(equalityFieldIds)
                     .mapToObj(Objects::toString)
                     .collect(Collectors.joining(", ")))
-            .build(AppenderBuilder.WriteMode.EQUALITY_DELETE_WRITER),
+            .build(),
         format,
         location,
         spec,
@@ -251,10 +239,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
         appenderBuilder
             .meta("delete-type", "position")
             .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
-            .build(
-                rowSchema != null
-                    ? AppenderBuilder.WriteMode.POSITION_DELETE_WITH_ROW_WRITER
-                    : AppenderBuilder.WriteMode.POSITION_DELETE_WRITER),
+            .build(),
         format,
         location,
         spec,
