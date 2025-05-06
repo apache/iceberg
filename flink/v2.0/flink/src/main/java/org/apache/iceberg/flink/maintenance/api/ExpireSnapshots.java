@@ -113,7 +113,7 @@ public class ExpireSnapshots {
               operatorName(DELETE_FILES_OPERATOR_NAME),
               TypeInformation.of(Void.class),
               new DeleteFilesProcessor(
-                  index(), taskName(), tableLoader().loadTable(), deleteBatchSize))
+                  tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
           .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
           .setParallelism(parallelism());
