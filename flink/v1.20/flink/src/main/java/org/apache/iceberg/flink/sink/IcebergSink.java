@@ -219,7 +219,14 @@ public class IcebergSink
     IcebergFilesCommitterMetrics metrics =
         new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
     return new IcebergCommitter(
-        tableLoader, branch, snapshotProperties, overwriteMode, workerPoolSize, sinkId, metrics);
+        tableLoader,
+        branch,
+        snapshotProperties,
+        overwriteMode,
+        workerPoolSize,
+        sinkId,
+        metrics,
+        compactMode);
   }
 
   @Override
