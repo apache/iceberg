@@ -36,10 +36,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
- * org.apache.iceberg.data.AppenderBuilder}, {@link DataWriterBuilder}, {@link
- * EqualityDeleteWriterBuilder}, {@link PositionDeleteWriterBuilder}). Based on the `file format`
- * and the requested `object model name` the registry returns the correct reader and writer
- * builders. These builders could be used to generate the readers and writers.
+ * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
+ * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
+ * the registry returns the correct reader and writer builders. These builders could be used to
+ * generate the readers and writers.
  *
  * <p>The available {@link ObjectModel}s are registered by the {@link
  * #registerObjectModel(ObjectModel)} method. These {@link ObjectModel}s will be used to create the
@@ -122,9 +122,10 @@ public final class ObjectModelRegistry {
    * @param <E> type for the engine specific schema expected by the appender
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> org.apache.iceberg.data.AppenderBuilder<?, E> appenderBuilder(
+  public static <E> AppenderBuilder<?, E> appenderBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return ((ObjectModel<E>) OBJECT_MODELS.get(new Key(format, objectModelName)))
+        .appenderBuilder(outputFile.encryptingOutputFile(), ObjectModel.WriteMode.DATA_WRITER);
   }
 
   /**
@@ -139,7 +140,7 @@ public final class ObjectModelRegistry {
    */
   public static <E> DataWriterBuilder<?, E> writerBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(format, objectModelName, outputFile, ObjectModel.WriteMode.DATA_WRITER);
   }
 
   /**
@@ -154,7 +155,8 @@ public final class ObjectModelRegistry {
    */
   public static <E> EqualityDeleteWriterBuilder<?, E> equalityDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(
+        format, objectModelName, outputFile, ObjectModel.WriteMode.EQUALITY_DELETE_WRITER);
   }
 
   /**
@@ -170,15 +172,19 @@ public final class ObjectModelRegistry {
    */
   public static <E> PositionDeleteWriterBuilder<?, E> positionDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writerFor(format, objectModelName, outputFile);
+    return writerFor(
+        format, objectModelName, outputFile, ObjectModel.WriteMode.POSITION_DELETE_WRITER);
   }
 
   @SuppressWarnings("unchecked")
   private static <B extends AppenderBuilder<B, E>, E> WriteBuilder<?, ?, E> writerFor(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+      FileFormat format,
+      String objectModelName,
+      EncryptedOutputFile outputFile,
+      ObjectModel.WriteMode mode) {
     return new WriteBuilder<>(
         ((ObjectModel<E>) OBJECT_MODELS.get(new Key(format, objectModelName)))
-            .<B>appenderBuilder(outputFile.encryptingOutputFile()),
+            .<B>appenderBuilder(outputFile.encryptingOutputFile(), mode),
         outputFile.encryptingOutputFile().location(),
         format);
   }

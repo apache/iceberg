@@ -106,7 +106,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .schema(schema)
           .metricsConfig(metricsConfig)
           .overwrite()
-          .appender();
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -120,7 +120,7 @@ public class Avro {
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
-      super(file);
+      super(file, null);
     }
   }
 
@@ -160,8 +160,9 @@ public class Avro {
     }
 
     @Override
-    public <B extends AppenderBuilder<B, E>> B appenderBuilder(OutputFile outputFile) {
-      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+    public <B extends AppenderBuilder<B, E>> B appenderBuilder(
+        OutputFile outputFile, WriteMode mode) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile, mode);
       return (B)
           internal.writerFunction(writerFunction).deleteRowWriterFunction(deleteRowWriterFunction);
     }
@@ -176,6 +177,7 @@ public class Avro {
   private static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements InternalData.WriteBuilder, AppenderBuilder<B, E> {
     private final OutputFile file;
+    private final ObjectModel.WriteMode mode;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
@@ -188,8 +190,9 @@ public class Avro {
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private E engineSchema;
 
-    private AppenderBuilderInternal(OutputFile file) {
+    private AppenderBuilderInternal(OutputFile file, ObjectModel.WriteMode mode) {
       this.file = file;
+      this.mode = mode;
     }
 
     /**
@@ -301,8 +304,7 @@ public class Avro {
       return (B) this;
     }
 
-    @Override
-    public <D> FileAppender<D> build(WriteMode mode) throws IOException {
+    private void initWriterFunctionAndContext() {
       switch (mode) {
         case DATA_WRITER:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
@@ -315,33 +317,38 @@ public class Avro {
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
-          this.createWriterFunc = ignored -> new PositionDatumWriter();
           this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETE_WITH_ROW_WRITER:
-          Preconditions.checkState(
-              deleteRowWriterFunction != null || writerFunction != null,
-              "Writer function has to be set.");
-          this.createWriterFunc =
-              deleteRowWriterFunction != null
-                  ? avroSchema ->
-                      new PositionAndRowDatumWriter<>(
-                          deleteRowWriterFunction.apply(avroSchema, engineSchema))
-                  : avroSchema ->
-                      new PositionAndRowDatumWriter<>(
-                          writerFunction.apply(avroSchema, engineSchema));
+          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
+            // this is a position delete without rows
+            this.createWriterFunc = ignored -> new PositionDatumWriter();
+          } else {
+            // this is a position delete with rows
+            Preconditions.checkState(
+                deleteRowWriterFunction != null || writerFunction != null,
+                "Writer function has to be set.");
+            this.createWriterFunc =
+                deleteRowWriterFunction != null
+                    ? avroSchema ->
+                        new PositionAndRowDatumWriter<>(
+                            deleteRowWriterFunction.apply(avroSchema, engineSchema))
+                    : avroSchema ->
+                        new PositionAndRowDatumWriter<>(
+                            writerFunction.apply(avroSchema, engineSchema));
+          }
           break;
         default:
           throw new IllegalArgumentException("Not supported mode: " + mode);
       }
-
-      return build();
     }
 
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+
+      if (mode != null) {
+        initWriterFunctionAndContext();
+      }
 
       Function<Schema, DatumWriter<?>> writerFunc;
       if (createWriterFunc != null) {

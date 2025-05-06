@@ -20,29 +20,21 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 
 /**
- * Interface which should be implemented by the data file format implementations. The {@link
- * AppenderBuilder} will be parametrized based on the user provided configuration and finally the
- * {@link AppenderBuilder#build(AppenderBuilder.WriteMode)} method is used to generate the appender
- * for the specific writer use-cases. The following input should be handled by the appender in the
- * specific modes:
+ * Interface which is implemented by the data file format implementations. The {@link ObjectModel}
+ * provides the {@link AppenderBuilder} for the given parameters:
  *
  * <ul>
- *   <li>The appender's engine specific input type
- *       <ul>
- *         <li>{@link AppenderBuilder.WriteMode#DATA_WRITER}
- *         <li>{@link AppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
- *       </ul>
- *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the type of the row is the
- *       appender's engine specific input type
- *       <ul>
- *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WRITER}
- *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
- *       </ul>
+ *   <li>file format
+ *   <li>engine specific object model
+ *   <li>{@link ObjectModel.WriteMode}
  * </ul>
+ *
+ * The {@link AppenderBuilder} is used to write data to the target files.
  *
  * @param <B> type returned by builder API to allow chained calls
  * @param <E> the engine specific schema of the input data
@@ -59,6 +51,11 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
    * @return this for method chaining
    */
   B set(String property, String value);
+
+  default B set(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return (B) this;
+  }
 
   /**
    * Set a file metadata property in the created file.
@@ -107,30 +104,6 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
    */
   B engineSchema(E newEngineSchema);
 
-  /**
-   * Builds the {@link FileAppender} for the configured {@link WriteMode}. Could change several
-   * use-case specific configurations, like:
-   *
-   * <ul>
-   *   <li>Mode specific writer context (typically different for data and delete files).
-   *   <li>Writer functions to accept data rows, or {@link
-   *       org.apache.iceberg.deletes.PositionDelete}s
-   * </ul>
-   */
-  <D> FileAppender<D> build(WriteMode mode) throws IOException;
-
-  /**
-   * Writer modes. Based on the mode {@link #build(WriteMode)} could alter the appender
-   * configuration when creating the {@link FileAppender}.
-   */
-  enum WriteMode {
-    /** Mode for writing data files. */
-    DATA_WRITER,
-    /** Mode for writing equality delete files. */
-    EQUALITY_DELETE_WRITER,
-    /** Mode for writing position delete files. */
-    POSITION_DELETE_WRITER,
-    /** Mode for writing position delete files with row data. */
-    POSITION_DELETE_WITH_ROW_WRITER
-  }
+  /** Finalizes the configuration and builds the {@link FileAppender}. */
+  <D> FileAppender<D> build() throws IOException;
 }

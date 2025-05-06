@@ -132,7 +132,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .set(config)
           .metricsConfig(metricsConfig)
           .overwrite()
-          .appender();
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

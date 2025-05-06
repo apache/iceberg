@@ -59,13 +59,27 @@ public interface ObjectModel<E> {
 
   /**
    * The appender builder for the output file which writes the data in the specified file format and
-   * accepts the records defined by this object model.
+   * accepts the records defined by this object model. The 'mode' parameter defines the input type
+   * for the specific writer use-cases. The appender should handle the following input in the
+   * specific modes:
+   *
+   * <ul>
+   *   <li>The appender's engine specific input type
+   *       <ul>
+   *         <li>{@link WriteMode#DATA_WRITER}
+   *         <li>{@link WriteMode#EQUALITY_DELETE_WRITER}
+   *       </ul>
+   *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the type of the row is the
+   *       appender's engine specific input type when the 'mode' is {@link
+   *       WriteMode#POSITION_DELETE_WRITER}
+   * </ul>
    *
    * @param outputFile to write to
+   * @param mode for the appender
    * @return the appender builder
    * @param <B> The type of the appender builder
    */
-  <B extends AppenderBuilder<B, E>> B appenderBuilder(OutputFile outputFile);
+  <B extends AppenderBuilder<B, E>> B appenderBuilder(OutputFile outputFile, WriteMode mode);
 
   /**
    * The reader builder for the input file which reads the data from the specified file format and
@@ -76,4 +90,17 @@ public interface ObjectModel<E> {
    * @param <B> The type of the reader builder
    */
   <B extends ReadBuilder<B>> B readBuilder(InputFile inputFile);
+
+  /**
+   * Writer modes. Based on the mode the object model could alter the appender configuration when
+   * creating the {@link FileAppender}.
+   */
+  enum WriteMode {
+    /** Mode for writing data files. */
+    DATA_WRITER,
+    /** Mode for writing equality delete files. */
+    EQUALITY_DELETE_WRITER,
+    /** Mode for writing position delete files. */
+    POSITION_DELETE_WRITER,
+  }
 }

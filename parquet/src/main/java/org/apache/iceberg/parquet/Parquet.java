@@ -72,6 +72,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -171,7 +172,7 @@ public class Parquet {
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
-      super(file);
+      super(file, null);
     }
   }
 
@@ -219,8 +220,8 @@ public class Parquet {
 
     @Override
     public <B extends org.apache.iceberg.io.AppenderBuilder<B, E>> B appenderBuilder(
-        OutputFile outputFile) {
-      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+        OutputFile outputFile, WriteMode mode) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile, mode);
       return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
     }
 
@@ -240,6 +241,7 @@ public class Parquet {
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements InternalData.WriteBuilder, AppenderBuilder<B, E> {
     private final OutputFile file;
+    private final Avro.ObjectModel.WriteMode mode;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
@@ -257,8 +259,9 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
     private Function<CharSequence, ?> pathTransformFunc = null;
 
-    private AppenderBuilderInternal(OutputFile file) {
+    private AppenderBuilderInternal(OutputFile file, Avro.ObjectModel.WriteMode mode) {
       this.file = file;
+      this.mode = mode;
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -498,8 +501,7 @@ public class Parquet {
               });
     }
 
-    @Override
-    public <D> FileAppender<D> build(WriteMode mode) throws IOException {
+    private <D> void initWriterFunctionAndContext() {
       Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
       switch (mode) {
         case DATA_WRITER:
@@ -515,35 +517,40 @@ public class Parquet {
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
-          this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  new PositionDeleteStructWriter<D>(
-                      (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
-                      Function.identity());
           this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETE_WITH_ROW_WRITER:
-          Preconditions.checkState(
-              pathTransformFunc != null, "Path transformation function has to be set.");
-          this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  new PositionDeleteStructWriter<D>(
-                      (StructWriter<?>)
-                          writerFunction.write(engineSchema, icebergSchema, messageType),
-                      pathTransformFunc);
-          this.createContextFunc = Context::deleteContext;
+          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
+            // this is a position delete without rows
+
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    new PositionDeleteStructWriter<D>(
+                        (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
+                        Function.identity());
+          } else {
+            // this is a position delete with rows
+            Preconditions.checkState(
+                pathTransformFunc != null, "Path transformation function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    new PositionDeleteStructWriter<D>(
+                        (StructWriter<?>)
+                            writerFunction.write(engineSchema, icebergSchema, messageType),
+                        pathTransformFunc);
+          }
           break;
         default:
           throw new IllegalArgumentException("Not supported mode: " + mode);
       }
-
-      return build();
     }
 
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+
+      if (mode != null) {
+        initWriterFunctionAndContext();
+      }
 
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));

@@ -130,7 +130,7 @@ public class ORC {
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
-      super(file);
+      super(file, null);
     }
   }
 
@@ -178,8 +178,8 @@ public class ORC {
 
     @Override
     public <B extends org.apache.iceberg.io.AppenderBuilder<B, E>> B appenderBuilder(
-        OutputFile outputFile) {
-      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+        OutputFile outputFile, WriteMode mode) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile, mode);
       return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
     }
 
@@ -197,6 +197,7 @@ public class ORC {
   private static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements org.apache.iceberg.io.AppenderBuilder<B, E> {
     private final OutputFile file;
+    private final ObjectModel.WriteMode mode;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
@@ -209,8 +210,9 @@ public class ORC {
     private E engineSchema;
     private Function<CharSequence, ?> pathTransformFunc;
 
-    private AppenderBuilderInternal(OutputFile file) {
+    private AppenderBuilderInternal(OutputFile file, ObjectModel.WriteMode mode) {
       this.file = file;
+      this.mode = mode;
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -328,8 +330,7 @@ public class ORC {
       return (B) this;
     }
 
-    @Override
-    public <D> FileAppender<D> build(WriteMode mode) throws IOException {
+    private void initWriterFunctionAndContext() {
       Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
       switch (mode) {
         case DATA_WRITER:
@@ -345,36 +346,37 @@ public class ORC {
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  GenericOrcWriters.positionDelete(
-                      GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
-                      Function.identity());
           this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETE_WITH_ROW_WRITER:
-          Preconditions.checkState(
-              pathTransformFunc != null, "Path transform function has to be set.");
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  GenericOrcWriters.positionDelete(
-                      writerFunction.write(icebergSchema, typeDescription, engineSchema),
-                      pathTransformFunc);
-          this.createContextFunc = Context::deleteContext;
+          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
+            // this is a position delete without rows
+            this.createWriterFunc =
+                (icebergSchema, typeDescription) ->
+                    GenericOrcWriters.positionDelete(
+                        GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
+                        Function.identity());
+          } else {
+            // this is a position delete with rows
+            Preconditions.checkState(
+                pathTransformFunc != null, "Path transform function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, typeDescription) ->
+                    GenericOrcWriters.positionDelete(
+                        writerFunction.write(icebergSchema, typeDescription, engineSchema),
+                        pathTransformFunc);
+          }
           break;
         default:
           throw new IllegalArgumentException("Not supported mode: " + mode);
       }
-
-      return build();
     }
 
-    /**
-     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #build(WriteMode)} instead.
-     */
-    @Deprecated
+    @Override
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
+
+      if (mode != null) {
+        initWriterFunctionAndContext();
+      }
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
         this.conf.set(entry.getKey(), entry.getValue());
