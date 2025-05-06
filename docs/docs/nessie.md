@@ -80,6 +80,9 @@ conf.set("spark.sql.catalog.nessie.type", "nessie")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```
+There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the
+settings for the `type` or `catalog-impl` and the required config to start Nessie correctly.
+
 This is how it looks in Flink via the Python API (additional details can be found [here](flink.md#preparation-when-using-flinks-python-api)):
 ```python
 import os
@@ -99,8 +102,6 @@ table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'warehouse'='/path/to/warehouse')")
 ```
 
-There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
-settings for the `type` or `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
 operations on branches and perform commits on branches. Each Iceberg table in a Nessie Catalog is identified by an
 arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces must be explicitly created 
