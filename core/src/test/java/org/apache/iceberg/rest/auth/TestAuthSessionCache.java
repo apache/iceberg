@@ -33,8 +33,8 @@ class TestAuthSessionCache {
 
   @Test
   void cachedHitsAndMisses() {
-    AuthSessionCache cache =
-        new AuthSessionCache(Duration.ofHours(1), Runnable::run, System::nanoTime);
+    AuthSessionCache<String, AuthSession> cache =
+        new AuthSessionCache<>(Duration.ofHours(1), Runnable::run, System::nanoTime);
     AuthSession session1 = Mockito.mock(AuthSession.class);
     AuthSession session2 = Mockito.mock(AuthSession.class);
 
@@ -70,7 +70,8 @@ class TestAuthSessionCache {
   @SuppressWarnings("unchecked")
   void cacheEviction() {
     AtomicLong ticker = new AtomicLong(0);
-    AuthSessionCache cache = new AuthSessionCache(Duration.ofHours(1), Runnable::run, ticker::get);
+    AuthSessionCache<String, AuthSession> cache =
+        new AuthSessionCache<>(Duration.ofHours(1), Runnable::run, ticker::get);
     AuthSession session1 = Mockito.mock(AuthSession.class);
 
     Function<String, AuthSession> loader = Mockito.mock(Function.class);
