@@ -93,7 +93,7 @@ table_env = StreamTableEnvironment.create(env)
 
 table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'type'='iceberg', "
-                      "'type'='nessie', "
+                      "'catalog-type'='nessie', "
                       "'uri'='http://localhost:19120/api/v2', "
                       "'ref'='main', "
                       "'warehouse'='/path/to/warehouse')")
