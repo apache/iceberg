@@ -37,7 +37,7 @@ object RemoveRowLineageOutputFromOriginalTable extends Rule[LogicalPlan] {
     plan.transform {
       case writeDelta@WriteDelta(_, _, _, originalTable, _, _) =>
         writeDelta.copy(originalTable = removeRowLineageOutput(originalTable))
-      case replaceData@ReplaceData(_, _, _, originalTable, _, _) =>
+      case replaceData@ReplaceData(_, _, _, originalTable, _, _, _) =>
         replaceData.copy(originalTable = removeRowLineageOutput(originalTable))
     }
   }

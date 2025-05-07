@@ -30,7 +30,7 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan.resolveOperators {
-      case m @ MergeIntoTable(_, _, _, matchedActions, _, notMatchedBySourceActions)
+      case m @ MergeIntoTable(_, _, _, matchedActions, _, notMatchedBySourceActions, _)
         if m.resolved && m.rewritable && m.aligned &&
           (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty) &&
           shouldUpdatePlan(m.targetTable) =>
