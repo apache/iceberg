@@ -399,6 +399,22 @@ class EnableRowLineageUpdate(BaseUpdate):
     action: str = Field('enable-row-lineage', const=True)
 
 
+class OperationType(BaseModel):
+    __root__: Literal[
+        'create-table',
+        'drop-table',
+        'update-table',
+        'rename-table',
+        'create-view',
+        'drop-view',
+        'replace-view',
+        'rename-view',
+        'create-namespace',
+        'update-namespace-properties',
+        'drop-namespace',
+    ]
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -502,6 +518,21 @@ class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
     )
+
+
+class NamespaceReference(BaseModel):
+    reference_type: str = Field('namespace', alias='reference-type', const=True)
+    namespace: Namespace
+
+
+class TableReference(BaseModel):
+    reference_type: str = Field('table', alias='reference-type', const=True)
+    identifier: TableIdentifier
+
+
+class ViewReference(BaseModel):
+    reference_type: str = Field('view', alias='reference-type', const=True)
+    identifier: TableIdentifier
 
 
 class RegisterTableRequest(BaseModel):
@@ -697,6 +728,41 @@ class UpdateNamespacePropertiesResponse(BaseModel):
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
     )
+
+
+class DropTableOperation(BaseModel):
+    operation_type: Literal['drop-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    purge: Optional[bool] = Field(None, description='Whether purge flag was set')
+
+
+class DropViewOperation(BaseModel):
+    operation_type: Literal['drop-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+
+
+class CreateNamespaceOperation(CreateNamespaceResponse):
+    operation_type: Literal['create-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+
+
+class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
+
+
+class DropNamespaceOperation(BaseModel):
+    operation_type: Literal['drop-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
 
 
 class BlobMetadata(BaseModel):
@@ -968,8 +1034,44 @@ class EmptyPlanningResult(BaseModel):
     status: Literal['cancelled']
 
 
+class GetEventsRequest(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    page_size: Optional[int] = Field(
+        None,
+        alias='page-size',
+        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size.\n',
+    )
+    after_sequence: Optional[int] = Field(
+        None,
+        alias='after-sequence',
+        description='The sequence number to start consuming events from (exclusive). If not provided, the first available sequence number is used.\n',
+    )
+    operation_types: Optional[List[OperationType]] = Field(
+        None,
+        alias='operation-types',
+        description='Filter events by the type of operation. If not provided, all types are returned.\n',
+    )
+    users: Optional[List[str]] = Field(
+        None, description='Filter events by the user who performed them'
+    )
+    catalog_objects: Optional[
+        List[Union[NamespaceReference, TableReference, ViewReference]]
+    ] = Field(
+        None,
+        alias='catalog-objects',
+        description='List of catalog objects (namespaces, tables, views) to get events for. If not provided, events for all objects will be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) will be returned.\n',
+        discriminator='reference-type',
+    )
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
+
+
+class RenameTableOperation(RenameTableRequest):
+    operation_type: Literal['rename-table', 'rename-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
 
 
 class StatisticsFile(BaseModel):
@@ -1389,6 +1491,81 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
+class EventsResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    highest_processed_sequence: int = Field(
+        ...,
+        alias='highest-processed-sequence',
+        description='The highest sequence number processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-sequence` parameter in subsequent  requests to continue retrieving changes after this point.\n',
+    )
+    events: List[Event]
+
+
+class Event(BaseModel):
+    sequence: int = Field(..., description='Sequence number of this event')
+    transaction: str = Field(
+        ...,
+        description='ID of the transaction this change belongs to. If multiple changes have the same transaction ID, they are part of the same atomic transaction.\n',
+    )
+    event_count: int = Field(
+        ...,
+        alias='event-count',
+        description='Number of events in the transaction fo this event',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this transaction occurred (epoch millis)',
+    )
+    user: str = Field(
+        ..., description='The id of the user who performed this transaction'
+    )
+    operation: Union[
+        CreateTableOperation,
+        DropTableOperation,
+        UpdateTableOperation,
+        RenameTableOperation,
+        CreateViewOperation,
+        DropViewOperation,
+        ReplaceViewOperation,
+        CreateNamespaceOperation,
+        UpdateNamespacePropertiesOperation,
+        DropNamespaceOperation,
+    ] = Field(..., discriminator='operation-type')
+
+
+class CreateTableOperation(BaseModel):
+    operation_type: Literal['create-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    metadata: TableMetadata
+
+
+class UpdateTableOperation(BaseModel):
+    operation_type: Literal['update-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    updates: List[TableUpdate]
+
+
+class CreateViewOperation(BaseModel):
+    operation_type: Literal['create-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    metadata: ViewMetadata
+
+
+class ReplaceViewOperation(BaseModel):
+    operation_type: Literal['replace-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    updates: List[ViewUpdate]
+
+
 class PlanTableScanRequest(BaseModel):
     snapshot_id: Optional[int] = Field(
         None,
@@ -1487,6 +1664,8 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+EventsResponse.update_forward_refs()
+Event.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()
