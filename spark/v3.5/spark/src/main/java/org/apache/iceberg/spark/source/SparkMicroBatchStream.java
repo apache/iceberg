@@ -343,7 +343,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
-    int curRecordCount = 0;
+    long curRecordCount = 0;
     int curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
@@ -370,14 +370,20 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
             if (curPos >= startPosOfSnapOffset) {
               // TODO : use readLimit provided in function param, the readLimits are derived from
               // these 2 properties.
-              if ((curFilesAdded + 1) > maxFilesPerMicroBatch
-                  || (curRecordCount + task.file().recordCount()) > maxRecordsPerMicroBatch) {
+              if ((curFilesAdded + 1) > maxFilesPerMicroBatch) {
                 shouldContinueReading = false;
                 break;
               }
 
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
+
+              if (curRecordCount > maxRecordsPerMicroBatch) {
+                // The current micro-batch has already exceeded the configured soft limit
+                // on the number of records. As this is a soft limit, it's acceptable to
+                // stop reading more records for this batch.
+                break;
+              }
             }
             ++curPos;
           }
@@ -394,7 +400,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       if (shouldContinueReading) {
         Snapshot nextValid = nextValidSnapshot(curSnapshot);
         if (nextValid == null) {
-          // nextValide implies all the remaining snapshots should be skipped.
+          // nextValid implies all the remaining snapshots should be skipped.
           break;
         }
         // we found the next available snapshot, continue from there.
