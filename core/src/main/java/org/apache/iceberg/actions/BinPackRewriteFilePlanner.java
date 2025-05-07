@@ -19,13 +19,11 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -43,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -214,7 +213,7 @@ public class BinPackRewriteFilePlanner
   public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
-    List<RewriteFileGroup> selectedFileGroups = new ArrayList<>();
+    List<RewriteFileGroup> selectedFileGroups = Lists.newArrayList();
     AtomicInteger fileCountRunner = new AtomicInteger();
     plan.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
