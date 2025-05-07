@@ -576,16 +576,6 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
-  /**
-   * Whether row lineage is enabled.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated
-  public boolean rowLineageEnabled() {
-    return formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE;
-  }
-
   public long nextRowId() {
     return nextRowId;
   }
@@ -1015,22 +1005,6 @@ public class TableMetadata implements Serializable {
               .collect(Collectors.toMap(EncryptedKey::keyId, Function.identity()));
 
       this.nextRowId = base.nextRowId;
-    }
-
-    /**
-     * Enables row lineage in v3 tables.
-     *
-     * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-     */
-    @Deprecated
-    public Builder enableRowLineage() {
-      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE) {
-        throw new UnsupportedOperationException(
-            "Cannot enable row lineage for format-version=" + formatVersion);
-      }
-
-      // otherwise this is a no-op
-      return this;
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1882,11 +1856,7 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream()
-              .anyMatch(
-                  change ->
-                      change instanceof MetadataUpdate.RemoveSnapshots
-                          || change instanceof MetadataUpdate.RemoveSnapshot);
+          changes.stream().anyMatch(change -> change instanceof MetadataUpdate.RemoveSnapshots);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;

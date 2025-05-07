@@ -55,9 +55,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -763,7 +763,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -813,7 +813,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -1119,23 +1119,17 @@ public class TestIcebergFilesCommitter extends TestBase {
         null);
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(
-        manifestPath.toAbsolutePath().toString(),
-        manifestPath.toFile().length(),
-        0,
-        ManifestContent.DATA,
-        0,
-        0,
-        0L,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        null,
-        null);
+  private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
+      throws IOException {
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(
+            formatVersion,
+            PartitionSpec.unpartitioned(),
+            table.io().newOutputFile(manifestPath.toString()),
+            0L);
+    writer.add(dataFile);
+    writer.close();
+    return writer.toManifestFile();
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {

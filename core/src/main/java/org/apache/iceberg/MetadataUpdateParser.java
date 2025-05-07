@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewVersionParser;
 
@@ -157,7 +155,6 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetPartitionStatistics.class, SET_PARTITION_STATISTICS)
           .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
-          .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
           .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
@@ -239,12 +236,7 @@ public class MetadataUpdateParser {
         break;
       case REMOVE_SNAPSHOTS:
         MetadataUpdate.RemoveSnapshots removeSnapshots;
-        if (metadataUpdate instanceof MetadataUpdate.RemoveSnapshot) {
-          Long snapshotId = ((MetadataUpdate.RemoveSnapshot) metadataUpdate).snapshotId();
-          removeSnapshots = new MetadataUpdate.RemoveSnapshots(ImmutableSet.of(snapshotId));
-        } else {
-          removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
-        }
+        removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
         writeRemoveSnapshots(removeSnapshots, generator);
         break;
       case REMOVE_SNAPSHOT_REF:
@@ -591,14 +583,7 @@ public class MetadataUpdateParser {
         snapshotIds != null,
         "Invalid set of snapshot ids to remove: must be non-null",
         snapshotIds);
-    MetadataUpdate metadataUpdate;
-    if (snapshotIds.size() == 1) {
-      Long snapshotId = Iterables.getOnlyElement(snapshotIds);
-      metadataUpdate = new MetadataUpdate.RemoveSnapshot(snapshotId);
-    } else {
-      metadataUpdate = new MetadataUpdate.RemoveSnapshots(snapshotIds);
-    }
-    return metadataUpdate;
+    return new MetadataUpdate.RemoveSnapshots(snapshotIds);
   }
 
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {

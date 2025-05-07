@@ -799,37 +799,4 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
     }
   }
-
-  /**
-   * A wrapper to set the dataSequenceNumber of a DeleteFile.
-   *
-   * @deprecated will be removed in 1.10.0; use {@link Delegates#pendingDeleteFile(DeleteFile,
-   *     Long)} instead.
-   */
-  @Deprecated
-  protected static class PendingDeleteFile extends Delegates.PendingDeleteFile {
-    /**
-     * Wrap a delete file for commit with a given data sequence number.
-     *
-     * @param deleteFile delete file
-     * @param dataSequenceNumber data sequence number to apply
-     */
-    PendingDeleteFile(DeleteFile deleteFile, long dataSequenceNumber) {
-      super(deleteFile, dataSequenceNumber);
-    }
-
-    /**
-     * Wrap a delete file for commit with the latest sequence number.
-     *
-     * @param deleteFile delete file
-     */
-    PendingDeleteFile(DeleteFile deleteFile) {
-      super(deleteFile, null);
-    }
-
-    @Override
-    PendingDeleteFile wrap(DeleteFile file) {
-      return new PendingDeleteFile(file, dataSequenceNumber());
-    }
-  }
 }
