@@ -39,7 +39,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Exactly-once delivery semantics
 * Multi-table fan-out
 * Automatic table creation and schema evolution
-* Field name mapping via Iceberg’s column mapping functionality
+* Field name mapping via Iceberg's column mapping functionality
 
 ## Installation
 
@@ -47,9 +47,11 @@ The connector zip archive is created as part of the Iceberg build. You can run t
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
-The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
-one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
-Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
+The build process creates two zip archives that can be found under `./kafka-connect/kafka-connect-runtime/build/distributions`:
+1. `iceberg-kafka-connect-runtime-[version].zip` - Standard distribution without Hive Metastore dependencies
+2. `iceberg-kafka-connect-runtime-[version]-with-hive.zip` - Distribution that bundles the Hive Metastore client and related dependencies
+
+Choose the appropriate zip file based on your needs. The zip file must be extracted before use. After extraction, copy all files from the extracted directory into the Kafka Connect plugins directory on all nodes in your Kafka Connect cluster.
 
 ## Requirements
 
@@ -512,7 +514,7 @@ catalog type.
 |---------------------|--------------------------------------------------|
 | array_handling_mode  | `array` or `document` to set array handling mode |
 
-Value array (the default) will encode arrays as the array datatype. It is user’s responsibility to ensure that
+Value array (the default) will encode arrays as the array datatype. It is user's responsibility to ensure that
 all elements for a given array instance are of the same type. This option is a restricting one but offers
 easy processing of arrays by downstream clients.
 
