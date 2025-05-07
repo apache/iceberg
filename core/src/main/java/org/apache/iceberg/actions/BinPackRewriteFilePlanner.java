@@ -214,29 +214,8 @@ public class BinPackRewriteFilePlanner
   public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
-    //    Stream<RewriteFileGroup> groups =
-    //        plan.entrySet().stream()
-    //            .filter(e -> !e.getValue().isEmpty())
-    //            .flatMap(
-    //                e -> {
-    //                  StructLike partition = e.getKey();
-    //                  List<List<FileScanTask>> scanGroups = e.getValue();
-    //                  return scanGroups.stream()
-    //                      .map(
-    //                          tasks -> {
-    //                            long inputSize = inputSize(tasks);
-    //                            return newRewriteGroup(
-    //                                ctx,
-    //                                partition,
-    //                                tasks,
-    //                                inputSplitSize(inputSize),
-    //                                expectedOutputFiles(inputSize));
-    //                          });
-    //                })
-    //            .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
     List<RewriteFileGroup> selectedFileGroups = new ArrayList<>();
     AtomicInteger fileCountRunner = new AtomicInteger();
-
     plan.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
         .forEach(
