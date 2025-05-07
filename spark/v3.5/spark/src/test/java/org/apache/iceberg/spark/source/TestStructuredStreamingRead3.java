@@ -177,20 +177,18 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testReadStreamWithMaxRows1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    // only 1 micro-batch will be formed and we will read data partially
+    // 3 snapshots 3 micro-batch
     assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1")))
-        .isEqualTo(1);
+        .isEqualTo(3);
 
-    StreamingQuery query =
-        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"));
+    // soft limit of 1 is being enforced, the stream is not blocked.
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
 
-    // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
     assertThat(actual)
-        .containsExactlyInAnyOrderElementsOf(
-            Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
   }
 
   @TestTemplate
