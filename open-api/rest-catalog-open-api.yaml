@@ -2679,7 +2679,6 @@ components:
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
           remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
           remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
-          enable-row-lineage: '#/components/schemas/EnableRowLineageUpdate'
       type: object
       required:
         - action
@@ -2998,15 +2997,6 @@ components:
           items:
             type: integer
 
-    # Disabling Row Lineage is Forbidden
-    EnableRowLineageUpdate:
-      allOf:
-        - $ref: '#/components/schemas/BaseUpdate'
-      properties:
-        action:
-          type: string
-          const: "enable-row-lineage"
-
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -3028,7 +3018,6 @@ components:
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
         - $ref: '#/components/schemas/RemoveSchemasUpdate'
-        - $ref: '#/components/schemas/EnableRowLineageUpdate'
 
     ViewUpdate:
       anyOf:
