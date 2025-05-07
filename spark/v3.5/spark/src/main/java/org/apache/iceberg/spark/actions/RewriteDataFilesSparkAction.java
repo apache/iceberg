@@ -95,8 +95,7 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
   private BinPackRewriteFilePlanner planner = null;
-  private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
-  private Integer maxFilesToRewrite;
+  private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;g
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
