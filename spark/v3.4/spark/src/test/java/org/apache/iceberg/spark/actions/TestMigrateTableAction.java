@@ -18,34 +18,32 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.util.Map;
+import java.nio.file.Files;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.spark.CatalogTestBase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestMigrateTableAction extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMigrateTableAction extends CatalogTestBase {
 
-  public TestMigrateTableAction(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s_BACKUP_", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithParallelTasks() throws IOException {
-    String location = temp.newFolder().toURI().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -65,6 +63,6 @@ public class TestMigrateTableAction extends SparkCatalogTestBase {
                   return thread;
                 }))
         .execute();
-    Assert.assertEquals(migrationThreadsIndex.get(), 2);
+    assertThat(migrationThreadsIndex.get()).isEqualTo(2);
   }
 }

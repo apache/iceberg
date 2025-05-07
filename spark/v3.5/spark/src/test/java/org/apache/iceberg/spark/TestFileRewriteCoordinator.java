@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -41,7 +42,9 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFileRewriteCoordinator extends CatalogTestBase {
 
   @AfterEach
@@ -102,10 +105,9 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
     table.refresh();
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    assertThat(summary.get("deleted-data-files"))
-        .as("Deleted files count must match")
-        .isEqualTo("4");
-    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
+    assertThat(summary)
+        .containsEntry("deleted-data-files", "4")
+        .containsEntry("added-data-files", "2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
     assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
@@ -174,10 +176,9 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
     table.refresh();
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    assertThat(summary.get("deleted-data-files"))
-        .as("Deleted files count must match")
-        .isEqualTo("4");
-    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
+    assertThat(summary)
+        .containsEntry("deleted-data-files", "4")
+        .containsEntry("added-data-files", "2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
     assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
@@ -256,10 +257,9 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
     assertThat(table.snapshots()).as("Should produce 5 snapshots").hasSize(5);
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    assertThat(summary.get("deleted-data-files"))
-        .as("Deleted files count must match")
-        .isEqualTo("4");
-    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
+    assertThat(summary)
+        .containsEntry("deleted-data-files", "4")
+        .containsEntry("added-data-files", "2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
     assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
