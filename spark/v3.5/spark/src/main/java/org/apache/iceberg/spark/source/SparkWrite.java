@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -51,22 +52,53 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.source.metrics.AddedDVs;
+import org.apache.iceberg.spark.source.metrics.AddedDataFiles;
+import org.apache.iceberg.spark.source.metrics.AddedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.RemovedDVs;
+import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedRecords;
+import org.apache.iceberg.spark.source.metrics.TotalDataFiles;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TotalEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.TotalPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalRecords;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.executor.OutputMetrics;
+import org.apache.spark.sql.MetricsUtils;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
@@ -103,6 +135,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
+  private InMemoryMetricsReporter metricsReporter;
 
   SparkWrite(
       SparkSession spark,
@@ -130,6 +163,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
+
+    if (this.table instanceof BaseTable) {
+      this.metricsReporter = new InMemoryMetricsReporter();
+      ((BaseTable) this.table).combineMetricsReporter(metricsReporter);
+    }
   }
 
   @Override
@@ -231,6 +269,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     try {
       long start = System.currentTimeMillis();
       operation.commit(); // abort is automatically called if this fails
+      postDriverMetrics();
       long duration = System.currentTimeMillis() - start;
       LOG.info("Committed in {} ms", duration);
     } catch (Exception e) {
@@ -258,6 +297,67 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     return files;
+  }
+
+  private void postDriverMetrics() {
+    if (metricsReporter != null) {
+      CommitReport commitReport = metricsReporter.commitReport();
+      if (commitReport != null) {
+        CommitMetricsResult metricsResult = commitReport.commitMetrics();
+        Map<CustomMetric, Long> metricValues = Maps.newHashMap();
+        addMetricValue(new AddedDVs(), metricsResult.addedDVs(), metricValues);
+        addMetricValue(new AddedDataFiles(), metricsResult.addedDataFiles(), metricValues);
+        addMetricValue(new AddedDeleteFiles(), metricsResult.addedDeleteFiles(), metricValues);
+        addMetricValue(
+            new AddedEqualityDeletes(), metricsResult.addedEqualityDeletes(), metricValues);
+        addMetricValue(
+            new AddedEqualityDeleteFiles(), metricsResult.addedEqualityDeleteFiles(), metricValues);
+        addMetricValue(
+            new AddedFileSizeInBytes(), metricsResult.addedFilesSizeInBytes(), metricValues);
+        addMetricValue(
+            new AddedPositionalDeletes(), metricsResult.addedPositionalDeletes(), metricValues);
+        addMetricValue(
+            new AddedPositionalDeleteFiles(),
+            metricsResult.addedPositionalDeleteFiles(),
+            metricValues);
+        addMetricValue(new AddedRecords(), metricsResult.addedRecords(), metricValues);
+        addMetricValue(new RemovedDVs(), metricsResult.removedDVs(), metricValues);
+        addMetricValue(new RemovedDataFiles(), metricsResult.removedDataFiles(), metricValues);
+        addMetricValue(new RemovedDeleteFiles(), metricsResult.removedDeleteFiles(), metricValues);
+        addMetricValue(new RemovedRecords(), metricsResult.removedRecords(), metricValues);
+        addMetricValue(
+            new RemovedEqualityDeleteFiles(),
+            metricsResult.removedEqualityDeleteFiles(),
+            metricValues);
+        addMetricValue(
+            new RemovedEqualityDeletes(), metricsResult.removedEqualityDeletes(), metricValues);
+        addMetricValue(
+            new RemovedFileSizeInBytes(), metricsResult.removedFilesSizeInBytes(), metricValues);
+        addMetricValue(
+            new RemovedPositionalDeleteFiles(),
+            metricsResult.removedPositionalDeleteFiles(),
+            metricValues);
+        addMetricValue(
+            new RemovedPositionalDeletes(), metricsResult.removedPositionalDeletes(), metricValues);
+        addMetricValue(new TotalDataFiles(), metricsResult.totalDataFiles(), metricValues);
+        addMetricValue(new TotalDeleteFiles(), metricsResult.totalDeleteFiles(), metricValues);
+        addMetricValue(
+            new TotalEqualityDeletes(), metricsResult.totalEqualityDeletes(), metricValues);
+        addMetricValue(
+            new TotalFileSizeInBytes(), metricsResult.totalFilesSizeInBytes(), metricValues);
+        addMetricValue(
+            new TotalPositionalDeletes(), metricsResult.totalPositionalDeletes(), metricValues);
+        addMetricValue(new TotalRecords(), metricsResult.totalRecords(), metricValues);
+        MetricsUtils.postDriverMetrics(sparkContext.sc(), metricValues);
+      }
+    }
+  }
+
+  private void addMetricValue(
+      CustomMetric metric, CounterResult result, Map<CustomMetric, Long> metricValues) {
+    if (result != null) {
+      metricValues.put(metric, result.value());
+    }
   }
 
   @Override

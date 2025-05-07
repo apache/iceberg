@@ -32,8 +32,33 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.source.metrics.AddedDVs;
+import org.apache.iceberg.spark.source.metrics.AddedDataFiles;
+import org.apache.iceberg.spark.source.metrics.AddedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.RemovedDVs;
+import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedRecords;
+import org.apache.iceberg.spark.source.metrics.TotalDataFiles;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TotalEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.TotalPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalRecords;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
@@ -165,6 +190,36 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         } else {
           return asStreamingAppend();
         }
+      }
+
+      @Override
+      public CustomMetric[] supportedCustomMetrics() {
+        return new CustomMetric[] {
+          new AddedDVs(),
+          new AddedDataFiles(),
+          new AddedDeleteFiles(),
+          new AddedEqualityDeletes(),
+          new AddedEqualityDeleteFiles(),
+          new AddedFileSizeInBytes(),
+          new AddedPositionalDeletes(),
+          new AddedPositionalDeleteFiles(),
+          new AddedRecords(),
+          new RemovedDVs(),
+          new RemovedDataFiles(),
+          new RemovedDeleteFiles(),
+          new RemovedRecords(),
+          new RemovedEqualityDeleteFiles(),
+          new RemovedEqualityDeletes(),
+          new RemovedFileSizeInBytes(),
+          new RemovedPositionalDeleteFiles(),
+          new RemovedPositionalDeletes(),
+          new TotalDataFiles(),
+          new TotalDeleteFiles(),
+          new TotalEqualityDeletes(),
+          new TotalFileSizeInBytes(),
+          new TotalPositionalDeletes(),
+          new TotalRecords()
+        };
       }
     };
   }
