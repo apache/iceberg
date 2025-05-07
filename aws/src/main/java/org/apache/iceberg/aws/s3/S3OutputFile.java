@@ -33,6 +33,13 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncryptedFile {
   private NativeFileCryptoParameters nativeEncryptionParameters;
 
+  /**
+   * Creates a {@link S3OutputFile} from the given parameters.
+   *
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     S3OutputFile#fromLocation(String, PrefixedS3Client, MetricsContext)} instead.
+   */
+  @Deprecated
   public static S3OutputFile fromLocation(
       String location,
       S3Client client,
@@ -46,6 +53,13 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
         metrics);
   }
 
+  /**
+   * Creates a {@link S3OutputFile} from the given parameters.
+   *
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     S3OutputFile#fromLocation(String, PrefixedS3Client, MetricsContext)} instead.
+   */
+  @Deprecated
   public static S3OutputFile fromLocation(
       String location,
       S3Client client,
@@ -57,6 +71,16 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
         asyncClient,
         new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         s3FileIOProperties,
+        metrics);
+  }
+
+  static S3OutputFile fromLocation(
+      String location, PrefixedS3Client client, MetricsContext metrics) {
+    return new S3OutputFile(
+        client.s3(),
+        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled() ? client.s3Async() : null,
+        new S3URI(location, client.s3FileIOProperties().bucketToAccessPointMapping()),
+        client.s3FileIOProperties(),
         metrics);
   }
 
