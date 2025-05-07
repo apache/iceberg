@@ -547,18 +547,21 @@ public class TestRewriteManifestsAction extends TestBase {
 
     SparkActions actions = org.apache.iceberg.spark.actions.SparkActions.get();
 
-    List<String> hasNonexistentFields = ImmutableList.of("c1", "c2");
+    List<String> nonexistentFields = ImmutableList.of("c1", "c2");
     assertThatThrownBy(
             () ->
                 actions
                     .rewriteManifests(table)
                     .rewriteIf(manifest -> true)
-                    .clusterBy(hasNonexistentFields)
+                    .clusterBy(nonexistentFields)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set manifest clustering because specified field(s) [c2] were not found in "
-                + "current partition spec 0.");
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
 
     // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
     // clusterBy() expects the hidden partition column names
@@ -573,12 +576,15 @@ public class TestRewriteManifestsAction extends TestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set manifest clustering because specified field(s) [c3] were not found in "
-                + "current partition spec 0.");
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
   }
 
   @TestTemplate
   public void testRewriteManifestsPartitionedTableWithCustomClustering() throws IOException {
-    Random random = new Random();
+    Random random = new Random(4141912);
 
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 3).bucket("c3", 10).build();
