@@ -237,12 +237,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .select("status")
             .collectAsList();
 
-    assertThat(actual)
-        .singleElement()
-        .satisfies(
-            row -> {
-              assertThat(row.getInt(0)).isEqualTo(1);
-            });
+    assertThat(actual).singleElement().satisfies(row -> assertThat(row.getInt(0)).isEqualTo(1));
   }
 
   @Test
