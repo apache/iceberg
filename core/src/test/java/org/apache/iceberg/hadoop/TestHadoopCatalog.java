@@ -695,8 +695,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     registeringTable.updateSpec().addField(bucket("id", 16)).commit();
     assertThat(registeringTable.spec().isPartitioned()).isTrue();
     // register with overwrite
-    Table registered = catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
-    assertThat(registered.spec().isPartitioned()).isFalse();
+    assertThatThrownBy(() -> catalog.registerTable(identifier, unpartitionedMetadataLocation, true))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot register and overwrite Hadoop tables");
 
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
