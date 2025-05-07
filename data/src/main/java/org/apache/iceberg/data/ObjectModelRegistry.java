@@ -35,8 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
- * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
+ * Registry which provides the available {@link ReadBuilder}s, {@link AppenderBuilder}s and writer
+ * builders ({@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
  * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
  * the registry returns the correct reader and writer builders. These builders could be used to
  * generate the readers and writers.
@@ -49,11 +49,7 @@ import org.slf4j.LoggerFactory;
 public final class ObjectModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
-  private static final List<String> CLASSES_TO_REGISTER =
-      ImmutableList.of(
-          "org.apache.iceberg.arrow.vectorized.ArrowReader",
-          "org.apache.iceberg.flink.data.FlinkObjectModels",
-          "org.apache.iceberg.spark.source.SparkObjectModels");
+  private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
   private static final Map<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
 
