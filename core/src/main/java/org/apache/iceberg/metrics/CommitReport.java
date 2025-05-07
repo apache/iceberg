@@ -27,6 +27,11 @@ public interface CommitReport extends MetricsReport {
 
   String tableName();
 
+  @Value.Default
+  default long timestampMillis() {
+    return 0L;
+  }
+
   long snapshotId();
 
   long sequenceNumber();

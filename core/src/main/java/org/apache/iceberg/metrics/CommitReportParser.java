@@ -26,6 +26,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class CommitReportParser {
   private static final String TABLE_NAME = "table-name";
+  private static final String TIMESTAMP_MILLIS = "timestamp-millis";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String OPERATION = "operation";
@@ -63,6 +64,9 @@ public class CommitReportParser {
     Preconditions.checkArgument(null != commitReport, "Invalid commit report: null");
 
     gen.writeStringField(TABLE_NAME, commitReport.tableName());
+    if (commitReport.timestampMillis() > 0) {
+      gen.writeNumberField(TIMESTAMP_MILLIS, commitReport.timestampMillis());
+    }
     gen.writeNumberField(SNAPSHOT_ID, commitReport.snapshotId());
     gen.writeNumberField(SEQUENCE_NUMBER, commitReport.sequenceNumber());
     gen.writeStringField(OPERATION, commitReport.operation());
@@ -91,6 +95,9 @@ public class CommitReportParser {
             .sequenceNumber(JsonUtil.getLong(SEQUENCE_NUMBER, json))
             .operation(JsonUtil.getString(OPERATION, json))
             .commitMetrics(CommitMetricsResultParser.fromJson(JsonUtil.get(METRICS, json)));
+    if (json.has(TIMESTAMP_MILLIS)) {
+      builder.timestampMillis(JsonUtil.getLong(TIMESTAMP_MILLIS, json));
+    }
 
     if (json.has(METADATA)) {
       builder.metadata(JsonUtil.getStringMap(METADATA, json));

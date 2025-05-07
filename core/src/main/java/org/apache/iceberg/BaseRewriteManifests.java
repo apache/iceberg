@@ -198,9 +198,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   public Object updateEvent() {
     long snapshotId = snapshotId();
     Snapshot snapshot = ops().current().snapshot(snapshotId);
-    long sequenceNumber = snapshot.sequenceNumber();
-    return new CreateSnapshotEvent(
-        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
+    return new CreateSnapshotEvent(tableName, snapshot);
   }
 
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {

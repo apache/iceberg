@@ -19,13 +19,25 @@
 package org.apache.iceberg.events;
 
 import java.util.Map;
+import org.apache.iceberg.Snapshot;
 
 public final class CreateSnapshotEvent {
   private final String tableName;
+  private final long timestampMillis;
   private final String operation;
   private final long snapshotId;
   private final long sequenceNumber;
   private final Map<String, String> summary;
+
+  public CreateSnapshotEvent(String tableName, Snapshot snapshot) {
+    this(
+        tableName,
+        snapshot.timestampMillis(),
+        snapshot.operation(),
+        snapshot.snapshotId(),
+        snapshot.sequenceNumber(),
+        snapshot.summary());
+  }
 
   public CreateSnapshotEvent(
       String tableName,
@@ -33,7 +45,18 @@ public final class CreateSnapshotEvent {
       long snapshotId,
       long sequenceNumber,
       Map<String, String> summary) {
+    this(tableName, 0, operation, snapshotId, sequenceNumber, summary);
+  }
+
+  public CreateSnapshotEvent(
+      String tableName,
+      long timestampMillis,
+      String operation,
+      long snapshotId,
+      long sequenceNumber,
+      Map<String, String> summary) {
     this.tableName = tableName;
+    this.timestampMillis = timestampMillis;
     this.operation = operation;
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
@@ -42,6 +65,10 @@ public final class CreateSnapshotEvent {
 
   public String tableName() {
     return tableName;
+  }
+
+  public long timestampMillis() {
+    return timestampMillis;
   }
 
   public String operation() {
