@@ -49,6 +49,7 @@ import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,9 +61,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableConsumer;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.ForeachPartitionFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
@@ -121,6 +124,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
+  private SetAccumulator<Pair<String, String>> conflicts;
+  private Dataset<String> orphanFileDF = null;
+  private boolean includeFilePathsInResults = true;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -185,6 +191,10 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return this;
   }
 
+  public void includeFilePathsInResult(boolean include) {
+    this.includeFilePathsInResults = include;
+  }
+
   public DeleteOrphanFilesSparkAction compareToFileList(Dataset<Row> files) {
     StructType schema = files.schema();
 
@@ -233,46 +243,83 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
 
-  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
-    try {
-      io.deleteFiles(paths);
-      LOG.info("Deleted {} files using bulk deletes", paths.size());
-    } catch (BulkDeletionFailureException e) {
-      int deletedFilesCount = paths.size() - e.numberFailedObjects();
-      LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
+  private SerializableConsumer<Iterator<String>> bulkDeleteFiles(SupportsBulkOperations io) {
+    return stringIterator -> {
+      List<String> paths = Lists.newArrayList(stringIterator);
+      try {
+        io.deleteFiles(paths);
+      } catch (BulkDeletionFailureException e) {
+        int deletedFilesCount = paths.size() - e.numberFailedObjects();
+        LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
+      }
+    };
+  }
+
+  private Result doExecute() {
+    Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
+    Dataset<FileURI> validFileIdentDS = validFileIdentDS();
+    Dataset<String> orphanFiles =
+        findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS).coalesce(10);
+
+    orphanFiles.cache();
+    // materialize the dataframe to populate the accumulator
+    orphanFiles.count();
+    SetAccumulator<Pair<String, String>> conflictsAccumulator = conflictsAccumulator();
+    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflictsAccumulator.value().isEmpty()) {
+      throw new ValidationException(
+          "Unable to determine whether certain files are orphan. "
+              + "Metadata references files that match listed/provided files except for authority/scheme. "
+              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
+              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
+              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
+              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
+              + "authorities/schemes are different. It will be impossible to recover deleted files. "
+              + "Conflicting authorities/schemes: %s.",
+          conflictsAccumulator.value());
+    }
+
+    FileIO io = table.io();
+    if (deleteFunc == null && io instanceof SupportsBulkOperations) {
+      Consumer<Iterator<String>> iteratorConsumer = bulkDeleteFiles((SupportsBulkOperations) io);
+      orphanFiles.foreachPartition((ForeachPartitionFunction<String>) iteratorConsumer::accept);
+    } else {
+      Consumer<String> deleteFunction = nonBulkDeleteFiles();
+      if (deleteFunction instanceof SerializableConsumer && deleteExecutorService == null) {
+        orphanFiles.foreachPartition(
+            (ForeachPartitionFunction<String>)
+                iterator -> iterator.forEachRemaining(deleteFunction));
+      } else {
+        List<String> filesToDelete = orphanFiles.collectAsList();
+        Tasks.Builder<String> deleteTasks =
+            Tasks.foreach(filesToDelete)
+                .noRetry()
+                .executeWith(deleteExecutorService)
+                .suppressFailureWhenFinished()
+                .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+        deleteTasks.run(deleteFunction::accept);
+      }
+    }
+    return results(orphanFiles);
+  }
+
+  private Consumer<String> nonBulkDeleteFiles() {
+    FileIO io = table.io();
+    if (deleteFunc == null) {
+      LOG.info(
+          "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+          io.getClass().getName());
+      return (SerializableConsumer<String>) io::deleteFile;
+    } else {
+      LOG.info("Custom delete function provided. Using non-bulk deletes");
+      return deleteFunc;
     }
   }
 
-  private DeleteOrphanFiles.Result doExecute() {
-    Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
-    Dataset<FileURI> validFileIdentDS = validFileIdentDS();
-
-    List<String> orphanFiles =
-        findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
-
-    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
-    } else {
-
-      Tasks.Builder<String> deleteTasks =
-          Tasks.foreach(orphanFiles)
-              .noRetry()
-              .executeWith(deleteExecutorService)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
-
-      if (deleteFunc == null) {
-        LOG.info(
-            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
-            table.io().getClass().getName());
-        deleteTasks.run(table.io()::deleteFile);
-      } else {
-        LOG.info("Custom delete function provided. Using non-bulk deletes");
-        deleteTasks.run(deleteFunc::accept);
-      }
-    }
-
-    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
+  Result results(Dataset<String> df) {
+    return ImmutableDeleteOrphanFiles.Result.builder()
+        .orphanFileLocations(includeFilePathsInResults ? df.collectAsList() : Lists.newArrayList())
+        .orphanFileLocationsCount(df.count())
+        .build();
   }
 
   private Dataset<FileURI> validFileIdentDS() {
@@ -387,38 +434,28 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  @VisibleForTesting
-  static List<String> findOrphanFiles(
-      SparkSession spark,
-      Dataset<FileURI> actualFileIdentDS,
-      Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode) {
-
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark.sparkContext().register(conflicts);
-
+  Dataset<String> findOrphanFiles(
+      SparkSession spark, Dataset<FileURI> actualFileIdentDS, Dataset<FileURI> validFileIdentDS) {
+    if (orphanFileDF != null) {
+      return orphanFileDF;
+    }
+    SetAccumulator<Pair<String, String>> conflictsAccumulator = conflictsAccumulator();
+    spark.sparkContext().register(conflictsAccumulator);
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
-    List<String> orphanFiles =
+    orphanFileDF =
         actualFileIdentDS
             .joinWith(validFileIdentDS, joinCond, "leftouter")
-            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
-            .collectAsList();
+            .mapPartitions(
+                new FindOrphanFiles(prefixMismatchMode, conflictsAccumulator), Encoders.STRING());
+    return orphanFileDF;
+  }
 
-    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
-      throw new ValidationException(
-          "Unable to determine whether certain files are orphan. "
-              + "Metadata references files that match listed/provided files except for authority/scheme. "
-              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
-              + "authorities/schemes are different. It will be impossible to recover deleted files. "
-              + "Conflicting authorities/schemes: %s.",
-          conflicts.value());
+  private SetAccumulator<Pair<String, String>> conflictsAccumulator() {
+    if (conflicts == null) {
+      conflicts = new SetAccumulator<>();
     }
-
-    return orphanFiles;
+    return conflicts;
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
