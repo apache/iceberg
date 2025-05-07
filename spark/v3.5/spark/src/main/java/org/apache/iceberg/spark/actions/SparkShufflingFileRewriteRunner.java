@@ -26,6 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.Spark3Util;
@@ -48,20 +49,7 @@ import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.execution.datasources.v2.DistributionAndOrderingUtils$;
 import scala.Option;
 
-abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
-
-  /**
-   * The number of shuffle partitions and consequently the number of output files created by the
-   * Spark sort is based on the size of the input data files used in this file rewriter. Due to
-   * compression, the disk file sizes may not accurately represent the size of files in the output.
-   * This parameter lets the user adjust the file size used for estimating actual output data size.
-   * A factor greater than 1.0 would generate more files than we would expect based on the on-disk
-   * file size. A value less than 1.0 would create fewer files than we would expect based on the
-   * on-disk size.
-   */
-  public static final String COMPRESSION_FACTOR = "compression-factor";
-
-  public static final double COMPRESSION_FACTOR_DEFAULT = 1.0;
+abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunner {
 
   /**
    * The number of shuffle partitions to use for each output file. By default, this file rewriter
@@ -79,10 +67,9 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   public static final int SHUFFLE_PARTITIONS_PER_FILE_DEFAULT = 1;
 
-  private double compressionFactor;
   private int numShufflePartitionsPerFile;
 
-  protected SparkShufflingDataRewriter(SparkSession spark, Table table) {
+  protected SparkShufflingFileRewriteRunner(SparkSession spark, Table table) {
     super(spark, table);
   }
 
@@ -105,7 +92,6 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   public Set<String> validOptions() {
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
-        .add(COMPRESSION_FACTOR)
         .add(SHUFFLE_PARTITIONS_PER_FILE)
         .build();
   }
@@ -113,12 +99,11 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   @Override
   public void init(Map<String, String> options) {
     super.init(options);
-    this.compressionFactor = compressionFactor(options);
     this.numShufflePartitionsPerFile = numShufflePartitionsPerFile(options);
   }
 
   @Override
-  public void doRewrite(String groupId, List<FileScanTask> group) {
+  public void doRewrite(String groupId, RewriteFileGroup fileGroup) {
     Dataset<Row> scanDF =
         spark()
             .read()
@@ -126,22 +111,29 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .load(groupId);
 
-    Dataset<Row> sortedDF = sortedDF(scanDF, sortFunction(group));
+    Dataset<Row> sortedDF =
+        sortedDF(
+            scanDF,
+            sortFunction(
+                fileGroup.fileScanTasks(),
+                spec(fileGroup.outputSpecId()),
+                fileGroup.expectedOutputFiles()));
 
     sortedDF
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
-        .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+        .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, fileGroup.maxOutputFileSize())
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-        .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
+        .option(SparkWriteOptions.OUTPUT_SPEC_ID, fileGroup.outputSpecId())
         .mode("append")
         .save(groupId);
   }
 
-  private Function<Dataset<Row>, Dataset<Row>> sortFunction(List<FileScanTask> group) {
-    SortOrder[] ordering = Spark3Util.toOrdering(outputSortOrder(group));
-    int numShufflePartitions = numShufflePartitions(group);
+  private Function<Dataset<Row>, Dataset<Row>> sortFunction(
+      List<FileScanTask> group, PartitionSpec outputSpec, int expectedOutputFiles) {
+    SortOrder[] ordering = Spark3Util.toOrdering(outputSortOrder(group, outputSpec));
+    int numShufflePartitions = Math.max(1, expectedOutputFiles * numShufflePartitionsPerFile);
     return (df) -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
   }
 
@@ -164,29 +156,16 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     return new Dataset<>(spark(), func.apply(df.logicalPlan()), df.encoder());
   }
 
-  private org.apache.iceberg.SortOrder outputSortOrder(List<FileScanTask> group) {
-    PartitionSpec spec = outputSpec();
-    boolean requiresRepartitioning = !group.get(0).spec().equals(spec);
+  private org.apache.iceberg.SortOrder outputSortOrder(
+      List<FileScanTask> group, PartitionSpec outputSpec) {
+    boolean requiresRepartitioning = !group.get(0).spec().equals(outputSpec);
     if (requiresRepartitioning) {
       // build in the requirement for partition sorting into our sort order
       // as the original spec for this group does not match the output spec
-      return SortOrderUtil.buildSortOrder(sortSchema(), spec, sortOrder());
+      return SortOrderUtil.buildSortOrder(sortSchema(), outputSpec, sortOrder());
     } else {
       return sortOrder();
     }
-  }
-
-  private int numShufflePartitions(List<FileScanTask> group) {
-    int numOutputFiles = (int) numOutputFiles((long) (inputSize(group) * compressionFactor));
-    return Math.max(1, numOutputFiles * numShufflePartitionsPerFile);
-  }
-
-  private double compressionFactor(Map<String, String> options) {
-    double value =
-        PropertyUtil.propertyAsDouble(options, COMPRESSION_FACTOR, COMPRESSION_FACTOR_DEFAULT);
-    Preconditions.checkArgument(
-        value > 0, "'%s' is set to %s but must be > 0", COMPRESSION_FACTOR, value);
-    return value;
   }
 
   private int numShufflePartitionsPerFile(Map<String, String> options) {

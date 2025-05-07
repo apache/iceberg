@@ -29,9 +29,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -40,7 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
@@ -71,14 +72,15 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
   }
 
   @Override
-  Iterable<GenericData.Record> generateData(
+  Iterable<Record> generateData(
       Schema schema,
       int numRecords,
       long seed,
       float nullPercentage,
-      Function<GenericData.Record, GenericData.Record> transform) {
+      Function<Record, Record> transform) {
     Iterable data =
-        RandomData.generateDictionaryEncodableData(schema, numRecords, seed, nullPercentage);
+        RandomGenericData.generateDictionaryEncodableRecords(
+            schema, numRecords, seed, nullPercentage);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
@@ -92,19 +94,16 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     File dictionaryEncodedFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dictionaryEncodedFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<GenericData.Record> dictionaryEncodableData =
-        RandomData.generateDictionaryEncodableData(
-            schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
-    try (FileAppender<GenericData.Record> writer =
-        getParquetWriter(schema, dictionaryEncodedFile)) {
+    Iterable<Record> dictionaryEncodableData =
+        RandomGenericData.generateDictionaryEncodableRecords(schema, 10000, 0L);
+    try (FileAppender<Record> writer = getParquetWriter(schema, dictionaryEncodedFile)) {
       writer.addAll(dictionaryEncodableData);
     }
 
     File plainEncodingFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(plainEncodingFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<GenericData.Record> nonDictionaryData =
-        RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, plainEncodingFile)) {
+    Iterable<Record> nonDictionaryData = RandomGenericData.generate(schema, 10000, 0L);
+    try (FileAppender<Record> writer = getParquetWriter(schema, plainEncodingFile)) {
       writer.addAll(nonDictionaryData);
     }
 
@@ -132,12 +131,13 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     File parquetFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(parquetFile.delete()).as("Delete should succeed").isTrue();
 
-    Iterable<GenericData.Record> records = RandomData.generateFallbackData(schema, 500, 0L, 100);
-    try (FileAppender<GenericData.Record> writer =
+    Iterable<Record> records = RandomGenericData.generateFallbackRecords(schema, 500, 0L, 100);
+    try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(schema)
             .set(PARQUET_DICT_SIZE_BYTES, "4096")
             .set(PARQUET_PAGE_ROW_LIMIT, "100")
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
     }
