@@ -153,15 +153,15 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
   }
 
   private Dataset<Row> transformPlan(Dataset<Row> df, Function<LogicalPlan, LogicalPlan> func) {
-    if (!(spark() instanceof org.apache.spark.sql.classic.SparkSession)) {
-      throw new IllegalArgumentException(
-          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
-    }
+    Preconditions.checkArgument(
+        spark() instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark().getClass().getName());
 
-    if (!(df instanceof org.apache.spark.sql.classic.Dataset)) {
-      throw new IllegalArgumentException(
-          "df is supposed to be org.apache.spark.sql.classic.Dataset");
-    }
+    Preconditions.checkArgument(
+        df instanceof org.apache.spark.sql.classic.Dataset,
+        "df is supposed to be org.apache.spark.sql.classic.Dataset, but got: %s",
+        df.getClass().getName());
 
     return new org.apache.spark.sql.classic.Dataset<>(
         ((org.apache.spark.sql.classic.SparkSession) spark()),
