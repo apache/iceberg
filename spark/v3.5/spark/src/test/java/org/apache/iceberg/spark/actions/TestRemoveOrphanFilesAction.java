@@ -82,6 +82,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -157,8 +158,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result1 =
-        actions.deleteOrphanFiles(table).deleteWith(s -> {}).execute();
+    DeleteOrphanFiles.Result result1 = actions.deleteOrphanFiles(table).execute();
     assertThat(result1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
@@ -381,7 +381,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
+    assertThat(result.orphanFileLocationsCount()).isEqualTo(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
@@ -536,7 +536,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
+    assertThat(result.orphanFileLocationsCount()).as("Should delete 2 files").isEqualTo(2);
   }
 
   @TestTemplate
@@ -1002,6 +1002,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .hasMessageStartingWith("Unable to determine whether certain files are orphan")
         .hasMessageEndingWith("Conflicting authorities/schemes: [(scheme1, scheme2)].");
 
+    TABLES.dropTable(tableLocation);
     Map<String, String> equalSchemes = Maps.newHashMap();
     equalSchemes.put("scheme1", "scheme");
     equalSchemes.put("scheme2", "scheme");
@@ -1031,6 +1032,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .hasMessageStartingWith("Unable to determine whether certain files are orphan")
         .hasMessageEndingWith("Conflicting authorities/schemes: [(servicename1, servicename2)].");
 
+    TABLES.dropTable(tableLocation);
     Map<String, String> equalAuthorities = Maps.newHashMap();
     equalAuthorities.put("servicename1", "servicename");
     equalAuthorities.put("servicename2", "servicename");
@@ -1079,15 +1081,22 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
       Map<String, String> equalSchemes,
       Map<String, String> equalAuthorities,
       DeleteOrphanFiles.PrefixMismatchMode mode) {
-
     StringToFileURI toFileUri = new StringToFileURI(equalSchemes, equalAuthorities);
 
     Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+    DeleteOrphanFilesSparkAction deleteOrphanFilesSparkAction =
+        SparkActions.get().deleteOrphanFiles(table).prefixMismatchMode(mode);
+    deleteOrphanFilesSparkAction.findOrphanFiles(
+        spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS));
 
-    List<String> orphanFiles =
-        DeleteOrphanFilesSparkAction.findOrphanFiles(
-            spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
-    assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
+    DeleteOrphanFiles.Result result = deleteOrphanFilesSparkAction.execute();
+    assertThat(Lists.newArrayList(result.orphanFileLocations())).isEqualTo(expectedOrphanFiles);
+  }
+
+  @AfterEach
+  public void after() throws IOException {
+    TABLES.dropTable(tableLocation);
   }
 }
