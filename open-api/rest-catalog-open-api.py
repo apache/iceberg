@@ -399,21 +399,12 @@ class EnableRowLineageUpdate(BaseUpdate):
     action: str = Field('enable-row-lineage', const=True)
 
 
-class OperationType(BaseModel):
-    __root__: Literal[
-        'create-table',
-        'register-table',
-        'drop-table',
-        'update-table',
-        'rename-table',
-        'create-view',
-        'drop-view',
-        'replace-view',
-        'rename-view',
-        'create-namespace',
-        'update-namespace-properties',
-        'drop-namespace',
-    ]
+class CustomOperationType(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Custom operation type for catalog-specific extensions. Must start with 'x-' followed by an implementation-specific identifier.\n",
+        regex='^x-[a-zA-Z0-9-_.]+$',
+    )
 
 
 class TableRequirement(BaseModel):
@@ -518,6 +509,28 @@ class LoadCredentialsResponse(BaseModel):
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
+    )
+
+
+class Actor(BaseModel):
+    """
+    Represents an actor that performed operations in the catalog
+    """
+
+    type: str = Field(
+        ..., description='The type of actor (e.g., "user", "principal", "role")'
+    )
+    actor_id: str = Field(
+        ..., alias='actor-id', description='The identifier of the actor'
+    )
+    metadata: Optional[Dict[str, str]] = Field(
+        None,
+        description='Additional metadata about the actor that may vary between implementations',
+    )
+    assumed_by: Optional[Actor] = Field(
+        None,
+        alias='assumed-by',
+        description='Information about the original actor who assumed this identity. This enables representing delegation chains through recursion.',
     )
 
 
@@ -733,41 +746,34 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     )
 
 
-class DropTableOperation(BaseModel):
-    operation_type: Literal['drop-table'] = Field(
-        ..., alias='operation-type', const=True
+class CustomOperation(BaseModel):
+    """
+    Extension point for catalog-specific operations not defined in the standard.
+
+    """
+
+    class Config:
+        extra = Extra.allow
+
+    operation_type: Literal['custom'] = Field(..., alias='operation-type', const=True)
+    custom_type: CustomOperationType = Field(..., alias='custom-type')
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table or view identifier this operation applies to, if applicable',
     )
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
-    purge: Optional[bool] = Field(None, description='Whether purge flag was set')
-
-
-class DropViewOperation(BaseModel):
-    operation_type: Literal['drop-view'] = Field(
-        ..., alias='operation-type', const=True
+    namespace: Optional[Namespace] = Field(
+        None, description='Namespace this operation applies to, if applicable'
     )
-    identifier: TableIdentifier
-    view_uuid: UUID = Field(..., alias='view-uuid')
-
-
-class CreateNamespaceOperation(CreateNamespaceResponse):
-    operation_type: Literal['create-namespace'] = Field(
-        ..., alias='operation-type', const=True
+    table_uuid: Optional[UUID] = Field(
+        None,
+        alias='table-uuid',
+        description='UUID of table this operation applies to, if applicable',
     )
-
-
-class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
-    operation_type: Literal['update-namespace-properties'] = Field(
-        ..., alias='operation-type', const=True
+    view_uuid: Optional[UUID] = Field(
+        None,
+        alias='view-uuid',
+        description='UUID of view this operation applies to, if applicable',
     )
-    namespace: Namespace
-
-
-class DropNamespaceOperation(BaseModel):
-    operation_type: Literal['drop-namespace'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    namespace: Namespace
 
 
 class BlobMetadata(BaseModel):
@@ -1012,6 +1018,29 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class OperationType(BaseModel):
+    __root__: Union[
+        Literal[
+            'create-table',
+            'register-table',
+            'drop-table',
+            'update-table',
+            'rename-table',
+            'create-view',
+            'drop-view',
+            'replace-view',
+            'rename-view',
+            'create-namespace',
+            'update-namespace-properties',
+            'drop-namespace',
+        ],
+        CustomOperationType,
+    ] = Field(
+        ...,
+        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation.\n',
+    )
+
+
 class ViewRequirement(BaseModel):
     __root__: AssertViewUUID = Field(..., discriminator='type')
 
@@ -1056,8 +1085,8 @@ class GetEventsRequest(BaseModel):
         alias='operation-types',
         description='Filter events by the type of operation. If not provided, all types are returned.\n',
     )
-    users: Optional[List[str]] = Field(
-        None, description='Filter events by the user who performed them'
+    actors: Optional[List[Actor]] = Field(
+        None, description='Filter events by actors who performed them.\n'
     )
     catalog_objects: Optional[
         List[Union[NamespaceReference, TableReference, ViewReference]]
@@ -1065,7 +1094,7 @@ class GetEventsRequest(BaseModel):
         None,
         alias='catalog-objects',
         description='List of catalog objects (namespaces, tables, views) to get events for. If not provided, events for all objects will be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) will be returned.\n',
-        discriminator='reference-type',
+        discriminator='reference_type',
     )
 
 
@@ -1073,11 +1102,48 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class DropTableOperation(BaseModel):
+    operation_type: Literal['drop-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    purge: Optional[bool] = Field(None, description='Whether purge flag was set')
+
+
 class RenameTableOperation(RenameTableRequest):
     operation_type: Literal['rename-table', 'rename-view'] = Field(
         ..., alias='operation-type', const=True
     )
     table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class DropViewOperation(BaseModel):
+    operation_type: Literal['drop-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CreateNamespaceOperation(CreateNamespaceResponse):
+    operation_type: Literal['create-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+
+
+class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
+
+
+class DropNamespaceOperation(BaseModel):
+    operation_type: Literal['drop-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
 
 
 class StatisticsFile(BaseModel):
@@ -1513,22 +1579,21 @@ class Event(BaseModel):
         alias='event-id',
         description='Unique ID of this event. Clients should perform deduplication based on this ID.',
     )
-    transaction: str = Field(
-        ...,
-        description='ID of the transaction this change belongs to. If multiple changes have the same transaction ID, they are part of the same atomic transaction.\n',
+    request_id: str = Field(
+        ..., alias='request-id', description='ID of the request this change belongs to.'
     )
     event_count: int = Field(
         ...,
         alias='event-count',
-        description='Number of events in the transaction fo this event',
+        description='Number of events in the request / batch of events',
     )
     timestamp_ms: int = Field(
         ...,
         alias='timestamp-ms',
         description='Timestamp when this transaction occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
     )
-    user: str = Field(
-        ..., description='The id of the user who performed this transaction'
+    actor: Optional[Actor] = Field(
+        None, description='The actor who performed this request'
     )
     operation: Union[
         CreateTableOperation,
@@ -1542,7 +1607,8 @@ class Event(BaseModel):
         CreateNamespaceOperation,
         UpdateNamespacePropertiesOperation,
         DropNamespaceOperation,
-    ] = Field(..., discriminator='operation-type')
+        CustomOperation,
+    ] = Field(..., discriminator='operation_type')
 
 
 class CreateTableOperation(BaseModel):
@@ -1675,6 +1741,7 @@ class CompletedPlanningWithIDResult(CompletedPlanningResult):
     status: Literal['completed']
 
 
+Actor.update_forward_refs()
 StructField.update_forward_refs()
 ListType.update_forward_refs()
 MapType.update_forward_refs()

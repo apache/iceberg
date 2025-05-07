@@ -3098,7 +3098,11 @@ components:
 
     OperationType:
       type: string
-      enum:
+      description: >
+        Defines the type of operation, either a standard operation defined by the Iceberg REST API
+        specification or a custom operation specific to an implementation.
+      anyOf:
+      - enum:
         - create-table
         - register-table
         - drop-table
@@ -3111,6 +3115,14 @@ components:
         - create-namespace
         - update-namespace-properties
         - drop-namespace
+      - $ref: '#/components/schemas/CustomOperationType'
+
+    CustomOperationType:
+      type: string
+      description: >
+        Custom operation type for catalog-specific extensions.
+        Must start with 'x-' followed by an implementation-specific identifier.
+      pattern: '^x-[a-zA-Z0-9-_.]+$'
 
     TableRequirement:
       type: object
@@ -3476,6 +3488,41 @@ components:
       allOf:
         - $ref: '#/components/schemas/ScanTasks'
 
+    Actor:
+      type: object
+      description: Represents an actor that performed operations in the catalog
+      required:
+        - type
+        - actor-id
+      properties:
+        type:
+          type: string
+          description: The type of actor (e.g., "user", "principal", "role")
+        actor-id:
+          type: string
+          description: The identifier of the actor
+        metadata:
+          type: object
+          description: Additional metadata about the actor that may vary between implementations
+          additionalProperties:
+            type: string
+        assumed-by:
+          $ref: '#/components/schemas/Actor'
+          description: Information about the original actor who assumed this identity. This enables representing delegation chains through recursion.
+      example:
+        type: "role"
+        actor-id: "1234"
+        metadata:
+          permissions: "read-write"
+          expiration: "2025-06-07T12:00:00Z"
+          name: "Admin Role"
+        assumed-by:
+          type: "user"
+          actor-id: "4567"
+          metadata:
+            name: "Peter Cold"
+            email: "peter@example.com"
+
     GetEventsRequest:
       type: object
       properties:
@@ -3500,11 +3547,12 @@ components:
           description: >
             Filter events by the type of operation.
             If not provided, all types are returned.
-        users:
+        actors:
           type: array
           items:
-            type: string
-          description: Filter events by the user who performed them
+            $ref: "#/components/schemas/Actor"
+          description: >
+            Filter events by actors who performed them.
         catalog-objects:
           type: array
           discriminator:
@@ -4153,23 +4201,20 @@ components:
       type: object
       required:
         - event-id
-        - transaction
+        - request-id
         - event-count
         - timestamp-ms
-        - user
         - operation
       properties:
         event-id:
           type: string
           description: Unique ID of this event. Clients should perform deduplication based on this ID.
-        transaction:
-          description: >
-            ID of the transaction this change belongs to. If multiple changes have the same transaction ID,
-            they are part of the same atomic transaction.
+        request-id:
+          description: ID of the request this change belongs to.
           type: string
         event-count:
           type: integer
-          description: Number of events in the transaction fo this event
+          description: Number of events in the request / batch of events
         timestamp-ms:
           type: integer
           format: int64
@@ -4177,9 +4222,9 @@ components:
             Timestamp when this transaction occurred (epoch milliseconds).
             Timestamps are not guaranteed to be unique. Typically all events in
             a transaction will have the same timestamp.
-        user:
-          type: string
-          description: The id of the user who performed this transaction
+        actor:
+          $ref: "#/components/schemas/Actor"
+          description: The actor who performed this request
         operation:
           type: object
           discriminator:
@@ -4197,6 +4242,7 @@ components:
               create-namespace: "#/components/schemas/CreateNamespaceOperation"
               update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"
               drop-namespace: "#/components/schemas/DropNamespaceOperation"
+              custom: "#/components/schemas/CustomOperation"
           oneOf:
             - $ref: "#/components/schemas/CreateTableOperation"
             - $ref: "#/components/schemas/RegisterTableOperation"
@@ -4210,6 +4256,7 @@ components:
             - $ref: "#/components/schemas/CreateNamespaceOperation"
             - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"
             - $ref: "#/components/schemas/DropNamespaceOperation"
+            - $ref: "#/components/schemas/CustomOperation"
 
     CreateTableOperation:
       required:
@@ -4385,6 +4432,37 @@ components:
           const: "drop-namespace"
         namespace:
           $ref: "#/components/schemas/Namespace"
+
+    CustomOperation:
+      type: object
+      description: >
+        Extension point for catalog-specific operations not defined in the standard.
+      required:
+        - operation-type
+        - custom-type
+      properties:
+        operation-type:
+          type: string
+          const: "custom"
+        custom-type:
+          $ref: '#/components/schemas/CustomOperationType'
+        # Common optional properties
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+          description: Table or view identifier this operation applies to, if applicable
+        namespace:
+          $ref: "#/components/schemas/Namespace"
+          description: Namespace this operation applies to, if applicable
+        table-uuid:
+          type: string
+          format: uuid
+          description: UUID of table this operation applies to, if applicable
+        view-uuid:
+          type: string
+          format: uuid
+          description: UUID of view this operation applies to, if applicable
+      # Custom operations can include any additional properties beyond the standard ones
+      additionalProperties: true
 
     StatisticsFile:
       type: object
