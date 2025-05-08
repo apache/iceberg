@@ -4258,6 +4258,10 @@ components:
         content:
           type: string
           const: "data"
+        first-row-id:
+          type: integer
+          format: int64
+          description: "Starting row ID to assign to new rows"
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'

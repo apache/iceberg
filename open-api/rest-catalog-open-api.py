@@ -991,6 +991,9 @@ class ValueMap(BaseModel):
 
 class DataFile(ContentFile):
     content: str = Field(..., const=True)
+    first_row_id: Optional[int] = Field(
+        None, alias='first-row-id', description='Starting row ID to assign to new rows'
+    )
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
