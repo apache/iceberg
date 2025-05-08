@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -25,7 +26,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkCachedTableCatalog extends TestBaseWithCatalog {
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
