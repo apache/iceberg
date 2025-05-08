@@ -194,6 +194,13 @@ class SortOrder(BaseModel):
     fields: List[SortField]
 
 
+class EncryptedKey(BaseModel):
+    key_id: str = Field(..., alias='key-id')
+    encrypted_key_metadata: str = Field(..., alias='encrypted-key-metadata')
+    encrypted_by_id: Optional[str] = Field(None, alias='encrypted-by-id')
+    properties: Optional[Dict[str, str]] = None
+
+
 class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
@@ -393,6 +400,16 @@ class RemovePartitionSpecsUpdate(BaseUpdate):
 class RemoveSchemasUpdate(BaseUpdate):
     action: str = Field('remove-schemas', const=True)
     schema_ids: List[int] = Field(..., alias='schema-ids')
+
+
+class AddEncryptionKey(BaseUpdate):
+    action: str = Field('add-encryption-key', const=True)
+    encryption_key: Optional[EncryptedKey] = Field(None, alias='encryption-key')
+
+
+class RemoveEncryptionKey(BaseUpdate):
+    action: str = Field('remove-encryption-key', const=True)
+    key_id: Optional[str] = Field(None, alias='key-id')
 
 
 class TableRequirement(BaseModel):
@@ -1135,6 +1152,7 @@ class TableMetadata(BaseModel):
     last_partition_id: Optional[int] = Field(None, alias='last-partition-id')
     sort_orders: Optional[List[SortOrder]] = Field(None, alias='sort-orders')
     default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
+    encryption_keys: Optional[List[EncryptedKey]] = Field(None, alias='encryption-keys')
     snapshots: Optional[List[Snapshot]] = None
     refs: Optional[SnapshotReferences] = None
     current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
@@ -1189,6 +1207,8 @@ class TableUpdate(BaseModel):
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
         RemoveSchemasUpdate,
+        AddEncryptionKey,
+        RemoveEncryptionKey,
     ]
 
 
