@@ -43,7 +43,7 @@ import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.maintenance.api.LockFactoryCreator;
-import org.apache.iceberg.flink.maintenance.api.RewriteConfig;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -80,10 +80,10 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
         LockFactoryCreator.JDBC_URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
     flinkConf.setString(LockFactoryCreator.LOCK_ID, "test-lock-id");
-    flinkConf.setString(RewriteConfig.DATA_FILE_COUNT, "1");
+    flinkConf.setString(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
 
     flinkConf.setString("flink-maintenance.lock.jdbc.init-lock-tables", "true");
-    flinkConf.setString(RewriteConfig.REWRITE_ALL, "true");
+    flinkConf.setString(RewriteDataFilesConfig.REWRITE_ALL, "true");
   }
 
   @Test

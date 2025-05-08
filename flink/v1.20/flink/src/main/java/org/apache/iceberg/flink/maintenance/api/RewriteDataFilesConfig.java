@@ -21,16 +21,14 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.util.Map;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class RewriteConfig {
+public class RewriteDataFilesConfig {
   private static final String CONFIG_PREFIX = "flink-maintenance.rewrite.";
 
   private final Map<String, String> properties;
 
-  public RewriteConfig(Map<String, String> properties) {
+  public RewriteDataFilesConfig(Map<String, String> properties) {
     this.properties = properties;
   }
-
-  public static final String DATA_FILE_COUNT = CONFIG_PREFIX + "data-file-count";
 
   public static final String PARTIAL_PROGRESS_ENABLE = CONFIG_PREFIX + "partial-progress-enabled";
 
@@ -45,14 +43,40 @@ public class RewriteConfig {
 
   public static final String MAX_FILE_SIZE_BYTES = CONFIG_PREFIX + "max-file-size-bytes";
 
+  public static final String MAX_FILE_GROUP_SIZE_BYTES =
+      CONFIG_PREFIX + "max-file-group-size-bytes";
+
   public static final String MIN_INPUT_FILES = CONFIG_PREFIX + "min-input-files";
 
   public static final String DELETE_FILE_THRESHOLD = CONFIG_PREFIX + "delete-file-threshold";
 
   public static final String REWRITE_ALL = CONFIG_PREFIX + "rewrite-all";
 
-  public Integer getDataFileCount() {
-    return PropertyUtil.propertyAsNullableInt(properties, DATA_FILE_COUNT);
+  public static final String SCHEDULE_ON_COMMIT_COUNT = CONFIG_PREFIX + "schedule-on-commit-count";
+
+  public static final String SCHEDULE_ON_DATA_FILE_COUNT =
+      CONFIG_PREFIX + "schedule-on-data-file-count";
+
+  public static final String SCHEDULE_ON_DATA_FILE_SIZE =
+      CONFIG_PREFIX + "schedule-on-data-file-size";
+
+  public static final String SCHEDULE_ON_INTERVAL_SECOND =
+      CONFIG_PREFIX + "schedule-on-interval-second";
+
+  public Integer getScheduleOnCommitCount() {
+    return PropertyUtil.propertyAsNullableInt(properties, SCHEDULE_ON_COMMIT_COUNT);
+  }
+
+  public Integer getScheduleOnDataFileCount() {
+    return PropertyUtil.propertyAsNullableInt(properties, SCHEDULE_ON_DATA_FILE_COUNT);
+  }
+
+  public Integer getScheduleOnDataFileSize() {
+    return PropertyUtil.propertyAsNullableInt(properties, SCHEDULE_ON_DATA_FILE_SIZE);
+  }
+
+  public Integer getScheduleOnIntervalSecond() {
+    return PropertyUtil.propertyAsNullableInt(properties, SCHEDULE_ON_INTERVAL_SECOND);
   }
 
   public Boolean getPartialProgressEnable() {
@@ -77,6 +101,10 @@ public class RewriteConfig {
 
   public Long getMaxFileSizeBytes() {
     return PropertyUtil.propertyAsNullableLong(properties, MAX_FILE_SIZE_BYTES);
+  }
+
+  public Long getMaxFileGroupSizeBytes() {
+    return PropertyUtil.propertyAsNullableLong(properties, MAX_FILE_GROUP_SIZE_BYTES);
   }
 
   public Integer getMinInputFiles() {

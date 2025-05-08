@@ -30,6 +30,10 @@ public class TableMaintenanceConfig {
 
   public static final String LOCK_CHECK_DELAY = CONFIG_PREFIX + "lock-check-delay-seconds";
 
+  public static final String MAX_READ_BACK = CONFIG_PREFIX + "max-read-back";
+
+  public static final String PARALLELISM = CONFIG_PREFIX + "parallelism";
+
   private final Map<String, String> properties;
 
   public TableMaintenanceConfig(Map<String, String> properties) {
@@ -40,8 +44,16 @@ public class TableMaintenanceConfig {
     return PropertyUtil.propertyAsNullableLong(properties, RATE_LIMIT);
   }
 
+  public Integer getParallelism() {
+    return PropertyUtil.propertyAsNullableInt(properties, PARALLELISM);
+  }
+
   public Long getLockCheckDelay() {
     return PropertyUtil.propertyAsNullableLong(properties, LOCK_CHECK_DELAY);
+  }
+
+  public Integer getMaxReadBack() {
+    return PropertyUtil.propertyAsNullableInt(properties, MAX_READ_BACK);
   }
 
   public String getSlotSharingGroup() {

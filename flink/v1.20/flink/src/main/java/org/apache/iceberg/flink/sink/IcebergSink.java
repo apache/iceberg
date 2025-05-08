@@ -73,8 +73,8 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.LockFactoryCreator;
-import org.apache.iceberg.flink.maintenance.api.RewriteConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
@@ -265,23 +265,37 @@ public class IcebergSink
   }
 
   private RewriteDataFiles.Builder createRewriteBuilder(Map<String, String> properties) {
-    RewriteConfig rewriteConfig = new RewriteConfig(properties);
+    RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
-    Optional.ofNullable(rewriteConfig.getPartialProgressEnable())
+    Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressEnable())
         .ifPresent(builder::partialProgressEnabled);
-    Optional.ofNullable(rewriteConfig.getPartialProgressMaxCommits())
+    Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressMaxCommits())
         .ifPresent(builder::partialProgressMaxCommits);
-    Optional.ofNullable(rewriteConfig.getMaxRewriteBytes()).ifPresent(builder::maxRewriteBytes);
-    Optional.ofNullable(rewriteConfig.getTargetFileSizeBytes())
+    Optional.ofNullable(rewriteDataFilesConfig.getMaxRewriteBytes())
+        .ifPresent(builder::maxRewriteBytes);
+    Optional.ofNullable(rewriteDataFilesConfig.getTargetFileSizeBytes())
         .ifPresent(builder::targetFileSizeBytes);
-    Optional.ofNullable(rewriteConfig.getMinFileSizeBytes()).ifPresent(builder::minFileSizeBytes);
-    Optional.ofNullable(rewriteConfig.getMaxFileSizeBytes()).ifPresent(builder::maxFileSizeBytes);
-    Optional.ofNullable(rewriteConfig.getMinInputFiles()).ifPresent(builder::minInputFiles);
-    Optional.ofNullable(rewriteConfig.getDeleteFileThreshold())
+    Optional.ofNullable(rewriteDataFilesConfig.getMinFileSizeBytes())
+        .ifPresent(builder::minFileSizeBytes);
+    Optional.ofNullable(rewriteDataFilesConfig.getMaxFileSizeBytes())
+        .ifPresent(builder::maxFileSizeBytes);
+    Optional.ofNullable(rewriteDataFilesConfig.getMaxFileGroupSizeBytes())
+        .ifPresent(builder::maxFileGroupSizeBytes);
+    Optional.ofNullable(rewriteDataFilesConfig.getMinInputFiles())
+        .ifPresent(builder::minInputFiles);
+    Optional.ofNullable(rewriteDataFilesConfig.getDeleteFileThreshold())
         .ifPresent(builder::deleteFileThreshold);
-    Optional.ofNullable(rewriteConfig.getRewriteAll()).ifPresent(builder::rewriteAll);
-    Optional.ofNullable(rewriteConfig.getDataFileCount())
+    Optional.ofNullable(rewriteDataFilesConfig.getRewriteAll()).ifPresent(builder::rewriteAll);
+
+    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnCommitCount())
+        .ifPresent(builder::scheduleOnCommitCount);
+    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileCount())
         .ifPresent(builder::scheduleOnDataFileCount);
+    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileSize())
+        .ifPresent(builder::scheduleOnDataFileSize);
+    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnIntervalSecond())
+        .ifPresent(
+            intervalSecond -> builder.scheduleOnInterval(Duration.ofSeconds(intervalSecond)));
 
     return builder;
   }
@@ -293,9 +307,11 @@ public class IcebergSink
         .ifPresent(rate -> builder.rateLimit(Duration.ofSeconds(rate)));
     Optional.ofNullable(config.getLockCheckDelay())
         .ifPresent(delay -> builder.lockCheckDelay(Duration.ofSeconds(delay)));
+    Optional.ofNullable(config.getMaxReadBack()).ifPresent(builder::maxReadBack);
     Optional.ofNullable(config.getSlotSharingGroup())
         .filter(StringUtils::isNotBlank)
         .ifPresent(builder::slotSharingGroup);
+    Optional.ofNullable(config.getParallelism()).ifPresent(builder::parallelism);
   }
 
   @Override
