@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.connect.data.ErrorTolerance;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -79,6 +80,8 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String ERROR_TOLERANCE = "errors.tolerance";
+  private static final String ERROR_LOG_INCLUDE_MESSAGES = "errors.log.include.messages";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -93,6 +96,9 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private static final String NAME_PROP = "name";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
+
+  private static final String DEFAULT_ERROR_TOLERANCE = ErrorTolerance.NONE.toString();
+  private static final String DEFAULT_ERROR_LOG_INCLUDE_MESSAGES = "false";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
@@ -177,6 +183,18 @@ public class IcebergSinkConfig extends AbstractConfig {
         DEFAULT_CATALOG_NAME,
         Importance.MEDIUM,
         "Iceberg catalog name");
+    configDef.define(
+        ERROR_TOLERANCE,
+        ConfigDef.Type.STRING,
+        DEFAULT_ERROR_TOLERANCE,
+        Importance.MEDIUM,
+        "Behavior for tolerating errors during connector operation. 'none' is the default value and signals that any error will result in an immediate connector task failure; 'all' changes the behavior to skip over problematic records.");
+    configDef.define(
+        ERROR_LOG_INCLUDE_MESSAGES,
+        ConfigDef.Type.BOOLEAN,
+        DEFAULT_ERROR_LOG_INCLUDE_MESSAGES,
+        Importance.MEDIUM,
+        "If true, write each error and the details of the failed operation and problematic record to the Connect application log. This is 'false' by default, so that only errors that are not tolerated are reported.");
     configDef.define(
         CONTROL_TOPIC_PROP,
         ConfigDef.Type.STRING,
@@ -432,6 +450,14 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public JsonConverter jsonConverter() {
     return jsonConverter;
+  }
+
+  public String errorTolerance() {
+    return getString(ERROR_TOLERANCE);
+  }
+
+  public boolean errorLogIncludeMessages() {
+    return getBoolean(ERROR_LOG_INCLUDE_MESSAGES);
   }
 
   @VisibleForTesting
