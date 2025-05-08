@@ -404,12 +404,12 @@ class RemoveSchemasUpdate(BaseUpdate):
 
 class AddEncryptionKey(BaseUpdate):
     action: str = Field('add-encryption-key', const=True)
-    encryption_key: Optional[EncryptedKey] = Field(None, alias='encryption-key')
+    encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKey(BaseUpdate):
     action: str = Field('remove-encryption-key', const=True)
-    key_id: Optional[str] = Field(None, alias='key-id')
+    key_id: str = Field(..., alias='key-id')
 
 
 class TableRequirement(BaseModel):

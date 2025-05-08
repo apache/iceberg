@@ -3026,6 +3026,8 @@ components:
     AddEncryptionKey:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - encryption-key
       properties:
         action:
           type: string
@@ -3036,6 +3038,8 @@ components:
     RemoveEncryptionKey:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - key-id
       properties:
         action:
           type: string
