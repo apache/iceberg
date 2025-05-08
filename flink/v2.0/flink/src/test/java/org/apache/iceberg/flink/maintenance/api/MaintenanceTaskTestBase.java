@@ -41,7 +41,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, () -> true);
+    runAndWaitForResult(env, triggerSource, collectingSink, false, () -> true, true);
   }
 
   void runAndWaitForSuccess(
@@ -50,7 +50,17 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       CollectingSink<TaskResult> collectingSink,
       Supplier<Boolean> waitForCondition)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition);
+    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition, true);
+  }
+
+  void runAndWaitForSuccess(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink,
+      Supplier<Boolean> waitForCondition,
+      boolean resultSuccess)
+      throws Exception {
+    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition, resultSuccess);
   }
 
   void runAndWaitForFailure(
@@ -58,7 +68,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, true, () -> true);
+    runAndWaitForResult(env, triggerSource, collectingSink, true, () -> true, true);
   }
 
   void runAndWaitForResult(
@@ -66,7 +76,8 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
       boolean generateFailure,
-      Supplier<Boolean> waitForCondition)
+      Supplier<Boolean> waitForCondition,
+      boolean resultSuccess)
       throws Exception {
     JobClient jobClient = null;
     try {
@@ -79,7 +90,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       TaskResult result = collectingSink.poll(POLL_DURATION);
 
       assertThat(result.startEpoch()).isEqualTo(time);
-      assertThat(result.success()).isTrue();
+      assertThat(result.success()).isEqualTo(resultSuccess);
       assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
 
       if (generateFailure) {
