@@ -2703,8 +2703,8 @@ components:
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
           remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
           remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
-          add-encryption-key: '#/components/schemas/AddEncryptionKey'
-          remove-encryption-key: '#/components/schemas/RemoveEncryptionKey'
+          add-encryption-key: '#/components/schemas/AddEncryptionKeyUpdate'
+          remove-encryption-key: '#/components/schemas/RemoveEncryptionKeyUpdate'
       type: object
       required:
         - action
@@ -3023,7 +3023,7 @@ components:
           items:
             type: integer
 
-    AddEncryptionKey:
+    AddEncryptionKeyUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
@@ -3035,7 +3035,7 @@ components:
         encryption-key:
           $ref: '#/components/schemas/EncryptedKey'
 
-    RemoveEncryptionKey:
+    RemoveEncryptionKeyUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
@@ -3068,8 +3068,8 @@ components:
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
         - $ref: '#/components/schemas/RemoveSchemasUpdate'
-        - $ref: '#/components/schemas/AddEncryptionKey'
-        - $ref: '#/components/schemas/RemoveEncryptionKey'
+        - $ref: '#/components/schemas/AddEncryptionKeyUpdate'
+        - $ref: '#/components/schemas/RemoveEncryptionKeyUpdate'
 
     ViewUpdate:
       anyOf:
