@@ -104,9 +104,16 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   protected Map<String, String> properties;
   @Parameter private int formatVersion;
 
-  @Parameters(name = "formatVersion = {0}")
+  @Parameter(index = 1)
+  private boolean usePrefixList;
+
+  @Parameters(name = "formatVersion = {0}, usePrefixList = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+    return Arrays.asList(
+        new Object[] {2, true},
+        new Object[] {3, true},
+        new Object[] {2, false},
+        new Object[] {3, false});
   }
 
   @BeforeEach
@@ -158,7 +165,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result1 =
-        actions.deleteOrphanFiles(table).deleteWith(s -> {}).execute();
+        actions.deleteOrphanFiles(table).usePrefixList(usePrefixList).deleteWith(s -> {}).execute();
     assertThat(result1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
@@ -166,6 +173,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result2 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {})
             .execute();
@@ -177,7 +185,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .isTrue();
 
     DeleteOrphanFiles.Result result3 =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
     assertThat(result3.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFiles);
@@ -237,7 +249,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 4 files").hasSize(4);
 
@@ -302,6 +318,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         SparkActions.get()
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .executeDeleteWith(executorService)
             .olderThan(System.currentTimeMillis() + 5000) // Ensure all orphan files are selected
             .deleteWith(
@@ -339,6 +356,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     // wap write
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
+    spark.conf().unset(SparkSQLProperties.WAP_ID);
+
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
         resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
@@ -353,7 +372,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
   }
@@ -379,7 +402,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
 
@@ -413,7 +440,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(timestamp).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(timestamp)
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 2 files").hasSize(2);
   }
@@ -439,7 +470,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations())
         .containsExactly(tableLocation + "metadata/v1.metadata.json");
@@ -472,7 +507,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
 
@@ -498,7 +537,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
 
@@ -534,7 +577,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -570,7 +617,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -605,7 +656,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 0 files").isEmpty();
     assertThat(fs.exists(pathToFileInHiddenFolder)).isTrue();
@@ -671,6 +726,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {})
             .execute();
@@ -707,7 +763,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     table.refresh();
 
     DeleteOrphanFiles.Result result =
-        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 1 file").hasSize(1);
 
@@ -739,6 +799,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         SparkActions.get()
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     assertThat(result.orphanFileLocations())
@@ -759,7 +820,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    assertThatThrownBy(() -> SparkActions.get().deleteOrphanFiles(table).execute())
+    assertThatThrownBy(
+            () ->
+                SparkActions.get().deleteOrphanFiles(table).usePrefixList(usePrefixList).execute())
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
@@ -826,6 +889,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result1 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .compareToFileList(compareToFileList)
             .deleteWith(s -> {})
             .execute();
@@ -836,6 +900,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result2 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {})
@@ -850,6 +915,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result3 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .execute();
@@ -881,6 +947,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result4 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .compareToFileList(compareToFileListWithOutsideLocation)
             .deleteWith(s -> {})
             .execute();
@@ -942,6 +1009,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     SparkActions.get()
         .deleteOrphanFiles(table)
+        .usePrefixList(usePrefixList)
         .olderThan(System.currentTimeMillis() + 1000)
         .execute();
 
@@ -957,6 +1025,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         SparkActions.get()
             .deleteOrphanFiles(table)
+            .usePrefixList(usePrefixList)
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();

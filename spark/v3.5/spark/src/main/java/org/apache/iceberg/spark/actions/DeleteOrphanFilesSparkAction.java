@@ -122,6 +122,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
+  private boolean usePrefixList = false;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -204,6 +205,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         lastModifiedField.dataType());
 
     this.compareToFileList = files;
+    return this;
+  }
+
+  public DeleteOrphanFilesSparkAction usePrefixList(boolean newUsePrefixList) {
+    this.usePrefixList = newUsePrefixList;
     return this;
   }
 
@@ -303,15 +309,21 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<String> listedFileDS() {
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
-    boolean isSupportPrefixOperations = table.io() instanceof SupportsPrefixOperations;
 
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
-    if (isSupportPrefixOperations) {
+    if (usePrefixList) {
+      Preconditions.checkArgument(
+          table.io() instanceof SupportsPrefixOperations,
+          "Table file io should prefix operations when using prefix list.");
+
       Predicate<org.apache.iceberg.io.FileInfo> predicate =
           fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
       listDirRecursivelyWithFileIO(
           (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
+
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
     } else {
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
       // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
@@ -325,23 +337,23 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           subDirs,
           pathFilter,
           matchingFiles);
+
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+
+      if (subDirs.isEmpty()) {
+        return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+      }
+
+      int parallelism = Math.min(subDirs.size(), listingParallelism);
+      JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
+
+      Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
+      ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
+      JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
+
+      JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
+      return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
-
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
-
-    if (subDirs.isEmpty()) {
-      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
-    }
-
-    int parallelism = Math.min(subDirs.size(), listingParallelism);
-    JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
-
-    Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
-    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
-
-    JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
   }
 
   private static void listDirRecursivelyWithFileIO(
