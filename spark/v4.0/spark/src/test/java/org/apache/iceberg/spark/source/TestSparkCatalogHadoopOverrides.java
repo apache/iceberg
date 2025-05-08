@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.KryoHelpers;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -35,7 +36,9 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
 
   private static final String CONFIG_TO_OVERRIDE = "fs.s3a.buffer.dir";
