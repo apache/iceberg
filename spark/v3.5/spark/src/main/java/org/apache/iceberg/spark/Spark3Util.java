@@ -61,7 +61,6 @@ import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -102,6 +101,7 @@ public class Spark3Util {
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
+  private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   private Spark3Util() {}
 
@@ -947,7 +947,7 @@ public class Spark3Util {
                         Object catalystValue = partition.values().get(fieldIndex, field.dataType());
                         Object value =
                             CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-                        values.put(field.name(), (value == null) ? Conversions.HIVE_NULL : value.toString());
+                        values.put(field.name(), (value == null) ? HIVE_NULL : value.toString());
                       });
 
               FileStatusWithMetadata fileStatus =

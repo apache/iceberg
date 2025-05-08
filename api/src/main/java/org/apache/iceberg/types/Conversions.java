@@ -37,7 +37,7 @@ public class Conversions {
 
   private Conversions() {}
 
-  public static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
+  private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   public static Object fromPartitionString(Type type, String asString) {
     if (asString == null || HIVE_NULL.equals(asString)) {
