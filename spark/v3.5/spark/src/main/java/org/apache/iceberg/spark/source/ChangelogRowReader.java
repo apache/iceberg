@@ -37,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.NestedField;
@@ -243,7 +244,10 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
 
   private static Stream<ContentFile<?>> deletedRowsScanTaskFiles(DeletedRowsScanTask task) {
     DataFile file = task.file();
-    List<DeleteFile> deletes = task.addedDeletes();
+    List<DeleteFile> existingDeletes = task.existingDeletes();
+    List<DeleteFile> newDeletes = task.addedDeletes();
+    List<DeleteFile> deletes =
+        ImmutableList.<DeleteFile>builder().addAll(existingDeletes).addAll(newDeletes).build();
     return Stream.concat(Stream.of(file), deletes.stream());
   }
 }
