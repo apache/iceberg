@@ -137,14 +137,14 @@ public class ZkLockFactory implements TriggerLockFactory {
     @Override
     public boolean tryLock() {
       if (isHeld()) {
-        LOG.info("Lock is already held for {}", this);
+        LOG.debug("Lock is already held for {}", this);
         return false;
       }
 
       try {
         return sharedCount.trySetCount(sharedCount.getVersionedValue(), 1);
       } catch (Exception e) {
-        LOG.info("Failed to acquire Zookeeper lock ", e);
+        LOG.debug("Failed to acquire Zookeeper lock ", e);
         return false;
       }
     }
@@ -163,7 +163,6 @@ public class ZkLockFactory implements TriggerLockFactory {
       try {
         sharedCount.setCount(0);
       } catch (Exception e) {
-        LOG.info("Failed to release Zookeeper lock ", e);
         throw new RuntimeException("Failed to release lock", e);
       }
     }
