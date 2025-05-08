@@ -60,4 +60,13 @@ public class TableUtil {
               "%s does not have a metadata file location", table.getClass().getSimpleName()));
     }
   }
+
+  public static boolean supportsRowLineage(Table table) {
+    Preconditions.checkArgument(null != table, "Invalid table: null");
+    if (table instanceof BaseMetadataTable) {
+      return false;
+    }
+
+    return formatVersion(table) >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE;
+  }
 }

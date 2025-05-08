@@ -63,7 +63,6 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -72,12 +71,12 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -108,7 +107,6 @@ import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
-import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
@@ -117,7 +115,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -170,7 +167,9 @@ public class TestRewriteDataFilesAction extends TestBase {
   private RewriteDataFilesSparkAction basicRewrite(Table table) {
     // Always compact regardless of input files
     table.refresh();
-    return actions().rewriteDataFiles(table).option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1");
+    return actions()
+        .rewriteDataFiles(table)
+        .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1");
   }
 
   @TestTemplate
@@ -291,9 +290,9 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .option(
-                SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) + 1000))
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
@@ -349,8 +348,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         SparkActions.get(spark)
             .rewriteDataFiles(table)
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
@@ -399,8 +398,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         SparkActions.get(spark)
             .rewriteDataFiles(table)
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
@@ -449,8 +448,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         SparkActions.get(spark)
             .rewriteDataFiles(table)
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
@@ -508,11 +507,11 @@ public class TestRewriteDataFilesAction extends TestBase {
           actions()
               .rewriteDataFiles(table)
               // do not include any file based on bin pack file size configs
-              .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+              .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
               .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-              .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+              .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
               // set DELETE_FILE_THRESHOLD to 1 since DVs only produce one delete file per data file
-              .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "1")
+              .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "1")
               .execute();
       assertThat(result.rewrittenDataFilesCount())
           .as("Action should rewrite 5 data files")
@@ -523,10 +522,10 @@ public class TestRewriteDataFilesAction extends TestBase {
           actions()
               .rewriteDataFiles(table)
               // do not include any file based on bin pack file size configs
-              .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+              .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
               .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-              .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-              .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "2")
+              .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+              .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "2")
               .execute();
       assertThat(result.rewrittenDataFilesCount())
           .as("Action should rewrite 2 data files")
@@ -584,7 +583,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .filter(Expressions.equal("c1", 1))
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
@@ -644,7 +643,7 @@ public class TestRewriteDataFilesAction extends TestBase {
         actions()
             .rewriteDataFiles(table)
             .filter(Expressions.equal("c1", 1))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
@@ -690,7 +689,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Result result =
         actions()
             .rewriteDataFiles(table)
-            .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "1")
+            .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "1")
             .execute();
     assertThat(result.rewrittenDataFilesCount()).as("Action should rewrite 1 data files").isOne();
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
@@ -841,7 +840,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
-            .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(targetSize * 2 - 2000))
+            .option(
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
+                Long.toString(targetSize * 2 - 2000))
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).as("Action should delete 1 data files").isOne();
@@ -872,8 +873,12 @@ public class TestRewriteDataFilesAction extends TestBase {
     Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize + 1000))
-            .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 80000))
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 1000))
+            .option(
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
+                Integer.toString(targetSize + 80000))
+            .option(
+                SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES,
+                Integer.toString(targetSize - 1000))
             .execute();
 
     assertThat(result.rewrittenDataFilesCount())
@@ -904,10 +909,10 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
             .option(
-                SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 Integer.toString((int) (targetSize * 1.8)))
             .option(
-                SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES,
                 Integer.toString(targetSize - 100)) // All files too small
             .execute();
 
@@ -967,7 +972,7 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .option(
                 RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
@@ -1386,7 +1391,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             () ->
                 basicRewrite(table)
                     .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
-                    .option(SparkShufflingDataRewriter.SHUFFLE_PARTITIONS_PER_FILE, "5")
+                    .option(SparkShufflingFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE, "5")
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("requires enabling Iceberg Spark session extensions");
@@ -1407,7 +1412,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .sort()
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
                 RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
             .execute();
@@ -1437,8 +1442,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .sort()
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
             .execute();
@@ -1471,8 +1476,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .sort()
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
             .execute();
@@ -1505,7 +1510,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
             .execute();
@@ -1543,7 +1548,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / partitions))
@@ -1577,13 +1582,13 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
             .option(
-                SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 Integer.toString((averageFileSize(table) / 2) + 2))
             // Divide files in 2
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / 2))
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
@@ -1657,13 +1662,13 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .zOrder("c2", "c3")
             .option(
-                SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 Integer.toString((averageFileSize(table) / 2) + 2))
             // Divide files in 2
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / 2))
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
@@ -1719,8 +1724,8 @@ public class TestRewriteDataFilesAction extends TestBase {
                 "stringCol",
                 "binaryCol",
                 "booleanCol")
-            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
@@ -1748,143 +1753,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
-  }
-
-  @TestTemplate
-  public void testRewriteJobOrderBytesAsc() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    Table table = createTablePartitioned(4, 2);
-    writeRecords(1, SCALE, 1);
-    writeRecords(2, SCALE, 2);
-    writeRecords(3, SCALE, 3);
-    writeRecords(4, SCALE, 4);
-
-    RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
-    List<Long> expected =
-        toGroupStream(table, basicRewrite)
-            .mapToLong(RewriteFileGroup::sizeInBytes)
-            .boxed()
-            .collect(Collectors.toList());
-
-    RewriteDataFilesSparkAction jobOrderRewrite =
-        basicRewrite(table)
-            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_ASC.orderName())
-            .binPack();
-    List<Long> actual =
-        toGroupStream(table, jobOrderRewrite)
-            .mapToLong(RewriteFileGroup::sizeInBytes)
-            .boxed()
-            .collect(Collectors.toList());
-
-    expected.sort(Comparator.naturalOrder());
-    assertThat(actual).as("Size in bytes order should be ascending").isEqualTo(expected);
-    Collections.reverse(expected);
-    assertThat(actual).as("Size in bytes order should not be descending").isNotEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testRewriteJobOrderBytesDesc() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    Table table = createTablePartitioned(4, 2);
-    writeRecords(1, SCALE, 1);
-    writeRecords(2, SCALE, 2);
-    writeRecords(3, SCALE, 3);
-    writeRecords(4, SCALE, 4);
-
-    RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
-    List<Long> expected =
-        toGroupStream(table, basicRewrite)
-            .mapToLong(RewriteFileGroup::sizeInBytes)
-            .boxed()
-            .collect(Collectors.toList());
-
-    RewriteDataFilesSparkAction jobOrderRewrite =
-        basicRewrite(table)
-            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_DESC.orderName())
-            .binPack();
-    List<Long> actual =
-        toGroupStream(table, jobOrderRewrite)
-            .mapToLong(RewriteFileGroup::sizeInBytes)
-            .boxed()
-            .collect(Collectors.toList());
-
-    expected.sort(Comparator.reverseOrder());
-    assertThat(actual).as("Size in bytes order should be descending").isEqualTo(expected);
-    Collections.reverse(expected);
-    assertThat(actual).as("Size in bytes order should not be ascending").isNotEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testRewriteJobOrderFilesAsc() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    Table table = createTablePartitioned(4, 2);
-    writeRecords(1, SCALE, 1);
-    writeRecords(2, SCALE, 2);
-    writeRecords(3, SCALE, 3);
-    writeRecords(4, SCALE, 4);
-
-    RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
-    List<Long> expected =
-        toGroupStream(table, basicRewrite)
-            .mapToLong(RewriteFileGroup::numFiles)
-            .boxed()
-            .collect(Collectors.toList());
-
-    RewriteDataFilesSparkAction jobOrderRewrite =
-        basicRewrite(table)
-            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_ASC.orderName())
-            .binPack();
-    List<Long> actual =
-        toGroupStream(table, jobOrderRewrite)
-            .mapToLong(RewriteFileGroup::numFiles)
-            .boxed()
-            .collect(Collectors.toList());
-
-    expected.sort(Comparator.naturalOrder());
-    assertThat(actual).as("Number of files order should be ascending").isEqualTo(expected);
-    Collections.reverse(expected);
-    assertThat(actual).as("Number of files order should not be descending").isNotEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testRewriteJobOrderFilesDesc() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-    Table table = createTablePartitioned(4, 2);
-    writeRecords(1, SCALE, 1);
-    writeRecords(2, SCALE, 2);
-    writeRecords(3, SCALE, 3);
-    writeRecords(4, SCALE, 4);
-
-    RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
-    List<Long> expected =
-        toGroupStream(table, basicRewrite)
-            .mapToLong(RewriteFileGroup::numFiles)
-            .boxed()
-            .collect(Collectors.toList());
-
-    RewriteDataFilesSparkAction jobOrderRewrite =
-        basicRewrite(table)
-            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_DESC.orderName())
-            .binPack();
-    List<Long> actual =
-        toGroupStream(table, jobOrderRewrite)
-            .mapToLong(RewriteFileGroup::numFiles)
-            .boxed()
-            .collect(Collectors.toList());
-
-    expected.sort(Comparator.reverseOrder());
-    assertThat(actual).as("Number of files order should be descending").isEqualTo(expected);
-    Collections.reverse(expected);
-    assertThat(actual).as("Number of files order should not be ascending").isNotEqualTo(expected);
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
   }
 
   @TestTemplate
@@ -1917,7 +1794,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .binPack()
             .execute();
 
@@ -1940,7 +1817,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .binPack()
             .execute();
 
@@ -1979,7 +1856,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .sort(SortOrder.builderFor(table.schema()).asc("c2").asc("c3").build())
             .execute();
 
@@ -2002,7 +1879,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .zOrder("c2", "c3")
             .execute();
 
@@ -2026,15 +1903,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     return Streams.stream(table.newScan().planFiles())
         .map(FileScanTask::file)
         .collect(Collectors.toList());
-  }
-
-  private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
-    rewrite.validateAndInitOptions();
-    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
-
-    return rewrite.toGroupStream(
-        new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);
   }
 
   protected List<Object[]> currentData() {

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -28,7 +29,9 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRefreshTable extends CatalogTestBase {
 
   @BeforeEach

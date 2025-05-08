@@ -51,7 +51,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -217,7 +217,7 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
 
     SparkActions.get(spark)
         .rewriteDataFiles(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
 
     // write dangling delete files for 'old data files'
@@ -230,7 +230,7 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);

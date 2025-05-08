@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 
@@ -50,7 +51,7 @@ public class MetadataColumns {
   public static final int SPEC_ID_COLUMN_ID = Integer.MAX_VALUE - 4;
   public static final String SPEC_ID_COLUMN_DOC = "Spec ID used to track the file containing a row";
   public static final NestedField SPEC_ID =
-      NestedField.required(
+      NestedField.optional(
           SPEC_ID_COLUMN_ID, "_spec_id", Types.IntegerType.get(), SPEC_ID_COLUMN_DOC);
   // the partition column type is not static and depends on all specs in the table
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
@@ -151,5 +152,9 @@ public class MetadataColumns {
 
   public static boolean nonMetadataColumn(String name) {
     return !isMetadataColumn(name);
+  }
+
+  public static Schema schemaWithRowLineage(Schema schema) {
+    return TypeUtil.join(schema, new Schema(ROW_ID, LAST_UPDATED_SEQUENCE_NUMBER));
   }
 }

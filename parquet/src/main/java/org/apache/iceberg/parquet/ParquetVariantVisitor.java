@@ -31,6 +31,7 @@ public abstract class ParquetVariantVisitor<R> {
   static final String METADATA = "metadata";
   static final String VALUE = "value";
   static final String TYPED_VALUE = "typed_value";
+  static final String LIST = "list";
 
   /**
    * Handles the root variant column group.
