@@ -176,7 +176,6 @@ public class RewriteDataFiles {
      * Configures the properties for the rewriter.
      *
      * @param properties properties for the rewriter
-     * @return
      */
     public Builder properties(Map<String, String> properties) {
       RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
