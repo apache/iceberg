@@ -120,6 +120,9 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+      url "https://repository.apache.org/content/repositories/orgapachespark-1480/"
+    }
   }
 }
 
