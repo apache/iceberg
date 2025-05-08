@@ -402,12 +402,12 @@ class RemoveSchemasUpdate(BaseUpdate):
     schema_ids: List[int] = Field(..., alias='schema-ids')
 
 
-class AddEncryptionKey(BaseUpdate):
+class AddEncryptionKeyUpdate(BaseUpdate):
     action: str = Field('add-encryption-key', const=True)
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
-class RemoveEncryptionKey(BaseUpdate):
+class RemoveEncryptionKeyUpdate(BaseUpdate):
     action: str = Field('remove-encryption-key', const=True)
     key_id: str = Field(..., alias='key-id')
 
@@ -1207,8 +1207,8 @@ class TableUpdate(BaseModel):
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
         RemoveSchemasUpdate,
-        AddEncryptionKey,
-        RemoveEncryptionKey,
+        AddEncryptionKeyUpdate,
+        RemoveEncryptionKeyUpdate,
     ]
 
 
