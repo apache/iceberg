@@ -16,51 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStats;
-import org.apache.iceberg.PartitionStatsUtil;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.InternalReader;
-import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.PartitionMap;
+import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
  * to support writing and reading of the stats in table default format.
- *
- * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
- *     org.apache.iceberg.PartitionStatsHandler} from core module
  */
-@Deprecated
 public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}
@@ -142,13 +133,13 @@ public class PartitionStatsHandler {
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
-    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, snapshot);
+    Collection<PartitionStats> stats = computeStats(table, snapshot);
     if (stats.isEmpty()) {
       return null;
     }
 
     StructType partitionType = Partitioning.partitionType(table);
-    List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
+    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
         table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
@@ -163,8 +154,9 @@ public class PartitionStatsHandler {
 
     OutputFile outputFile = newPartitionStatsFile(table, fileFormat, snapshotId);
 
-    try (DataWriter<StructLike> writer = dataWriter(dataSchema, outputFile, fileFormat)) {
-      records.iterator().forEachRemaining(writer::write);
+    try (FileAppender<StructLike> writer =
+        InternalData.write(fileFormat, outputFile).schema(dataSchema).build()) {
+      records.iterator().forEachRemaining(writer::add);
     }
 
     return ImmutableGenericPartitionStatisticsFile.builder()
@@ -182,7 +174,12 @@ public class PartitionStatsHandler {
    */
   public static CloseableIterable<PartitionStats> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
-    CloseableIterable<StructLike> records = dataReader(schema, inputFile);
+    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
+
+    CloseableIterable<StructLike> records =
+        InternalData.read(fileFormat, inputFile).project(schema).build();
     return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
   }
 
@@ -201,53 +198,6 @@ public class PartitionStatsHandler {
                     fileFormat.addExtension(
                         String.format(
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
-  }
-
-  private static DataWriter<StructLike> dataWriter(
-      Schema dataSchema, OutputFile outputFile, FileFormat fileFormat) throws IOException {
-    switch (fileFormat) {
-      case PARQUET:
-        return Parquet.writeData(outputFile)
-            .schema(dataSchema)
-            .createWriterFunc(InternalWriter::createWriter)
-            .withSpec(PartitionSpec.unpartitioned())
-            .build();
-      case AVRO:
-        return Avro.writeData(outputFile)
-            .schema(dataSchema)
-            .createWriterFunc(org.apache.iceberg.avro.InternalWriter::create)
-            .withSpec(PartitionSpec.unpartitioned())
-            .build();
-      case ORC:
-        // Internal writers are not supported for ORC yet.
-      default:
-        throw new UnsupportedOperationException("Unsupported file format:" + fileFormat.name());
-    }
-  }
-
-  private static CloseableIterable<StructLike> dataReader(Schema schema, InputFile inputFile) {
-    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
-    Preconditions.checkArgument(
-        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
-
-    switch (fileFormat) {
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(
-                fileSchema ->
-                    org.apache.iceberg.data.parquet.InternalReader.create(schema, fileSchema))
-            .build();
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> InternalReader.create(schema))
-            .build();
-      case ORC:
-        // Internal readers are not supported for ORC yet.
-      default:
-        throw new UnsupportedOperationException("Unsupported file format:" + fileFormat.name());
-    }
   }
 
   private static PartitionStats recordToPartitionStats(StructLike record) {
@@ -278,5 +228,86 @@ public class PartitionStatsHandler {
         LAST_UPDATED_SNAPSHOT_ID.fieldId(),
         record.get(LAST_UPDATED_SNAPSHOT_ID.fieldId(), Long.class));
     return stats;
+  }
+
+  private static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
+    Preconditions.checkArgument(table != null, "table cannot be null");
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "table must be partitioned");
+    Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
+
+    StructType partitionType = Partitioning.partitionType(table);
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Tasks.foreach(manifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
+
+    return mergeStats(statsByManifest, table.specs());
+  }
+
+  private static List<PartitionStats> sortStatsByPartition(
+      Collection<PartitionStats> stats, StructType partitionType) {
+    List<PartitionStats> entries = Lists.newArrayList(stats);
+    entries.sort(
+        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+    return entries;
+  }
+
+  private static PartitionMap<PartitionStats> collectStats(
+      Table table, ManifestFile manifest, StructType partitionType) {
+    try (ManifestReader<?> reader = openManifest(table, manifest)) {
+      PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+      int specId = manifest.partitionSpecId();
+      PartitionSpec spec = table.specs().get(specId);
+      PartitionData keyTemplate = new PartitionData(partitionType);
+
+      for (ManifestEntry<?> entry : reader.entries()) {
+        ContentFile<?> file = entry.file();
+        StructLike coercedPartition =
+            PartitionUtil.coercePartition(partitionType, spec, file.partition());
+        StructLike key = keyTemplate.copyFor(coercedPartition);
+        Snapshot snapshot = table.snapshot(entry.snapshotId());
+        PartitionStats stats =
+            statsMap.computeIfAbsent(
+                specId,
+                ((PartitionData) file.partition()).copy(),
+                () -> new PartitionStats(key, specId));
+        if (entry.isLive()) {
+          stats.liveEntry(file, snapshot);
+        } else {
+          stats.deletedEntry(snapshot);
+        }
+      }
+
+      return statsMap;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static ManifestReader<?> openManifest(Table table, ManifestFile manifest) {
+    List<String> projection = BaseScan.scanColumns(manifest.content());
+    return ManifestFiles.open(manifest, table.io()).select(projection);
+  }
+
+  private static Collection<PartitionStats> mergeStats(
+      Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
+
+    for (PartitionMap<PartitionStats> stats : statsByManifest) {
+      stats.forEach(
+          (key, value) ->
+              statsMap.merge(
+                  key,
+                  value,
+                  (existingEntry, newEntry) -> {
+                    existingEntry.appendStats(newEntry);
+                    return existingEntry;
+                  }));
+    }
+
+    return statsMap.values();
   }
 }
