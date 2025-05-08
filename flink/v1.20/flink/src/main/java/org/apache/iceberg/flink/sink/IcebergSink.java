@@ -74,7 +74,6 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.LockFactoryCreator;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
-import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
@@ -245,15 +244,12 @@ public class IcebergSink
     SingleOutputStreamOperator<TableChange> tableChangeStream =
         committables
             .global()
-            .transform(
-                "CommittableToTableChangeConverter",
-                TypeInformation.of(TableChange.class),
-                new CommittableToTableChangeConverter(tableLoader.clone()))
+            .process(new CommittableToTableChangeConverter(tableLoader.clone()))
             .uid("committable-to-table-change-converter")
             .forceNonParallel();
     try {
       TriggerLockFactory triggerLockFactory = LockFactoryCreator.create(flinkOptions);
-      RewriteDataFiles.Builder rewriteBuilder = createRewriteBuilder(flinkOptions);
+      RewriteDataFiles.Builder rewriteBuilder = RewriteDataFiles.builder().properties(flinkOptions);
       TableMaintenance.Builder builder =
           TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
               .add(rewriteBuilder);
@@ -262,42 +258,6 @@ public class IcebergSink
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
     }
-  }
-
-  private RewriteDataFiles.Builder createRewriteBuilder(Map<String, String> properties) {
-    RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
-    Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressEnable())
-        .ifPresent(builder::partialProgressEnabled);
-    Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressMaxCommits())
-        .ifPresent(builder::partialProgressMaxCommits);
-    Optional.ofNullable(rewriteDataFilesConfig.getMaxRewriteBytes())
-        .ifPresent(builder::maxRewriteBytes);
-    Optional.ofNullable(rewriteDataFilesConfig.getTargetFileSizeBytes())
-        .ifPresent(builder::targetFileSizeBytes);
-    Optional.ofNullable(rewriteDataFilesConfig.getMinFileSizeBytes())
-        .ifPresent(builder::minFileSizeBytes);
-    Optional.ofNullable(rewriteDataFilesConfig.getMaxFileSizeBytes())
-        .ifPresent(builder::maxFileSizeBytes);
-    Optional.ofNullable(rewriteDataFilesConfig.getMaxFileGroupSizeBytes())
-        .ifPresent(builder::maxFileGroupSizeBytes);
-    Optional.ofNullable(rewriteDataFilesConfig.getMinInputFiles())
-        .ifPresent(builder::minInputFiles);
-    Optional.ofNullable(rewriteDataFilesConfig.getDeleteFileThreshold())
-        .ifPresent(builder::deleteFileThreshold);
-    Optional.ofNullable(rewriteDataFilesConfig.getRewriteAll()).ifPresent(builder::rewriteAll);
-
-    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnCommitCount())
-        .ifPresent(builder::scheduleOnCommitCount);
-    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileCount())
-        .ifPresent(builder::scheduleOnDataFileCount);
-    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileSize())
-        .ifPresent(builder::scheduleOnDataFileSize);
-    Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnIntervalSecond())
-        .ifPresent(
-            intervalSecond -> builder.scheduleOnInterval(Duration.ofSeconds(intervalSecond)));
-
-    return builder;
   }
 
   private void configureTableMaintenance(

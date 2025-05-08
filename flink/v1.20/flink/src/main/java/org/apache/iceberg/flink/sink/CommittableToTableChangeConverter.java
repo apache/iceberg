@@ -20,16 +20,18 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.api.common.state.CheckpointListener;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
-import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.runtime.state.FunctionInitializationContext;
+import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.util.Collector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -42,16 +44,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CommittableToTableChangeConverter extends AbstractStreamOperator<TableChange>
-    implements OneInputStreamOperator<CommittableMessage<IcebergCommittable>, TableChange> {
+public class CommittableToTableChangeConverter
+    extends ProcessFunction<CommittableMessage<IcebergCommittable>, TableChange>
+    implements CheckpointedFunction, CheckpointListener {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(CommittableToTableChangeConverter.class);
 
   private final TableLoader tableLoader;
-  private Table table;
-  private transient ListState<ManifestFile> toRemoveManifestFileState;
-  private transient List<ManifestFile> toRemoveManifestFileList;
+  private transient Table table;
+  private transient ListState<ManifestFile> manifestFilesToRemoveState;
+  private transient List<ManifestFile> manifestFilesToRemoveList;
   private transient long lastCompletedCheckpointId = -1L;
   private transient String flinkJobId;
 
@@ -61,43 +64,43 @@ public class CommittableToTableChangeConverter extends AbstractStreamOperator<Ta
   }
 
   @Override
-  public void initializeState(StateInitializationContext context) throws Exception {
-    super.initializeState(context);
-    this.toRemoveManifestFileList = Lists.newArrayList();
-    this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
-    this.toRemoveManifestFileState =
+  public void initializeState(FunctionInitializationContext context) throws Exception {
+    this.manifestFilesToRemoveList = Lists.newArrayList();
+    this.manifestFilesToRemoveState =
         context
             .getOperatorStateStore()
-            .getListState(new ListStateDescriptor<>("to-remove-manifest", ManifestFile.class));
+            .getListState(new ListStateDescriptor<>("manifests-to-remove", ManifestFile.class));
     if (context.isRestored()) {
-      toRemoveManifestFileList = Lists.newArrayList(toRemoveManifestFileState.get());
+      manifestFilesToRemoveList = Lists.newArrayList(manifestFilesToRemoveState.get());
     }
   }
 
   @Override
-  public void open() throws Exception {
-    super.open();
+  public void open(OpenContext openContext) throws Exception {
+    super.open(openContext);
+    this.flinkJobId = getRuntimeContext().getJobId().toString();
     if (!tableLoader.isOpen()) {
       tableLoader.open();
     }
-
     this.table = tableLoader.loadTable();
   }
 
   @Override
-  public void snapshotState(StateSnapshotContext context) throws Exception {
-    super.snapshotState(context);
-    toRemoveManifestFileState.update(toRemoveManifestFileList);
+  public void snapshotState(FunctionSnapshotContext context) throws Exception {
+    manifestFilesToRemoveState.update(manifestFilesToRemoveList);
   }
 
   @Override
-  public void processElement(StreamRecord<CommittableMessage<IcebergCommittable>> record)
+  public void processElement(
+      CommittableMessage<IcebergCommittable> value,
+      ProcessFunction<CommittableMessage<IcebergCommittable>, TableChange>.Context ctx,
+      Collector<TableChange> out)
       throws Exception {
-    if (record.getValue() instanceof CommittableWithLineage) {
+    if (value instanceof CommittableWithLineage) {
       CommittableWithLineage<IcebergCommittable> committable =
-          (CommittableWithLineage<IcebergCommittable>) record.getValue();
+          (CommittableWithLineage<IcebergCommittable>) value;
       TableChange tableChange = convertToTableChange(committable.getCommittable());
-      output.collect(new StreamRecord<>(tableChange));
+      out.collect(tableChange);
     }
   }
 
@@ -112,7 +115,7 @@ public class CommittableToTableChangeConverter extends AbstractStreamOperator<Ta
             DeltaManifestsSerializer.INSTANCE, icebergCommittable.manifest());
     WriteResult writeResult =
         FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
-    toRemoveManifestFileList.addAll(deltaManifests.manifests());
+    manifestFilesToRemoveList.addAll(deltaManifests.manifests());
 
     int dataFileCount = 0;
     long dataFileSizeInBytes = 0L;
@@ -138,7 +141,7 @@ public class CommittableToTableChangeConverter extends AbstractStreamOperator<Ta
           break;
         default:
           // Unexpected delete file types don't impact compaction task statistics, so ignore.
-          LOG.info("Unexpected delete file content:{}", deleteFile.content());
+          LOG.warn("Unexpected delete file content:{}", deleteFile.content());
       }
     }
 
@@ -158,13 +161,12 @@ public class CommittableToTableChangeConverter extends AbstractStreamOperator<Ta
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) throws Exception {
-    super.notifyCheckpointComplete(checkpointId);
     if (checkpointId > lastCompletedCheckpointId) {
       this.lastCompletedCheckpointId = checkpointId;
       FlinkManifestUtil.deleteCommittedManifests(
-          table, toRemoveManifestFileList, flinkJobId, checkpointId);
-      toRemoveManifestFileList.clear();
-      toRemoveManifestFileState.clear();
+          table, manifestFilesToRemoveList, flinkJobId, checkpointId);
+      manifestFilesToRemoveList.clear();
+      manifestFilesToRemoveState.clear();
     }
   }
 
@@ -173,6 +175,7 @@ public class CommittableToTableChangeConverter extends AbstractStreamOperator<Ta
     super.close();
     if (tableLoader.isOpen()) {
       tableLoader.close();
+      table = null;
     }
   }
 }

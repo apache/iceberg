@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {
@@ -37,20 +39,25 @@ public class RewriteDataFilesConfig {
 
   public static final String MAX_REWRITE_BYTES = CONFIG_PREFIX + "max-bytes";
 
-  public static final String TARGET_FILE_SIZE_BYTES = CONFIG_PREFIX + "target-file-size-bytes";
+  public static final String TARGET_FILE_SIZE_BYTES =
+      CONFIG_PREFIX + SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES;
 
-  public static final String MIN_FILE_SIZE_BYTES = CONFIG_PREFIX + "min-file-size-bytes";
+  public static final String MIN_FILE_SIZE_BYTES =
+      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES;
 
-  public static final String MAX_FILE_SIZE_BYTES = CONFIG_PREFIX + "max-file-size-bytes";
+  public static final String MAX_FILE_SIZE_BYTES =
+      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES;
 
   public static final String MAX_FILE_GROUP_SIZE_BYTES =
-      CONFIG_PREFIX + "max-file-group-size-bytes";
+      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES;
 
-  public static final String MIN_INPUT_FILES = CONFIG_PREFIX + "min-input-files";
+  public static final String MIN_INPUT_FILES =
+      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 
-  public static final String DELETE_FILE_THRESHOLD = CONFIG_PREFIX + "delete-file-threshold";
+  public static final String DELETE_FILE_THRESHOLD =
+      CONFIG_PREFIX + BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD;
 
-  public static final String REWRITE_ALL = CONFIG_PREFIX + "rewrite-all";
+  public static final String REWRITE_ALL = CONFIG_PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL;
 
   public static final String SCHEDULE_ON_COMMIT_COUNT = CONFIG_PREFIX + "schedule-on-commit-count";
 

@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -167,6 +169,44 @@ public class RewriteDataFiles {
       this.rewriteOptions.put(
           SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
           String.valueOf(maxFileGroupSizeBytes));
+      return this;
+    }
+
+    /**
+     * Configures the properties for the rewriter.
+     *
+     * @param properties properties for the rewriter
+     * @return
+     */
+    public Builder properties(Map<String, String> properties) {
+      RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
+      Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressEnable())
+          .ifPresent(this::partialProgressEnabled);
+      Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressMaxCommits())
+          .ifPresent(this::partialProgressMaxCommits);
+      Optional.ofNullable(rewriteDataFilesConfig.getMaxRewriteBytes())
+          .ifPresent(this::maxRewriteBytes);
+      Optional.ofNullable(rewriteDataFilesConfig.getTargetFileSizeBytes())
+          .ifPresent(this::targetFileSizeBytes);
+      Optional.ofNullable(rewriteDataFilesConfig.getMinFileSizeBytes())
+          .ifPresent(this::minFileSizeBytes);
+      Optional.ofNullable(rewriteDataFilesConfig.getMaxFileSizeBytes())
+          .ifPresent(this::maxFileSizeBytes);
+      Optional.ofNullable(rewriteDataFilesConfig.getMaxFileGroupSizeBytes())
+          .ifPresent(this::maxFileGroupSizeBytes);
+      Optional.ofNullable(rewriteDataFilesConfig.getMinInputFiles()).ifPresent(this::minInputFiles);
+      Optional.ofNullable(rewriteDataFilesConfig.getDeleteFileThreshold())
+          .ifPresent(this::deleteFileThreshold);
+      Optional.ofNullable(rewriteDataFilesConfig.getRewriteAll()).ifPresent(this::rewriteAll);
+
+      Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnCommitCount())
+          .ifPresent(this::scheduleOnCommitCount);
+      Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileCount())
+          .ifPresent(this::scheduleOnDataFileCount);
+      Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileSize())
+          .ifPresent(this::scheduleOnDataFileSize);
+      Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnIntervalSecond())
+          .ifPresent(intervalSecond -> this.scheduleOnInterval(Duration.ofSeconds(intervalSecond)));
       return this;
     }
 

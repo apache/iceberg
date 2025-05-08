@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -88,10 +89,10 @@ class TestCommittableToTableChangeConverter {
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
 
-    CommittableToTableChangeConverter converter =
-        new CommittableToTableChangeConverter(tableLoader);
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness = new OneInputStreamOperatorTestHarness<>(converter)) {
+        harness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new CommittableToTableChangeConverter(tableLoader))) {
       harness.open();
       WriteResult writeResult =
           WriteResult.builder()
@@ -128,10 +129,11 @@ class TestCommittableToTableChangeConverter {
 
   @Test
   public void testEmptyCommit() throws Exception {
-    CommittableToTableChangeConverter converter =
-        new CommittableToTableChangeConverter(tableLoader);
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness = new OneInputStreamOperatorTestHarness<>(converter)) {
+        harness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new CommittableToTableChangeConverter(tableLoader))) {
+
       harness.open();
       IcebergCommittable emptyCommittable =
           new IcebergCommittable(new byte[0], "jobId", "operatorId", 1L);
@@ -151,10 +153,11 @@ class TestCommittableToTableChangeConverter {
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
 
-    CommittableToTableChangeConverter converter =
-        new CommittableToTableChangeConverter(tableLoader);
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness = new OneInputStreamOperatorTestHarness<>(converter)) {
+        harness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new CommittableToTableChangeConverter(tableLoader))) {
+
       harness.open();
 
       WriteResult writeResult =
