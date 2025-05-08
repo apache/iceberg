@@ -3775,6 +3775,9 @@ components:
       properties:
         table-name:
           type: string
+        timestamp-millis:
+          type: integer
+          format: int64
         snapshot-id:
           type: integer
           format: int64

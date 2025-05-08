@@ -598,6 +598,7 @@ class Metrics(BaseModel):
 
 class CommitReport(BaseModel):
     table_name: str = Field(..., alias='table-name')
+    timestamp_millis: Optional[int] = Field(None, alias='timestamp-millis')
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     operation: str
