@@ -26,6 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
@@ -75,7 +76,7 @@ public class TestSparkShufflingDataRewritePlanner extends TestBase {
                 SparkShufflingDataRewritePlanner.DELETE_FILE_THRESHOLD,
                 SparkShufflingDataRewritePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
-                RewriteDataFiles.MAX_FILES_TO_REWRITE));
+                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE));
   }
 
   @Test
