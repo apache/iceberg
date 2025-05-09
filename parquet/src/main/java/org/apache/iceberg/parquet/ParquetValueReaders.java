@@ -200,7 +200,7 @@ public class ParquetValueReaders {
       Long baseRowId = (Long) idToConstant.get(id);
       return ParquetValueReaders.rowIds(baseRowId, reader);
     } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
-      Long baseRowId = (Long) idToConstant.get(id);
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
       Long fileSeqNumber = (Long) idToConstant.get(id);
       return ParquetValueReaders.lastUpdated(baseRowId, fileSeqNumber, reader);
     } else if (idToConstant.containsKey(id)) {
