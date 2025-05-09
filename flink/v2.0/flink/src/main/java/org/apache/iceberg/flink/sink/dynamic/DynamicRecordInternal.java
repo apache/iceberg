@@ -39,6 +39,7 @@ class DynamicRecordInternal {
   private boolean upsertMode;
   private List<Integer> equalityFieldIds;
 
+  // Required for serialization instantiation
   DynamicRecordInternal() {}
 
   DynamicRecordInternal(
