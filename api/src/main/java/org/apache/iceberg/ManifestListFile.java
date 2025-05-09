@@ -26,15 +26,9 @@ public interface ManifestListFile {
   /** Location of manifest list file. */
   String location();
 
-  /** Snapshot ID of the manifest list. */
-  long snapshotId();
+  /** The manifest list key metadata can be encrypted. Returns ID of encryption key */
+  String encryptionKeyID();
 
-  /** The manifest list key metadata is encrypted. Returns the ID of the encryption key */
-  String metadataEncryptionKeyID();
-
-  /** Returns the encrypted manifest list key metadata */
-  ByteBuffer encryptedKeyMetadata();
-
-  /** Decrypt and return the encrypted key metadata */
+  /** Decrypt and return the manifest list key metadata */
   ByteBuffer decryptKeyMetadata(EncryptionManager em);
 }

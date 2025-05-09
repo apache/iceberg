@@ -111,7 +111,7 @@ public class EncryptingFileIO implements FileIO, Serializable {
 
   @Override
   public InputFile newInputFile(ManifestListFile manifestList) {
-    if (manifestList.encryptedKeyMetadata() != null) {
+    if (manifestList.encryptionKeyID() != null) {
       ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
       return newDecryptingInputFile(manifestList.location(), keyMetadata);
     } else {

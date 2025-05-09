@@ -35,15 +35,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class StandardEncryptionManager implements EncryptionManager {
+  private static final String KEY_ENCRYPTION_KEY_ID = "KEY_ENCRYPTION_KEY_ID";
+
   private final String tableKeyId;
   private final int dataKeyLength;
 
   // a holder class of metadata that is not available after serialization
   private class TransientEncryptionState {
     private final KeyManagementClient kmsClient;
-    private final Map<String, SnapshotEncryptionKey> encryptionKeys;
+    private final Map<String, EncryptedKey> encryptionKeys;
     private final LoadingCache<String, ByteBuffer> unwrappedKeyCache;
-    private String currentKeyID;
 
     private TransientEncryptionState(KeyManagementClient kmsClient) {
       this.kmsClient = kmsClient;
@@ -53,7 +54,8 @@ public class StandardEncryptionManager implements EncryptionManager {
               .expireAfterWrite(1, TimeUnit.HOURS)
               .build(
                   keyId ->
-                      kmsClient.unwrapKey(encryptionKeys.get(keyId).keyPayloadBytes(), tableKeyId));
+                      kmsClient.unwrapKey(
+                          encryptionKeys.get(keyId).encryptedKeyMetadata(), tableKeyId));
     }
   }
 
@@ -108,7 +110,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 1.9.0.
+   * @deprecated will be removed in 1.11.0.
    */
   @Deprecated
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
@@ -121,72 +123,86 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 1.9.0; use {@link #unwrapKey(String)}} instead.
+   * @deprecated will be removed in 1.11.0.
    */
   @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
-    throw new UnsupportedOperationException("Use unwrapKey(String) instead");
-  }
-
-  public ByteBuffer unwrapKey(String keyId) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot unwrap key after serialization");
     }
 
-    return transientState.unwrappedKeyCache.get(keyId);
+    return transientState.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
-  public String currentKeyID() {
+  private String keyEncryptionKeyID() {
     if (transientState == null) {
       throw new IllegalStateException("Cannot return the current key after serialization");
     }
 
-    if (transientState.currentKeyID == null) {
-      createNewEncryptionKey();
+    if (!transientState.encryptionKeys.containsKey(KEY_ENCRYPTION_KEY_ID)) {
+      ByteBuffer unwrapped = newKey();
+      ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
+      EncryptedKey key = new BaseEncryptedKey(KEY_ENCRYPTION_KEY_ID, wrapped, tableKeyId, null);
+
+      // update internal tracking
+      transientState.unwrappedKeyCache.put(key.keyId(), unwrapped);
+      transientState.encryptionKeys.put(key.keyId(), key);
     }
 
-    return transientState.currentKeyID;
+    return KEY_ENCRYPTION_KEY_ID;
   }
 
-  public void addSnapshotKeyMetadata(SnapshotEncryptionKey key) {
+  ByteBuffer encryptedById(String manifestListKeyID) {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot find key encryption key after serialization");
+    }
+
+    EncryptedKey encryptedKeyMetadata = transientState.encryptionKeys.get(manifestListKeyID);
+    if (encryptedKeyMetadata == null) {
+      throw new IllegalStateException(
+          "Cannot find manifest list key metadata with id " + manifestListKeyID);
+    }
+
+    return transientState.unwrappedKeyCache.get(encryptedKeyMetadata.encryptedById());
+  }
+
+  ByteBuffer encryptedKeyMetadata(String manifestListKeyID) {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot find encrypted key metadata after serialization");
+    }
+
+    return transientState.encryptionKeys.get(manifestListKeyID).encryptedKeyMetadata();
+  }
+
+  public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot add key metadata after serialization");
     }
 
-    if (transientState.encryptionKeys.containsKey(key.id())) {
-      throw new IllegalStateException("key metadata already exists for snapshot " + key.id());
-    }
+    String manifestListKeyID = generateKeyId();
+    ByteBuffer encryptedKeyMetadata =
+        EncryptionUtil.encryptManifestListKeyMetadata(
+            transientState.unwrappedKeyCache.get(keyEncryptionKeyID()),
+            manifestListKeyID,
+            keyMetadata);
+    BaseEncryptedKey key =
+        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID(), null);
 
-    transientState.encryptionKeys.put(key.id(), key);
+    transientState.encryptionKeys.put(key.keyId(), key);
+
+    return manifestListKeyID;
+  }
+
+  private String generateKeyId() {
+    byte[] idBytes = new byte[16];
+    workerRNG().nextBytes(idBytes);
+    return Base64.getEncoder().encodeToString(idBytes);
   }
 
   private ByteBuffer newKey() {
     byte[] newKey = new byte[dataKeyLength];
     workerRNG().nextBytes(newKey);
     return ByteBuffer.wrap(newKey);
-  }
-
-  private String newKeyId() {
-    byte[] idBytes = new byte[8];
-    workerRNG().nextBytes(idBytes);
-    return "k" + Base64.getEncoder().encodeToString(idBytes);
-  }
-
-  private void createNewEncryptionKey() {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot create encryption keys after serialization");
-    }
-
-    ByteBuffer unwrapped = newKey();
-    ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
-    SnapshotEncryptionKey key =
-        new SnapshotEncryptionKey(
-            newKeyId(), Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(wrapped)), "");
-
-    // update internal tracking
-    transientState.unwrappedKeyCache.put(key.id(), unwrapped);
-    transientState.encryptionKeys.put(key.id(), key);
-    transientState.currentKeyID = key.id();
   }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {

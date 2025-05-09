@@ -73,7 +73,7 @@ public interface FileIO extends Serializable, Closeable {
 
   default InputFile newInputFile(ManifestListFile manifestList) {
     Preconditions.checkArgument(
-        manifestList.encryptedKeyMetadata() == null,
+        manifestList.encryptionKeyID() == null,
         "Cannot decrypt manifest list: %s (use EncryptingFileIO)",
         manifestList.location());
     // cannot pass length because it is not tracked outside of key metadata

@@ -51,6 +51,7 @@ public class TestManifestListEncryption {
   private static final long EXISTING_ROWS = 857273L;
   private static final int DELETED_FILES = 1;
   private static final long DELETED_ROWS = 22910L;
+  private static final long SNAPSHOT_FIRST_ROW_ID = 130L;
 
   private static final ByteBuffer FIRST_SUMMARY_LOWER_BOUND =
       Conversions.toByteBuffer(Types.IntegerType.get(), 10);
@@ -117,12 +118,13 @@ public class TestManifestListEncryption {
 
     ManifestListWriter writer =
         ManifestLists.write(
-            2,
-            encryptingFileIO.encryptionManager(),
+            3,
             outputFile,
+            encryptingFileIO.encryptionManager(),
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            SEQ_NUM);
+            SEQ_NUM,
+            SNAPSHOT_FIRST_ROW_ID);
     writer.add(TEST_MANIFEST);
     writer.close();
     ManifestListFile manifestListFile = writer.toManifestListFile();

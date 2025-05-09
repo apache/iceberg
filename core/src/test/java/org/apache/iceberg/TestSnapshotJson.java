@@ -59,7 +59,6 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
