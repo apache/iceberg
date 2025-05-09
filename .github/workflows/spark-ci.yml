@@ -28,6 +28,9 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
+    paths:
+    - '!open-api/**'
+    - 'open-api/src/testFixtures/java/**'
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
@@ -53,7 +56,6 @@ on:
     - 'flink/**'
     - 'kafka-connect/**'
     - 'docs/**'
-    - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
     - '**/README.md'
