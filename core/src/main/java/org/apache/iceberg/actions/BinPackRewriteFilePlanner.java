@@ -85,6 +85,10 @@ public class BinPackRewriteFilePlanner
   public static final String DELETE_RATIO_THRESHOLD = "delete-ratio-threshold";
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
+  /**
+   * The max number of files to be rewritten (Not providing this value would rewrite all the files)
+   */
+  public static final String MAX_FILES_TO_REWRITE = "max-files-to-rewrite";
 
   private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
@@ -133,7 +137,7 @@ public class BinPackRewriteFilePlanner
         .add(DELETE_FILE_THRESHOLD)
         .add(DELETE_RATIO_THRESHOLD)
         .add(RewriteDataFiles.REWRITE_JOB_ORDER)
-        .add(RewriteDataFiles.MAX_FILES_TO_REWRITE)
+        .add(MAX_FILES_TO_REWRITE)
         .build();
   }
 
@@ -172,11 +176,11 @@ public class BinPackRewriteFilePlanner
 
   private Integer maxFilesToRewrite(Map<String, String> options) {
     Integer value =
-        PropertyUtil.propertyAsNullableInt(options, RewriteDataFiles.MAX_FILES_TO_REWRITE);
+        PropertyUtil.propertyAsNullableInt(options, MAX_FILES_TO_REWRITE);
     Preconditions.checkArgument(
         value == null || value > 0,
         "Cannot set %s to %s, the value must be positive integer.",
-        RewriteDataFiles.MAX_FILES_TO_REWRITE,
+        MAX_FILES_TO_REWRITE,
         value);
     return value;
   }

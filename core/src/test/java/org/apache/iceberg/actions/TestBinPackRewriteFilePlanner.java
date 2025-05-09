@@ -292,7 +292,7 @@ class TestBinPackRewriteFilePlanner {
                 BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD,
                 BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
-                RewriteDataFiles.MAX_FILES_TO_REWRITE));
+                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE));
   }
 
   @Test
@@ -461,13 +461,13 @@ class TestBinPackRewriteFilePlanner {
   public void testInvalidMaxFilesRewriteParam() {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     Map<String, String> invalidMaxFilesToDeleteOption =
-        ImmutableMap.of(RewriteDataFiles.MAX_FILES_TO_REWRITE, "0");
+        ImmutableMap.of(BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, "0");
     assertThatThrownBy(() -> planner.init(invalidMaxFilesToDeleteOption))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set max-files-to-rewrite to 0, the value must be positive integer.");
 
     Map<String, String> negativeMaxFilesToDeleteOption =
-        ImmutableMap.of(RewriteDataFiles.MAX_FILES_TO_REWRITE, "-2");
+        ImmutableMap.of(BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, "-2");
     assertThatThrownBy(() -> planner.init(negativeMaxFilesToDeleteOption))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set max-files-to-rewrite to -2, the value must be positive integer.");
@@ -479,7 +479,7 @@ class TestBinPackRewriteFilePlanner {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteDataFiles.MAX_FILES_TO_REWRITE,
+            BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
             "4",
             BinPackRewriteFilePlanner.REWRITE_ALL,
             "true");
@@ -504,7 +504,7 @@ class TestBinPackRewriteFilePlanner {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteDataFiles.MAX_FILES_TO_REWRITE,
+            BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
             "5",
             BinPackRewriteFilePlanner.REWRITE_ALL,
             "true");
@@ -527,7 +527,7 @@ class TestBinPackRewriteFilePlanner {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteDataFiles.MAX_FILES_TO_REWRITE,
+            BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
             "500",
             BinPackRewriteFilePlanner.REWRITE_ALL,
             "true");
