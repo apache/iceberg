@@ -226,9 +226,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (!namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
-    if (!namespace.isEmpty()) {
-      return ImmutableList.of();
-    }
 
     List<Datasets> allDatasets = client.list(projectId);
 
