@@ -24,7 +24,7 @@ if (jdkVersion != '11' && jdkVersion != '17' && jdkVersion != '21') {
 def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
+def jmhProjects = [project(":iceberg-gcp")]
 
 if (flinkVersions.contains("1.19")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.19"))
@@ -53,6 +53,7 @@ configure(jmhProjects) {
   apply plugin: 'io.morethan.jmhreport'
 
   def jmhReportDir = project.property("jmhJsonOutputPath").toString().replace(".json", "")
+  
   mkdir(file(jmhReportDir))
 
   jmh {
