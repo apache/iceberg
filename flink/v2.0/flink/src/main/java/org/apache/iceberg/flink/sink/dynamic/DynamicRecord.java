@@ -34,7 +34,7 @@ public class DynamicRecord {
   private Schema schema;
   private RowData rowData;
   private PartitionSpec spec;
-  private DistributionMode mode;
+  private DistributionMode distributionMode;
   private int writeParallelism;
   private boolean upsertMode;
   @Nullable private List<String> equalityFields;
@@ -45,14 +45,14 @@ public class DynamicRecord {
       Schema schema,
       RowData rowData,
       PartitionSpec spec,
-      DistributionMode mode,
+      DistributionMode distributionMode,
       int writeParallelism) {
     this.tableIdentifier = tableIdentifier;
     this.branch = branch;
     this.schema = schema;
     this.spec = spec;
     this.rowData = rowData;
-    this.mode = mode;
+    this.distributionMode = distributionMode;
     this.writeParallelism = writeParallelism;
   }
 
@@ -96,12 +96,12 @@ public class DynamicRecord {
     this.rowData = rowData;
   }
 
-  public DistributionMode mode() {
-    return mode;
+  public DistributionMode distributionMode() {
+    return distributionMode;
   }
 
-  public void setMode(DistributionMode mode) {
-    this.mode = mode;
+  public void setDistributionMode(DistributionMode distributionMode) {
+    this.distributionMode = distributionMode;
   }
 
   public int writeParallelism() {
