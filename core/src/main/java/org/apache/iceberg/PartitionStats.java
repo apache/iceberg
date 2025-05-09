@@ -136,6 +136,38 @@ public class PartitionStats implements StructLike {
   }
 
   /**
+   * Decrement the counters as it was included in the previous stats and updates the modified time
+   * and snapshot ID for the deleted manifest entry.
+   *
+   * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   */
+  public void deletedEntryForIncrementalCompute(ContentFile<?> file, Snapshot snapshot) {
+    Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
+
+    switch (file.content()) {
+      case DATA:
+        this.dataRecordCount -= file.recordCount();
+        this.dataFileCount -= 1;
+        this.totalDataFileSizeInBytes -= file.fileSizeInBytes();
+        break;
+      case POSITION_DELETES:
+        this.positionDeleteRecordCount -= file.recordCount();
+        this.positionDeleteFileCount -= 1;
+        break;
+      case EQUALITY_DELETES:
+        this.equalityDeleteRecordCount -= file.recordCount();
+        this.equalityDeleteFileCount -= 1;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+
+    if (snapshot != null) {
+      updateSnapshotInfo(snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+  }
+
+  /**
    * Appends statistics from given entry to current entry.
    *
    * @param entry the entry from which statistics will be sourced.
