@@ -102,6 +102,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -1886,6 +1887,41 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(currentData()).hasSize((int) count);
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesCommitProperties() throws InterruptedException {
+    Table table = createTablePartitioned(4, 2);
+    Thread rewriteDataFilesThread =
+        new Thread(
+            () -> {
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
+              CommitMetadata.withCommitProperties(
+                  properties,
+                  () -> {
+                    basicRewrite(table).execute();
+                    return 0;
+                  },
+                  RuntimeException.class);
+            });
+    rewriteDataFilesThread.setName("test-extra-commit-message-rewrite-data-files");
+    rewriteDataFilesThread.start();
+    rewriteDataFilesThread.join();
+
+    table.refresh();
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    assertThat(snapshots.get(0).summary()).doesNotContainKey("writer-thread");
+    assertThat(snapshots.get(1).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-rewrite-data-files")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
