@@ -18,15 +18,26 @@
  */
 package org.apache.iceberg.types;
 
+import static org.apache.iceberg.types.Comparators.variantComparator;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestComparators {
@@ -155,5 +166,54 @@ public class TestComparators {
             Types.StructType.of(Types.NestedField.optional(18, "str19", Types.StringType.get()))),
         TestHelpers.Row.of((String) null),
         TestHelpers.Row.of("a"));
+  }
+
+  @Test
+  public void testVariantObject() {
+    Comparator<Variant> comp = variantComparator();
+
+    Variant variant = VariantTestUtil.createMockVariant("value1", 42);
+    Variant variant2 = VariantTestUtil.createMockVariant("value1", 44);
+
+    int result = comp.compare(variant, variant);
+    Assertions.assertEquals(0, result, "Comparing the same variant should return 0");
+    result = comp.compare(variant, variant2);
+    Assertions.assertEquals(-1, result, "First Variant is smaller it should return -1");
+  }
+
+  @Test
+  public void testVariantArray() {
+    Comparator<Variant> comp = variantComparator();
+
+    Variant variant = mock(Variant.class);
+    VariantArray mockArray = mock(VariantArray.class);
+    when(variant.value()).thenReturn(mockArray);
+    when(mockArray.type()).thenReturn(PhysicalType.ARRAY);
+    when(mockArray.asArray()).thenReturn(mockArray);
+    when(mockArray.numElements()).thenReturn(6);
+
+    VariantObject mockObject = mock(VariantObject.class);
+    when(mockObject.type()).thenReturn(PhysicalType.OBJECT);
+    when(mockObject.asObject()).thenReturn(mockObject);
+    when(mockObject.fieldNames()).thenReturn(List.of("field1", "field2"));
+
+    VariantValue mockField1 = VariantTestUtil.createVariantMockField(PhysicalType.STRING, "value1");
+    VariantValue mockField2 = VariantTestUtil.createVariantMockField(PhysicalType.INT32, 42);
+    when(mockObject.get("field1")).thenReturn(mockField1);
+    when(mockObject.get("field2")).thenReturn(mockField2);
+
+    VariantValue[] mockFields = {
+      VariantTestUtil.createVariantMockField(PhysicalType.STRING, "value1"),
+      VariantTestUtil.createVariantMockField(PhysicalType.FLOAT, 42.0),
+      VariantTestUtil.createVariantMockField(PhysicalType.DATE, 10),
+      VariantTestUtil.createVariantMockField(PhysicalType.TIMESTAMPNTZ, 10),
+      VariantTestUtil.createVariantMockField(PhysicalType.DECIMAL4, BigDecimal.valueOf(4.6)),
+      mockObject
+    };
+    for (int i = 0; i < mockFields.length; i++) {
+      when(mockArray.get(i)).thenReturn(mockFields[i]);
+    }
+    int result = comp.compare(variant, variant);
+    Assertions.assertEquals(0, result, "Arrays should compare as equal");
   }
 }
