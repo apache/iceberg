@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -100,7 +100,7 @@ public class BinPackRewriteFilePlanner
   private int deleteFileThreshold;
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
-  private Integer maxFilesToRewrite;
+  private Integer maxFilesToRewrite = Integer.MAX_VALUE;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -217,48 +217,30 @@ public class BinPackRewriteFilePlanner
   public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
-    List<RewriteFileGroup> selectedFileGroups = Lists.newArrayList();
-    AtomicInteger fileCountRunner = new AtomicInteger();
-    plan.entrySet().stream()
-        .filter(e -> !e.getValue().isEmpty())
-        .forEach(
-            entry -> {
-              StructLike partition = entry.getKey();
-              entry
-                  .getValue()
-                  .forEach(
-                      fileScanTasks -> {
-                        long inputSize = inputSize(fileScanTasks);
-                        if (maxFilesToRewrite == null) {
-                          selectedFileGroups.add(
-                              newRewriteGroup(
-                                  ctx,
-                                  partition,
-                                  fileScanTasks,
-                                  inputSplitSize(inputSize),
-                                  expectedOutputFiles(inputSize)));
-                        } else if (fileCountRunner.get() < maxFilesToRewrite) {
-                          int remainingSize = maxFilesToRewrite - fileCountRunner.get();
-                          int scanTasksToRewrite = Math.min(fileScanTasks.size(), remainingSize);
-                          selectedFileGroups.add(
-                              newRewriteGroup(
-                                  ctx,
-                                  partition,
-                                  fileScanTasks.subList(0, scanTasksToRewrite),
-                                  inputSplitSize(inputSize),
-                                  expectedOutputFiles(inputSize)));
-                          fileCountRunner.getAndAdd(scanTasksToRewrite);
-                        }
-                      });
-            });
-
+    Stream<RewriteFileGroup> groups =
+        plan.entrySet().stream()
+            .filter(e -> !e.getValue().isEmpty())
+            .flatMap(
+                e -> {
+                  StructLike partition = e.getKey();
+                  List<List<FileScanTask>> scanGroups = e.getValue();
+                  return scanGroups.stream()
+                      .map(
+                          tasks -> {
+                            long inputSize = inputSize(tasks);
+                            return newRewriteGroup(
+                                ctx,
+                                partition,
+                                tasks,
+                                inputSplitSize(inputSize),
+                                expectedOutputFiles(inputSize));
+                          });
+                })
+            .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
     return new FileRewritePlan<>(
-        CloseableIterable.of(
-            selectedFileGroups.stream()
-                .sorted(RewriteFileGroup.comparator(rewriteJobOrder))
-                .collect(Collectors.toList())),
+        CloseableIterable.of(groups.collect(Collectors.toList())),
         totalGroupCount,
         groupsInPartition);
   }
@@ -292,6 +274,11 @@ public class BinPackRewriteFilePlanner
     }
 
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
+
+    if (maxFilesToRewrite != null) {
+      fileScanTasks =
+          CloseableIterable.of(Lists.newArrayList(fileScanTasks).subList(0, maxFilesToRewrite));
+    }
 
     try {
       Types.StructType partitionType = table().spec().partitionType();
