@@ -38,7 +38,7 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestRowDataSerializerCache {
+public class TestTableSerializerCache {
 
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension("db", "table");
@@ -52,7 +52,7 @@ public class TestRowDataSerializerCache {
           optional(2, "data", StringType.get()),
           optional(3, "double", DoubleType.get()));
 
-  RowDataSerializerCache cache = new RowDataSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+  TableSerializerCache cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
 
   @Test
   void testFullSchemaCaching() {
@@ -76,7 +76,7 @@ public class TestRowDataSerializerCache {
   @Test
   void testCachingWithSchemaLookup() {
     CatalogLoader catalogLoader = CATALOG_EXTENSION.catalogLoader();
-    cache = new RowDataSerializerCache(catalogLoader, 10);
+    cache = new TableSerializerCache(catalogLoader, 10);
 
     Catalog catalog = catalogLoader.loadCatalog();
     Table table = catalog.createTable(TableIdentifier.of("table"), schema1);
@@ -100,7 +100,7 @@ public class TestRowDataSerializerCache {
 
   @Test
   void testCacheEviction() {
-    cache = new RowDataSerializerCache(CATALOG_EXTENSION.catalogLoader(), 0);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 0);
     assertThat(cache.maximumSize()).isEqualTo(0);
 
     Supplier<RowDataSerializer> creator1 =
@@ -118,7 +118,7 @@ public class TestRowDataSerializerCache {
 
   @Test
   void testCacheSize() {
-    cache = new RowDataSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
     assertThat(cache.maximumSize()).isEqualTo(1000);
   }
 }

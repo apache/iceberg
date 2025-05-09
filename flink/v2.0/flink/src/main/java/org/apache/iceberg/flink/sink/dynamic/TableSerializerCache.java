@@ -36,14 +36,25 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
+/**
+ * A Cache which holds Flink's {@RowDataSerializer} for a given table name and schema. This avoids
+ * re-creating the serializer for a given table schema for every incoming record.
+ *
+ * <p>There is an additional optimization built into this class: Users do not have to supply the
+ * full schema / spec, but can also provide their id. This avoids transferring the schema / spec for
+ * every record. If the id is unknown, the schema / spec will be retrieved from the catalog.
+ *
+ * <p>Note that the caller must ensure that ids are only used for known schemas / specs. The id
+ * optimization must not be used in the update path.
+ */
 @Internal
-class RowDataSerializerCache implements Serializable {
+class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
   private transient Cache<String, SerializerInfo> serializers;
 
-  RowDataSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
+  TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
     this.catalogLoader = catalogLoader;
     this.maximumSize = maximumSize;
   }

@@ -42,11 +42,11 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   private static final long serialVersionUID = 1L;
 
-  private final RowDataSerializerCache serializerCache;
+  private final TableSerializerCache serializerCache;
   private final boolean writeSchemaAndSpec;
 
   DynamicRecordInternalSerializer(
-      RowDataSerializerCache serializerCache, boolean writeSchemaAndSpec) {
+      TableSerializerCache serializerCache, boolean writeSchemaAndSpec) {
     this.serializerCache = serializerCache;
     this.writeSchemaAndSpec = writeSchemaAndSpec;
   }
@@ -54,7 +54,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
   @Override
   public TypeSerializer<DynamicRecordInternal> duplicate() {
     return new DynamicRecordInternalSerializer(
-        new RowDataSerializerCache(serializerCache.catalogLoader(), serializerCache.maximumSize()),
+        new TableSerializerCache(serializerCache.catalogLoader(), serializerCache.maximumSize()),
         writeSchemaAndSpec);
   }
 

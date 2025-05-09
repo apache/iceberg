@@ -71,7 +71,7 @@ class DynamicRecordInternalType extends TypeInformation<DynamicRecordInternal> {
   @Override
   public TypeSerializer<DynamicRecordInternal> createSerializer(SerializerConfig serializerConfig) {
     return new DynamicRecordInternalSerializer(
-        new RowDataSerializerCache(catalogLoader, cacheSize), writeSchemaAndSpec);
+        new TableSerializerCache(catalogLoader, cacheSize), writeSchemaAndSpec);
   }
 
   @Override
