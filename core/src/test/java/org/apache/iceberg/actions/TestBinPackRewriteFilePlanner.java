@@ -494,7 +494,8 @@ class TestBinPackRewriteFilePlanner {
             .map(List::size)
             .sorted()
             .collect(Collectors.toList());
-    assertThat(fileScanTasksListSize).isIn(Arrays.asList(Arrays.asList(1, 3),Arrays.asList(1, 1, 2),Arrays.asList(2,2)));
+    assertThat(fileScanTasksListSize)
+        .isIn(Arrays.asList(Arrays.asList(1, 3), Arrays.asList(1, 1, 2), Arrays.asList(2, 2)));
     assertThat(fileScanTasksListSize.stream().reduce(0, Integer::sum)).isEqualTo(4);
   }
 

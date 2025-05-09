@@ -85,6 +85,7 @@ public class BinPackRewriteFilePlanner
   public static final String DELETE_RATIO_THRESHOLD = "delete-ratio-threshold";
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
+
   /**
    * The max number of files to be rewritten (Not providing this value would rewrite all the files)
    */
@@ -175,8 +176,7 @@ public class BinPackRewriteFilePlanner
   }
 
   private Integer maxFilesToRewrite(Map<String, String> options) {
-    Integer value =
-        PropertyUtil.propertyAsNullableInt(options, MAX_FILES_TO_REWRITE);
+    Integer value = PropertyUtil.propertyAsNullableInt(options, MAX_FILES_TO_REWRITE);
     Preconditions.checkArgument(
         value == null || value > 0,
         "Cannot set %s to %s, the value must be positive integer.",
