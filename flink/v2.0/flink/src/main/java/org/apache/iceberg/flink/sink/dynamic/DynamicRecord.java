@@ -33,7 +33,7 @@ public class DynamicRecord {
   private String branch;
   private Schema schema;
   private RowData rowData;
-  private PartitionSpec spec;
+  private PartitionSpec partitionSpec;
   private DistributionMode distributionMode;
   private int writeParallelism;
   private boolean upsertMode;
@@ -44,13 +44,13 @@ public class DynamicRecord {
       String branch,
       Schema schema,
       RowData rowData,
-      PartitionSpec spec,
+      PartitionSpec partitionSpec,
       DistributionMode distributionMode,
       int writeParallelism) {
     this.tableIdentifier = tableIdentifier;
     this.branch = branch;
     this.schema = schema;
-    this.spec = spec;
+    this.partitionSpec = partitionSpec;
     this.rowData = rowData;
     this.distributionMode = distributionMode;
     this.writeParallelism = writeParallelism;
@@ -81,11 +81,11 @@ public class DynamicRecord {
   }
 
   public PartitionSpec spec() {
-    return spec;
+    return partitionSpec;
   }
 
-  public void setSpec(PartitionSpec spec) {
-    this.spec = spec;
+  public void setPartitionSpec(PartitionSpec partitionSpec) {
+    this.partitionSpec = partitionSpec;
   }
 
   public RowData rowData() {
