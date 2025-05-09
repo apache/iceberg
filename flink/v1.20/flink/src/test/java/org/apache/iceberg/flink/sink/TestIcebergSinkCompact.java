@@ -86,7 +86,8 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
         "1");
 
     flinkConf.setString("flink-maintenance.lock.jdbc.init-lock-tables", "true");
-    flinkConf.setString(SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
+    flinkConf.setString(
+        RewriteDataFilesConfig.CONFIG_PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
   }
 
   @Test
