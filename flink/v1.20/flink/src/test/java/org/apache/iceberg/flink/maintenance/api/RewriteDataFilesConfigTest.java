@@ -91,7 +91,7 @@ public class RewriteDataFilesConfigTest {
     builder.properties(input);
 
     // check the config about the rewriter
-    assertThat(builder.PartialProgressEnabled()).isTrue();
+    assertThat(builder.partialProgressEnabled()).isTrue();
     assertThat(builder.getPartialProgressMaxCommits()).isEqualTo(5);
     assertThat(builder.getMaxRewriteBytes()).isEqualTo(1024L);
 
@@ -114,13 +114,11 @@ public class RewriteDataFilesConfigTest {
 
   @Test
   void testPropertiesWithDefaultConfig() {
-    Map<String, String> input = Maps.newHashMap();
-
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
-    builder.properties(input);
+    builder.properties(Maps.newHashMap());
 
     // check the config about the rewriter
-    assertThat(builder.PartialProgressEnabled()).isFalse();
+    assertThat(builder.partialProgressEnabled()).isFalse();
     assertThat(builder.getPartialProgressMaxCommits()).isEqualTo(10);
     assertThat(builder.getMaxRewriteBytes()).isEqualTo(Long.MAX_VALUE);
 

@@ -174,22 +174,22 @@ public class RewriteDataFiles {
     }
 
     @VisibleForTesting
-    public boolean PartialProgressEnabled() {
+    boolean partialProgressEnabled() {
       return partialProgressEnabled;
     }
 
     @VisibleForTesting
-    public int getPartialProgressMaxCommits() {
+    int getPartialProgressMaxCommits() {
       return partialProgressMaxCommits;
     }
 
     @VisibleForTesting
-    public Map<String, String> getRewriteOptions() {
+    Map<String, String> getRewriteOptions() {
       return rewriteOptions;
     }
 
     @VisibleForTesting
-    public long getMaxRewriteBytes() {
+    long getMaxRewriteBytes() {
       return maxRewriteBytes;
     }
 

@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -101,42 +100,18 @@ public class TriggerEvaluator implements Serializable {
       return this;
     }
 
-    @VisibleForTesting
     public Integer getDataFileCount() {
       return dataFileCount;
     }
 
-    @VisibleForTesting
     public Long getDataFileSizeInBytes() {
       return dataFileSizeInBytes;
     }
 
-    @VisibleForTesting
-    public Integer getPosDeleteFileCount() {
-      return posDeleteFileCount;
-    }
-
-    @VisibleForTesting
-    public Long getPosDeleteRecordCount() {
-      return posDeleteRecordCount;
-    }
-
-    @VisibleForTesting
-    public Integer getEqDeleteFileCount() {
-      return eqDeleteFileCount;
-    }
-
-    @VisibleForTesting
-    public Long getEqDeleteRecordCount() {
-      return eqDeleteRecordCount;
-    }
-
-    @VisibleForTesting
     public Integer getCommitCount() {
       return commitCount;
     }
 
-    @VisibleForTesting
     public Duration getTimeout() {
       return timeout;
     }

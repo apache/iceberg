@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
-import org.apache.curator.shaded.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {

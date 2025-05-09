@@ -43,22 +43,22 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
   @VisibleForTesting
-  public Integer getScheduleCommitCount() {
+  Integer getScheduleCommitCount() {
     return triggerEvaluator.getCommitCount();
   }
 
   @VisibleForTesting
-  public Integer getScheduleDataFileCount() {
+  Integer getScheduleDataFileCount() {
     return triggerEvaluator.getDataFileCount();
   }
 
   @VisibleForTesting
-  public Long getScheduleDataFileSize() {
+  Long getScheduleDataFileSize() {
     return triggerEvaluator.getDataFileSizeInBytes();
   }
 
   @VisibleForTesting
-  public Duration getScheduleInterval() {
+  Duration getScheduleInterval() {
     return triggerEvaluator.getTimeout();
   }
 
