@@ -134,7 +134,7 @@ public class PartitionStatsHandler {
       return null;
     }
 
-    return computeAndWrite(table, table.currentSnapshot().snapshotId(), true /* incremental */);
+    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
   }
 
   /**
@@ -152,47 +152,30 @@ public class PartitionStatsHandler {
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
     Preconditions.checkArgument(table != null, "Invalid table: null");
-    return computeAndWrite(table, snapshotId, true /* incremental */);
-  }
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
-  /**
-   * Fully computes the stats freshly and writes the result into a {@link PartitionStatisticsFile}
-   * for a given table's current snapshot.
-   *
-   * <p>Ignores the previous stats file. Use this method if current stats are corrupted and need
-   * full compute.
-   *
-   * @param table The {@link Table} for which the partition statistics is computed.
-   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
-   *     present.
-   */
-  public static PartitionStatisticsFile computeAndWriteStatsFileFullRefresh(Table table)
-      throws IOException {
-    Preconditions.checkArgument(table != null, "Invalid table: null");
+    StructType partitionType = Partitioning.partitionType(table);
 
-    if (table.currentSnapshot() == null) {
+    Collection<PartitionStats> stats;
+    PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
+    if (statisticsFile == null) {
+      LOG.info(
+          "Using full compute as previous statistics file is not present for incremental compute.");
+      stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
+    } else {
+      stats = incrementalComputeAndMerge(table, snapshot, partitionType, statisticsFile);
+    }
+
+    if (stats.isEmpty()) {
+      // empty branch case
       return null;
     }
 
-    return computeAndWrite(table, table.currentSnapshot().snapshotId(), false /* incremental */);
-  }
-
-  /**
-   * Fully computes the stats freshly and writes the result into a {@link PartitionStatisticsFile}
-   * for a given snapshot.
-   *
-   * <p>Ignores the previous stats file. Use this method if current stats are corrupted and need
-   * full compute.
-   *
-   * @param table The {@link Table} for which the partition statistics is computed.
-   * @param snapshotId snapshot for which partition statistics are computed.
-   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
-   *     present.
-   */
-  public static PartitionStatisticsFile computeAndWriteStatsFileFullRefresh(
-      Table table, long snapshotId) throws IOException {
-    Preconditions.checkArgument(table != null, "Invalid table: null");
-    return computeAndWrite(table, snapshotId, false /* incremental */);
+    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
+    return writePartitionStatsFile(
+        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
 
   @VisibleForTesting
@@ -284,38 +267,6 @@ public class PartitionStatsHandler {
     return stats;
   }
 
-  private static PartitionStatisticsFile computeAndWrite(
-      Table table, long snapshotId, boolean incremental) throws IOException {
-    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
-    Snapshot snapshot = table.snapshot(snapshotId);
-    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
-
-    StructType partitionType = Partitioning.partitionType(table);
-
-    Collection<PartitionStats> stats;
-    if (incremental) {
-      PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
-      if (statisticsFile == null) {
-        LOG.info(
-            "No previous statistics file present for the table for incremental compute. Using full compute.");
-        stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
-      } else {
-        stats = incrementalComputeAndMerge(table, snapshot, partitionType, statisticsFile);
-      }
-    } else {
-      stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
-    }
-
-    if (stats.isEmpty()) {
-      // empty branch case
-      return null;
-    }
-
-    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
-    return writePartitionStatsFile(
-        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
-  }
-
   private static Collection<PartitionStats> incrementalComputeAndMerge(
       Table table,
       Snapshot snapshot,
@@ -374,8 +325,9 @@ public class PartitionStatsHandler {
       }
     }
 
-    throw new IncrementalComputeStatsFailedException(
-        "Unable to find previous stats with valid snapshot. Try full compute.");
+    // This is unlikely to happen.
+    throw new RuntimeException(
+        "Unable to find previous stats with valid snapshot. Invalidate partition stats for all the snapshots to use full compute.");
   }
 
   private static PartitionMap<PartitionStats> computeStatsDiff(
@@ -473,11 +425,5 @@ public class PartitionStatsHandler {
     entries.sort(
         Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
     return entries;
-  }
-
-  public static class IncrementalComputeStatsFailedException extends RuntimeException {
-    public IncrementalComputeStatsFailedException(String message) {
-      super(message);
-    }
   }
 }
