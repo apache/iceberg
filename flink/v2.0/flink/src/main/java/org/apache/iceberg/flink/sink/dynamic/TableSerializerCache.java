@@ -37,8 +37,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
- * A Cache which holds Flink's {@RowDataSerializer} for a given table name and schema. This avoids
- * re-creating the serializer for a given table schema for every incoming record.
+ * A Cache which holds Flink's {@link RowDataSerializer} for a given table name and schema. This
+ * avoids re-creating the serializer for a given table schema for every incoming record.
  *
  * <p>There is an additional optimization built into this class: Users do not have to supply the
  * full schema / spec, but can also provide their id. This avoids transferring the schema / spec for
