@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.data;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
@@ -37,6 +40,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -55,14 +60,19 @@ public abstract class DeleteReadTests {
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()));
+          required(1, "id", Types.IntegerType.get()),
+          required(2, "data", Types.StringType.get()),
+          optional(3, "binaryData", Types.BinaryType.get()),
+          optional(
+              4,
+              "structData",
+              Types.StructType.of(optional(100, "structInnerData", Types.StringType.get()))));
 
   public static final Schema DATE_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "dt", Types.DateType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.required(3, "id", Types.IntegerType.get()));
+          required(1, "dt", Types.DateType.get()),
+          required(2, "data", Types.StringType.get()),
+          required(3, "id", Types.IntegerType.get()));
 
   // Partition spec used to create tables
   public static final PartitionSpec SPEC =
@@ -584,6 +594,91 @@ public abstract class DeleteReadTests {
 
     assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
     checkDeleteCount(1L);
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteBinaryColumn() throws IOException {
+    writeOptionalTestDataFile();
+
+    Record binaryDataDelete = GenericRecord.create(table.schema().select("binaryData"));
+    List<Record> equalityDeletes =
+        Lists.newArrayList(
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_0").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_1").getBytes())),
+            binaryDataDelete.copy("binaryData", ByteBuffer.wrap(("binaryData_2").getBytes())));
+    StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
+    testEqualityDeletes(equalityDeletes, expected);
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteStructColumn() throws IOException {
+    writeOptionalTestDataFile();
+
+    Record structDataDelete = GenericRecord.create(table.schema().select("structData"));
+    Record structRecord0 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    Record structRecord1 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    Record structRecord2 =
+        GenericRecord.create(table.schema().findType("structData").asStructType());
+    structRecord0.setField("structInnerData", "structInnerData_0");
+    structRecord1.setField("structInnerData", "structInnerData_1");
+    structRecord2.setField("structInnerData", "structInnerData_2");
+    List<Record> equalityDeletes =
+        Lists.newArrayList(
+            structDataDelete.copy("structData", structRecord0),
+            structDataDelete.copy("structData", structRecord1),
+            structDataDelete.copy("structData", structRecord2));
+    StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
+    testEqualityDeletes(equalityDeletes, expected);
+  }
+
+  private void testEqualityDeletes(List<Record> equalityDeletes, StructLikeSet expected)
+      throws IOException {
+    Preconditions.checkArgument(
+        !equalityDeletes.isEmpty(), "Expected equality deletes in testEqualityDeletes");
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            equalityDeletes,
+            equalityDeletes.get(0).struct().asSchema());
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    StructLikeSet actual = rowSet(tableName, table, "*");
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    checkDeleteCount(equalityDeletes.size());
+  }
+
+  private void writeOptionalTestDataFile() throws IOException {
+    Record record = GenericRecord.create(table.schema());
+    List<Record> recordsWithOptionalColumns = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      Record structRecord =
+          GenericRecord.create(table.schema().findType("structData").asStructType());
+      structRecord.setField("structInnerData", "structInnerData_" + i);
+      recordsWithOptionalColumns.add(
+          record.copy(
+              ImmutableMap.of(
+                  "id",
+                  i + 200,
+                  "data",
+                  "testData",
+                  "binaryData",
+                  ByteBuffer.wrap(("binaryData_" + i).getBytes()),
+                  "structData",
+                  structRecord)));
+    }
+    DataFile binaryDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            recordsWithOptionalColumns);
+
+    table.newAppend().appendFile(binaryDataFile).commit();
+    records.addAll(recordsWithOptionalColumns);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
