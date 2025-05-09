@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @Experimental
@@ -40,6 +41,26 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   private final TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
+
+  @VisibleForTesting
+  public Integer getScheduleCommitCount() {
+    return triggerEvaluator.getCommitCount();
+  }
+
+  @VisibleForTesting
+  public Integer getScheduleDataFileCount() {
+    return triggerEvaluator.getDataFileCount();
+  }
+
+  @VisibleForTesting
+  public Long getScheduleDataFileSize() {
+    return triggerEvaluator.getDataFileSizeInBytes();
+  }
+
+  @VisibleForTesting
+  public Duration getScheduleInterval() {
+    return triggerEvaluator.getTimeout();
+  }
 
   /**
    * After a given number of Iceberg table commits since the last run, starts the downstream job.

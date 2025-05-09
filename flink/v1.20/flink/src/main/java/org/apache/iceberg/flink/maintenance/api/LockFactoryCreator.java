@@ -21,15 +21,12 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class LockFactoryCreator {
 
-  private static final String LOCK_PREFIX = "flink-maintenance.lock";
-  public static final String LOCK_TYPE_KEY = LOCK_PREFIX + ".type";
-  public static final String LOCK_ID = LOCK_PREFIX + ".lock-id";
-
-  public static final String JDBC_LOCK = "jdbc";
-  public static final String JDBC_URI = LOCK_PREFIX + "." + JDBC_LOCK + ".uri";
+  private static final Map<String, BaseLockFactoryCreator> CREATORS =
+      ImmutableMap.of(JdbcLockFactoryCreator.JDBC_LOCK, new JdbcLockFactoryCreator());
 
   private LockFactoryCreator() {}
 
@@ -42,22 +39,19 @@ public class LockFactoryCreator {
    */
   public static TriggerLockFactory create(Map<String, String> config) {
     Preconditions.checkArgument(
-        config.containsKey(LOCK_TYPE_KEY), "Configuration must contain key: %s", LOCK_TYPE_KEY);
+        config.containsKey(BaseLockFactoryCreator.LOCK_TYPE_KEY),
+        "Configuration must contain key: %s",
+        BaseLockFactoryCreator.LOCK_TYPE_KEY);
 
-    String lockType = config.get(LOCK_TYPE_KEY);
-    switch (lockType.toLowerCase(Locale.ROOT)) {
-      case JDBC_LOCK:
-        return getJdbcLockFactory(config);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported lock type: %s. ", lockType));
+    String lockType = config.get(BaseLockFactoryCreator.LOCK_TYPE_KEY).toLowerCase(Locale.ROOT);
+    BaseLockFactoryCreator creator = CREATORS.get(lockType);
+
+    if (creator == null) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Unsupported lock type: %s. Support lock type: %s ", lockType, CREATORS.keySet()));
     }
-  }
 
-  private static JdbcLockFactory getJdbcLockFactory(Map<String, String> config) {
-    Preconditions.checkArgument(
-        config.containsKey(JDBC_URI), "JDBC lock requires %s parameter", JDBC_URI);
-    Preconditions.checkArgument(
-        config.containsKey(LOCK_ID), "JDBC lock requires %s parameter", LOCK_ID);
-    return new JdbcLockFactory(config.get(JDBC_URI), config.get(LOCK_ID), config);
+    return creator.create(config);
   }
 }

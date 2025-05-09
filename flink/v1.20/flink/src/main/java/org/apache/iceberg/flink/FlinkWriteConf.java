@@ -211,9 +211,9 @@ public class FlinkWriteConf {
   public boolean compactMode() {
     return confParser
         .booleanConf()
-        .option(FlinkWriteOptions.COMPACT_ENABLE.key())
-        .flinkConfig(FlinkWriteOptions.COMPACT_ENABLE)
-        .defaultValue(FlinkWriteOptions.COMPACT_ENABLE.defaultValue())
+        .option(FlinkWriteOptions.COMPACTION_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.COMPACTION_ENABLE)
+        .defaultValue(FlinkWriteOptions.COMPACTION_ENABLE.defaultValue())
         .parse();
   }
 

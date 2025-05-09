@@ -38,11 +38,12 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.maintenance.api.LockFactoryCreator;
+import org.apache.iceberg.flink.maintenance.api.JdbcLockFactoryCreator;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -74,16 +75,18 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
     tableLoader = CATALOG_EXTENSION.tableLoader();
 
     this.flinkConf = new Configuration();
-    flinkConf.setString(FlinkWriteOptions.COMPACT_ENABLE.key(), "true");
-    flinkConf.setString(LockFactoryCreator.LOCK_TYPE_KEY, LockFactoryCreator.JDBC_LOCK);
+    flinkConf.setString(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+    flinkConf.setString(JdbcLockFactoryCreator.LOCK_TYPE_KEY, JdbcLockFactoryCreator.JDBC_LOCK);
     flinkConf.setString(
-        LockFactoryCreator.JDBC_URI,
+        JdbcLockFactoryCreator.JDBC_URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
-    flinkConf.setString(LockFactoryCreator.LOCK_ID, "test-lock-id");
-    flinkConf.setString(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
+    flinkConf.setString(JdbcLockFactoryCreator.LOCK_ID, "test-lock-id");
+    flinkConf.setString(
+        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE,
+        "1");
 
     flinkConf.setString("flink-maintenance.lock.jdbc.init-lock-tables", "true");
-    flinkConf.setString(RewriteDataFilesConfig.REWRITE_ALL, "true");
+    flinkConf.setString(SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
   }
 
   @Test

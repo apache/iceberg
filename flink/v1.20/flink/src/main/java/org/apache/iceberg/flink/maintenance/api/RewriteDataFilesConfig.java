@@ -19,56 +19,39 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
-import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
-import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
+import org.apache.curator.shaded.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {
-  private static final String CONFIG_PREFIX = "flink-maintenance.rewrite.";
+  public static final String CONFIG_PREFIX = "flink-maintenance.rewrite.";
 
   private final Map<String, String> properties;
 
-  public RewriteDataFilesConfig(Map<String, String> properties) {
-    this.properties = properties;
+  public RewriteDataFilesConfig(Map<String, String> newProperties) {
+    this.properties = Maps.newHashMap();
+    newProperties.forEach(
+        (key, value) -> {
+          if (key.startsWith(CONFIG_PREFIX)) {
+            properties.put(key.substring(CONFIG_PREFIX.length()), value);
+          }
+        });
   }
 
-  public static final String PARTIAL_PROGRESS_ENABLE = CONFIG_PREFIX + "partial-progress-enabled";
+  public static final String PARTIAL_PROGRESS_ENABLE =
+      org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED;
 
   public static final String PARTIAL_PROGRESS_MAX_COMMITS =
-      CONFIG_PREFIX + "partial-progress-max-commits";
+      org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS;
 
-  public static final String MAX_REWRITE_BYTES = CONFIG_PREFIX + "max-bytes";
+  public static final String MAX_BYTES = "max-bytes";
 
-  public static final String TARGET_FILE_SIZE_BYTES =
-      CONFIG_PREFIX + SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES;
+  public static final String SCHEDULE_ON_COMMIT_COUNT = "schedule-on-commit-count";
 
-  public static final String MIN_FILE_SIZE_BYTES =
-      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES;
+  public static final String SCHEDULE_ON_DATA_FILE_COUNT = "schedule-on-data-file-count";
 
-  public static final String MAX_FILE_SIZE_BYTES =
-      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES;
+  public static final String SCHEDULE_ON_DATA_FILE_SIZE = "schedule-on-data-file-size";
 
-  public static final String MAX_FILE_GROUP_SIZE_BYTES =
-      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES;
-
-  public static final String MIN_INPUT_FILES =
-      CONFIG_PREFIX + SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
-
-  public static final String DELETE_FILE_THRESHOLD =
-      CONFIG_PREFIX + BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD;
-
-  public static final String REWRITE_ALL = CONFIG_PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL;
-
-  public static final String SCHEDULE_ON_COMMIT_COUNT = CONFIG_PREFIX + "schedule-on-commit-count";
-
-  public static final String SCHEDULE_ON_DATA_FILE_COUNT =
-      CONFIG_PREFIX + "schedule-on-data-file-count";
-
-  public static final String SCHEDULE_ON_DATA_FILE_SIZE =
-      CONFIG_PREFIX + "schedule-on-data-file-size";
-
-  public static final String SCHEDULE_ON_INTERVAL_SECOND =
-      CONFIG_PREFIX + "schedule-on-interval-second";
+  public static final String SCHEDULE_ON_INTERVAL_SECOND = "schedule-on-interval-second";
 
   public Integer getScheduleOnCommitCount() {
     return PropertyUtil.propertyAsNullableInt(properties, SCHEDULE_ON_COMMIT_COUNT);
@@ -95,34 +78,10 @@ public class RewriteDataFilesConfig {
   }
 
   public Long getMaxRewriteBytes() {
-    return PropertyUtil.propertyAsNullableLong(properties, MAX_REWRITE_BYTES);
+    return PropertyUtil.propertyAsNullableLong(properties, MAX_BYTES);
   }
 
-  public Long getTargetFileSizeBytes() {
-    return PropertyUtil.propertyAsNullableLong(properties, TARGET_FILE_SIZE_BYTES);
-  }
-
-  public Long getMinFileSizeBytes() {
-    return PropertyUtil.propertyAsNullableLong(properties, MIN_FILE_SIZE_BYTES);
-  }
-
-  public Long getMaxFileSizeBytes() {
-    return PropertyUtil.propertyAsNullableLong(properties, MAX_FILE_SIZE_BYTES);
-  }
-
-  public Long getMaxFileGroupSizeBytes() {
-    return PropertyUtil.propertyAsNullableLong(properties, MAX_FILE_GROUP_SIZE_BYTES);
-  }
-
-  public Integer getMinInputFiles() {
-    return PropertyUtil.propertyAsNullableInt(properties, MIN_INPUT_FILES);
-  }
-
-  public Integer getDeleteFileThreshold() {
-    return PropertyUtil.propertyAsNullableInt(properties, DELETE_FILE_THRESHOLD);
-  }
-
-  public Boolean getRewriteAll() {
-    return PropertyUtil.propertyAsNullableBoolean(properties, REWRITE_ALL);
+  public Map<String, String> getProperties() {
+    return properties;
   }
 }

@@ -31,6 +31,7 @@ import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -172,6 +173,26 @@ public class RewriteDataFiles {
       return this;
     }
 
+    @VisibleForTesting
+    public boolean PartialProgressEnabled() {
+      return partialProgressEnabled;
+    }
+
+    @VisibleForTesting
+    public int getPartialProgressMaxCommits() {
+      return partialProgressMaxCommits;
+    }
+
+    @VisibleForTesting
+    public Map<String, String> getRewriteOptions() {
+      return rewriteOptions;
+    }
+
+    @VisibleForTesting
+    public long getMaxRewriteBytes() {
+      return maxRewriteBytes;
+    }
+
     /**
      * Configures the properties for the rewriter.
      *
@@ -179,25 +200,16 @@ public class RewriteDataFiles {
      */
     public Builder properties(Map<String, String> properties) {
       RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
+
+      // Config about the rewriter
       Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressEnable())
           .ifPresent(this::partialProgressEnabled);
       Optional.ofNullable(rewriteDataFilesConfig.getPartialProgressMaxCommits())
           .ifPresent(this::partialProgressMaxCommits);
       Optional.ofNullable(rewriteDataFilesConfig.getMaxRewriteBytes())
           .ifPresent(this::maxRewriteBytes);
-      Optional.ofNullable(rewriteDataFilesConfig.getTargetFileSizeBytes())
-          .ifPresent(this::targetFileSizeBytes);
-      Optional.ofNullable(rewriteDataFilesConfig.getMinFileSizeBytes())
-          .ifPresent(this::minFileSizeBytes);
-      Optional.ofNullable(rewriteDataFilesConfig.getMaxFileSizeBytes())
-          .ifPresent(this::maxFileSizeBytes);
-      Optional.ofNullable(rewriteDataFilesConfig.getMaxFileGroupSizeBytes())
-          .ifPresent(this::maxFileGroupSizeBytes);
-      Optional.ofNullable(rewriteDataFilesConfig.getMinInputFiles()).ifPresent(this::minInputFiles);
-      Optional.ofNullable(rewriteDataFilesConfig.getDeleteFileThreshold())
-          .ifPresent(this::deleteFileThreshold);
-      Optional.ofNullable(rewriteDataFilesConfig.getRewriteAll()).ifPresent(this::rewriteAll);
 
+      // Config about the schedule
       Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnCommitCount())
           .ifPresent(this::scheduleOnCommitCount);
       Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnDataFileCount())
@@ -206,6 +218,10 @@ public class RewriteDataFiles {
           .ifPresent(this::scheduleOnDataFileSize);
       Optional.ofNullable(rewriteDataFilesConfig.getScheduleOnIntervalSecond())
           .ifPresent(intervalSecond -> this.scheduleOnInterval(Duration.ofSeconds(intervalSecond)));
+
+      // override the rewrite options
+      this.rewriteOptions.putAll(rewriteDataFilesConfig.getProperties());
+
       return this;
     }
 
