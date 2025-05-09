@@ -75,6 +75,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       dataOutputView.writeInt(toSerialize.schema().schemaId());
       dataOutputView.writeInt(toSerialize.spec().specId());
     }
+
     dataOutputView.writeInt(toSerialize.writerKey());
     final RowDataSerializer rowDataSerializer;
     if (writeSchemaAndSpec) {
@@ -90,6 +91,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
               toSerialize.spec().specId());
       rowDataSerializer = serializer.f0;
     }
+
     rowDataSerializer.serialize(toSerialize.rowData(), dataOutputView);
     dataOutputView.writeBoolean(toSerialize.upsertMode());
     dataOutputView.writeInt(toSerialize.equalityFields().size());
@@ -130,9 +132,11 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     } else {
       equalityFieldIds = Collections.emptyList();
     }
+
     for (int i = 0; i < numEqualityFields; i++) {
       equalityFieldIds.add(dataInputView.readInt());
     }
+
     return new DynamicRecordInternal(
         tableName, branch, schema, rowData, spec, writerKey, upsertMode, equalityFieldIds);
   }
