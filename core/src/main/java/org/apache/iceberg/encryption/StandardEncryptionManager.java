@@ -152,7 +152,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return KEY_ENCRYPTION_KEY_ID;
   }
 
-  ByteBuffer encryptedById(String manifestListKeyID) {
+  ByteBuffer encryptedByKey(String manifestListKeyID) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot find key encryption key after serialization");
     }
@@ -171,7 +171,13 @@ public class StandardEncryptionManager implements EncryptionManager {
       throw new IllegalStateException("Cannot find encrypted key metadata after serialization");
     }
 
-    return transientState.encryptionKeys.get(manifestListKeyID).encryptedKeyMetadata();
+    EncryptedKey encryptedKeyMetadata = transientState.encryptionKeys.get(manifestListKeyID);
+    if (encryptedKeyMetadata == null) {
+      throw new IllegalStateException(
+          "Cannot find manifest list key metadata with id " + manifestListKeyID);
+    }
+
+    return encryptedKeyMetadata.encryptedKeyMetadata();
   }
 
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {

@@ -129,7 +129,7 @@ public class EncryptionUtil {
         "Snapshot key metadata encryption requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
     String manifestListKeyId = manifestList.encryptionKeyID();
-    ByteBuffer keyEncryptionKey = sem.encryptedById(manifestListKeyId);
+    ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
     ByteBuffer encryptedKeyMetadata = sem.encryptedKeyMetadata(manifestListKeyId);
 
     Ciphers.AesGcmDecryptor decryptor =
@@ -141,11 +141,11 @@ public class EncryptionUtil {
   }
 
   /**
-   * Encrypts the key metadata for a snapshot.
+   * Encrypts the key metadata for a manifest list.
    *
    * @param key key encryption key bytes
    * @param keyId ID of the manifest list key
-   * @param keyMetadata manifest list EncryptionKeyMetadata buffer
+   * @param keyMetadata manifest list key metadata
    * @return encrypted key metadata
    */
   static ByteBuffer encryptManifestListKeyMetadata(

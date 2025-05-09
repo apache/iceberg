@@ -51,6 +51,7 @@ public class TestManifestListEncryption {
   private static final long EXISTING_ROWS = 857273L;
   private static final int DELETED_FILES = 1;
   private static final long DELETED_ROWS = 22910L;
+  private static final long FIRST_ROW_ID = 100L;
   private static final long SNAPSHOT_FIRST_ROW_ID = 130L;
 
   private static final ByteBuffer FIRST_SUMMARY_LOWER_BOUND =
@@ -79,14 +80,15 @@ public class TestManifestListEncryption {
           SEQ_NUM,
           MIN_SEQ_NUM,
           SNAPSHOT_ID,
+          PARTITION_SUMMARIES,
+          MANIFEST_KEY_METADATA,
           ADDED_FILES,
           ADDED_ROWS,
           EXISTING_FILES,
           EXISTING_ROWS,
           DELETED_FILES,
           DELETED_ROWS,
-          PARTITION_SUMMARIES,
-          MANIFEST_KEY_METADATA);
+          FIRST_ROW_ID);
 
   private static final EncryptionManager ENCRYPTION_MANAGER =
       EncryptionTestHelpers.createEncryptionManager();
