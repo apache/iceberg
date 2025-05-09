@@ -36,11 +36,6 @@ final class BigQueryMetastoreUtils {
   private static final String HIVE_FILE_OUTPUT_FORMAT =
       "org.apache.iceberg.mr.hive.HiveIcebergOutputFormat";
 
-  private static final String SERIALIZATION_LIBRARY =
-      "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe";
-  private static final String FILE_INPUT_FORMAT = "org.apache.hadoop.mapred.FileInputFormat";
-  private static final String FILE_OUTPUT_FORMAT = "org.apache.hadoop.mapred.FileOutputFormat";
-
   /**
    * Creates a new ExternalCatalogTableOptions object populated with the supported library constants
    * and parameters given.
@@ -49,9 +44,18 @@ final class BigQueryMetastoreUtils {
    * @param parameters table metadata parameters
    */
   public static ExternalCatalogTableOptions createExternalCatalogTableOptions(
-      String locationUri, Map<String, String> parameters, boolean hiveEngineEnabled) {
+      String locationUri, Map<String, String> parameters) {
+    SerDeInfo serDeInfo = new SerDeInfo().setSerializationLibrary(HIVE_SERIALIZATION_LIBRARY);
+
+    StorageDescriptor storageDescriptor =
+        new StorageDescriptor()
+            .setLocationUri(locationUri)
+            .setInputFormat(HIVE_FILE_INPUT_FORMAT)
+            .setOutputFormat(HIVE_FILE_OUTPUT_FORMAT)
+            .setSerdeInfo(serDeInfo);
+
     return new ExternalCatalogTableOptions()
-        .setStorageDescriptor(createStorageDescriptor(locationUri, hiveEngineEnabled))
+        .setStorageDescriptor(storageDescriptor)
         .setParameters(parameters);
   }
 
@@ -67,29 +71,5 @@ final class BigQueryMetastoreUtils {
     return new ExternalCatalogDatasetOptions()
         .setDefaultStorageLocationUri(defaultStorageLocationUri)
         .setParameters(metadataParameters);
-  }
-
-  private static StorageDescriptor createStorageDescriptor(
-      String locationUri, boolean hiveEngineEnabled) {
-    String inputFormat;
-    String outputFormat;
-    String serializationLibrary;
-    if (hiveEngineEnabled) {
-      serializationLibrary = HIVE_SERIALIZATION_LIBRARY;
-      inputFormat = HIVE_FILE_INPUT_FORMAT;
-      outputFormat = HIVE_FILE_OUTPUT_FORMAT;
-    } else {
-      serializationLibrary = SERIALIZATION_LIBRARY;
-      inputFormat = FILE_INPUT_FORMAT;
-      outputFormat = FILE_OUTPUT_FORMAT;
-    }
-
-    SerDeInfo serDeInfo = new SerDeInfo().setSerializationLibrary(serializationLibrary);
-
-    return new StorageDescriptor()
-        .setLocationUri(locationUri)
-        .setInputFormat(inputFormat)
-        .setOutputFormat(outputFormat)
-        .setSerdeInfo(serDeInfo);
   }
 }

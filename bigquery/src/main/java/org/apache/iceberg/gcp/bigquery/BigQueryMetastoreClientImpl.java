@@ -19,6 +19,8 @@
 package org.apache.iceberg.gcp.bigquery;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.googleapis.json.GoogleJsonError;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseException;
@@ -47,7 +49,6 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.BigQueryRetryConfig;
 import com.google.cloud.bigquery.BigQueryRetryHelper;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
@@ -59,6 +60,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -207,6 +209,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
+    } catch (NamespaceNotEmptyException e) {
+      throw new NamespaceNotEmptyException(
+          "%s is not empty: %s", datasetReference.getDatasetId(), e.getMessage());
     }
   }
 
@@ -305,7 +310,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (IOException e) {
       throw new RuntimeIOException("%s", e);
     } catch (AlreadyExistsException e) {
-      throw new AlreadyExistsException(e, "Table %s already exists", table);
+      throw new AlreadyExistsException(e, "Table already exists: %s", table);
     }
   }
 
@@ -533,17 +538,28 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       return response;
     }
 
+    GoogleJsonResponseException exception =
+        GoogleJsonResponseException.from(GsonFactory.getDefaultInstance(), response);
     String errorMessage =
-        response.getStatusMessage()
-            + (response.getContent() != null
-                ? "\n" + new String(response.getContent().readAllBytes(), StandardCharsets.UTF_8)
-                : "");
+        exception.getStatusMessage()
+            + (exception.getContent() != null ? "\n" + exception.getContent() : "");
 
     switch (response.getStatusCode()) {
       case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED:
         throw new NotAuthorizedException(
             "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_BAD_REQUEST:
+        GoogleJsonError errorDetails = exception.getDetails();
+        if (errorDetails != null) {
+          List<GoogleJsonError.ErrorInfo> errors = errorDetails.getErrors();
+          if (errors != null) {
+            for (GoogleJsonError.ErrorInfo errorInfo : errors) {
+              if (errorInfo.getReason().equals("resourceInUse")) {
+                throw new NamespaceNotEmptyException("%s", errorInfo.getMessage());
+              }
+            }
+          }
+        }
         throw new BadRequestException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
         throw new ForbiddenException("%s", errorMessage);

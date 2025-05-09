@@ -23,8 +23,6 @@ import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
@@ -35,7 +33,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -51,17 +48,12 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   private final BigQueryMetastoreClient client;
   private final FileIO fileIO;
   private final TableReference tableReference;
-  private final Configuration conf;
 
   BigQueryTableOperations(
-      BigQueryMetastoreClient client,
-      FileIO fileIO,
-      TableReference tableReference,
-      Configuration conf) {
+      BigQueryMetastoreClient client, FileIO fileIO, TableReference tableReference) {
     this.client = client;
     this.fileIO = fileIO;
     this.tableReference = tableReference;
-    this.conf = conf;
   }
 
   // The doRefresh method should provide implementation on how to get the metadata location.
@@ -207,9 +199,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     return new Table()
         .setExternalCatalogTableOptions(
             BigQueryMetastoreUtils.createExternalCatalogTableOptions(
-                metadata.location(),
-                buildTableParameters(metadataFileLocation, metadata),
-                hiveEngineEnabled(metadata)));
+                metadata.location(), buildTableParameters(metadataFileLocation, metadata)));
   }
 
   // Follow Iceberg's HiveTableOperations to populate more table parameters for HMS compatibility.
@@ -245,15 +235,15 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
 
     Map<String, String> summary = metadata.currentSnapshot().summary();
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
-      parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      parameters.put("numFiles", summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     }
 
     if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
-      parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
+      parameters.put("numRows", summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
 
     if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
-      parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+      parameters.put("totalSize", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
   }
 
@@ -265,31 +255,5 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     }
 
     return tableOptions.getParameters().get(METADATA_LOCATION_PROP);
-  }
-
-  /**
-   * Returns if the hive engine related values should be enabled on the table, or not.
-   *
-   * <p>The decision is made like this:
-   *
-   * <ol>
-   *   <li>Table property value {@link TableProperties#ENGINE_HIVE_ENABLED}
-   *   <li>If the table property is not set then check the hive-site.xml property value {@link
-   *       ConfigProperties#ENGINE_HIVE_ENABLED}
-   *   <li>If none of the above is enabled then use the default value {@link
-   *       TableProperties#ENGINE_HIVE_ENABLED_DEFAULT}
-   * </ol>
-   *
-   * @param metadata Table metadata to use
-   * @return if the hive engine related values should be enabled or not
-   */
-  private boolean hiveEngineEnabled(TableMetadata metadata) {
-    if (metadata.properties().get(TableProperties.ENGINE_HIVE_ENABLED) != null) {
-      // We know that the property is set, so default value will not be used,
-      return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);
-    }
-
-    return this.conf.getBoolean(
-        ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
   }
 }

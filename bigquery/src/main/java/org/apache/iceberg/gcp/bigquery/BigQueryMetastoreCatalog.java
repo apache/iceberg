@@ -33,8 +33,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -45,6 +43,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -58,7 +57,7 @@ import org.slf4j.LoggerFactory;
 
 /** Iceberg Bigquery Metastore Catalog implementation. */
 public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
-    implements SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable<Object> {
 
   // User provided properties.
   public static final String PROJECT_ID = "gcp.bigquery.project-id";
@@ -72,7 +71,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private String catalogName;
   private Map<String, String> catalogProperties;
   private FileIO fileIO;
-  private Configuration conf;
+  private Object conf;
   private String projectId;
   private String projectLocation;
   private BigQueryMetastoreClient client;
@@ -123,11 +122,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     this.projectLocation = initialLocation;
     this.client = bigQueryMetaStoreClient;
 
-    if (this.conf == null) {
-      LOG.warn("No configuration was set, using the default environment Configuration");
-      this.conf = new Configuration();
-    }
-
     LOG.info("Using BigQuery Metastore Iceberg Catalog: {}", name);
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
@@ -147,7 +141,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new BigQueryTableOperations(client, fileIO, toTableReference(identifier), conf);
+    return new BigQueryTableOperations(client, fileIO, toTableReference(identifier));
   }
 
   @Override
@@ -322,13 +316,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
-    this.conf = new Configuration(conf);
-  }
-
-  @Override
-  public Configuration getConf() {
-    return conf;
+  public void setConf(Object conf) {
+    this.conf = conf;
   }
 
   private String createDefaultStorageLocationUri(String dbId) {
