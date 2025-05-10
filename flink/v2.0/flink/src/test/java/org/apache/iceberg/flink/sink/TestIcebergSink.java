@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -55,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.Assume;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -421,8 +421,10 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   void testErrorOnNullForRequiredField() throws Exception {
-    Assume.assumeFalse(
-        "ORC file format supports null values even for required fields.", format == FileFormat.ORC);
+
+    assumeThat(format)
+        .as("ORC file format supports null values even for required fields.")
+        .isNotEqualTo(FileFormat.ORC);
 
     Schema icebergSchema =
         new Schema(

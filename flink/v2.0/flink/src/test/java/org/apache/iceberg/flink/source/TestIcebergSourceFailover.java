@@ -44,9 +44,8 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.junit5.InjectClusterClient;
+import org.apache.flink.test.junit5.InjectMiniCluster;
 import org.apache.flink.test.junit5.MiniClusterExtension;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
-import org.apache.flink.util.function.ThrowingConsumer;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -183,15 +182,15 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testBoundedWithTaskManagerFailover() throws Exception {
-    runTestWithNewMiniCluster(
-        miniCluster -> testBoundedIcebergSource(FailoverType.TM, miniCluster));
+  public void testBoundedWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testBoundedIcebergSource(FailoverType.TM, miniCluster);
   }
 
   @Test
-  public void testBoundedWithJobManagerFailover() throws Exception {
-    runTestWithNewMiniCluster(
-        miniCluster -> testBoundedIcebergSource(FailoverType.JM, miniCluster));
+  public void testBoundedWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testBoundedIcebergSource(FailoverType.JM, miniCluster);
   }
 
   private void testBoundedIcebergSource(FailoverType failoverType, MiniCluster miniCluster)
@@ -224,15 +223,15 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testContinuousWithTaskManagerFailover() throws Exception {
-    runTestWithNewMiniCluster(
-        miniCluster -> testContinuousIcebergSource(FailoverType.TM, miniCluster));
+  public void testContinuousWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testContinuousIcebergSource(FailoverType.TM, miniCluster);
   }
 
   @Test
-  public void testContinuousWithJobManagerFailover() throws Exception {
-    runTestWithNewMiniCluster(
-        miniCluster -> testContinuousIcebergSource(FailoverType.JM, miniCluster));
+  public void testContinuousWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testContinuousIcebergSource(FailoverType.JM, miniCluster);
   }
 
   private void testContinuousIcebergSource(FailoverType failoverType, MiniCluster miniCluster)
@@ -313,20 +312,6 @@ public class TestIcebergSourceFailover {
   // ------------------------------------------------------------------------
   // test utilities copied from Flink's FileSourceTextLinesITCase
   // ------------------------------------------------------------------------
-
-  private static void runTestWithNewMiniCluster(ThrowingConsumer<MiniCluster, Exception> testMethod)
-      throws Exception {
-    MiniClusterWithClientResource miniCluster = null;
-    try {
-      miniCluster = new MiniClusterWithClientResource(MINI_CLUSTER_RESOURCE_CONFIG);
-      miniCluster.before();
-      testMethod.accept(miniCluster.getMiniCluster());
-    } finally {
-      if (miniCluster != null) {
-        miniCluster.after();
-      }
-    }
-  }
 
   private enum FailoverType {
     NONE,

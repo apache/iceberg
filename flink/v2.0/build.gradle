@@ -68,7 +68,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     implementation libs.datasketches
 
-    testImplementation libs.flink20.connector.test.utils
+    testImplementation(libs.flink20.connector.test.utils) {
+      exclude group: 'junit'
+    }
     testImplementation libs.flink20.core
     testImplementation libs.flink20.runtime
     testImplementation(libs.flink20.test.utilsjunit) {
