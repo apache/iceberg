@@ -276,8 +276,10 @@ public class BinPackRewriteFilePlanner
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
 
     if (maxFilesToRewrite != null) {
+      List<FileScanTask> fileScanTasksList = Lists.newArrayList(fileScanTasks);
       fileScanTasks =
-          CloseableIterable.of(Lists.newArrayList(fileScanTasks).subList(0, maxFilesToRewrite));
+          CloseableIterable.of(
+              fileScanTasksList.subList(0, Math.min(fileScanTasksList.size(), maxFilesToRewrite)));
     }
 
     try {
