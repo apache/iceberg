@@ -322,7 +322,12 @@ class TestTableMaintenance extends OperatorTestBase {
     Transformation<?> scheduledTransformation =
         env.getTransformations().stream()
             .filter(
-                t -> t.getName().startsWith(MaintenanceTaskBuilderForTest.class.getSimpleName()))
+                t ->
+                    t.getName()
+                        .startsWith(
+                            MaintenanceTaskBuilderForTest.class
+                                .getEnclosingClass()
+                                .getSimpleName()))
             .findFirst()
             .orElseThrow();
     assertThat(scheduledTransformation.getUid()).contains(anotherUid);
