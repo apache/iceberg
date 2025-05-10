@@ -1703,6 +1703,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testZOrderAllTypesSort() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");
     Table table = createTypeTestTable();
     shouldHaveFiles(table, 10);
 

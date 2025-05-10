@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,6 @@ import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ScanTaskUtil;
 import org.apache.iceberg.util.StructLikeSet;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -1196,22 +1196,22 @@ public class TestPositionDeletesTable extends CatalogTestBase {
       tab.updateSpec().addField("data").commit();
     }
 
-    assertThatThrownBy(
-            () ->
-                scanDF
-                    .writeTo(posDeletesTableName)
-                    .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-                    .append())
-        .isInstanceOf(AnalysisException.class)
-        .hasMessage(
-            "[INCOMPATIBLE_DATA_FOR_TABLE.CANNOT_FIND_DATA] Cannot write incompatible data for the table `"
-                + catalogName
-                + "`.`default`.`"
-                + tableName
-                + "`.`position_deletes`"
-                + ": Cannot find data for the output column `partition`.");
+    scanDF
+        .writeTo(posDeletesTableName)
+        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+        .append();
+
+    scanDF =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+            .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+            .load(posDeletesTableName);
+    assertThat(Arrays.asList(scanDF.columns()).contains("partition"));
 
     dropTable(tableName);
+    dropTable(posDeletesTableName);
   }
 
   @TestTemplate

@@ -253,14 +253,8 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
-            });
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -361,7 +355,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
                     catalogName, tableIdent, tempViewName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("file_path does not exist. Available: ");
+        .hasMessage("[FIELD_NOT_FOUND] No such struct field `file_path` in . SQLSTATE: 42704");
 
     spark
         .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))

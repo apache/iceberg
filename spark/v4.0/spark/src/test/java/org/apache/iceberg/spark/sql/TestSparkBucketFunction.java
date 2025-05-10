@@ -283,60 +283,55 @@ public class TestSparkBucketFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
         .asString()
         .isNotNull()
-        .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // SmallInt
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6S)"))
         .asString()
         .isNotNull()
-        .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Int
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6)"))
         .asString()
         .isNotNull()
-        .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Date
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, DATE '2022-08-08')"))
         .asString()
         .isNotNull()
-        .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Long
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6L)"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
 
     // Timestamp
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, TIMESTAMP '2022-08-08')"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
 
     // String
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 'abcdefg')"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketString");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketString");
 
     // Decimal
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, CAST('12.34' AS DECIMAL))"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketDecimal");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketDecimal");
 
     // Binary
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(4, X'0102030405060708')"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketBinary");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketBinary");
   }
 
   private String asBytesLiteral(String value) {

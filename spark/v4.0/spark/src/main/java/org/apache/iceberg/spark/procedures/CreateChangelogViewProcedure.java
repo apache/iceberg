@@ -181,12 +181,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     Column[] repartitionSpec = new Column[identifierColumns.length + 1];
     for (int i = 0; i < identifierColumns.length; i++) {
-      repartitionSpec[i] = df.col(identifierColumns[i]);
+      repartitionSpec[i] = df.col(CreateChangelogViewProcedure.delimitedName(identifierColumns[i]));
     }
 
     repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
 
-    return applyChangelogIterator(df, repartitionSpec);
+    String[] identifierFields = Arrays.copyOf(identifierColumns, identifierColumns.length + 1);
+    identifierFields[identifierFields.length - 1] = MetadataColumns.CHANGE_ORDINAL.name();
+
+    return applyChangelogIterator(df, repartitionSpec, identifierFields);
   }
 
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
@@ -224,9 +227,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       return input.asStringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
-      return table.schema().identifierFieldNames().stream()
-          .map(CreateChangelogViewProcedure::delimitedName)
-          .toArray(String[]::new);
+      return table.schema().identifierFieldNames().stream().toArray(String[]::new);
     }
   }
 
@@ -246,11 +247,10 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return input.asString(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
-  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionSpec) {
+  private Dataset<Row> applyChangelogIterator(
+      Dataset<Row> df, Column[] repartitionSpec, String[] identifierFields) {
     Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
-    String[] identifierFields =
-        Arrays.stream(repartitionSpec).map(Column::toString).toArray(String[]::new);
 
     return df.repartition(repartitionSpec)
         .sortWithinPartitions(sortSpec)

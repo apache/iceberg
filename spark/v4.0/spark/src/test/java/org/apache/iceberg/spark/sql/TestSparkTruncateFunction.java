@@ -373,14 +373,13 @@ public class TestSparkTruncateFunction extends TestBaseWithCatalog {
         (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(1Y, 6)");
     assertThat(tinyIntWidthExplain)
         .contains("cast(1 as int)")
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     String smallIntWidth = (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5S, 6L)");
     assertThat(smallIntWidth)
         .contains("cast(5 as int)")
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
   }
 
   @TestTemplate
@@ -393,49 +392,48 @@ public class TestSparkTruncateFunction extends TestBaseWithCatalog {
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateTinyInt");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateTinyInt");
 
     // SmallInt
     assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateSmallInt");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateSmallInt");
 
     // Int
     assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
         .asString()
         .isNotNull()
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
+        .contains("static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     // Long
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
 
     // String
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateString");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateString");
 
     // Decimal
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateDecimal");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateDecimal");
 
     // Binary
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
         .asString()
         .isNotNull()
         .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBinary");
+            "static_invoke(org.apache.iceberg.spark.functions.TruncateFunction$TruncateBinary");
   }
 
   private String asBytesLiteral(String value) {

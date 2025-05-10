@@ -87,6 +87,7 @@ import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
+import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -145,11 +146,15 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg catalog
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-    Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
+    Configuration conf =
+        SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     optionsMap.putAll(options.asCaseSensitiveMap());
-    optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
-    optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
+    optionsMap.put(
+        CatalogProperties.APP_ID,
+        SparkSession.getActiveSession().get().sparkContext().applicationId());
+    optionsMap.put(
+        CatalogProperties.USER, SparkSession.getActiveSession().get().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 
@@ -564,18 +569,16 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public View createView(
-      Identifier ident,
-      String sql,
-      String currentCatalog,
-      String[] currentNamespace,
-      StructType schema,
-      String[] queryColumnNames,
-      String[] columnAliases,
-      String[] columnComments,
-      Map<String, String> properties)
+  public View createView(ViewInfo viewInfo)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    if (null != asViewCatalog) {
+    if (null != asViewCatalog && viewInfo != null) {
+      Identifier ident = viewInfo.ident();
+      String sql = viewInfo.sql();
+      String currentCatalog = viewInfo.currentCatalog();
+      String[] currentNamespace = viewInfo.currentNamespace();
+      StructType schema = viewInfo.schema();
+      String[] queryColumnNames = viewInfo.queryColumnNames();
+      Map<String, String> properties = viewInfo.properties();
       Schema icebergSchema = SparkSchemaUtil.convert(schema);
 
       try {
@@ -752,9 +755,10 @@ public class SparkCatalog extends BaseCatalog {
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
-    SparkSession sparkSession = SparkSession.active();
+    SparkSession sparkSession = SparkSession.getActiveSession().get();
     this.tables =
-        new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
+        new HadoopTables(
+            SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name));
     this.icebergCatalog =
         cacheEnabled
             ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)

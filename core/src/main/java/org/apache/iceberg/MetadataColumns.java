@@ -51,7 +51,7 @@ public class MetadataColumns {
   public static final int SPEC_ID_COLUMN_ID = Integer.MAX_VALUE - 4;
   public static final String SPEC_ID_COLUMN_DOC = "Spec ID used to track the file containing a row";
   public static final NestedField SPEC_ID =
-      NestedField.required(
+      NestedField.optional(
           SPEC_ID_COLUMN_ID, "_spec_id", Types.IntegerType.get(), SPEC_ID_COLUMN_DOC);
   // the partition column type is not static and depends on all specs in the table
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;

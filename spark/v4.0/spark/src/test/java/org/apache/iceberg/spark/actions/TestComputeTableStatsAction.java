@@ -38,6 +38,7 @@ import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -426,7 +427,13 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     Iterable<InternalRow> rows = RandomData.generateSpark(schema, 10, 0);
     JavaRDD<InternalRow> rowRDD = sparkContext.parallelize(Lists.newArrayList(rows));
     StructType rowSparkType = SparkSchemaUtil.convert(schema);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
+    Preconditions.checkArgument(
+        spark instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark.getClass().getName());
+
+    return ((org.apache.spark.sql.classic.SparkSession) spark)
+        .internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
   }
 
   private void append(String table, Dataset<Row> df) throws NoSuchTableException {

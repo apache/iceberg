@@ -16,20 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.extensions;
 
-import java.util.Map;
-import org.apache.iceberg.RowLevelOperationMode;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+package org.apache.spark.sql.catalyst.plans.logical
 
-public class TestMergeOnReadWithLineage extends TestRowLevelOperationsWithLineage {
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
+import org.apache.spark.sql.catalyst.util.truncatedString
+import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(
-        TableProperties.MERGE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
-        TableProperties.UPDATE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
-        TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
+case class IcebergCall(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
+  override lazy val output: Seq[Attribute] = DataTypeUtils.toAttributes(procedure.outputType)
+
+  override def simpleString(maxFields: Int): String = {
+    s"IcebergCall${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"
   }
 }
