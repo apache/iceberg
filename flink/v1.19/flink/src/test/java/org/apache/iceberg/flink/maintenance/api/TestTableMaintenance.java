@@ -68,8 +68,8 @@ import org.junit.jupiter.api.io.TempDir;
 class TestTableMaintenance extends OperatorTestBase {
   private static final String[] TASKS =
       new String[] {
-        MaintenanceTaskBuilderForTest.class.getSimpleName() + " [0]",
-        MaintenanceTaskBuilderForTest.class.getSimpleName() + " [1]"
+        MaintenanceTaskBuilderForTest.class.getEnclosingClass().getSimpleName() + " [0]",
+        MaintenanceTaskBuilderForTest.class.getEnclosingClass().getSimpleName() + " [1]"
       };
   private static final TableChange DUMMY_CHANGE = TableChange.builder().commitCount(1).build();
   private static final List<Trigger> PROCESSED =

@@ -302,7 +302,10 @@ public class TableMaintenance {
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
       return String.format(
-          Locale.ROOT, "%s [%d]", streamBuilder.getClass().getSimpleName(), taskIndex);
+          Locale.ROOT,
+          "%s [%d]",
+          streamBuilder.getClass().getEnclosingClass().getSimpleName(),
+          taskIndex);
     }
   }
 
