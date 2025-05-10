@@ -40,6 +40,7 @@ public class RewriteDataFiles {
   static final String REWRITE_TASK_NAME = "Rewrite";
   static final String COMMIT_TASK_NAME = "Rewrite commit";
   static final String AGGREGATOR_TASK_NAME = "Rewrite aggregator";
+  private static final String MAINTENANCE_TASK_NAME = "RewriteDataFiles";
 
   private RewriteDataFiles() {}
 
@@ -53,6 +54,11 @@ public class RewriteDataFiles {
     private int partialProgressMaxCommits = 10;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
+
+    @Override
+    String maintenanceTaskName() {
+      return MAINTENANCE_TASK_NAME;
+    }
 
     /**
      * Allows committing compacted data files in batches. See {@link
