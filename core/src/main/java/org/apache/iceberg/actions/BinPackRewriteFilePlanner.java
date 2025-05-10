@@ -86,6 +86,11 @@ public class BinPackRewriteFilePlanner
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
 
+  /**
+   * The max number of files to be rewritten (Not providing this value would rewrite all the files)
+   */
+  public static final String MAX_FILES_TO_REWRITE = "max-files-to-rewrite";
+
   private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
   private final Expression filter;
@@ -95,6 +100,7 @@ public class BinPackRewriteFilePlanner
   private int deleteFileThreshold;
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
+  private Integer maxFilesToRewrite = Integer.MAX_VALUE;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -132,6 +138,7 @@ public class BinPackRewriteFilePlanner
         .add(DELETE_FILE_THRESHOLD)
         .add(DELETE_RATIO_THRESHOLD)
         .add(RewriteDataFiles.REWRITE_JOB_ORDER)
+        .add(MAX_FILES_TO_REWRITE)
         .build();
   }
 
@@ -146,6 +153,7 @@ public class BinPackRewriteFilePlanner
                 options,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
+    this.maxFilesToRewrite = maxFilesToRewrite(options);
   }
 
   private int deleteFileThreshold(Map<String, String> options) {
@@ -164,6 +172,16 @@ public class BinPackRewriteFilePlanner
         value > 0, "'%s' is set to %s but must be > 0", DELETE_RATIO_THRESHOLD, value);
     Preconditions.checkArgument(
         value <= 1, "'%s' is set to %s but must be <= 1", DELETE_RATIO_THRESHOLD, value);
+    return value;
+  }
+
+  private Integer maxFilesToRewrite(Map<String, String> options) {
+    Integer value = PropertyUtil.propertyAsNullableInt(options, MAX_FILES_TO_REWRITE);
+    Preconditions.checkArgument(
+        value == null || value > 0,
+        "Cannot set %s to %s, the value must be positive integer.",
+        MAX_FILES_TO_REWRITE,
+        value);
     return value;
   }
 
@@ -256,6 +274,9 @@ public class BinPackRewriteFilePlanner
     }
 
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
+    if (maxFilesToRewrite != null) {
+      fileScanTasks = CloseableIterable.of(Iterables.limit(fileScanTasks, maxFilesToRewrite));
+    }
 
     try {
       Types.StructType partitionType = table().spec().partitionType();
