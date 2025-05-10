@@ -20,8 +20,8 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.iceberg.catalog.Catalog;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -43,24 +43,10 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private Catalog catalog;
   private IcebergSinkConfig config;
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
-  private final AtomicBoolean isInitialized = new AtomicBoolean(false);
-
-  private void initialize(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    if (isInitialized.compareAndSet(false, true)) {
-      this.catalog = icebergCatalog;
-      this.config = icebergSinkConfig;
-      this.context = sinkTaskContext;
-      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-    }
-  }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
 
@@ -105,33 +91,11 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void start(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    throw new UnsupportedOperationException(
-        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
-            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
-  }
-
-  @Override
-  public void open(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext,
-      Collection<TopicPartition> addedPartitions) {
-    initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
+  public void open(Collection<TopicPartition> addedPartitions) {
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
     }
-  }
-
-  @Override
-  public void stop() {
-    throw new UnsupportedOperationException(
-        "The method stop() is deprecated and will be removed in 2.0.0. "
-            + "Use stop(Collection<TopicPartition>) instead.");
   }
 
   @Override
@@ -141,6 +105,11 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
     stopWorker();
+    Set<TopicPartition> oldAssignment = context.assignment().stream().collect(Collectors.toSet());
+    oldAssignment.removeAll(closedPartitions);
+    if (oldAssignment.isEmpty()) {
+      config.closeCatalog();
+    }
     KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
@@ -151,6 +120,13 @@ public class CommitterImpl implements Committer {
       worker.save(sinkRecords);
     }
     processControlEvents();
+  }
+
+  @Override
+  public void configure(IcebergSinkConfig icebergSinkConfig) {
+    this.config = icebergSinkConfig;
+    this.context = icebergSinkConfig.context();
+    this.clientFactory = new KafkaClientFactory(icebergSinkConfig.kafkaProps());
   }
 
   private void processControlEvents() {
@@ -165,8 +141,8 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker");
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
-      worker = new Worker(config, clientFactory, sinkWriter, context);
+      SinkWriter sinkWriter = new SinkWriter(config);
+      worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
     }
   }
@@ -175,7 +151,7 @@ public class CommitterImpl implements Committer {
     if (null == this.coordinatorThread) {
       LOG.info("Task elected leader, starting commit coordinator");
       Coordinator coordinator =
-          new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+          new Coordinator(config, membersWhenWorkerIsCoordinator, clientFactory);
       coordinatorThread = new CoordinatorThread(coordinator);
       coordinatorThread.start();
     }
