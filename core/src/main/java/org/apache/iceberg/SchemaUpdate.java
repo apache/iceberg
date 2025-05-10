@@ -516,7 +516,8 @@ class SchemaUpdate implements UpdateSchema {
         Set<String> columnProperties =
             ImmutableSet.of(
                 TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
                 newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
