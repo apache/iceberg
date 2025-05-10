@@ -35,6 +35,7 @@ import org.apache.iceberg.util.PropertyUtil;
 class RCKUtils {
   private static final String CATALOG_ENV_PREFIX = "CATALOG_";
   static final String RCK_LOCAL = "rck.local";
+  static final String RCK_PORT_MAX_RETRIES = "rck.port-max-retries";
   static final String RCK_PURGE_TEST_NAMESPACES = "rck.purge-test-namespaces";
 
   static final List<Namespace> TEST_NAMESPACES = List.of(Namespace.of("ns"), Namespace.of("newdb"));
