@@ -19,7 +19,6 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -282,7 +281,7 @@ public class NessieIcebergClient implements AutoCloseable {
               .map(EntriesResponse.Entry::getName)
               .collect(Collectors.toList());
       if (entries.isEmpty()) {
-        return Collections.emptyList();
+        throw new NoSuchNamespaceException("Namespace %s does not exist!", namespace);
       }
       GetContentBuilder getContent = withReference(api.getContent());
       entries.forEach(getContent::key);
