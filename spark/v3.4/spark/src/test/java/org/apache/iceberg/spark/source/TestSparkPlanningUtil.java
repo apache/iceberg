@@ -28,6 +28,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -36,12 +37,14 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
-public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSparkPlanningUtil extends TestBaseWithCatalog {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -55,7 +58,7 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
   private static final List<String> EXECUTOR_LOCATIONS =
       ImmutableList.of("host1_exec1", "host1_exec2", "host1_exec3", "host2_exec1", "host2_exec2");
 
-  @Test
+  @TestTemplate
   public void testFileScanTaskWithoutDeletes() {
     List<ScanTask> tasks =
         ImmutableList.of(
@@ -68,11 +71,10 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors if there are no deletes
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
-  @Test
+  @TestTemplate
   public void testFileScanTaskWithDeletes() {
     StructLike partition1 = Row.of("k2", null);
     StructLike partition2 = Row.of("k1");
@@ -94,7 +96,7 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
     assertThat(locations[0].length).isGreaterThanOrEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testFileScanTaskWithUnpartitionedDeletes() {
     List<ScanTask> tasks1 =
         ImmutableList.of(
@@ -137,12 +139,10 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors if the table is unpartitioned
-    assertThat(locations.length).isEqualTo(2);
-    assertThat(locations[0]).isEmpty();
-    assertThat(locations[1]).isEmpty();
+    assertThat(locations).hasDimensions(2, 0);
   }
 
-  @Test
+  @TestTemplate
   public void testDataTasks() {
     List<ScanTask> tasks =
         ImmutableList.of(
@@ -155,11 +155,10 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors for data tasks
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
-  @Test
+  @TestTemplate
   public void testUnknownTasks() {
     List<ScanTask> tasks = ImmutableList.of(new UnknownScanTask(), new UnknownScanTask());
     ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks);
@@ -168,8 +167,7 @@ public class TestSparkPlanningUtil extends SparkTestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors for unknown tasks
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
   private static DataFile mockDataFile(StructLike partition) {
