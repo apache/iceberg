@@ -21,24 +21,28 @@ nav:
     - Spark: spark-quickstart.md
     - Hive: hive-quickstart.md
   - Docs: 
-    - nightly: '!include docs/docs/nightly/mkdocs.yml'
-    - latest: '!include docs/docs/latest/mkdocs.yml'
-    - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
-    - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
-    - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
-    - 1.7.2: '!include docs/docs/1.7.2/mkdocs.yml'
-    - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
-    - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
-    - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
-    - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
-    - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
-    - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'   
-    - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
-    - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
-    - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
-    - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
-    - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
-    - archive: archive.md
+    - Iceberg:
+      - nightly: '!include docs/docs/nightly/mkdocs.yml'
+      - latest: '!include docs/docs/latest/mkdocs.yml'
+      - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
+      - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
+      - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
+      - 1.7.2: '!include docs/docs/1.7.2/mkdocs.yml'
+      - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
+      - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
+      - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
+      - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
+      - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
+      - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'
+      - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
+      - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
+      - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
+      - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
+      - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+      - archive: archive.md
+    - PyIceberg: https://py.iceberg.apache.org/
+    - IcebergRust: https://rust.iceberg.apache.org/
+    - IcebergGo: https://pkg.go.dev/github.com/apache/iceberg-go/
   - Releases: releases.md
   - Blogs: blogs.md
   - Talks: talks.md
@@ -63,6 +67,3 @@ nav:
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
     - Implementation status: status.md
-  - PyIceberg: https://py.iceberg.apache.org/
-  - IcebergRust: https://rust.iceberg.apache.org/
-  - IcebergGo: https://pkg.go.dev/github.com/apache/iceberg-go/
