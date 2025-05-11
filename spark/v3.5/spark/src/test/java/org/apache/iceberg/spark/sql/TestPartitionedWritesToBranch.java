@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionedWritesToBranch extends PartitionedWritesTestBase {
 
   private static final String BRANCH = "test";

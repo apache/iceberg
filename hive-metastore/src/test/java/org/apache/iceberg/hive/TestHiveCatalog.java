@@ -83,6 +83,7 @@ import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
@@ -1207,5 +1208,12 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
+  }
+
+  @Test
+  @Override
+  @Disabled("Hive currently returns an empty list instead of throwing a NoSuchNamespaceException")
+  public void testListNonExistingNamespace() {
+    super.testListNonExistingNamespace();
   }
 }

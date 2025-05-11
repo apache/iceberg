@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -32,6 +31,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -61,8 +61,9 @@ import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestDataSourceOptions extends TestBaseWithCatalog {
 
   private static final Configuration CONF = new Configuration();
@@ -70,8 +71,6 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
-
-  @TempDir private Path temp;
 
   @BeforeAll
   public static void startSpark() {
@@ -372,7 +371,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testDefaultMetadataSplitSize() throws IOException {
+  public void testDefaultMetadataSplitSize() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -468,7 +467,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
 
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     assertThat(snapshots).hasSize(2);
-    assertThat(snapshots.get(0).summary().get("writer-thread")).isNull();
+    assertThat(snapshots.get(0).summary()).doesNotContainKey("writer-thread");
     assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
         .containsEntry("extra-key", "someValue")
@@ -512,7 +511,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
 
     assertThat(snapshots).hasSize(2);
-    assertThat(snapshots.get(0).summary().get("writer-thread")).isNull();
+    assertThat(snapshots.get(0).summary()).doesNotContainKey("writer-thread");
     assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-delete-thread")
         .containsEntry("extra-key", "someValue")

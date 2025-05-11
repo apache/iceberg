@@ -136,7 +136,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
-        manifest.firstRowId(),
         toCopy,
         current.specsById(),
         newManifestFile,

@@ -24,12 +24,16 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A rolling writer capable of splitting incoming data or deletes into multiple files within one
  * spec/partition based on the target file size.
  */
 abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements FileWriter<T, R> {
+  private static final Logger LOG = LoggerFactory.getLogger(RollingFileWriter.class);
   private static final int ROWS_DIVISOR = 1000;
 
   private final OutputFileFactory fileFactory;
@@ -125,12 +129,17 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
       }
 
       if (currentFileRows == 0L) {
-        try {
-          io.deleteFile(currentFile.encryptingOutputFile());
-        } catch (UncheckedIOException e) {
-          // the file may not have been created, and it isn't worth failing the job to clean up,
-          // skip deleting
-        }
+        // the file may not have been created or cannot be deleted, and it isn't worth failing
+        // the job to clean up, skip deleting
+        Tasks.foreach(currentFile.encryptingOutputFile())
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (file, exc) ->
+                    LOG.warn(
+                        "Failed to delete the uncommitted empty file during writer clean up: {}",
+                        file,
+                        exc))
+            .run(io::deleteFile);
       } else {
         addResult(currentWriter.result());
       }

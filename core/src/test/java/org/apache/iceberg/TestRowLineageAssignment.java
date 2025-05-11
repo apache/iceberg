@@ -122,6 +122,156 @@ public class TestRowLineageAssignment {
   }
 
   @Test
+  public void testOverrideFirstRowId() {
+    assertThat(table.operations().current().nextRowId()).isEqualTo(0L);
+
+    // commit a file with first_row_id set
+    DataFile withFirstRowId =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .copy(FILE_A)
+            .withFirstRowId(1_000L)
+            .build();
+
+    table.newAppend().appendFile(withFirstRowId).commit();
+    Snapshot current = table.currentSnapshot();
+    assertThat(current.firstRowId()).isEqualTo(0L);
+    assertThat(table.operations().current().nextRowId()).isEqualTo(withFirstRowId.recordCount());
+    checkManifestListAssignment(table.io().newInputFile(current.manifestListLocation()), 0L);
+
+    // first_row_id should be overridden by metadata assignment
+    ManifestFile manifest = Iterables.getOnlyElement(current.dataManifests(table.io()));
+    checkDataFileAssignment(table, manifest, 0L);
+  }
+
+  @Test
+  public void testBranchAssignment() {
+    // start with a single file in the table
+    testSingleFileAppend();
+
+    long startingCurrentSnapshot = table.currentSnapshot().snapshotId();
+    long startingNextRowId = table.operations().current().nextRowId();
+
+    // commit to a branch
+    table.newAppend().appendFile(FILE_B).toBranch("branch").commit();
+    // branch data manifests: [added(FILE_B)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(startingCurrentSnapshot);
+
+    long branchSnapshot = table.snapshot("branch").snapshotId();
+
+    // commit to main
+    table.newAppend().appendFile(FILE_C).commit();
+    // main data manifests: [added(FILE_C)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount() + FILE_C.recordCount());
+    assertThat(table.snapshot("branch").snapshotId()).isEqualTo(branchSnapshot);
+
+    // validate the commit to the branch
+    checkManifestListAssignment(
+        table.io().newInputFile(table.snapshot("branch").manifestListLocation()),
+        startingNextRowId,
+        0L);
+
+    List<ManifestFile> branchManifests = table.snapshot("branch").dataManifests(table.io());
+    checkDataFileAssignment(table, branchManifests.get(0), startingNextRowId);
+    checkDataFileAssignment(table, branchManifests.get(1), 0L);
+
+    // validate the commit to main
+    checkManifestListAssignment(
+        table.io().newInputFile(table.currentSnapshot().manifestListLocation()),
+        startingNextRowId + FILE_B.recordCount(),
+        0L);
+
+    List<ManifestFile> mainManifests = table.currentSnapshot().dataManifests(table.io());
+    checkDataFileAssignment(table, mainManifests.get(0), startingNextRowId + FILE_B.recordCount());
+    checkDataFileAssignment(table, mainManifests.get(1), 0L);
+  }
+
+  @Test
+  public void testCherryPickReassignsRowIds() {
+    // start with a commit in a branch that diverges from main
+    testBranchAssignment();
+
+    long startingNextRowId = table.operations().current().nextRowId();
+    // first row ID for C is the sum of rows in FILE_A and FILE_B because it was committed last
+    long firstRowIdFileC = FILE_A.recordCount() + FILE_B.recordCount();
+
+    // cherry-pick the commit to the main branch
+    table.manageSnapshots().cherrypick(table.snapshot("branch").snapshotId()).commit();
+    // main data manifests: [added(FILE_B)], [added(FILE_C)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount());
+    checkManifestListAssignment(
+        table.io().newInputFile(table.currentSnapshot().manifestListLocation()),
+        startingNextRowId,
+        firstRowIdFileC,
+        0L);
+
+    List<ManifestFile> mainManifests = table.currentSnapshot().dataManifests(table.io());
+    checkDataFileAssignment(table, mainManifests.get(0), startingNextRowId);
+    checkDataFileAssignment(table, mainManifests.get(1), firstRowIdFileC);
+    checkDataFileAssignment(table, mainManifests.get(2), 0L);
+  }
+
+  @Test
+  public void testFastForwardPreservesRowIds() {
+    // start with a single file in the table
+    testSingleFileAppend();
+
+    long startingCurrentSnapshot = table.currentSnapshot().snapshotId();
+    long startingNextRowId = table.operations().current().nextRowId();
+
+    // commit to a branch
+    table.newAppend().appendFile(FILE_B).toBranch("branch").commit();
+    // branch data manifests: [added(FILE_B)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(startingCurrentSnapshot);
+
+    // add a second commit to the branch
+    table.newAppend().appendFile(FILE_C).toBranch("branch").commit();
+    // branch data manifests: [added(FILE_C)], [added(FILE_B)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount() + FILE_C.recordCount());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(startingCurrentSnapshot);
+
+    long branchSnapshot = table.snapshot("branch").snapshotId();
+
+    // fast-forward main to the branch
+    table.manageSnapshots().fastForwardBranch("main", "branch").commit();
+    // branch data manifests: [added(FILE_C)], [added(FILE_B)], [added(FILE_A)]
+
+    assertThat(table.operations().current().nextRowId())
+        .isEqualTo(startingNextRowId + FILE_B.recordCount() + FILE_C.recordCount());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(branchSnapshot);
+
+    // validate that the branches have the same first_row_id assignments
+    for (String branch : List.of("main", "branch")) {
+      checkManifestListAssignment(
+          table.io().newInputFile(table.snapshot(branch).manifestListLocation()),
+          startingNextRowId + FILE_B.recordCount(),
+          startingNextRowId,
+          0L);
+
+      List<ManifestFile> branchManifests = table.snapshot("branch").dataManifests(table.io());
+      checkDataFileAssignment(
+          table, branchManifests.get(0), startingNextRowId + FILE_B.recordCount());
+      checkDataFileAssignment(table, branchManifests.get(1), startingNextRowId);
+      checkDataFileAssignment(table, branchManifests.get(2), 0L);
+    }
+
+    // validate that the branches have the same manifests
+    assertThat(table.currentSnapshot().dataManifests(table.io()))
+        .isEqualTo(table.snapshot("branch").dataManifests(table.io()));
+  }
+
+  @Test
   public void testMultiFileAppend() {
     assertThat(table.operations().current().nextRowId()).isEqualTo(0L);
 
@@ -684,6 +834,9 @@ public class TestRowLineageAssignment {
     int index = 0;
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, table.io(), table.specs())) {
+
+      // test that the first_row_id column is always scanned, even if not requested
+      reader.select(BaseScan.SCAN_COLUMNS);
 
       for (DataFile file : reader) {
         assertThat(file.content()).isEqualTo(FileContent.DATA);

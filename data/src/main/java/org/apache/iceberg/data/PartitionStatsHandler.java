@@ -56,7 +56,11 @@ import org.apache.iceberg.types.Types.StructType;
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
  * to support writing and reading of the stats in table default format.
+ *
+ * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+ *     org.apache.iceberg.PartitionStatsHandler} from core module
  */
+@Deprecated
 public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}

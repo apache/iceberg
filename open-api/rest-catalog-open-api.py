@@ -395,10 +395,6 @@ class RemoveSchemasUpdate(BaseUpdate):
     schema_ids: List[int] = Field(..., alias='schema-ids')
 
 
-class EnableRowLineageUpdate(BaseUpdate):
-    action: str = Field('enable-row-lineage', const=True)
-
-
 class TableRequirement(BaseModel):
     type: str
 
@@ -1193,7 +1189,6 @@ class TableUpdate(BaseModel):
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
         RemoveSchemasUpdate,
-        EnableRowLineageUpdate,
     ]
 
 

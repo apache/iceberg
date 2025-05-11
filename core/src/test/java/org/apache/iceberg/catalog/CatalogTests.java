@@ -79,7 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -228,7 +227,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testCreateNamespaceWithProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -264,7 +263,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testSetNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -281,7 +280,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -307,7 +306,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateAndSetNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -334,7 +333,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testSetNamespacePropertiesNamespaceDoesNotExist() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -345,7 +344,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRemoveNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -366,7 +365,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRemoveNamespacePropertiesNamespaceDoesNotExist() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -454,8 +453,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testListNestedNamespaces() {
-    Assumptions.assumeTrue(
-        supportsNestedNamespaces(), "Only valid when the catalog supports nested namespaces");
+    assumeThat(supportsNestedNamespaces())
+        .as("Only valid when the catalog supports nested namespaces")
+        .isTrue();
 
     C catalog = catalog();
 
@@ -500,7 +500,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
-    Assumptions.assumeTrue(supportsNamesWithSlashes());
+    assumeThat(supportsNamesWithSlashes()).isTrue();
 
     C catalog = catalog();
 
@@ -521,7 +521,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithDot() {
-    Assumptions.assumeTrue(supportsNamesWithDot());
+    assumeThat(supportsNamesWithDot()).isTrue();
 
     C catalog = catalog();
 
@@ -568,7 +568,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
-    Assumptions.assumeTrue(supportsNamesWithSlashes());
+    assumeThat(supportsNamesWithSlashes()).isTrue();
 
     C catalog = catalog();
 
@@ -594,7 +594,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithDot() {
-    Assumptions.assumeTrue(supportsNamesWithDot());
+    assumeThat(supportsNamesWithDot()).isTrue();
 
     C catalog = catalog();
 
@@ -1227,6 +1227,13 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testListNonExistingNamespace() {
+    assertThatThrownBy(() -> catalog().listNamespaces(Namespace.of("non-existing")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: non-existing");
+  }
+
+  @Test
   public void createAndDropEmptyNamespace() {
     assumeThat(supportsEmptyNamespace())
         .as("Only valid for catalogs that support creating/dropping empty namespaces")
@@ -1333,9 +1340,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSchemaServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Schema update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Schema update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1471,8 +1478,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSpecServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(), "Spec update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Spec update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1739,9 +1747,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSortOrderServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Sort order update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Sort order update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -2398,9 +2406,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testCreateOrReplaceTransactionConcurrentCreate() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Conversion to replace transaction is not supported by REST catalog");
+    assumeThat(supportsServerSideRetry())
+        .as("Conversion to replace transaction is not supported by REST catalog")
+        .isTrue();
 
     C catalog = catalog();
 
@@ -2735,7 +2743,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionSchemaConflict() {
-    Assumptions.assumeTrue(supportsServerSideRetry(), "Schema conflicts are detected server-side");
+    assumeThat(supportsServerSideRetry()).as("Schema conflicts are detected server-side").isTrue();
 
     C catalog = catalog();
 
@@ -2855,7 +2863,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionPartitionSpecConflict() {
-    Assumptions.assumeTrue(supportsServerSideRetry(), "Spec conflicts are detected server-side");
+    assumeThat(supportsServerSideRetry()).as("Spec conflicts are detected server-side").isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3067,7 +3075,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void tableCreationWithoutNamespace() {
-    Assumptions.assumeTrue(requiresNamespaceCreate());
+    assumeThat(requiresNamespaceCreate()).isTrue();
 
     assertThatThrownBy(
             () ->

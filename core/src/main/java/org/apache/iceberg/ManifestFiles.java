@@ -194,7 +194,8 @@ public class ManifestFiles {
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
-  private static ManifestWriter<DataFile> newWriter(
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
       int formatVersion,
       PartitionSpec spec,
       EncryptedOutputFile encryptedOutputFile,
@@ -314,7 +315,6 @@ public class ManifestFiles {
   static ManifestFile copyAppendManifest(
       int formatVersion,
       int specId,
-      Long firstRowId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
@@ -328,7 +328,7 @@ public class ManifestFiles {
             toCopy, specId, specsById, inheritableMetadata, null, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
-          firstRowId,
+          null, // do not produce row IDs
           reader,
           outputFile,
           snapshotId,

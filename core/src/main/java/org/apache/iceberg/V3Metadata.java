@@ -22,8 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
@@ -423,17 +421,18 @@ class V3Metadata {
   }
 
   /** Wrapper used to write DataFile or DeleteFile to v3 metadata. */
-  static class DataFileWrapper<F> implements ContentFile<F>, StructLike {
+  static class DataFileWrapper<F extends ContentFile<F>> extends Delegates.DelegatingContentFile<F>
+      implements ContentFile<F>, StructLike {
     private final int size;
-    private ContentFile<F> wrapped = null;
 
     DataFileWrapper() {
+      super(null);
       this.size = fileType(Types.StructType.of()).fields().size();
     }
 
     @SuppressWarnings("unchecked")
     DataFileWrapper<F> wrap(ContentFile<?> file) {
-      this.wrapped = (ContentFile<F>) file;
+      setWrapped((F) file);
       return this;
     }
 
@@ -522,121 +521,6 @@ class V3Metadata {
     @Override
     public Long pos() {
       return null;
-    }
-
-    @Override
-    public int specId() {
-      return wrapped.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return wrapped.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return wrapped.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return wrapped.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return wrapped.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return wrapped.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return wrapped.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return wrapped.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return wrapped.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return wrapped.sortOrderId();
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return wrapped.dataSequenceNumber();
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return wrapped.fileSequenceNumber();
-    }
-
-    @Override
-    public Long firstRowId() {
-      return wrapped.firstRowId();
-    }
-
-    @Override
-    public F copy() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithStats(Set<Integer> requestedColumnIds) {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithoutStats() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
 }

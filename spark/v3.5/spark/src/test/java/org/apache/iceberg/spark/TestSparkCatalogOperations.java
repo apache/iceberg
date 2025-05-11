@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.atIndex;
 
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -36,7 +38,9 @@ import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkCatalogOperations extends CatalogTestBase {
   private static final boolean USE_NULLABLE_QUERY_SCHEMA =
       ThreadLocalRandom.current().nextBoolean();
@@ -108,9 +112,9 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
     assertThat(table).as("Should return updated table").isNotNull();
 
     Column expectedField = Column.create(fieldName, DataTypes.StringType, true);
-    assertThat(table.columns()[2])
+    assertThat(table.columns())
         .as("Adding a column to a table should return the updated table with the new column")
-        .isEqualTo(expectedField);
+        .contains(expectedField, atIndex(2));
 
     assertThat(table.properties())
         .as(

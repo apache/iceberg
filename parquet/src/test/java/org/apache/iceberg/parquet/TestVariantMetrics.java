@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -62,7 +63,7 @@ public class TestVariantMetrics {
 
   private static final VariantMetadata EMPTY = Variants.emptyMetadata();
 
-  private static final String ROOT_FIELD = "";
+  private static final String ROOT_FIELD = "$";
 
   private static final VariantValue[] PRIMITIVES =
       new VariantValue[] {
@@ -94,6 +95,12 @@ public class TestVariantMetrics {
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
         Variants.of("iceberg"),
+        Variants.ofIsoTime("12:33:54.123456"),
+        Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestamptzNanos("1957-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789"),
+        Variants.ofIsoTimestampntzNanos("1957-11-07T12:33:54.123456789"),
+        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   @ParameterizedTest
@@ -304,12 +311,12 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    VariantMetadata boundMetadata = Variants.metadata("a", "b", "c", "d.e");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']", "$['c']", "$['d']['e']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("b", num);
-    expectedBounds.put("c", str);
-    expectedBounds.put("d.e", dec);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
+    expectedBounds.put("$['c']", str);
+    expectedBounds.put("$['d']['e']", dec);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
@@ -362,10 +369,10 @@ public class TestVariantMetrics {
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
     // only a and b were shredded so the other fields are not present
-    VariantMetadata boundMetadata = Variants.metadata("a", "b");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("b", num);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
@@ -420,10 +427,10 @@ public class TestVariantMetrics {
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
     // only a and b were shredded so the other fields are not present
-    VariantMetadata boundMetadata = Variants.metadata("a", "d.e");
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['d']['e']");
     ShreddedObject expectedBounds = Variants.object(boundMetadata);
-    expectedBounds.put("a", date);
-    expectedBounds.put("d.e", dec);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['d']['e']", dec);
 
     assertThat(metrics.lowerBounds().size()).isEqualTo(2);
     assertThat(metrics.lowerBounds().get(1))
@@ -481,6 +488,9 @@ public class TestVariantMetrics {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
         return Variants.of(value.type(), (Long) primitive.get() + 1L);
       case FLOAT:
         return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
@@ -496,6 +506,11 @@ public class TestVariantMetrics {
       case STRING:
         return Variants.of(
             value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
+      case UUID:
+        UUID uuid = (UUID) primitive.get();
+        return Variants.of(
+            value.type(),
+            new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
     }
 
     throw new UnsupportedOperationException("Cannot increment value: " + value);

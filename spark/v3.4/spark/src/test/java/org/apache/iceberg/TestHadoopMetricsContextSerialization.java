@@ -23,7 +23,7 @@ import org.apache.iceberg.hadoop.HadoopMetricsContext;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestHadoopMetricsContextSerialization {
 

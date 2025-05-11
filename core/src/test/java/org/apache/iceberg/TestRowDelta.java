@@ -290,6 +290,147 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testFileDeleteAndRowDelete() {
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addDeletes(fileADeletes())
+            .addRows(FILE_A2)
+            .deleteFile(FILE_B)
+            .validateFromSnapshot(initialCommit)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
+        branch);
+
+    Snapshot snap = latestSnapshot(table, branch);
+    assertThat(snap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(snap.dataManifests(table.io())).hasSize(2);
+    // manifest with FILE_A2 added
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snap.snapshotId()),
+        files(FILE_A2),
+        statuses(Status.ADDED));
+
+    // manifest with FILE_A deleted
+    validateManifest(
+        snap.dataManifests(table.io()).get(1),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(initialCommit, snap.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(Status.EXISTING, Status.DELETED));
+
+    assertThat(snap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        snap.deleteManifests(table.io()).get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snap.snapshotId()),
+        files(fileADeletes()),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testValidateFileDeleteAndRowDelete() {
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addDeletes(fileBDeletes())
+            .validateFromSnapshot(initialCommit)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
+        branch);
+
+    assertThatThrownBy(
+            () -> {
+              commit(
+                  table,
+                  table
+                      .newRowDelta()
+                      .addDeletes(fileADeletes())
+                      .addRows(FILE_A2)
+                      .deleteFile(FILE_B)
+                      .validateFromSnapshot(initialCommit)
+                      .validateNoConflictingDeleteFiles()
+                      .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
+                  branch);
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("found new delete for replaced data file: " + FILE_B);
+  }
+
+  @TestTemplate
+  public void testValidateFileDeleteAndRowDeleteSameFile() {
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    // test adding a delete vector to a deleted file
+    assertThatThrownBy(
+            () -> {
+              commit(
+                  table,
+                  table
+                      .newRowDelta()
+                      .addDeletes(fileADeletes())
+                      .deleteFile(FILE_A)
+                      .validateFromSnapshot(initialCommit)
+                      .validateDeletedFiles()
+                      .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
+                  branch);
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot delete data files")
+        .hasMessageContaining(FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testValidateDeleteFile() {
+    commit(table, table.newAppend().appendFile(FILE_B), branch);
+    long initialCommit = latestSnapshot(table, branch).snapshotId();
+
+    // Remove a file which does not exist
+    assertThatThrownBy(
+            () -> {
+              commit(
+                  table,
+                  table
+                      .newRowDelta()
+                      .deleteFile(FILE_A)
+                      .validateFromSnapshot(initialCommit)
+                      .validateDeletedFiles(),
+                  branch);
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Missing required files to delete:")
+        .hasMessageContaining(FILE_A.location());
+
+    // Should succeed if validation is ignored
+    commit(
+        table, table.newRowDelta().deleteFile(FILE_A).validateFromSnapshot(initialCommit), branch);
+
+    // Commit should be a no-op
+    Snapshot snap = latestSnapshot(table, branch);
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(initialCommit),
+        files(FILE_B),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
   public void testValidateDataFilesExistRewrite() {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 

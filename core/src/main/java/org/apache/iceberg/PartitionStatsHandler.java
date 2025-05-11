@@ -1,0 +1,313 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Queue;
+import java.util.UUID;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.PartitionMap;
+import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
+
+/**
+ * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
+ * to support writing and reading of the stats in table default format.
+ */
+public class PartitionStatsHandler {
+
+  private PartitionStatsHandler() {}
+
+  public static final int PARTITION_FIELD_ID = 0;
+  public static final String PARTITION_FIELD_NAME = "partition";
+  public static final NestedField SPEC_ID = NestedField.required(1, "spec_id", IntegerType.get());
+  public static final NestedField DATA_RECORD_COUNT =
+      NestedField.required(2, "data_record_count", LongType.get());
+  public static final NestedField DATA_FILE_COUNT =
+      NestedField.required(3, "data_file_count", IntegerType.get());
+  public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
+      NestedField.required(4, "total_data_file_size_in_bytes", LongType.get());
+  public static final NestedField POSITION_DELETE_RECORD_COUNT =
+      NestedField.optional(5, "position_delete_record_count", LongType.get());
+  public static final NestedField POSITION_DELETE_FILE_COUNT =
+      NestedField.optional(6, "position_delete_file_count", IntegerType.get());
+  public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
+      NestedField.optional(7, "equality_delete_record_count", LongType.get());
+  public static final NestedField EQUALITY_DELETE_FILE_COUNT =
+      NestedField.optional(8, "equality_delete_file_count", IntegerType.get());
+  public static final NestedField TOTAL_RECORD_COUNT =
+      NestedField.optional(9, "total_record_count", LongType.get());
+  public static final NestedField LAST_UPDATED_AT =
+      NestedField.optional(10, "last_updated_at", LongType.get());
+  public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
+      NestedField.optional(11, "last_updated_snapshot_id", LongType.get());
+
+  /**
+   * Generates the partition stats file schema based on a combined partition type which considers
+   * all specs in a table.
+   *
+   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
+   *     Partitioning#partitionType(Table)}.
+   * @return a schema that corresponds to the provided unified partition type.
+   */
+  public static Schema schema(StructType unifiedPartitionType) {
+    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    return new Schema(
+        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
+        SPEC_ID,
+        DATA_RECORD_COUNT,
+        DATA_FILE_COUNT,
+        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+        POSITION_DELETE_RECORD_COUNT,
+        POSITION_DELETE_FILE_COUNT,
+        EQUALITY_DELETE_RECORD_COUNT,
+        EQUALITY_DELETE_FILE_COUNT,
+        TOTAL_RECORD_COUNT,
+        LAST_UPDATED_AT,
+        LAST_UPDATED_SNAPSHOT_ID);
+  }
+
+  /**
+   * Computes and writes the {@link PartitionStatisticsFile} for a given table's current snapshot.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
+    if (table.currentSnapshot() == null) {
+      return null;
+    }
+
+    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+  }
+
+  /**
+   * Computes and writes the {@link PartitionStatisticsFile} for a given table and snapshot.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
+   * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
+      throws IOException {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
+
+    Collection<PartitionStats> stats = computeStats(table, snapshot);
+    if (stats.isEmpty()) {
+      return null;
+    }
+
+    StructType partitionType = Partitioning.partitionType(table);
+    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
+    return writePartitionStatsFile(
+        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+  }
+
+  @VisibleForTesting
+  static PartitionStatisticsFile writePartitionStatsFile(
+      Table table, long snapshotId, Schema dataSchema, Iterable<PartitionStats> records)
+      throws IOException {
+    FileFormat fileFormat =
+        FileFormat.fromString(
+            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+
+    OutputFile outputFile = newPartitionStatsFile(table, fileFormat, snapshotId);
+
+    try (FileAppender<StructLike> writer =
+        InternalData.write(fileFormat, outputFile).schema(dataSchema).build()) {
+      records.iterator().forEachRemaining(writer::add);
+    }
+
+    return ImmutableGenericPartitionStatisticsFile.builder()
+        .snapshotId(snapshotId)
+        .path(outputFile.location())
+        .fileSizeInBytes(outputFile.toInputFile().getLength())
+        .build();
+  }
+
+  /**
+   * Reads partition statistics from the specified {@link InputFile} using given schema.
+   *
+   * @param schema The {@link Schema} of the partition statistics file.
+   * @param inputFile An {@link InputFile} pointing to the partition stats file.
+   */
+  public static CloseableIterable<PartitionStats> readPartitionStatsFile(
+      Schema schema, InputFile inputFile) {
+    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
+
+    CloseableIterable<StructLike> records =
+        InternalData.read(fileFormat, inputFile).project(schema).build();
+    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
+  }
+
+  private static OutputFile newPartitionStatsFile(
+      Table table, FileFormat fileFormat, long snapshotId) {
+    Preconditions.checkArgument(
+        table instanceof HasTableOperations,
+        "Table must have operations to retrieve metadata location");
+
+    return table
+        .io()
+        .newOutputFile(
+            ((HasTableOperations) table)
+                .operations()
+                .metadataFileLocation(
+                    fileFormat.addExtension(
+                        String.format(
+                            Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
+  }
+
+  private static PartitionStats recordToPartitionStats(StructLike record) {
+    PartitionStats stats =
+        new PartitionStats(
+            record.get(PARTITION_FIELD_ID, StructLike.class),
+            record.get(SPEC_ID.fieldId(), Integer.class));
+    stats.set(DATA_RECORD_COUNT.fieldId(), record.get(DATA_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(DATA_FILE_COUNT.fieldId(), record.get(DATA_FILE_COUNT.fieldId(), Integer.class));
+    stats.set(
+        TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(),
+        record.get(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), Long.class));
+    stats.set(
+        POSITION_DELETE_RECORD_COUNT.fieldId(),
+        record.get(POSITION_DELETE_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(
+        POSITION_DELETE_FILE_COUNT.fieldId(),
+        record.get(POSITION_DELETE_FILE_COUNT.fieldId(), Integer.class));
+    stats.set(
+        EQUALITY_DELETE_RECORD_COUNT.fieldId(),
+        record.get(EQUALITY_DELETE_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(
+        EQUALITY_DELETE_FILE_COUNT.fieldId(),
+        record.get(EQUALITY_DELETE_FILE_COUNT.fieldId(), Integer.class));
+    stats.set(TOTAL_RECORD_COUNT.fieldId(), record.get(TOTAL_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(LAST_UPDATED_AT.fieldId(), record.get(LAST_UPDATED_AT.fieldId(), Long.class));
+    stats.set(
+        LAST_UPDATED_SNAPSHOT_ID.fieldId(),
+        record.get(LAST_UPDATED_SNAPSHOT_ID.fieldId(), Long.class));
+    return stats;
+  }
+
+  private static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
+    Preconditions.checkArgument(table != null, "table cannot be null");
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "table must be partitioned");
+    Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
+
+    StructType partitionType = Partitioning.partitionType(table);
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Tasks.foreach(manifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
+
+    return mergeStats(statsByManifest, table.specs());
+  }
+
+  private static List<PartitionStats> sortStatsByPartition(
+      Collection<PartitionStats> stats, StructType partitionType) {
+    List<PartitionStats> entries = Lists.newArrayList(stats);
+    entries.sort(
+        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+    return entries;
+  }
+
+  private static PartitionMap<PartitionStats> collectStats(
+      Table table, ManifestFile manifest, StructType partitionType) {
+    try (ManifestReader<?> reader = openManifest(table, manifest)) {
+      PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+      int specId = manifest.partitionSpecId();
+      PartitionSpec spec = table.specs().get(specId);
+      PartitionData keyTemplate = new PartitionData(partitionType);
+
+      for (ManifestEntry<?> entry : reader.entries()) {
+        ContentFile<?> file = entry.file();
+        StructLike coercedPartition =
+            PartitionUtil.coercePartition(partitionType, spec, file.partition());
+        StructLike key = keyTemplate.copyFor(coercedPartition);
+        Snapshot snapshot = table.snapshot(entry.snapshotId());
+        PartitionStats stats =
+            statsMap.computeIfAbsent(
+                specId,
+                ((PartitionData) file.partition()).copy(),
+                () -> new PartitionStats(key, specId));
+        if (entry.isLive()) {
+          stats.liveEntry(file, snapshot);
+        } else {
+          stats.deletedEntry(snapshot);
+        }
+      }
+
+      return statsMap;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static ManifestReader<?> openManifest(Table table, ManifestFile manifest) {
+    List<String> projection = BaseScan.scanColumns(manifest.content());
+    return ManifestFiles.open(manifest, table.io()).select(projection);
+  }
+
+  private static Collection<PartitionStats> mergeStats(
+      Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
+
+    for (PartitionMap<PartitionStats> stats : statsByManifest) {
+      stats.forEach(
+          (key, value) ->
+              statsMap.merge(
+                  key,
+                  value,
+                  (existingEntry, newEntry) -> {
+                    existingEntry.appendStats(newEntry);
+                    return existingEntry;
+                  }));
+    }
+
+    return statsMap.values();
+  }
+}

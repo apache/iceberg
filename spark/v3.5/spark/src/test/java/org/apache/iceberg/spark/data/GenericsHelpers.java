@@ -35,9 +35,12 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -47,6 +50,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
 
@@ -65,6 +69,15 @@ public class GenericsHelpers {
       Object actualValue = actual.get(i);
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
+    }
+  }
+
+  public static void assertEqualsBatch(
+      Types.StructType struct, Iterator<Record> expectedRecords, ColumnarBatch batch) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      InternalRow row = batch.getRow(rowId);
+      Record expectedRecord = expectedRecords.next();
+      assertEqualsUnsafe(struct, expectedRecord, row);
     }
   }
 
@@ -205,12 +218,47 @@ public class GenericsHelpers {
 
   public static void assertEqualsUnsafe(
       Types.StructType struct, Record expected, InternalRow actual) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    assertEqualsUnsafe(struct, expected, actual, null, -1);
+  }
 
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i, convert(fieldType));
+  public static void assertEqualsUnsafe(
+      Types.StructType struct,
+      Record expected,
+      InternalRow actual,
+      Map<Integer, Object> idToConstant,
+      int pos) {
+    Types.StructType expectedType = expected.struct();
+    List<Types.NestedField> fields = struct.fields();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Types.NestedField expectedField = expectedType.field(field.fieldId());
+
+      Type fieldType = field.type();
+      Object actualValue =
+          actual.isNullAt(readPos) ? null : actual.get(readPos, convert(fieldType));
+
+      Object expectedValue;
+      if (expectedField != null) {
+        int id = expectedField.fieldId();
+        if (id == MetadataColumns.ROW_ID.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = (Long) idToConstant.get(id) + pos;
+          }
+
+        } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = idToConstant.get(id);
+          }
+
+        } else {
+          expectedValue = expected.getField(expectedField.name());
+        }
+      } else {
+        // comparison expects Iceberg's generic representation
+        expectedValue = GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
+      }
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
@@ -252,11 +300,27 @@ public class GenericsHelpers {
     }
 
     switch (type.typeId()) {
+      case LONG:
+        assertThat(actual).as("Should be a long").isInstanceOf(Long.class);
+        if (expected instanceof Integer) {
+          assertThat(actual).as("Values didn't match").isEqualTo(((Number) expected).longValue());
+        } else {
+          assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        }
+        break;
+      case DOUBLE:
+        assertThat(actual).as("Should be a double").isInstanceOf(Double.class);
+        if (expected instanceof Float) {
+          assertThat(Double.doubleToLongBits((double) actual))
+              .as("Values didn't match")
+              .isEqualTo(Double.doubleToLongBits(((Number) expected).doubleValue()));
+        } else {
+          assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        }
+        break;
       case BOOLEAN:
       case INTEGER:
-      case LONG:
       case FLOAT:
-      case DOUBLE:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case DATE:
