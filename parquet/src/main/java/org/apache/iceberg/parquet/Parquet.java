@@ -120,6 +120,7 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type.ID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -407,18 +408,14 @@ public class Parquet {
 
       Map<String, String> colNameToParquetPathMap =
           type.getColumns().stream()
-              .filter(col -> col.getPrimitiveType().getId() != null)
               .filter(
                   col -> {
-                    int fieldId = col.getPrimitiveType().getId().intValue();
-                    return schema.findColumnName(fieldId) != null;
+                    ID id = col.getPrimitiveType().getId();
+                    return (id != null) && (schema.findColumnName(id.intValue()) != null);
                   })
               .collect(
                   Collectors.toMap(
-                      col -> {
-                        int fieldId = col.getPrimitiveType().getId().intValue();
-                        return schema.findColumnName(fieldId);
-                      },
+                      col -> schema.findColumnName(col.getPrimitiveType().getId().intValue()),
                       col -> String.join(".", col.getPath())));
 
       if (createWriterFunc != null) {
