@@ -122,7 +122,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
-  private boolean usePrefixList = false;
+  private boolean usePrefixListing = false;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -208,8 +208,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return this;
   }
 
-  public DeleteOrphanFilesSparkAction usePrefixList(boolean newUsePrefixList) {
-    this.usePrefixList = newUsePrefixList;
+  public DeleteOrphanFilesSparkAction usePrefixListing(boolean newUsePrefixListing) {
+    this.usePrefixListing = newUsePrefixListing;
     return this;
   }
 
@@ -312,7 +312,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
-    if (usePrefixList) {
+    if (usePrefixListing) {
       Preconditions.checkArgument(
           table.io() instanceof SupportsPrefixOperations,
           "Table file io should prefix operations when using prefix list.");

@@ -186,7 +186,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             action.prefixMismatchMode(prefixMismatchMode);
           }
 
-          action.usePrefixList(prefixList);
+          action.usePrefixListing(prefixList);
 
           DeleteOrphanFiles.Result result = action.execute();
 
