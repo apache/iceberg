@@ -53,6 +53,7 @@ import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -216,41 +217,79 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
+  public boolean setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
     Dataset dataset = load(datasetReference);
-    ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
-        dataset.getExternalCatalogDatasetOptions() == null
-            ? new ExternalCatalogDatasetOptions()
-            : dataset.getExternalCatalogDatasetOptions();
-    Map<String, String> finalParameters =
-        externalCatalogDatasetOptions.getParameters() == null
-            ? Maps.newHashMap()
-            : externalCatalogDatasetOptions.getParameters();
-    finalParameters.putAll(parameters);
+    ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
 
-    dataset.setExternalCatalogDatasetOptions(
-        externalCatalogDatasetOptions.setParameters(finalParameters));
+    Map<String, String> existingParameters =
+        (existingOptions == null || existingOptions.getParameters() == null)
+            ? Maps.newHashMap() // Use HashMap to allow modification below
+            : Maps.newHashMap(existingOptions.getParameters()); // Copy to compare later
 
-    return internalUpdate(dataset);
+    // Calculate what the new parameters would be.
+    Map<String, String> newParameters = Maps.newHashMap(existingParameters);
+    newParameters.putAll(parameters);
+
+    if (Objects.equals(existingParameters, newParameters)) {
+      // No change in parameters detected
+      return false;
+    }
+
+    ExternalCatalogDatasetOptions optionsToUpdate =
+        existingOptions == null ? new ExternalCatalogDatasetOptions() : existingOptions;
+
+    dataset.setExternalCatalogDatasetOptions(optionsToUpdate.setParameters(newParameters));
+
+    try {
+      BigQueryRetryHelper.runWithRetries(
+          () -> internalUpdate(dataset),
+          bigqueryOptions.getRetrySettings(),
+          BIGQUERY_EXCEPTION_HANDLER,
+          bigqueryOptions.getClock(),
+          DEFAULT_RETRY_CONFIG);
+    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
+      handleBigQueryRetryException(e);
+    }
+
+    return true;
   }
 
   @Override
-  public Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters) {
-    Dataset dataset = load(datasetReference);
-    ExternalCatalogDatasetOptions externalCatalogDatasetOptions =
-        dataset.getExternalCatalogDatasetOptions() == null
-            ? new ExternalCatalogDatasetOptions()
-            : dataset.getExternalCatalogDatasetOptions();
-    Map<String, String> finalParameters =
-        externalCatalogDatasetOptions.getParameters() == null
-            ? Maps.newHashMap()
-            : externalCatalogDatasetOptions.getParameters();
-    parameters.forEach(finalParameters::remove);
+  public boolean removeParameters(DatasetReference datasetReference, Set<String> parameters) {
+    Dataset dataset = load(datasetReference); // Throws NoSuchNamespaceException if not found.
 
-    dataset.setExternalCatalogDatasetOptions(
-        externalCatalogDatasetOptions.setParameters(finalParameters));
+    ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
 
-    return internalUpdate(dataset);
+    if (existingOptions == null
+        || existingOptions.getParameters() == null
+        || existingOptions.getParameters().isEmpty()) {
+      return false;
+    }
+
+    Map<String, String> existingParameters = Maps.newHashMap(existingOptions.getParameters());
+
+    // Calculate the new parameters map.
+    Map<String, String> newParameters = Maps.newHashMap(existingParameters);
+    parameters.forEach(newParameters::remove);
+
+    if (Objects.equals(existingParameters, newParameters)) {
+      // No change in parameters detected (e.g., keys to remove didn't exist)
+      return false;
+    }
+
+    dataset.setExternalCatalogDatasetOptions(existingOptions.setParameters(newParameters));
+
+    try {
+      BigQueryRetryHelper.runWithRetries(
+          () -> internalUpdate(dataset),
+          bigqueryOptions.getRetrySettings(),
+          BIGQUERY_EXCEPTION_HANDLER,
+          bigqueryOptions.getClock(),
+          DEFAULT_RETRY_CONFIG);
+    } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
+      handleBigQueryRetryException(e);
+    }
+    return true;
   }
 
   @Override
@@ -492,6 +531,32 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       throw new RuntimeIOException("%s", e);
     }
   }
+
+  //  private Dataset internalUpdate(Dataset dataset) {
+  //    Preconditions.checkArgument(
+  //        dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
+  //    Preconditions.checkArgument(
+  //        dataset.getDatasetReference().getDatasetId() != null, "Dataset Id can not be null!");
+  //
+  //    try {
+  //      HttpResponse response =
+  //          client
+  //              .datasets()
+  //              .update(
+  //                  dataset.getDatasetReference().getProjectId(),
+  //                  dataset.getDatasetReference().getDatasetId(),
+  //                  dataset)
+  //              .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
+  //              .executeUnparsed();
+  //      if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
+  //        throw new NoSuchNamespaceException("%s", response.getStatusMessage());
+  //      }
+  //
+  //      return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
+  //    } catch (IOException e) {
+  //      throw new RuntimeIOException("%s", e);
+  //    }
+  //  }
 
   /**
    * Checks if the given table represents a BigQuery Metastore Iceberg table. A table is considered

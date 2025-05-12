@@ -56,23 +56,29 @@ interface BigQueryMetastoreClient {
   void delete(DatasetReference datasetReference);
 
   /**
-   * Updates parameters of a dataset or adds them if did not exist, leaving already-existing ones
-   * intact.
+   * Sets (Adds or Overwrites) the specified parameters on the Dataset.
    *
-   * @param datasetReference full dataset reference
-   * @param parameters metadata parameters to add
-   * @return dataset after patch
+   * <p>Loads the dataset, compares the parameters, and performs a retrying-update ONLY if the
+   * parameters will change.
+   *
+   * @param datasetReference Reference to the Dataset.
+   * @param parameters Map of parameters to add/overwrite.
+   * @return {@code true} if the Dataset was updated, {@code false} if no changes were needed.
    */
-  Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters);
+  boolean setParameters(DatasetReference datasetReference, Map<String, String> parameters);
 
   /**
-   * Removes given set of keys of parameters of a dataset. Ignores keys that do not exist already.
+   * Removes the specified parameters from the Dataset.
    *
-   * @param datasetReference full dataset reference
-   * @param parameters metadata parameter keys to remove
-   * @return dataset after patch
+   * <p>Loads the dataset, compares the parameters, and performs a retrying-update ONLY if the
+   * parameters will change as a result.
+   *
+   * @param datasetReference Reference to the Dataset.
+   * @param parameters Set of parameter keys to remove.
+   * @return {@code true} if the Dataset was updated, {@code false} if no changes were needed (e.g.
+   *     keys did not exist).
    */
-  Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters);
+  boolean removeParameters(DatasetReference datasetReference, Set<String> parameters);
 
   /**
    * Lists datasets under a given project

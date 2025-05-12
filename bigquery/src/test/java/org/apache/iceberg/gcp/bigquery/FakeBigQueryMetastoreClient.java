@@ -27,6 +27,7 @@ import com.google.api.services.bigquery.model.TableList;
 import com.google.api.services.bigquery.model.TableReference;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -83,33 +84,57 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public Dataset setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
+  public boolean setParameters(DatasetReference datasetReference, Map<String, String> parameters) {
     Dataset dataset = load(datasetReference);
+
+    ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
+
+    Map<String, String> existingParameters =
+        (existingOptions == null || existingOptions.getParameters() == null)
+            ? Maps.newHashMap()
+            : Maps.newHashMap(existingOptions.getParameters());
+
+    Map<String, String> newParameters = Maps.newHashMap(existingParameters);
+    newParameters.putAll(parameters);
+
+    if (Objects.equals(existingParameters, newParameters)) {
+      return false;
+    }
+
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
     }
+    dataset.getExternalCatalogDatasetOptions().setParameters(newParameters);
 
-    Map<String, String> finalParameters = Maps.newHashMap(parameters);
-    dataset.setExternalCatalogDatasetOptions(
-        dataset.getExternalCatalogDatasetOptions().setParameters(finalParameters));
-    return updateDataset(dataset);
+    updateDataset(dataset);
+    return true;
   }
 
   @Override
-  public Dataset removeParameters(DatasetReference datasetReference, Set<String> parameters) {
+  public boolean removeParameters(DatasetReference datasetReference, Set<String> parameters) {
     Dataset dataset = load(datasetReference);
-    if (dataset.getExternalCatalogDatasetOptions() == null) {
-      dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
+
+    ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
+
+    // If there are no options or no parameters, we cannot remove anything.
+    if (existingOptions == null
+        || existingOptions.getParameters() == null
+        || existingOptions.getParameters().isEmpty()) {
+      return false;
     }
 
-    Map<String, String> finalParameters =
-        dataset.getExternalCatalogDatasetOptions().getParameters() == null
-            ? Maps.newHashMap()
-            : Maps.newHashMap(dataset.getExternalCatalogDatasetOptions().getParameters());
-    parameters.forEach(finalParameters::remove);
-    dataset.setExternalCatalogDatasetOptions(
-        dataset.getExternalCatalogDatasetOptions().setParameters(finalParameters));
-    return updateDataset(dataset);
+    Map<String, String> existingParameters =
+        Maps.newHashMap(existingOptions.getParameters()); // Copy
+    Map<String, String> newParameters = Maps.newHashMap(existingParameters);
+    parameters.forEach(newParameters::remove);
+
+    if (Objects.equals(existingParameters, newParameters)) {
+      return false;
+    }
+
+    dataset.getExternalCatalogDatasetOptions().setParameters(newParameters);
+    updateDataset(dataset);
+    return true;
   }
 
   @Override
@@ -147,29 +172,41 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
 
   @Override
   public Table update(TableReference tableReference, Table table) {
-    Table existingTable = load(tableReference);
+    Table existingTable = tables.get(tableReference);
     if (existingTable == null) {
       throw new NoSuchTableException("Table not found: %s", tableReference);
     }
 
-    // Robust ETag validation
-    if (table.getEtag() != null && !table.getEtag().equals(existingTable.getEtag())) {
-      throw new CommitFailedException("Etag mismatch: concurrent modification");
+    String incomingEtag = table.getEtag();
+    String requiredEtag = existingTable.getEtag();
+
+    // The real patch() uses an If-Match header which is passed separately,
+    // NOT on the incoming table object.
+    // The BigQueryTableOperations does NOT set the ETag on the Table object
+    // it passes to the client update() method.
+    // For a fake, we assume the ETag check needs to be simulated based on
+    // state, BUT the real client.update() expects the ETAG as a separate parameter
+    // (or implicitly via setIfMatch header, which this Fake doesn't see).
+    // To make the fake usable, we'll assume that if an ETag *is* present
+    // on the incoming table object, it must match.
+    if (incomingEtag != null && !incomingEtag.equals(requiredEtag)) {
+      throw new CommitFailedException(
+          "Etag mismatch for table: %s. Required: %s, Found: %s",
+          tableReference, requiredEtag, incomingEtag);
     }
 
-    // Update ETag
-    existingTable.setEtag(generateEtag());
-    existingTable.setExternalCatalogTableOptions(table.getExternalCatalogTableOptions());
-    return existingTable;
+    Table tableToStore = table.clone();
+    tableToStore.setEtag(generateEtag());
+    tables.put(tableReference, tableToStore);
+
+    return tableToStore.clone();
   }
 
   @Override
   public void delete(TableReference tableReference) {
-    if (!tables.containsKey(tableReference)) {
+    if (tables.remove(tableReference) == null) {
       throw new NoSuchTableException("Table not found: %s", tableReference);
     }
-
-    tables.remove(tableReference);
   }
 
   @Override

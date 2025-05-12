@@ -31,7 +31,6 @@ import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -254,31 +253,11 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    Dataset dataset = client.load(toDatasetReference(namespace));
-
-    ExternalCatalogDatasetOptions existingOptions = dataset.getExternalCatalogDatasetOptions();
-    Map<String, String> existingParameters =
-        existingOptions != null ? existingOptions.getParameters() : null;
-
-    Map<String, String> newParameters = Maps.newHashMap();
-    if (existingParameters != null) {
-      newParameters.putAll(existingParameters);
-    }
-
-    newParameters.putAll(properties);
-
-    if (Objects.equals(existingParameters, newParameters)) {
-      // No change in parameters detected
-      return false;
-    }
-
-    client.setParameters(toDatasetReference(namespace), properties);
-    return true;
+    return client.setParameters(toDatasetReference(namespace), properties);
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-
     if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -289,8 +268,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       return false;
     }
 
-    client.removeParameters(toDatasetReference(namespace), properties);
-    return true;
+    return client.removeParameters(toDatasetReference(namespace), properties);
   }
 
   @Override
