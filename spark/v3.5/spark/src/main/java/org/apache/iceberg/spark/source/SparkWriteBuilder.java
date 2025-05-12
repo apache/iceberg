@@ -33,7 +33,9 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.MetricsUtils;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
@@ -165,6 +167,11 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         } else {
           return asStreamingAppend();
         }
+      }
+
+      @Override
+      public CustomMetric[] supportedCustomMetrics() {
+        return MetricsUtils.supportedCustomMetrics();
       }
     };
   }

@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -51,6 +52,7 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -63,6 +65,7 @@ import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.executor.OutputMetrics;
+import org.apache.spark.sql.MetricsUtils;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
@@ -103,6 +106,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
+  private InMemoryMetricsReporter metricsReporter;
 
   SparkWrite(
       SparkSession spark,
@@ -130,6 +134,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
+
+    if (this.table instanceof BaseTable) {
+      this.metricsReporter = new InMemoryMetricsReporter();
+      ((BaseTable) this.table).combineMetricsReporter(metricsReporter);
+    }
   }
 
   @Override
@@ -231,6 +240,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     try {
       long start = System.currentTimeMillis();
       operation.commit(); // abort is automatically called if this fails
+      MetricsUtils.postWriteMetrics(metricsReporter, sparkContext.sc());
       long duration = System.currentTimeMillis() - start;
       LOG.info("Committed in {} ms", duration);
     } catch (Exception e) {
