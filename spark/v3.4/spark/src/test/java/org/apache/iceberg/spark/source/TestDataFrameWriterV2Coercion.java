@@ -19,38 +19,50 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestDataFrameWriterV2Coercion extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestDataFrameWriterV2Coercion extends TestBaseWithCatalog {
 
-  private final FileFormat format;
-  private final String dataType;
-
-  public TestDataFrameWriterV2Coercion(FileFormat format, String dataType) {
-    this.format = format;
-    this.dataType = dataType;
-  }
-
-  @Parameterized.Parameters(name = "format = {0}, dataType = {1}")
+  @Parameters(
+      name = "catalogName = {0}, implementation = {1}, config = {2}, format = {3}, dataType = {4}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {FileFormat.AVRO, "byte"},
-      new Object[] {FileFormat.ORC, "byte"},
-      new Object[] {FileFormat.PARQUET, "byte"},
-      new Object[] {FileFormat.AVRO, "short"},
-      new Object[] {FileFormat.ORC, "short"},
-      new Object[] {FileFormat.PARQUET, "short"}
+      parameter(FileFormat.AVRO, "byte"),
+      parameter(FileFormat.ORC, "byte"),
+      parameter(FileFormat.PARQUET, "byte"),
+      parameter(FileFormat.AVRO, "short"),
+      parameter(FileFormat.ORC, "short"),
+      parameter(FileFormat.PARQUET, "short")
     };
   }
 
-  @Test
+  private static Object[] parameter(FileFormat fileFormat, String dataType) {
+    return new Object[] {
+      SparkCatalogConfig.HADOOP.catalogName(),
+      SparkCatalogConfig.HADOOP.implementation(),
+      SparkCatalogConfig.HADOOP.properties(),
+      fileFormat,
+      dataType
+    };
+  }
+
+  @Parameter(index = 3)
+  private FileFormat format;
+
+  @Parameter(index = 4)
+  private String dataType;
+
+  @TestTemplate
   public void testByteAndShortCoercion() {
 
     Dataset<Row> df =
