@@ -22,18 +22,28 @@ import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS;
 import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY_DEFAULT;
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -107,6 +117,161 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
+  public interface MetricsMaxInferredColumnDefaultsStrategy {
+    Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns);
+  }
+
+  static class OriginalMetricsMaxInferredColumnDefaultsStrategy
+      implements MetricsMaxInferredColumnDefaultsStrategy {
+    // This doesn't accurately bound the number of metrics as nested fields will not count towards
+    // the overall metric count
+    @Override
+    public Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns) {
+      // an inferred default mode is applied to the first few columns, up to the limit
+      return new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
+    }
+  }
+
+  abstract static class FieldOrderBasedPriority
+      implements MetricsMaxInferredColumnDefaultsStrategy {
+    abstract Iterable<Integer> fieldPriority(Schema schema, int maxInferredDefaultColumns);
+
+    @Override
+    public Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns) {
+      Set<Integer> boundedFieldIds =
+          Sets.newHashSet(
+              Iterables.limit(
+                  fieldPriority(schema, maxInferredDefaultColumns), maxInferredDefaultColumns));
+
+      return TypeUtil.project(schema, boundedFieldIds);
+    }
+  }
+
+  static class DepthFirstFieldPriority extends FieldOrderBasedPriority {
+    @Override
+    List<Integer> fieldPriority(Schema schema, int maxInferredDefaultColumns) {
+      List<Integer> orderedFieldIds = Lists.newArrayList();
+      return TypeUtil.visit(
+          schema,
+          new TypeUtil.SchemaVisitor<>() {
+
+            @Override
+            public List<Integer> schema(Schema schema, List<Integer> structResult) {
+              return orderedFieldIds;
+            }
+
+            @Override
+            public List<Integer> list(Types.ListType list, List<Integer> elementResult) {
+              if (list.elementType().isPrimitiveType()) {
+                orderedFieldIds.add(list.elementId());
+              }
+              return orderedFieldIds;
+            }
+
+            @Override
+            public List<Integer> map(
+                Types.MapType map, List<Integer> keyResult, List<Integer> valueResult) {
+              if (map.valueType().isPrimitiveType()) {
+                orderedFieldIds.add(map.valueId());
+              }
+
+              if (map.keyType().isPrimitiveType()) {
+                orderedFieldIds.add(map.keyId());
+              }
+
+              return orderedFieldIds;
+            }
+
+            @Override
+            public List<Integer> field(Types.NestedField field, List<Integer> fieldResult) {
+              if (field.type().isPrimitiveType()) {
+                orderedFieldIds.add(field.fieldId());
+              }
+              return orderedFieldIds;
+            }
+          });
+    }
+  }
+
+  static class BreadthFirstFieldPriority extends FieldOrderBasedPriority {
+
+    @Override
+    Iterable<Integer> fieldPriority(Schema schema, int maxInferredDefaultColumns) {
+
+      return TypeUtil.visit(
+          schema,
+          new TypeUtil.CustomOrderSchemaVisitor<Iterable<Integer>>() {
+
+            @Override
+            public Iterable<Integer> schema(
+                Schema schema, Supplier<Iterable<Integer>> structResult) {
+              return structResult.get();
+            }
+
+            @Override
+            public Iterable<Integer> struct(
+                Types.StructType struct, Iterable<Iterable<Integer>> fieldResults) {
+
+              List<Integer> orderedFieldIds =
+                  Lists.newArrayListWithExpectedSize(struct.fields().size());
+              for (Types.NestedField field : struct.fields()) {
+                if (field.type().isPrimitiveType()) {
+                  orderedFieldIds.add(field.fieldId());
+                }
+              }
+
+              Iterable<Integer> returnValue = orderedFieldIds;
+              for (Iterable<Integer> otherFieldIds : fieldResults) {
+                returnValue = Iterables.concat(returnValue, otherFieldIds);
+              }
+
+              return returnValue;
+            }
+
+            @Override
+            public Iterable<Integer> field(
+                Types.NestedField field, Supplier<Iterable<Integer>> future) {
+              return future.get();
+            }
+
+            @Override
+            public Iterable<Integer> list(Types.ListType list, Supplier<Iterable<Integer>> future) {
+              List<Integer> returnValue = Lists.newArrayListWithCapacity(1);
+              if (list.elementType().isPrimitiveType()) {
+                returnValue.add(list.elementId());
+              }
+              return Iterables.concat(returnValue, future.get());
+            }
+
+            @Override
+            public Iterable<Integer> map(
+                Types.MapType map,
+                Supplier<Iterable<Integer>> keyFuture,
+                Supplier<Iterable<Integer>> valueFuture) {
+              List<Integer> returnValue = Lists.newArrayListWithCapacity(2);
+              if (map.keyType().isPrimitiveType()) {
+                returnValue.add(map.keyId());
+              }
+              if (map.valueType().isPrimitiveType()) {
+                returnValue.add(map.valueId());
+              }
+
+              return Iterables.concat(returnValue, keyFuture.get(), valueFuture.get());
+            }
+
+            @Override
+            public Iterable<Integer> variant(Types.VariantType variant) {
+              return Collections.emptyList();
+            }
+
+            @Override
+            public Iterable<Integer> primitive(Type.PrimitiveType primitive) {
+              return Collections.emptyList();
+            }
+          });
+    }
+  }
+
   /**
    * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
    *
@@ -123,23 +288,28 @@ public final class MetricsConfig implements Serializable {
     // Handle user override of default mode
     MetricsMode defaultMode;
     String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+
     if (configuredDefault != null) {
       // a user-configured default mode is applied for all columns
       defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
-
-    } else if (schema == null || schema.columns().size() <= maxInferredDefaultColumns) {
-      // there are less than the inferred limit, so the default is used everywhere
+    } else if (schema == null) {
       defaultMode = DEFAULT_MODE;
-
     } else {
-      // an inferred default mode is applied to the first few columns, up to the limit
-      Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
-      for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
-        columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
-      }
+      if (TypeUtil.getProjectedIds(schema).size() <= maxInferredDefaultColumns) {
+        // there are less than the inferred limit, so the default is used everywhere
+        defaultMode = DEFAULT_MODE;
+      } else {
 
-      // all other columns don't use metrics
-      defaultMode = MetricsModes.None.get();
+        MetricsMaxInferredColumnDefaultsStrategy strategy =
+            maxInferredColumnDefaultsStrategy(props);
+        Schema subSchema = strategy.subSchemaMetricPriority(schema, maxInferredDefaultColumns);
+        for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
+          columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
+        }
+
+        // all other columns don't use metrics
+        defaultMode = MetricsModes.None.get();
+      }
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
@@ -189,6 +359,33 @@ public final class MetricsConfig implements Serializable {
     } else {
       return maxInferredDefaultColumns;
     }
+  }
+
+  private static final Map<String, Supplier<MetricsMaxInferredColumnDefaultsStrategy>>
+      VALID_STRATEGIES =
+          ImmutableMap.of(
+              "original", () -> new OriginalMetricsMaxInferredColumnDefaultsStrategy(),
+              "depth", () -> new DepthFirstFieldPriority(),
+              "breadth", () -> new BreadthFirstFieldPriority());
+
+  static MetricsMaxInferredColumnDefaultsStrategy maxInferredColumnDefaultsStrategy(
+      Map<String, String> properties) {
+    String strategyName =
+        PropertyUtil.propertyAsString(
+            properties,
+            METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY,
+            METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY_DEFAULT);
+
+    if (!VALID_STRATEGIES.keySet().contains(strategyName)) {
+      LOG.warn(
+          "Invalid value for {} (unknown): {}, falling back to {}",
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY,
+          strategyName,
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY_DEFAULT);
+      strategyName = METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY_DEFAULT;
+    }
+
+    return VALID_STRATEGIES.get(strategyName).get();
   }
 
   private static MetricsMode parseMode(String modeString, MetricsMode fallback, String context) {

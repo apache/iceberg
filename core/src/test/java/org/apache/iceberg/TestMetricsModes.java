@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
@@ -195,5 +196,46 @@ public class TestMetricsModes {
     assertThat(config.columnMode("col1")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col2")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col3")).isEqualTo(None.get());
+  }
+
+  @TestTemplate
+  public void testMetricsConfigNestedTypesStructs() {
+    Schema schema =
+        new Schema(
+            required(
+                5,
+                "col_struct",
+                Types.StructType.of(
+                    required(33, "a", Types.IntegerType.get()),
+                    required(1, "b", Types.IntegerType.get()))),
+            required(4, "top", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first two columns
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2")
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY, "breadth")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Map<String, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().values().stream()
+            .collect(Collectors.toMap(k -> k, config::columnMode));
+
+    assertThat(metricModes).containsOnlyKeys("col_struct.a","col_struct.b","top");
+
+    assertThat(metricModes).containsEntry("col_struct.a", Truncate.withLength(16));
+    assertThat(metricModes).containsEntry("col_struct.b", None.get());
+    assertThat(metricModes).containsEntry("top", Truncate.withLength(16));
   }
 }
