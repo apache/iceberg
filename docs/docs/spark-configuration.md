@@ -198,7 +198,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.max-total-size        | 134217728 (128MB)                                              | Max total executor cache size (bytes)                                                                                           |
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
-| spark.sql.iceberg.report-column-stats                  | false                                                          | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
+| spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
 
 ### Read options
 
