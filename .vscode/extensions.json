@@ -1,0 +1,6 @@
+{
+    "recommendations": [
+        "vscjava.vscode-java-pack",
+        "ms-vscode-remote.remote-containers"
+    ]
+}

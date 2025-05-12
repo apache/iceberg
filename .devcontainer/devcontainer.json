@@ -1,0 +1,54 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/java
+{
+    "name": "Java",
+    // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+    "image": "mcr.microsoft.com/devcontainers/java:1-21-bullseye",
+    "initializeCommand": {
+		// Make sure the .gradle directory exists on the host so we can bind to it.
+        // TODO: Make this work on Windows too.
+        "create-gradle-cachedir": "mkdir -pv ${localEnv:HOME}/.gradle"
+    },
+
+    "mounts": [
+		// Bind mount the .gradle directory to the host so we can reuse the cache across containers.
+        "source=${localEnv:USERPROFILE}${localEnv:HOME}/.gradle,target=/home/vscode/.gradle,type=bind"
+    ],
+
+    "containerEnv": {
+        // Set the JAVA_HOME environment variable to use the Java installation in the devcontainer.
+        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current/",
+        // Set the PATH environment variable to include the Java installation in the devcontainer.
+        "PATH": "/usr/lib/jvm/msopenjdk-current/bin:${containerEnv:PATH}"
+    },
+
+    "features": {
+        "ghcr.io/devcontainers/features/java:1": {
+            "version": "none",
+            "installMaven": "false",
+            "installGradle": "true"
+        },
+        "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "vscjava.vscode-java-pack",
+                "Github.copilot",
+                "GitHub.copilot-chat"
+            ]
+        }
+    }
+
+    // Use 'forwardPorts' to make a list of ports inside the container available locally.
+    // "forwardPorts": [],
+
+    // Use 'postCreateCommand' to run commands after the container is created.
+    // "postCreateCommand": "java -version",
+
+    // Configure tool-specific properties.
+    // "customizations": {},
+
+    // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+    // "remoteUser": "root"
+}
