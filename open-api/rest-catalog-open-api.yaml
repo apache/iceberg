@@ -2388,6 +2388,25 @@ components:
           items:
             $ref: '#/components/schemas/SortField'
 
+    EncryptedKey:
+      type: object
+      required:
+        - key-id
+        - encrypted-key-metadata
+      properties:
+        key-id:
+          type: string
+        encrypted-key-metadata:
+          type: string
+          format: byte # for compatibility
+          contentEncoding: base64
+        encrypted-by-id:
+          type: string
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+
     Snapshot:
       type: object
       required:
@@ -2525,6 +2544,11 @@ components:
             $ref: '#/components/schemas/SortOrder'
         default-sort-order-id:
           type: integer
+        # encryption
+        encryption-keys:
+          type: list
+          items:
+            $ref: '#/components/schemas/EncryptedKey'
         # snapshot tracking
         snapshots:
           type: array
@@ -2679,6 +2703,8 @@ components:
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
           remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
           remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
+          add-encryption-key: '#/components/schemas/AddEncryptionKeyUpdate'
+          remove-encryption-key: '#/components/schemas/RemoveEncryptionKeyUpdate'
       type: object
       required:
         - action
@@ -2997,6 +3023,30 @@ components:
           items:
             type: integer
 
+    AddEncryptionKeyUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - encryption-key
+      properties:
+        action:
+          type: string
+          const: "add-encryption-key"
+        encryption-key:
+          $ref: '#/components/schemas/EncryptedKey'
+
+    RemoveEncryptionKeyUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - key-id
+      properties:
+        action:
+          type: string
+          const: "remove-encryption-key"
+        key-id:
+          type: string
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -3018,6 +3068,8 @@ components:
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
         - $ref: '#/components/schemas/RemoveSchemasUpdate'
+        - $ref: '#/components/schemas/AddEncryptionKeyUpdate'
+        - $ref: '#/components/schemas/RemoveEncryptionKeyUpdate'
 
     ViewUpdate:
       anyOf:
