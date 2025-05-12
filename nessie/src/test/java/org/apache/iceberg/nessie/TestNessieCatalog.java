@@ -20,7 +20,6 @@ package org.apache.iceberg.nessie;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.net.URI;
@@ -108,7 +107,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testNamespace");
     catalog.createNamespace(testNamespace, Maps.newHashMap());
-    assertEquals(true, catalog.namespaceExists(testNamespace));
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
