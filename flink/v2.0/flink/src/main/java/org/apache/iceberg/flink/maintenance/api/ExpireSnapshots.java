@@ -33,7 +33,6 @@ public class ExpireSnapshots {
   private static final int DELETE_BATCH_SIZE_DEFAULT = 1000;
   private static final String EXECUTOR_OPERATOR_NAME = "Expire Snapshot";
   @VisibleForTesting static final String DELETE_FILES_OPERATOR_NAME = "Delete file";
-  private static final String MAINTENANCE_TASK_NAME = "ExpireSnapshots";
 
   private ExpireSnapshots() {}
 
@@ -50,7 +49,7 @@ public class ExpireSnapshots {
 
     @Override
     String maintenanceTaskName() {
-      return MAINTENANCE_TASK_NAME;
+      return "ExpireSnapshots";
     }
 
     /**

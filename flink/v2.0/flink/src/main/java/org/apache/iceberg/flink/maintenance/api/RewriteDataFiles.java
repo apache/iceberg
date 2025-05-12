@@ -40,7 +40,6 @@ public class RewriteDataFiles {
   static final String REWRITE_TASK_NAME = "Rewrite";
   static final String COMMIT_TASK_NAME = "Rewrite commit";
   static final String AGGREGATOR_TASK_NAME = "Rewrite aggregator";
-  private static final String MAINTENANCE_TASK_NAME = "RewriteDataFiles";
 
   private RewriteDataFiles() {}
 
@@ -57,7 +56,7 @@ public class RewriteDataFiles {
 
     @Override
     String maintenanceTaskName() {
-      return MAINTENANCE_TASK_NAME;
+      return "RewriteDataFiles";
     }
 
     /**
