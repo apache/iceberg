@@ -421,7 +421,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   void testErrorOnNullForRequiredField() throws Exception {
-
     assumeThat(format)
         .as("ORC file format supports null values even for required fields.")
         .isNotEqualTo(FileFormat.ORC);
