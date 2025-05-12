@@ -210,8 +210,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
-  public List<TableList.Tables> list(
-      DatasetReference datasetReference, boolean filterUnsupportedTables) {
+  public List<TableList.Tables> list(DatasetReference datasetReference, boolean listAllTables) {
     return tables.values().stream()
         .filter(
             table ->

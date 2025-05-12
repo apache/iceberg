@@ -120,8 +120,8 @@ interface BigQueryMetastoreClient {
    * Returns all tables in a database.
    *
    * @param datasetReference full dataset reference
-   * @param filterUnsupportedTables if true, fetches every item on the list to verify it is
-   *     supported, in order to filter the list from unsupported Iceberg tables
+   * @param listAllTables if true, fetches every item on the list including unsupported Iceberg
+   *     Tables. If false, unsupported Iceberg Tables will be filtered out.
    */
-  List<Tables> list(DatasetReference datasetReference, boolean filterUnsupportedTables);
+  List<Tables> list(DatasetReference datasetReference, boolean listAllTables);
 }

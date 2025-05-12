@@ -459,7 +459,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   @Override
-  public List<Tables> list(DatasetReference datasetReference, boolean filterUnsupportedTables) {
+  public List<Tables> list(DatasetReference datasetReference, boolean listAllTables) {
     try {
       String nextPageToken = null;
       Stream<Tables> tablesStream = Stream.empty();
@@ -485,7 +485,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       // distinguish Iceberg
       // tables for us to filter out those results since invoking `getTable` on them would
       // correctly raise a `NoSuchIcebergTableException` for being inoperable by this plugin.
-      if (filterUnsupportedTables) {
+      if (!listAllTables) {
         tablesStream =
             tablesStream
                 .parallel()
