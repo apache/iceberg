@@ -306,17 +306,18 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to clean |
-| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
-| `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
-| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
-| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
-| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
-| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
-| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
-| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
+| Argument Name           | Required? | Type | Description                                                                                                                                                                                |
+|-------------------------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`                 | ✔️  | string | Name of the table to clean                                                                                                                                                                 |
+| `older_than`            | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago)                                                                                                                 |
+| `location`              |    | string    | Directory to look for files in (defaults to the table's location)                                                                                                                          |
+| `dry_run`               |    | boolean   | When true, don't actually remove files (defaults to false)                                                                                                                                 |
+| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used)                                                                                                  |
+| `file_list_view`        |    | string | Dataset to look for files in (skipping the directory listing)                                                                                                                              |
+| `equal_schemes`         |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`).                                 |
+| `equal_authorities`     |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                         |
+| `prefix_mismatch_mode`  |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
+| `prefix_list`           |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
 #### Output
 
@@ -368,6 +369,11 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes
 
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
+```
+
+List all the files that are candidates for removal using prefix listing.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_list => true);
 ```
 
 ### `rewrite_data_files`
