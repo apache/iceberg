@@ -17,9 +17,7 @@
 
     "containerEnv": {
         // Set the JAVA_HOME environment variable to use the Java installation in the devcontainer.
-        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current/",
-        // Set the PATH environment variable to include the Java installation in the devcontainer.
-        "PATH": "/usr/lib/jvm/msopenjdk-current/bin:${containerEnv:PATH}"
+        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current/"
     },
 
     "features": {
