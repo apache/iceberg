@@ -83,8 +83,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initCatalog("nessie", ImmutableMap.of());
-    Namespace namespace = Namespace.of("default");
-    catalog.createNamespace(namespace, Maps.newHashMap());
   }
 
   @AfterEach
