@@ -3,7 +3,7 @@
 {
     "name": "Java",
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-    "image": "mcr.microsoft.com/devcontainers/java:1-21-bullseye",
+    "image": "mcr.microsoft.com/devcontainers/base",
     "initializeCommand": {
 		// Make sure the .gradle directory exists on the host so we can bind to it.
         // TODO: Make this work on Windows too.
@@ -16,15 +16,24 @@
     ],
 
     "containerEnv": {
-        // Set the JAVA_HOME environment variable to use the Java installation in the devcontainer.
-        "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current/"
+        // Set the JAVA_HOME environment variable to use the Java installation
+        // in the devcontainer.
+        "JAVA_HOME": "/usr/local/sdkman/candidates/java/current"
     },
 
     "features": {
         "ghcr.io/devcontainers/features/java:1": {
-            "version": "none",
-            "installMaven": "false",
+            // Iceberg is is compatible with Java 17 and 21.
+            // See README.md for more details.
+            "version": "21",
             "installGradle": "true"
+        },
+        // Make docker available in the container.
+        // Needed for some integration tests.
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "moby": true,
+            "azureDnsAutoDetection": true,
+            "installDockerBuildx": true
         },
         "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
     },
@@ -34,7 +43,11 @@
                 "vscjava.vscode-java-pack",
                 "Github.copilot",
                 "GitHub.copilot-chat"
-            ]
+            ],
+            "settings": {
+                // Point the Gradle at the Java installation in the devcontainer.
+                "java.import.gradle.java.home": "/usr/local/sdkman/candidates/java/current"
+            }
         }
     }
 
