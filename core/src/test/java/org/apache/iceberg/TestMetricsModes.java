@@ -231,7 +231,7 @@ public class TestMetricsModes {
     Map<String, MetricsModes.MetricsMode> metricModes =
         schema.idToName().values().stream().collect(Collectors.toMap(k -> k, config::columnMode));
 
-    assertThat(metricModes).containsOnlyKeys("col_struct.a", "col_struct.b", "top");
+    assertThat(metricModes).containsOnlyKeys("col_struct.a", "col_struct", "col_struct.b", "top");
 
     assertThat(metricModes).containsEntry("col_struct.a", Truncate.withLength(16));
     assertThat(metricModes).containsEntry("col_struct.b", None.get());
