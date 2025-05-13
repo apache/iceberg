@@ -19,12 +19,12 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
 import org.apache.iceberg.MetricsConfig.OriginalMetricsMaxInferredColumnDefaultsStrategy;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestMetricDefaultStrategies {
@@ -46,7 +46,7 @@ public class TestMetricDefaultStrategies {
 
     Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 1);
 
-    Assertions.assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(1, 2, 3)))).isTrue();
+    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(1, 2, 3)))).isTrue();
   }
 
   @Test
@@ -66,7 +66,7 @@ public class TestMetricDefaultStrategies {
 
     Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 1);
 
-    Assertions.assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
+    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
   }
 
   @Test
@@ -84,7 +84,7 @@ public class TestMetricDefaultStrategies {
 
     Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 2);
 
-    Assertions.assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
+    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
   }
 
   @Test
@@ -105,7 +105,7 @@ public class TestMetricDefaultStrategies {
 
     Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 2);
 
-    Assertions.assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
+    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
   }
 
   // TODO test depth strategies if we even decide to include that in the final change.
