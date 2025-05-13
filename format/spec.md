@@ -1113,6 +1113,7 @@ There are three types of row-level deletes:
 * Equality delete files identify deleted rows by the value of one or more columns
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
+Writers must also remove no longer valid deletion vectors from the metadata whenever adding new deletes or removing entire data files to maintain accurate statistics and prevent orphan deletion vectors. For instance, a compaction job that rewrites a set of data file must also remove all deletion vectors applicable to the original data files.
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
