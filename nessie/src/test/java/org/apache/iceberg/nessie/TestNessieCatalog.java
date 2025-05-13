@@ -19,7 +19,6 @@
 package org.apache.iceberg.nessie;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.URI;
@@ -29,8 +28,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -192,13 +189,5 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + TABLE.namespace()
                 + "/"
                 + TABLE.name());
-  }
-
-  @Test
-  @Override
-  public void testListNonExistingNamespace() {
-    assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("non_existing_namespace")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: non_existing_namespace");
   }
 }

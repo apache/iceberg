@@ -469,7 +469,8 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
     assertThatThrownBy(() -> catalogAtHash1.listNamespaces(namespaceAB))
-        .isInstanceOf(NoSuchNamespaceException.class);
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceAB);
     assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
 
     TableIdentifier identifier = TableIdentifier.of(namespaceAB, "table");
