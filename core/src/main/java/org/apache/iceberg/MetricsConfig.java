@@ -128,7 +128,8 @@ public final class MetricsConfig implements Serializable {
     @Override
     public Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns) {
       // an inferred default mode is applied to the first few columns, up to the limit
-      return new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
+      int columnLengthCap = Math.min(maxInferredDefaultColumns, schema.columns().size());
+      return new Schema(schema.columns().subList(0, columnLengthCap));
     }
   }
 
