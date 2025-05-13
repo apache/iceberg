@@ -108,5 +108,5 @@ public class TestMetricDefaultStrategies {
     Assertions.assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
   }
 
-  //TODO test depth strategies if we even decide to include that in the final change.
+  // TODO test depth strategies if we even decide to include that in the final change.
 }
