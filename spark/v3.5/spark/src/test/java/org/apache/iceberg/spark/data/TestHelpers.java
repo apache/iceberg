@@ -580,9 +580,9 @@ public class TestHelpers {
         Object expectedKey = getValue(expectedKeyArray, e, keyType);
         Object actualValue = actual.get(expectedKey);
         if (actualValue == null) {
-          assertThat(true)
+          assertThat(expected.valueArray().isNullAt(e))
               .as(prefix + ".key=" + expectedKey + " has null")
-              .isEqualTo(expected.valueArray().isNullAt(e));
+              .isTrue();
         } else {
           switch (valueType.typeId()) {
             case BOOLEAN:
