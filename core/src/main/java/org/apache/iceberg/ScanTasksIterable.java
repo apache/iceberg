@@ -39,9 +39,9 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Supplier<Map<String, String>> headers;
-  private final String
-      planTask; // parallelizing on this where a planTask produces a list of file scan tasks, as
-  // well more planTasks
+  // parallelizing on this where a planTask produces a list of file scan tasks,
+  // as well more planTasks.
+  private final String planTask;
   private final List<FileScanTask> fileScanTasks;
   private ExecutorService executorService;
   private Map<Integer, PartitionSpec> specsById;

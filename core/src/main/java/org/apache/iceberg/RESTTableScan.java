@@ -224,7 +224,7 @@ public class RESTTableScan extends DataTableScan {
         iterableOfScanTaskIterables.add(iterable);
       }
       return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
-      // another idea is to keep concating to the original parallel iterable???
+      // another idea is to keep concatenating to the original parallel iterable???
     }
     // use a single scanTasks iterable since no need to parallelize since no planTasks
     return new ScanTasksIterable(
