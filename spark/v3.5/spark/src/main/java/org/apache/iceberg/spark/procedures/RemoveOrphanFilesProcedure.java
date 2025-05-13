@@ -64,7 +64,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         ProcedureParameter.optional("equal_authorities", STRING_MAP),
         ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),
         // List files with prefix operations. Default is false.
-        ProcedureParameter.optional("prefix_list", DataTypes.BooleanType)
+        ProcedureParameter.optional("prefix_listing", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -138,7 +138,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     PrefixMismatchMode prefixMismatchMode =
         args.isNullAt(8) ? null : PrefixMismatchMode.fromString(args.getString(8));
 
-    boolean prefixList = args.isNullAt(9) ? false : args.getBoolean(9);
+    boolean prefixListing = args.isNullAt(9) ? false : args.getBoolean(9);
 
     return withIcebergTable(
         tableIdent,
@@ -186,7 +186,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             action.prefixMismatchMode(prefixMismatchMode);
           }
 
-          action.usePrefixListing(prefixList);
+          action.usePrefixListing(prefixListing);
 
           DeleteOrphanFiles.Result result = action.execute();
 
