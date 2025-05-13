@@ -34,6 +34,7 @@ import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
+import org.apache.iceberg.aws.glue.GlueProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -225,8 +226,8 @@ public class LakeFormationTestBase {
     assumeRoleProperties.put("warehouse", "s3://path");
     assumeRoleProperties.put(
         AwsProperties.CLIENT_ASSUME_ROLE_REGION, AwsIntegTestUtil.testRegion());
-    assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "true");
-    assumeRoleProperties.put(AwsProperties.GLUE_ACCOUNT_ID, AwsIntegTestUtil.testAccountId());
+    assumeRoleProperties.put(GlueProperties.GLUE_LAKEFORMATION_ENABLED, "true");
+    assumeRoleProperties.put(GlueProperties.GLUE_ACCOUNT_ID, AwsIntegTestUtil.testAccountId());
     assumeRoleProperties.put(
         HttpClientProperties.CLIENT_TYPE, HttpClientProperties.CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, lfPrivilegedRoleArn);
@@ -237,7 +238,7 @@ public class LakeFormationTestBase {
     glueCatalogPrivilegedRole.initialize("test_privileged", assumeRoleProperties);
 
     // Build test glueCatalog with lfRegisterPathRole
-    assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "false");
+    assumeRoleProperties.put(GlueProperties.GLUE_LAKEFORMATION_ENABLED, "false");
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, lfRegisterPathRoleArn);
     assumeRoleProperties.remove(
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX
