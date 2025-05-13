@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.DataFileWriter;
@@ -34,14 +37,12 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSparkAvroEnums {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void writeAndValidateEnums() throws IOException {
@@ -64,8 +65,8 @@ public class TestSparkAvroEnums {
     Record enumRecord3 = new GenericData.Record(avroSchema); // null enum
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (DataFileWriter<Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
       writer.create(avroSchema, testFile);
@@ -90,7 +91,7 @@ public class TestSparkAvroEnums {
           expected.get(i).get("enumCol") == null ? null : expected.get(i).get("enumCol").toString();
       String sparkString =
           rows.get(i).getUTF8String(0) == null ? null : rows.get(i).getUTF8String(0).toString();
-      Assert.assertEquals(expectedEnumString, sparkString);
+      assertThat(sparkString).isEqualTo(expectedEnumString);
     }
   }
 }

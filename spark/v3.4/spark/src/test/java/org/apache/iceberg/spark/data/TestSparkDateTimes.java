@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.time.ZoneId;
 import java.util.TimeZone;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.TimestampFormatter;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkDateTimes {
   @Test
@@ -46,8 +47,10 @@ public class TestSparkDateTimes {
 
   public void checkSparkDate(String dateString) {
     Literal<Integer> date = Literal.of(dateString).to(Types.DateType.get());
-    String sparkDate = DateTimeUtils.toJavaDate(date.value()).toString();
-    Assert.assertEquals("Should be the same date (" + date.value() + ")", dateString, sparkDate);
+    assertThat(DateTimeUtils.toJavaDate(date.value()))
+        .as("Should be the same date (" + date.value() + ")")
+        .asString()
+        .isEqualTo(dateString);
   }
 
   @Test
@@ -68,7 +71,8 @@ public class TestSparkDateTimes {
     ZoneId zoneId = DateTimeUtils.getZoneId("UTC");
     TimestampFormatter formatter = TimestampFormatter.getFractionFormatter(zoneId);
     String sparkTimestamp = formatter.format(ts.value());
-    Assert.assertEquals(
-        "Should be the same timestamp (" + ts.value() + ")", sparkRepr, sparkTimestamp);
+    assertThat(sparkTimestamp)
+        .as("Should be the same timestamp (" + ts.value() + ")")
+        .isEqualTo(sparkRepr);
   }
 }
