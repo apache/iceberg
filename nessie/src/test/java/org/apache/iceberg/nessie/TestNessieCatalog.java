@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
-import org.apache.curator.shaded.com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -98,14 +97,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       api = null;
       hadoopConfig = null;
     }
-  }
-
-  @Test
-  @Override
-  public void testCreateNamespace() {
-    Namespace testNamespace = Namespace.of("testNamespace");
-    catalog.createNamespace(testNamespace, Maps.newHashMap());
-    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
@@ -205,16 +196,9 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Test
   @Override
-  @Disabled("Nessie doesnt create default namespaces")
-  public void testListNestedNamespaces() {
-    super.testListNestedNamespaces();
-  }
-
-  @Test
-  @Override
   public void testListNonExistingNamespace() {
     assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("non_existing_namespace")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace non_existing_namespace does not exist!");
+        .hasMessage("Namespace does not exist: non_existing_namespace");
   }
 }

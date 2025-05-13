@@ -456,9 +456,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
     Namespace namespaceA = Namespace.of("a");
     Namespace namespaceAB = Namespace.of("a", "b");
-    NessieCatalog finalNessieCatalog = nessieCatalog;
-    assertThatThrownBy(() -> finalNessieCatalog.listNamespaces(namespaceAB))
-        .isInstanceOf(NoSuchNamespaceException.class);
+    assertThatThrownBy(() -> nessieCatalog.listNamespaces(namespaceAB))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceAB);
 
     createMissingNamespaces(
         nessieCatalog, Namespace.of(Arrays.copyOf(namespaceAB.levels(), namespaceAB.length() - 1)));
@@ -490,10 +490,10 @@ public class TestBranchVisibility extends BaseTestIceberg {
     assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should be still possible here
-    nessieCatalog = initCatalog(testBranch);
+    NessieCatalog nessieCatalog2 = initCatalog(testBranch);
     TableIdentifier identifier2 = TableIdentifier.of(namespaceAB, "table2");
     nessieCatalog.createTable(identifier2, schema);
-    assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
+    assertThat(nessieCatalog2.listTables(namespaceAB)).hasSize(2);
   }
 
   @Test

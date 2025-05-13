@@ -277,8 +277,9 @@ public class NessieIcebergClient implements AutoCloseable {
                 .get()
                 .get(root.toContentKey());
         if (existing == null) {
-          throw new NoSuchNamespaceException("Namespace %s does not exist!", namespace);
+          throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
         }
+
         filter +=
             String.format(
                 Locale.ROOT,
