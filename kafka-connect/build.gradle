@@ -129,6 +129,12 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation platform(libs.google.libraries.bom)
     implementation 'com.google.cloud:google-cloud-storage'
 
+    implementation project(':iceberg-bigquery')
+    implementation platform(libs.google.libraries.bom)
+    implementation 'com.google.cloud:google-cloud-storage'
+    implementation "com.google.cloud:google-cloud-bigquery"
+    implementation "com.google.cloud:google-cloud-core"
+
     implementation project(':iceberg-azure')
     implementation platform(libs.azuresdk.bom)
     implementation 'com.azure:azure-storage-file-datalake'
