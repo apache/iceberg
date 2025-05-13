@@ -49,7 +49,7 @@ When queried, engines may return the precomputed data for the materialized views
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table and refresh metadata.
-The refresh information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
+Refresh metadata contains information about the "source tables", tables referenced in the query definition of the materialized view.
 The storage table can be in the states of "fresh", "stale" or "invalid", which are determined from the following situations:
 * **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of the source tables.
 * **stale** -- The `snapshot_id`s do not match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
