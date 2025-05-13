@@ -47,7 +47,7 @@ Writers create view metadata files optimistically, assuming that the current met
 Materialized views are a type of view with precomputed results from the view query stored as a table.
 When queried, engines may return the precomputed data for the materialized views, shifting the cost of query execution to the precomputation step.
 
-Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, known as the storage table, which stores the precomputed data.
+Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 The metadata for a materialized view extends the Iceberg view metadata, adding a pointer to the precomputed data and refresh information to determine if the data is still fresh. 
 The refresh information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
 The storage table can be in the states of "fresh", "stale" or "invalid", which are determined from the following situations:
