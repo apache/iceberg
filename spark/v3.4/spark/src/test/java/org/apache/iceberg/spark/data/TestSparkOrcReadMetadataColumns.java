@@ -19,9 +19,12 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,6 +32,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -50,15 +56,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkOrcReadMetadataColumns {
   private static final Schema DATA_SCHEMA =
       new Schema(
@@ -95,24 +98,20 @@ public class TestSparkOrcReadMetadataColumns {
     }
   }
 
-  @Parameterized.Parameters(name = "vectorized = {0}")
-  public static Object[] parameters() {
-    return new Object[] {false, true};
+  @Parameters(name = "vectorized = {0}")
+  public static Collection<Boolean> parameters() {
+    return Arrays.asList(false, true);
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private java.nio.file.Path temp;
 
-  private boolean vectorized;
+  @Parameter private boolean vectorized;
   private File testFile;
 
-  public TestSparkOrcReadMetadataColumns(boolean vectorized) {
-    this.vectorized = vectorized;
-  }
-
-  @Before
+  @BeforeEach
   public void writeFile() throws IOException {
-    testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =
         ORC.write(Files.localOutput(testFile))
@@ -127,18 +126,18 @@ public class TestSparkOrcReadMetadataColumns {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbers() throws IOException {
     readAndValidate(null, null, null, EXPECTED_ROWS);
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbersWithFilter() throws IOException {
     readAndValidate(
         Expressions.greaterThanOrEqual("id", 500), null, null, EXPECTED_ROWS.subList(500, 1000));
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbersWithSplits() throws IOException {
     Reader reader;
     try {
@@ -201,10 +200,10 @@ public class TestSparkOrcReadMetadataColumns {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertThat(actualRows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(PROJECTION_SCHEMA, expectedRows.next(), actualRows.next());
       }
-      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+      assertThat(actualRows).as("Should not have extra rows").isExhausted();
     } finally {
       if (reader != null) {
         reader.close();
