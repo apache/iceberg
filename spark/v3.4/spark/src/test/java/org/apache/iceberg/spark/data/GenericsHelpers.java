@@ -249,6 +249,7 @@ public class GenericsHelpers {
       case INTEGER:
       case LONG:
       case FLOAT:
+      case DOUBLE:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case DATE:
