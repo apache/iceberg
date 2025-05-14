@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
@@ -79,6 +80,25 @@ public class TestClientPoolImpl {
           .isInstanceOf(RetryableException.class)
           .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(maxRetries);
+    }
+  }
+
+  @Test
+  public void testNonRetryableExceptionAfterRetryableException() {
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
+      assertThatThrownBy(
+              () ->
+                  mockClientPool.run(
+                      client ->
+                          client.succeedAfter(
+                              List.of(
+                                  new ImplementationSpecificException(true),
+                                  new ImplementationSpecificException(true),
+                                  new ImplementationSpecificException(false)))))
+          .isInstanceOf(ImplementationSpecificException.class)
+          .hasMessage(null);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(2);
     }
   }
 
@@ -151,6 +171,17 @@ public class TestClientPoolImpl {
     public int successfulAction() {
       actions++;
       return actions;
+    }
+
+    int succeedAfter(List<RuntimeException> exceptions) {
+      int succeedAfterAttempts = exceptions.size();
+      if (retryableFailures == succeedAfterAttempts) {
+        return successfulAction();
+      }
+
+      RuntimeException runtimeException = exceptions.get(retryableFailures);
+      retryableFailures++;
+      throw runtimeException;
     }
 
     int succeedAfter(int succeedAfterAttempts, Supplier<RuntimeException> exceptionSupplier) {
