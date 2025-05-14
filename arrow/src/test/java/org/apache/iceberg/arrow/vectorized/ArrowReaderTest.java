@@ -780,9 +780,12 @@ public class ArrowReaderTest {
                 "uuid_nullable",
                 new FieldType(true, new ArrowType.FixedSizeBinary(16), null),
                 null),
-            new Field("decimal", new FieldType(false, new ArrowType.Decimal(9, 2), null), null),
             new Field(
-                "decimal_nullable", new FieldType(true, new ArrowType.Decimal(9, 2), null), null));
+                "decimal", new FieldType(false, new ArrowType.Decimal(9, 2, 128), null), null),
+            new Field(
+                "decimal_nullable",
+                new FieldType(true, new ArrowType.Decimal(9, 2, 128), null),
+                null));
     List<Field> filteredFields =
         allFields.stream()
             .filter(f -> columnSet.contains(f.getName()))

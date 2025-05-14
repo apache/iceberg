@@ -89,7 +89,7 @@ public class ArrowSchemaUtil {
         break;
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) field.type();
-        arrowType = new ArrowType.Decimal(decimalType.precision(), decimalType.scale());
+        arrowType = new ArrowType.Decimal(decimalType.precision(), decimalType.scale(), 128);
         break;
       case STRING:
         arrowType = ArrowType.Utf8.INSTANCE;
