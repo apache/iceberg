@@ -95,7 +95,9 @@ public class PartitionStats implements StructLike {
    *
    * @param file the {@link ContentFile} from the manifest entry.
    * @param snapshot the snapshot corresponding to the live entry.
+   * @deprecated since 1.10.0, visibility will be reduced in 1.11.0
    */
+  @Deprecated // will become package-private
   public void liveEntry(ContentFile<?> file, Snapshot snapshot) {
     Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
 
@@ -128,7 +130,9 @@ public class PartitionStats implements StructLike {
    * Updates the modified time and snapshot ID for the deleted manifest entry.
    *
    * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   * @deprecated since 1.10.0, visibility will be reduced in 1.11.0
    */
+  @Deprecated // will become package-private
   public void deletedEntry(Snapshot snapshot) {
     if (snapshot != null) {
       updateSnapshotInfo(snapshot.snapshotId(), snapshot.timestampMillis());
@@ -141,7 +145,7 @@ public class PartitionStats implements StructLike {
    *
    * @param snapshot the snapshot corresponding to the deleted manifest entry.
    */
-  public void deletedEntryForIncrementalCompute(ContentFile<?> file, Snapshot snapshot) {
+  void deletedEntryForIncrementalCompute(ContentFile<?> file, Snapshot snapshot) {
     Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
@@ -171,7 +175,9 @@ public class PartitionStats implements StructLike {
    * Appends statistics from given entry to current entry.
    *
    * @param entry the entry from which statistics will be sourced.
+   * @deprecated since 1.10.0, visibility will be reduced in 1.11.0
    */
+  @Deprecated // will become package-private
   public void appendStats(PartitionStats entry) {
     Preconditions.checkArgument(specId == entry.specId(), "Spec IDs must match");
 

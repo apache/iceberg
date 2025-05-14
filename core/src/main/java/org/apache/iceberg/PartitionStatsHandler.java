@@ -165,7 +165,7 @@ public class PartitionStatsHandler {
           "Using full compute as previous statistics file is not present for incremental compute.");
       stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
     } else {
-      stats = incrementalComputeAndMerge(table, snapshot, partitionType, statisticsFile);
+      stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
     }
 
     if (stats.isEmpty()) {
@@ -267,7 +267,7 @@ public class PartitionStatsHandler {
     return stats;
   }
 
-  private static Collection<PartitionStats> incrementalComputeAndMerge(
+  private static Collection<PartitionStats> computeAndMergeStatsIncremental(
       Table table,
       Snapshot snapshot,
       StructType partitionType,
@@ -386,8 +386,8 @@ public class PartitionStatsHandler {
                 ((PartitionData) file.partition()).copy(),
                 () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
-          // Live can have both added and existing entries. Don't consider existing entries for
-          // incremental compute as it was already included in previous compute.
+          // Live can have both added and existing entries. Consider only added entries for
+          // incremental compute as existing entries was already included in previous compute.
           if (!incremental || entry.status() == ManifestEntry.Status.ADDED) {
             stats.liveEntry(file, snapshot);
           }
