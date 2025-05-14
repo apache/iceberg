@@ -209,6 +209,20 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public Map<String, String> extraSnapshotMetadata() {
+    Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
+
+    writeOptions.forEach(
+        (key, value) -> {
+          if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
+            extraSnapshotMetadata.put(
+                key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
+          }
+        });
+
+    return extraSnapshotMetadata;
+  }
+
   public String rewrittenFileSetId() {
     return confParser
         .stringConf()
