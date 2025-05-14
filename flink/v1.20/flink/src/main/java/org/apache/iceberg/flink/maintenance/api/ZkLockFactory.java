@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFramework;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.recipes.shared.SharedCount;
+import org.apache.flink.shaded.curator5.org.apache.curator.framework.recipes.shared.VersionedValue;
 import org.apache.flink.shaded.curator5.org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -33,6 +34,8 @@ public class ZkLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(ZkLockFactory.class);
 
   private static final String LOCK_BASE_PATH = "/iceberg/flink/maintenance/locks/";
+  private static final int LOCKED = 1;
+  private static final int UNLOCKED = 0;
 
   private final String connectString;
   private final String lockId;
@@ -136,13 +139,14 @@ public class ZkLockFactory implements TriggerLockFactory {
 
     @Override
     public boolean tryLock() {
-      if (isHeld()) {
+      VersionedValue<Integer> versionedValue = sharedCount.getVersionedValue();
+      if (isHeld(versionedValue)) {
         LOG.debug("Lock is already held for {}", this);
         return false;
       }
 
       try {
-        return sharedCount.trySetCount(sharedCount.getVersionedValue(), 1);
+        return sharedCount.trySetCount(versionedValue, LOCKED);
       } catch (Exception e) {
         LOG.debug("Failed to acquire Zookeeper lock ", e);
         return false;
@@ -151,8 +155,12 @@ public class ZkLockFactory implements TriggerLockFactory {
 
     @Override
     public boolean isHeld() {
+      return isHeld(sharedCount.getVersionedValue());
+    }
+
+    private boolean isHeld(VersionedValue<Integer> versionedValue) {
       try {
-        return sharedCount.getCount() == 1;
+        return versionedValue.getValue() == LOCKED;
       } catch (Exception e) {
         throw new RuntimeException("Failed to check Zookeeper lock status", e);
       }
@@ -161,7 +169,7 @@ public class ZkLockFactory implements TriggerLockFactory {
     @Override
     public void unlock() {
       try {
-        sharedCount.setCount(0);
+        sharedCount.setCount(UNLOCKED);
       } catch (Exception e) {
         throw new RuntimeException("Failed to release lock", e);
       }
