@@ -123,7 +123,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("table must be partitioned");
+        .hasMessage("Table must be partitioned");
   }
 
   @Test
@@ -439,6 +439,41 @@ public abstract class PartitionStatsHandlerTestBase {
             null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
+  }
+
+  @Test
+  public void testLatestStatsFile() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    DataFile dataFile =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    testTable.newAppend().appendFile(dataFile).commit();
+
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    PartitionStatisticsFile latestStatsFile =
+        PartitionStatsHandler.latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // another commit but without stats file
+    testTable.newAppend().appendFile(dataFile).commit();
+    // should point to last stats file
+    latestStatsFile =
+        PartitionStatsHandler.latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // compute stats
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    latestStatsFile =
+        PartitionStatsHandler.latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
   }
 
   private static StructLike partitionRecord(

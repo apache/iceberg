@@ -190,11 +190,4 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + "/"
                 + TABLE.name());
   }
-
-  @Test
-  @Override
-  @Disabled("Nessie currently returns an empty list instead of throwing a NoSuchNamespaceException")
-  public void testListNonExistingNamespace() {
-    super.testListNonExistingNamespace();
-  }
 }
