@@ -38,7 +38,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -303,13 +302,23 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testMetricsModeForNestedStructFields() throws IOException {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            TableProperties.DEFAULT_WRITE_METRICS_MODE,
-            MetricsModes.None.get().toString(),
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
+            NESTED_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    testTable
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString())
+        .set(
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
-            MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+            MetricsModes.Full.get().toString())
+        .commit();
+    MetricsConfig config = MetricsConfig.forTable(testTable);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
@@ -548,11 +557,18 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testNoneMetricsMode() throws IOException {
-    Metrics metrics =
-        getMetrics(
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
-            buildNestedTestRecord());
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable.updateProperties().set("write.metadata.metrics.default", "none").commit();
+
+    Metrics metrics =
+        getMetrics(NESTED_SCHEMA, MetricsConfig.forTable(testTable), buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).isEmpty();
     assertCounts(1, null, null, metrics);
@@ -569,12 +585,18 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testCountsMetricsMode() throws IOException {
-    Metrics metrics =
-        getMetrics(
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "counts")),
-            buildNestedTestRecord());
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable.updateProperties().set("write.metadata.metrics.default", "counts").commit();
+
+    Metrics metrics =
+        getMetrics(NESTED_SCHEMA, MetricsConfig.forTable(testTable), buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
     assertThat(metrics.columnSizes()).isNotEmpty();
@@ -592,11 +614,18 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testFullMetricsMode() throws IOException {
-    Metrics metrics =
-        getMetrics(
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")),
-            buildNestedTestRecord());
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable.updateProperties().set("write.metadata.metrics.default", "full").commit();
+
+    Metrics metrics =
+        getMetrics(NESTED_SCHEMA, MetricsConfig.forTable(testTable), buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
     assertThat(metrics.columnSizes()).isNotEmpty();
@@ -626,12 +655,17 @@ public abstract class TestMetrics {
     Record record = GenericRecord.create(singleStringColSchema);
     record.setField(colName, value);
 
-    Metrics metrics =
-        getMetrics(
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
             singleStringColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(10)")),
-            record);
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable.updateProperties().set("write.metadata.metrics.default", "truncate(10)").commit();
+
+    Metrics metrics = getMetrics(singleStringColSchema, MetricsConfig.forTable(testTable), record);
 
     CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
     CharBuffer expectedMaxBound = CharBuffer.wrap("Lorem ipsv");
@@ -651,12 +685,17 @@ public abstract class TestMetrics {
     Record record = GenericRecord.create(singleBinaryColSchema);
     record.setField(colName, ByteBuffer.wrap(value));
 
-    Metrics metrics =
-        getMetrics(
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
             singleBinaryColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(5)")),
-            record);
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable.updateProperties().set("write.metadata.metrics.default", "truncate(5)").commit();
+
+    Metrics metrics = getMetrics(singleBinaryColSchema, MetricsConfig.forTable(testTable), record);
 
     ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x5});
     ByteBuffer expectedMaxBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x6});

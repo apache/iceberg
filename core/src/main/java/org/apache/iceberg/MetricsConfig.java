@@ -64,17 +64,6 @@ public final class MetricsConfig implements Serializable {
   }
 
   /**
-   * Creates a metrics config from table configuration.
-   *
-   * @param props table configuration
-   * @deprecated use {@link MetricsConfig#forTable(Table)}
-   */
-  @Deprecated
-  public static MetricsConfig fromProperties(Map<String, String> props) {
-    return from(props, null, null);
-  }
-
-  /**
    * Creates a metrics config from a table.
    *
    * @param table iceberg table
@@ -116,7 +105,7 @@ public final class MetricsConfig implements Serializable {
    * @param order sort order columns, will be promoted to truncate(16)
    * @return metrics configuration
    */
-  private static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
+  static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
     int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
