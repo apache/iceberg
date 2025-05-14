@@ -1310,6 +1310,10 @@ acceptedBreaks:
       old: "method long org.apache.iceberg.actions.RewritePositionDeletesGroup::rewrittenBytes()"
       justification: "Removing deprecations for 1.10.0"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::fromProperties(java.util.Map<java.lang.String,\
+        \ java.lang.String>)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::enableRowLineage()"
       justification: "Removing deprecations for 1.10.0"
     - code: "java.method.removed"
