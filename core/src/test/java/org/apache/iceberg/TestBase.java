@@ -386,6 +386,9 @@ public class TestBase {
       case 3:
         manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
         break;
+      case 4:
+        manifestEntrySchema = V4Metadata.entrySchema(table.spec().partitionType());
+        break;
       default:
         throw new IllegalArgumentException(
             "Unsupported format version: " + table.ops().current().formatVersion());
