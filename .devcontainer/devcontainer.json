@@ -26,7 +26,10 @@
             // Iceberg is is compatible with Java 17 and 21.
             // See README.md for more details.
             "version": "21",
-            "installGradle": "true"
+            // Use the Oracle JDK distribution to match the Oracle Java extension (below).
+            "jdkDistro": "oracle",
+            "installGradle": "true",
+            "gradleVersion": "8.14"
         },
         // Make docker available in the container.
         // Needed for some integration tests.
@@ -35,18 +38,32 @@
             "azureDnsAutoDetection": true,
             "installDockerBuildx": true
         },
+        // Preserve shell history across devcontainer restarts.
         "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
     },
     "customizations": {
         "vscode": {
             "extensions": [
-                "vscjava.vscode-java-pack",
+                // The "redhat.java" extension that comes with the
+                // vscode-java-pack extension that is usually installed by the
+                // java feature (above) doesn't work with Iceberg for some
+                // reason (TODO: investigate), so we are using the Oracle
+                // version instead and add other extensions as needed.
+                "-redhat.java",
+                "-vscjava.vscode-java-pack",
+                "Oracle.oracle-java",
+
+                // Optional extensions for AI assisted Java development.
                 "Github.copilot",
                 "GitHub.copilot-chat"
             ],
             "settings": {
+                // Oracle Java extension settings:
+                "jdk.jdkhome": "/usr/local/sdkman/candidates/java/current",
+                // MS Java extension settings:
                 // Point the Gradle at the Java installation in the devcontainer.
-                "java.import.gradle.java.home": "/usr/local/sdkman/candidates/java/current"
+                "java.import.gradle.java.home": "/usr/local/sdkman/candidates/java/current",
+                "gradle.nestedProjects": true
             }
         }
     }
