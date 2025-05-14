@@ -101,7 +101,7 @@ public class BinPackRewriteFilePlanner
   private int deleteFileThreshold;
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
-  private Integer maxFilesToRewrite = Integer.MAX_VALUE;
+  private Integer maxFilesToRewrite;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
