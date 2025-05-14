@@ -83,9 +83,7 @@ public class SparkTestHelperBase {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
       } else if (expectedValue != ANY) {
-        assertThat(actualValue)
-            .as("%s contents should match", context)
-            .isEqualTo(expectedValue);
+        assertThat(actualValue).as("%s contents should match", context).isEqualTo(expectedValue);
       }
     }
   }
