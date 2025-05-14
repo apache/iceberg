@@ -23,8 +23,10 @@ import com.google.api.services.bigquery.model.DatasetList.Datasets;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.TableReference;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.GeneralSecurityException;
@@ -59,6 +61,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
   // User provided properties.
+  public static final String CREDENTIAL_FILE = "gcp.bigquery.credential-file";
   public static final String PROJECT_ID = "gcp.bigquery.project-id";
   public static final String GCP_LOCATION = "gcp.bigquery.location";
   public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
@@ -97,7 +100,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
             .build();
 
     try {
-      client = new BigQueryMetastoreClientImpl(options);
+      GoogleCredentials credentials = loadCredentials(properties);
+      client = new BigQueryMetastoreClientImpl(credentials, options);
     } catch (IOException e) {
       throw new UncheckedIOException("Creating BigQuery client failed", e);
     } catch (GeneralSecurityException e) {
@@ -345,5 +349,14 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
                 + " levels",
             namespace,
             namespace.levels().length));
+  }
+
+  private static GoogleCredentials loadCredentials(Map<String, String> properties)
+      throws IOException {
+    if (!properties.containsKey(CREDENTIAL_FILE)) {
+      return GoogleCredentials.getApplicationDefault();
+    }
+
+    return GoogleCredentials.fromStream(new FileInputStream(properties.get(CREDENTIAL_FILE)));
   }
 }
