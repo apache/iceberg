@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkValueConverter {
   @Test
@@ -86,9 +87,8 @@ public class TestSparkValueConverter {
     Row sparkRow = RowFactory.create(1, null);
     Record record = GenericRecord.create(schema);
     record.set(0, 1);
-    Assert.assertEquals(
-        "Round-trip conversion should produce original value",
-        record,
-        SparkValueConverter.convert(schema, sparkRow));
+    assertThat(SparkValueConverter.convert(schema, sparkRow))
+        .as("Round-trip conversion should produce original value")
+        .isEqualTo(record);
   }
 }
