@@ -37,6 +37,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -249,8 +250,14 @@ public class TestWriteMetricsConfig {
 
     Iterable<InternalRow> rows = RandomData.generateSpark(COMPLEX_SCHEMA, 10, 0);
     JavaRDD<InternalRow> rdd = sc.parallelize(Lists.newArrayList(rows));
+    Preconditions.checkArgument(
+        spark instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark.getClass().getName());
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
 
     df.coalesce(1)
         .write()

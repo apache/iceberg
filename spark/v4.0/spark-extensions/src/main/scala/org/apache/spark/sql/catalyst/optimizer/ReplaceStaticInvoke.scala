@@ -49,7 +49,7 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
     plan.transformWithPruning (_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
-      case replace @ ReplaceData(_, cond, _, _, _, _) =>
+      case replace @ ReplaceData(_, cond, _, _, _, _, _) =>
         replaceStaticInvoke(replace, cond, newCond => replace.copy(condition = newCond))
 
       case join @ Join(_, _, _, Some(cond), _) =>

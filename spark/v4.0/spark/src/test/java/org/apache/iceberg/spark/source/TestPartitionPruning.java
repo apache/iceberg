@@ -52,6 +52,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -326,9 +327,15 @@ public class TestPartitionPruning {
             .collect(Collectors.toList());
 
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(rows);
+    Preconditions.checkArgument(
+        spark instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark.getClass().getName());
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(
-            JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(LOG_SCHEMA), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(
+                JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(LOG_SCHEMA), false);
 
     return df.selectExpr("id", "date", "level", "message", "timestamp")
         .selectExpr(

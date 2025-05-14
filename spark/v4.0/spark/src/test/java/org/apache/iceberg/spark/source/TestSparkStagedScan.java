@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -36,9 +35,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkStagedScan extends CatalogTestBase {
 
   @AfterEach
