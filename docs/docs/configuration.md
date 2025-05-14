@@ -87,7 +87,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.update.isolation-level                         | serializable                | Isolation level for update commands: serializable or snapshot                                                                                                                                     |
 | write.merge.mode                                     | copy-on-write               | Mode used for merge commands: copy-on-write or merge-on-read (v2 only)                                                                                                                            |
 | write.merge.isolation-level                          | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                      |
-| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: __partition__ or __file__                                                                                                                     |
+| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                     |
 
 ### Table behavior properties
 
