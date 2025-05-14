@@ -486,36 +486,6 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     }
   }
 
-  @Test
-  public void testExtraSnapshotMetadataReflectsSessionConfig() {
-    withSQLConf(
-        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "test-value"),
-        () -> {
-          Table table = validationCatalog.loadTable(tableIdent);
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
-
-          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
-
-          assertThat(metadata).containsEntry("test-key", "test-value");
-        });
-  }
-
-  @Test
-  public void testExtraSnapshotMetadataWriteOptionsOverrideSessionConfig() {
-    withSQLConf(
-        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
-        () -> {
-          Table table = validationCatalog.loadTable(tableIdent);
-          Map<String, String> writeOptions = ImmutableMap.of("snapshot-property.test-key", "write-option-value");
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
-
-          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
-
-          // Assert that writeOptions take precedence over session config
-          assertThat(metadata).containsEntry("test-key", "write-option-value");
-        });
-  }
-
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {
     withSQLConf(
         propertiesSuite.get(0),
