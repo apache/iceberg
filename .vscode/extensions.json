@@ -1,7 +1,6 @@
 {
     "recommendations": [
-        //"-vscjava.vscode-java-pack",
-        //"Oracle.oracle-java",
+        //"vscjava.vscode-java-pack",
         "ms-vscode-remote.remote-containers"
     ]
 }

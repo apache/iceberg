@@ -26,8 +26,6 @@
             // Iceberg is is compatible with Java 17 and 21.
             // See README.md for more details.
             "version": "21",
-            // Use the Oracle JDK distribution to match the Oracle Java extension (below).
-            "jdkDistro": "oracle",
             "installGradle": "true",
             "gradleVersion": "8.14"
         },
@@ -44,14 +42,7 @@
     "customizations": {
         "vscode": {
             "extensions": [
-                // The "redhat.java" extension that comes with the
-                // vscode-java-pack extension that is usually installed by the
-                // java feature (above) doesn't work with Iceberg for some
-                // reason (TODO: investigate), so we are using the Oracle
-                // version instead and add other extensions as needed.
-                "-redhat.java",
-                "-vscjava.vscode-java-pack",
-                "Oracle.oracle-java",
+                "vscjava.vscode-java-pack",
 
                 // Optional extensions for AI assisted Java development.
                 "Github.copilot",
