@@ -396,14 +396,14 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @Test
   public void testExtraSnapshotMetadataReflectsSessionConfig() {
     withSQLConf(
-        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "test-value"),
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
 
           Map<String, String> metadata = writeConf.extraSnapshotMetadata();
 
-          assertThat(metadata).containsEntry("test-key", "test-value");
+          assertThat(metadata).containsEntry("test-key", "session-value");
         });
   }
 
