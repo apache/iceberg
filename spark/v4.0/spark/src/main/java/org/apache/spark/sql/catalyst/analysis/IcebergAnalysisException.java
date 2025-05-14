@@ -16,20 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.catalyst.analysis;
 
-import java.util.Map;
-import org.apache.iceberg.RowLevelOperationMode;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.QueryContext;
+import org.apache.spark.sql.AnalysisException;
+import scala.Option;
+import scala.collection.immutable.Map$;
 
-public class TestCopyOnWriteWithLineage extends TestRowLevelOperationsWithLineage {
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(
-        TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
-        TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
-        TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+public class IcebergAnalysisException extends AnalysisException {
+  public IcebergAnalysisException(String message) {
+    super(
+        message,
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Map$.MODULE$.<String, String>empty(),
+        new QueryContext[0]);
   }
 }

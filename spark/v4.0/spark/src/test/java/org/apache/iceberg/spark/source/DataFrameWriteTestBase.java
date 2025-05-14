@@ -39,6 +39,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
@@ -104,7 +105,13 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
+    Preconditions.checkArgument(
+        spark instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark.getClass().getName());
+
+    return ((org.apache.spark.sql.classic.SparkSession) spark)
+        .internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
   }
 
   @Test

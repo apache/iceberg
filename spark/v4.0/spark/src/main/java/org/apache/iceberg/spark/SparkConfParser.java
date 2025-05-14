@@ -40,7 +40,7 @@ class SparkConfParser {
 
   SparkConfParser() {
     this.properties = ImmutableMap.of();
-    this.sessionConf = new RuntimeConfig(SQLConf.get());
+    this.sessionConf = new org.apache.spark.sql.classic.RuntimeConfig(SQLConf.get());
     this.options = CaseInsensitiveStringMap.empty();
   }
 

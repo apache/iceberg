@@ -133,9 +133,10 @@ public class GenericsHelpers {
         break;
       case DATE:
         assertThat(expected).as("Should expect a LocalDate").isInstanceOf(LocalDate.class);
-        assertThat(actual).as("Should be a Date").isInstanceOf(Date.class);
-        assertThat(actual.toString())
+        assertThat(actual)
+            .isInstanceOf(Date.class)
             .as("ISO-8601 date should be equal")
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case TIMESTAMP:
@@ -165,32 +166,29 @@ public class GenericsHelpers {
         }
         break;
       case STRING:
-        assertThat(actual).as("Should be a String").isInstanceOf(String.class);
-        assertThat(actual.toString())
-            .as("Strings should be equal")
+        assertThat(actual)
+            .isInstanceOf(String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case UUID:
         assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
-        assertThat(actual).as("Should be a String").isInstanceOf(String.class);
-        assertThat(actual.toString())
-            .as("UUID string representation should match")
+        assertThat(actual)
+            .isInstanceOf(String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case FIXED:
         assertThat(expected).as("Should expect a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(expected);
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(expected);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(((ByteBuffer) expected).array());
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
-        assertThat(actual).as("Should be a BigDecimal").isInstanceOf(BigDecimal.class);
-        assertThat(actual).as("BigDecimals should be equal").isEqualTo(expected);
+        assertThat(actual).isInstanceOf(BigDecimal.class).isEqualTo(expected);
         break;
       case STRUCT:
         assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
@@ -352,27 +350,25 @@ public class GenericsHelpers {
         }
         break;
       case STRING:
-        assertThat(actual).as("Should be a UTF8String").isInstanceOf(UTF8String.class);
-        assertThat(actual.toString())
-            .as("Strings should be equal")
+        assertThat(actual)
+            .isInstanceOf(UTF8String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case UUID:
         assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
-        assertThat(actual).as("Should be a UTF8String").isInstanceOf(UTF8String.class);
-        assertThat(actual.toString())
-            .as("UUID string representation should match")
+        assertThat(actual)
+            .isInstanceOf(UTF8String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case FIXED:
         assertThat(expected).as("Should expect a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(expected);
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(expected);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(((ByteBuffer) expected).array());
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
