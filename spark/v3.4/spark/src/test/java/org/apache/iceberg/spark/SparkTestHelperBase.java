@@ -57,7 +57,7 @@ public class SparkTestHelperBase {
   protected void assertEquals(
       String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
     assertThat(actualRows)
-        .as(context + ": number of results should match")
+        .as("%s: number of results should match", context)
         .hasSameSizeAs(expectedRows);
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
@@ -84,7 +84,7 @@ public class SparkTestHelperBase {
         }
       } else if (expectedValue != ANY) {
         assertThat(actualValue)
-            .as(context + " col " + (col + 1) + " contents should match")
+            .as("%s contents should match", context)
             .isEqualTo(expectedValue);
       }
     }
