@@ -48,7 +48,7 @@ public class TestRewriteFiles extends TestBase {
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
     return TestHelpers.ALL_VERSIONS.stream()
-        .flatMap(i -> Stream.of(new Object[] {i, "main"}, new Object[] {i, "branch"}))
+        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "branch"}))
         .collect(Collectors.toList());
   }
 

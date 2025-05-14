@@ -22,9 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
@@ -47,7 +47,7 @@ public abstract class ScanPlanningAndReportingTestBase<
 
   @Parameters(name = "formatVersion = {0}")
   public static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+    return TestHelpers.ALL_VERSIONS.stream().filter(v -> v >= 2).collect(Collectors.toList());
   }
 
   protected abstract ScanT newScan(Table table);

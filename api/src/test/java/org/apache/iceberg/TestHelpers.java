@@ -54,7 +54,7 @@ public class TestHelpers {
 
   private TestHelpers() {}
 
-  public static final int MAX_FORMAT_VERSION = 3;
+  public static final int MAX_FORMAT_VERSION = 4;
   public static final List<Integer> ALL_VERSIONS =
       IntStream.rangeClosed(1, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
 
