@@ -5,13 +5,13 @@
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
     "image": "mcr.microsoft.com/devcontainers/base",
     "initializeCommand": {
-		// Make sure the .gradle directory exists on the host so we can bind to it.
+        // Make sure the .gradle directory exists on the host so we can bind to it.
         // TODO: Make this work on Windows too.
         "create-gradle-cachedir": "mkdir -pv ${localEnv:HOME}/.gradle"
     },
 
     "mounts": [
-		// Bind mount the .gradle directory to the host so we can reuse the cache across containers.
+        // Bind mount the .gradle directory to the host so we can reuse the cache across containers.
         "source=${localEnv:USERPROFILE}${localEnv:HOME}/.gradle,target=/home/vscode/.gradle,type=bind"
     ],
 
