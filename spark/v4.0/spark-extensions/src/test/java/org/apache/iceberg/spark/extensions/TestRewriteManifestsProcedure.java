@@ -41,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -302,14 +301,8 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
-            });
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
         .isInstanceOf(AnalysisException.class)

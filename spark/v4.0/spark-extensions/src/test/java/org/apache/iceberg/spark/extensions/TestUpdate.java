@@ -68,7 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.SparkException;
+import org.apache.spark.SparkRuntimeException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -1367,12 +1367,14 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of("spark.sql.storeAssignmentPolicy", "ansi"),
         () -> {
           assertThatThrownBy(() -> sql("UPDATE %s t SET t.id = NULL", commitTarget()))
-              .isInstanceOf(SparkException.class)
-              .hasMessageContaining("Null value appeared in non-nullable field");
+              .isInstanceOf(SparkRuntimeException.class)
+              .hasMessageContaining(
+                  "[NOT_NULL_ASSERT_VIOLATION] NULL value appeared in non-nullable field");
 
           assertThatThrownBy(() -> sql("UPDATE %s t SET t.s.n1 = NULL", commitTarget()))
-              .isInstanceOf(SparkException.class)
-              .hasMessageContaining("Null value appeared in non-nullable field");
+              .isInstanceOf(SparkRuntimeException.class)
+              .hasMessageContaining(
+                  "[NOT_NULL_ASSERT_VIOLATION] NULL value appeared in non-nullable field");
 
           assertThatThrownBy(
                   () -> sql("UPDATE %s t SET t.s = named_struct('n1', 1)", commitTarget()))

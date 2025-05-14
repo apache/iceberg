@@ -110,7 +110,7 @@ public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadat
   public MetadataColumn[] metadataColumns() {
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(icebergTable));
     return new MetadataColumn[] {
-      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, true),
       new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
       new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
       new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),

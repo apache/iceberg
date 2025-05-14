@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -317,18 +318,25 @@ public class TestSparkMetadataColumns extends TestBase {
   }
 
   @TestTemplate
-  public void testRowLineageColumnsAreNullBeforeV3() {
-    assumeThat(formatVersion).isLessThan(3);
-    // ToDo: When the other readers have row lineage plumbed through, remove these assumptions
-    assumeThat(vectorized).isFalse();
-    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
-
-    sql("INSERT INTO TABLE %s VALUES (1L, 'a1', 'b1')", TABLE_NAME);
-
-    assertEquals(
-        "Rows must match",
-        ImmutableList.of(row(1L, null, null)),
-        sql("SELECT id, _row_id, _last_updated_sequence_number FROM %s", TABLE_NAME));
+  public void testRowLineageColumnsResolvedInV3OrHigher() {
+    if (formatVersion >= 3) {
+      // Test against an empty table to ensure column resolution in formats supporting row lineage
+      // and so that the test doesn't have to change with inheritance
+      assertEquals(
+          "Rows must match",
+          ImmutableList.of(),
+          sql("SELECT _row_id, _last_updated_sequence_number, id FROM %s", TABLE_NAME));
+    } else {
+      // Should fail to resolve row lineage metadata columns in V1/V2 tables
+      assertThatThrownBy(() -> sql("SELECT _row_id FROM %s", TABLE_NAME))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column, variable, or function parameter with name `_row_id` cannot be resolved");
+      assertThatThrownBy(() -> sql("SELECT _last_updated_sequence_number FROM %s", TABLE_NAME))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column, variable, or function parameter with name `_last_updated_sequence_number` cannot be resolved");
+    }
   }
 
   private void createAndInitTable() throws IOException {

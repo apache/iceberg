@@ -54,7 +54,6 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -772,14 +771,8 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessageContaining("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
-            });
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -975,7 +968,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .containsKey(CatalogProperties.APP_ID)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
         .hasEntrySatisfying(
-            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));
   }
 
   private void createTable() {

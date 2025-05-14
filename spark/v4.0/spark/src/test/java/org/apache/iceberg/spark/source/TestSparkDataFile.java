@@ -52,6 +52,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -164,9 +165,15 @@ public class TestSparkDataFile {
   private void checkSparkContentFiles(Table table) throws IOException {
     Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 200, 0);
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(Lists.newArrayList(rows));
+    Preconditions.checkArgument(
+        spark instanceof org.apache.spark.sql.classic.SparkSession,
+        "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+        spark.getClass().getName());
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(
-            JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(
+                JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
 
     df.write().format("iceberg").mode("append").save(tableLocation);
 
