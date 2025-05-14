@@ -214,18 +214,6 @@ public class BinPackRewriteFilePlanner
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
-  //
-  //  Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
-  //  int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
-  //    return new FileRewritePlan<>(
-  //            CloseableIterable.of(
-  //            selectedFileGroups.stream()
-  //            .sorted(RewriteFileGroup.comparator(rewriteJobOrder))
-  //          .collect(Collectors.toList())),
-  //  totalGroupCount,
-  //  groupsInPartition);
-  // }
-
   @Override
   public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
