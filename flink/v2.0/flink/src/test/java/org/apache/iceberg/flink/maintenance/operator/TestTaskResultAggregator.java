@@ -20,8 +20,11 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -40,6 +43,38 @@ class TestTaskResultAggregator extends OperatorTestBase {
       testHarness.processWatermark2(new Watermark(EVENT_TIME));
       ConcurrentLinkedQueue<Object> output = testHarness.getOutput();
       assertThat(output).containsOnlyOnce(new Watermark(EVENT_TIME));
+    }
+  }
+
+  @Test
+  void testProcessWatermarkWithoutElement() throws Exception {
+    TaskResultAggregator taskResultAggregator =
+        new TaskResultAggregator("table-name", "task-name", 0);
+    try (TwoInputStreamOperatorTestHarness<Trigger, Exception, TaskResult> testHarness =
+        new TwoInputStreamOperatorTestHarness<>(taskResultAggregator)) {
+      testHarness.open();
+      testHarness.processWatermark1(new Watermark(EVENT_TIME));
+      testHarness.processWatermark2(new Watermark(EVENT_TIME));
+      List<TaskResult> taskResults = testHarness.extractOutputValues();
+      assertThat(taskResults).hasSize(0);
+    }
+  }
+
+  @Test
+  void testProcessWatermark() throws Exception {
+    TaskResultAggregator taskResultAggregator =
+        new TaskResultAggregator("table-name", "task-name", 0);
+    try (TwoInputStreamOperatorTestHarness<Trigger, Exception, TaskResult> testHarness =
+        new TwoInputStreamOperatorTestHarness<>(taskResultAggregator)) {
+      testHarness.open();
+
+      testHarness.processElement1(new StreamRecord<>(Trigger.create(EVENT_TIME, 0)));
+      testHarness.processWatermark1(new Watermark(EVENT_TIME));
+      testHarness.processWatermark2(new Watermark(EVENT_TIME));
+      List<TaskResult> taskResults = testHarness.extractOutputValues();
+      assertThat(taskResults).hasSize(1);
+      assertThat(taskResults.get(0).toString())
+          .isEqualTo(new TaskResult(0, EVENT_TIME, true, Lists.newArrayList()).toString());
     }
   }
 }
