@@ -28,17 +28,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.BaseFileScanTask;
+import org.apache.iceberg.ContentFileParser;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestFetchPlanningResultResponseParser {
+
+  @BeforeEach
+  public void before() {
+    RESTFileScanTaskParser.setExtraInfo(Map.of(SPEC.specId(), SPEC), false);
+    ContentFileParser.setSpec(Map.of(SPEC.specId(), SPEC));
+  }
 
   @Test
   public void nullAndEmptyCheck() {
@@ -110,13 +120,15 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
+
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
-            () ->
-                FetchPlanningResultResponse.builder()
-                    .withPlanStatus(planStatus)
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
+            () -> {
+              FetchPlanningResultResponse.builder()
+                  .withPlanStatus(planStatus)
+                  .withDeleteFiles(List.of(FILE_A_DELETES))
+                  .build();
+            })
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -172,21 +184,6 @@ public class TestFetchPlanningResultResponseParser {
     String json = FetchPlanningResultResponseParser.toJson(response, false);
     assertThat(json).isEqualTo(expectedToJson);
 
-    // make an unbound json where you expect to not have partitions for the data file,
-    // delete files as service does not send partition spec
-    String expectedFromJson =
-        "{\"plan-status\":\"completed\","
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-            + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1}],"
-            + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{},"
-            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
-            + "\"delete-file-references\":[0],"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
-            + "}";
-
     FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
     FetchPlanningResultResponse copyResponse =
@@ -201,6 +198,6 @@ public class TestFetchPlanningResultResponseParser {
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
     assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, false))
-        .isEqualTo(expectedFromJson);
+        .isEqualTo(expectedToJson);
   }
 }

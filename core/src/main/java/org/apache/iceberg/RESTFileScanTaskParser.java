@@ -39,8 +39,8 @@ public class RESTFileScanTaskParser {
 
   private RESTFileScanTaskParser() {}
 
-  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs;
-  private static ThreadLocal<Boolean> extraCaseSensitive;
+  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs = new ThreadLocal<>();
+  private static ThreadLocal<Boolean> extraCaseSensitive = new ThreadLocal<>();
 
   public static void toJson(
       FileScanTask fileScanTask,
