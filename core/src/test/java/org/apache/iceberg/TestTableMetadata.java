@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import static java.util.function.Predicate.not;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableMetadata.V3_SUPPORTED_FILE_FORMATS;
 import static org.apache.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableMetadataParser.FORMAT_VERSION;
 import static org.apache.iceberg.TableMetadataParser.LAST_COLUMN_ID;
@@ -33,6 +35,7 @@ import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -70,6 +73,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTableMetadata {
@@ -1750,6 +1754,53 @@ public class TestTableMetadata {
     assertThat(meta.properties())
         .as("should not contain format-version but should contain new properties")
         .containsExactly(entry("key2", "val2"));
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      mode = EnumSource.Mode.EXCLUDE,
+      names = {"PARQUET", "PUFFIN", "METADATA"})
+  public void testCreateMetadataVersionWithIncompatibleFileFormat(FileFormat targetFormat) {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    new Schema(),
+                    PartitionSpec.unpartitioned(),
+                    null,
+                    ImmutableMap.of(
+                        TableProperties.FORMAT_VERSION, String.valueOf(3),
+                        TableProperties.DEFAULT_FILE_FORMAT, targetFormat.name())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("file format is not supported in table format version");
+  }
+
+  @ParameterizedTest
+  @MethodSource("upgradeFormatVersionProvider")
+  public void testUpgradeMetadataWithIncompatibleFileFormat(
+      int baseFormatVersion, int newFormatVersion) {
+    assumeThat(newFormatVersion).isGreaterThan(2);
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            new Schema(),
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion)));
+
+    Arrays.stream(FileFormat.values())
+        .filter(not(V3_SUPPORTED_FILE_FORMATS::contains))
+        .forEach(
+            targetFormat ->
+                assertThatThrownBy(
+                        () ->
+                            meta.replaceProperties(
+                                ImmutableMap.of(
+                                    TableProperties.DEFAULT_FILE_FORMAT, targetFormat.name(),
+                                    TableProperties.FORMAT_VERSION,
+                                        String.valueOf(newFormatVersion))))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("file format is not supported in table format version"));
   }
 
   @Test
