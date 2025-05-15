@@ -51,7 +51,10 @@ The build process creates two zip archives that can be found under `./kafka-conn
 1. `iceberg-kafka-connect-runtime-[version].zip` - Standard distribution without Hive Metastore dependencies
 2. `iceberg-kafka-connect-runtime-[version]-with-hive.zip` - Distribution that bundles the Hive Metastore client and related dependencies
 
-Choose the appropriate zip file based on your needs. The zip file must be extracted before use. After extraction, copy all files from the extracted directory into the Kafka Connect plugins directory on all nodes in your Kafka Connect cluster.
+Choose the appropriate zip file based on your needs.
+In most cases, the zip file should be extracted before use. After extraction, copy all files from the extracted directory into the Kafka Connect plugins directory on all nodes in your Kafka Connect cluster.
+
+Note: Kafka Connect supports loading plugins from directories containing JAR files or from Uber JARs. If you’re using the zip distribution provided by the Iceberg build, extracting it is recommended to ensure proper classpath loading.
 
 ## Requirements
 
