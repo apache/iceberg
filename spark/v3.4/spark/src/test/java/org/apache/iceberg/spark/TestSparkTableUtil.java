@@ -29,8 +29,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkTableUtil {
   @Test
@@ -69,13 +68,15 @@ public class TestSparkTableUtil {
     MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
-    Assert.assertEquals(
-        MetricsModes.Full.get().toString(), deserialized.columnMode("col1").toString());
-    Assert.assertEquals(
-        MetricsModes.Truncate.withLength(16).toString(),
-        deserialized.columnMode("col2").toString());
-    Assert.assertEquals(
-        MetricsModes.Counts.get().toString(), deserialized.columnMode("col3").toString());
+    assertThat(deserialized.columnMode("col1"))
+        .asString()
+        .isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode("col2"))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode("col3"))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
   }
 
   @Test
@@ -92,12 +93,14 @@ public class TestSparkTableUtil {
     MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
-    Assert.assertEquals(
-        MetricsModes.Full.get().toString(), deserialized.columnMode("col1").toString());
-    Assert.assertEquals(
-        MetricsModes.Truncate.withLength(16).toString(),
-        deserialized.columnMode("col2").toString());
-    Assert.assertEquals(
-        MetricsModes.Counts.get().toString(), deserialized.columnMode("col3").toString());
+    assertThat(deserialized.columnMode("col1"))
+        .asString()
+        .isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode("col2"))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode("col3"))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
   }
 }

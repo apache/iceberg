@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -73,7 +72,6 @@ public abstract class TestReadProjection {
 
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("data"));
-
     assertThat(cmp).as("Should contain the correct data value").isEqualTo(0);
   }
 
@@ -99,7 +97,8 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("reordered_full_projection", schema, reordered, record);
 
-    assertThat(projected.get(0).toString())
+    assertThat(projected.get(0))
+        .asString()
         .as("Should contain the correct 0 value")
         .isEqualTo("test");
     assertThat(projected.get(1)).as("Should contain the correct 1 value").isEqualTo(34L);
@@ -387,10 +386,7 @@ public abstract class TestReadProjection {
     assertThat(projected.getField("id")).as("Should not project id").isNull();
 
     Map<String, ?> locations = toStringMap((Map) projected.getField("locations"));
-    assertThat(locations).as("Should project locations map").isNotNull();
-    assertThat(locations.keySet())
-        .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+    assertThat(locations).isNotNull().containsKeys("L1", "L2");
 
     Record projectedL1 = (Record) locations.get("L1");
     assertThat(projectedL1).as("L1 should not be null").isNotNull();
@@ -411,10 +407,7 @@ public abstract class TestReadProjection {
     assertThat(projected.getField("id")).as("Should not project id").isNull();
 
     locations = toStringMap((Map) projected.getField("locations"));
-    assertThat(locations).as("Should project locations map").isNotNull();
-    assertThat(locations.keySet())
-        .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+    assertThat(locations).isNotNull().containsKeys("L1", "L2");
 
     projectedL1 = (Record) locations.get("L1");
     assertThat(projectedL1).as("L1 should not be null").isNotNull();
@@ -445,10 +438,7 @@ public abstract class TestReadProjection {
     projected = writeAndRead("latitude_renamed", writeSchema, latitiudeRenamed, record);
     assertThat(projected.getField("id")).as("Should not project id").isNull();
     locations = toStringMap((Map) projected.getField("locations"));
-    assertThat(locations).as("Should project locations map").isNotNull();
-    assertThat(locations.keySet())
-        .as("Should contain L1 and L2")
-        .isEqualTo(Sets.newHashSet("L1", "L2"));
+    assertThat(locations).isNotNull().containsKeys("L1", "L2");
 
     projectedL1 = (Record) locations.get("L1");
     assertThat(projectedL1).as("L1 should not be null").isNotNull();
@@ -545,14 +535,20 @@ public abstract class TestReadProjection {
 
     List<Record> points = (List<Record>) projected.getField("points");
     assertThat(points).as("Should read 2 points").hasSize(2);
-
-    Record projectedP1 = points.get(0);
-    assertThat((int) projectedP1.getField("x")).as("Should project x").isEqualTo(1);
-    assertThat(projected.getField("y")).as("Should not project y").isNull();
-
-    Record projectedP2 = points.get(1);
-    assertThat((int) projectedP2.getField("x")).as("Should project x").isEqualTo(3);
-    assertThat(projected.getField("y")).as("Should not project y").isNull();
+    assertThat(points)
+        .element(0)
+        .satisfies(
+            projectedP1 -> {
+              assertThat((int) projectedP1.getField("x")).isEqualTo(1);
+              assertThat(projectedP1.getField("y")).isNull();
+            });
+    assertThat(points)
+        .element(1)
+        .satisfies(
+            projectedP2 -> {
+              assertThat((int) projectedP2.getField("x")).isEqualTo(3);
+              assertThat(projectedP2.getField("y")).isNull();
+            });
 
     projected = writeAndRead("y_only", writeSchema, writeSchema.select("points.y"), record);
     assertThat(projected.getField("id")).as("Should not project id").isNull();
@@ -560,14 +556,20 @@ public abstract class TestReadProjection {
 
     points = (List<Record>) projected.getField("points");
     assertThat(points).as("Should read 2 points").hasSize(2);
-
-    projectedP1 = points.get(0);
-    assertThat(projectedP1.getField("x")).as("Should not project x").isNull();
-    assertThat((int) projectedP1.getField("y")).as("Should project y").isEqualTo(2);
-
-    projectedP2 = points.get(1);
-    assertThat(projectedP2.getField("x")).as("Should not project x").isNull();
-    assertThat(projectedP2.getField("y")).as("Should not project y").isNull();
+    assertThat(points)
+        .element(0)
+        .satisfies(
+            projectedP1 -> {
+              assertThat(projectedP1.getField("x")).isNull();
+              assertThat((int) projectedP1.getField("y")).isEqualTo(2);
+            });
+    assertThat(points)
+        .element(1)
+        .satisfies(
+            projectedP2 -> {
+              assertThat(projectedP2.getField("x")).isNull();
+              assertThat(projectedP2.getField("y")).isNull();
+            });
 
     Schema yRenamed =
         new Schema(
@@ -585,16 +587,22 @@ public abstract class TestReadProjection {
 
     points = (List<Record>) projected.getField("points");
     assertThat(points).as("Should read 2 points").hasSize(2);
-
-    projectedP1 = points.get(0);
-    assertThat(projectedP1.getField("x")).as("Should not project x").isNull();
-    assertThat(projectedP1.getField("y")).as("Should not project y").isNull();
-    assertThat((int) projectedP1.getField("z")).as("Should project z").isEqualTo(2);
-
-    projectedP2 = points.get(1);
-    assertThat(projectedP2.getField("x")).as("Should not project x").isNull();
-    assertThat(projectedP2.getField("y")).as("Should not project y").isNull();
-    assertThat(projectedP2.getField("z")).as("Should project null z").isNull();
+    assertThat(points)
+        .element(0)
+        .satisfies(
+            projectedP1 -> {
+              assertThat(projectedP1.getField("x")).isNull();
+              assertThat(projectedP1.getField("y")).isNull();
+              assertThat((int) projectedP1.getField("z")).isEqualTo(2);
+            });
+    assertThat(points)
+        .element(1)
+        .satisfies(
+            projectedP2 -> {
+              assertThat(projectedP2.getField("x")).isNull();
+              assertThat(projectedP2.getField("y")).isNull();
+              assertThat(projectedP2.getField("z")).isNull();
+            });
 
     Schema zAdded =
         new Schema(
@@ -614,16 +622,22 @@ public abstract class TestReadProjection {
 
     points = (List<Record>) projected.getField("points");
     assertThat(points).as("Should read 2 points").hasSize(2);
-
-    projectedP1 = points.get(0);
-    assertThat((int) projectedP1.getField("x")).as("Should project x").isEqualTo(1);
-    assertThat((int) projectedP1.getField("y")).as("Should project y").isEqualTo(2);
-    assertThat(projectedP1.getField("z")).as("Should contain null z").isNull();
-
-    projectedP2 = points.get(1);
-    assertThat((int) projectedP2.getField("x")).as("Should project x").isEqualTo(3);
-    assertThat(projectedP2.getField("y")).as("Should project null y").isNull();
-    assertThat(projectedP2.getField("z")).as("Should contain null z").isNull();
+    assertThat(points)
+        .element(0)
+        .satisfies(
+            projectedP1 -> {
+              assertThat((int) projectedP1.getField("x")).isEqualTo(1);
+              assertThat((int) projectedP1.getField("y")).isEqualTo(2);
+              assertThat(projectedP1.getField("z")).isNull();
+            });
+    assertThat(points)
+        .element(1)
+        .satisfies(
+            projectedP2 -> {
+              assertThat((int) projectedP2.getField("x")).isEqualTo(3);
+              assertThat(projectedP2.getField("y")).isNull();
+              assertThat(projectedP2.getField("z")).isNull();
+            });
   }
 
   private static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {

@@ -146,15 +146,11 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg catalog
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-    Configuration conf =
-        SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name);
+    Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     optionsMap.putAll(options.asCaseSensitiveMap());
-    optionsMap.put(
-        CatalogProperties.APP_ID,
-        SparkSession.getActiveSession().get().sparkContext().applicationId());
-    optionsMap.put(
-        CatalogProperties.USER, SparkSession.getActiveSession().get().sparkContext().sparkUser());
+    optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
+    optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 

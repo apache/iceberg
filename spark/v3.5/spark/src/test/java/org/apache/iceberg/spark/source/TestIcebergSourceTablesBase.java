@@ -237,8 +237,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .select("status")
             .collectAsList();
 
-    assertThat(actual).as("Results should contain only one status").hasSize(1);
-    assertThat(actual.get(0).getInt(0)).as("That status should be Added (1)").isEqualTo(1);
+    assertThat(actual).singleElement().satisfies(row -> assertThat(row.getInt(0)).isEqualTo(1));
   }
 
   @Test
@@ -600,10 +599,20 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
 
     assertThat(actual).as("Entries table should have 2 rows").hasSize(2);
-    assertThat(actual.get(0).getLong(0)).as("Sequence number must match").isEqualTo(0);
-    assertThat(actual.get(0).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
-    assertThat(actual.get(1).getLong(0)).as("Sequence number must match").isEqualTo(0);
-    assertThat(actual.get(1).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
+    assertThat(actual)
+        .first()
+        .satisfies(
+            row -> {
+              assertThat(row.getLong(0)).isEqualTo(0);
+              assertThat(row.getLong(1)).isEqualTo(snapshotId);
+            });
+    assertThat(actual)
+        .element(1)
+        .satisfies(
+            row -> {
+              assertThat(row.getLong(0)).isEqualTo(0);
+              assertThat(row.getLong(1)).isEqualTo(snapshotId);
+            });
   }
 
   @Test
@@ -1490,7 +1499,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     assertThat(rewriteManifestResult.rewrittenManifests())
         .as("rewrite replaced 2 manifests")
         .hasSize(2);
-
     assertThat(rewriteManifestResult.addedManifests()).as("rewrite added 1 manifests").hasSize(1);
 
     List<Row> actual =
@@ -1747,9 +1755,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    assertThat(originalRecords)
+    assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf.orderBy("id").collectAsList());
+        .containsExactlyElementsOf(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1778,9 +1786,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    assertThat(updatedRecords)
+    assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf2.orderBy("id").collectAsList());
+        .containsExactlyElementsOf(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1788,11 +1796,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-
-    assertThat(originalRecords)
+    assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf3.orderBy("id").collectAsList());
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1819,10 +1825,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
+        .containsExactlyElementsOf(originalRecords);
 
     long tsBeforeDropColumn = waitUntilAfter(System.currentTimeMillis());
     table.updateSchema().deleteColumn("data").commit();
@@ -1852,7 +1857,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(updatedRecords);
+        .containsExactlyElementsOf(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1860,11 +1865,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
 
     // At tsAfterDropColumn, there has been a schema change, but no new snapshot,
@@ -1875,11 +1878,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1904,10 +1905,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
+        .containsExactlyElementsOf(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1936,10 +1936,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(updatedRecords);
+        .containsExactlyElementsOf(updatedRecords);
 
     table.updateSchema().deleteColumn("data").commit();
 
@@ -1952,10 +1951,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "C"));
 
     Dataset<Row> resultDf3 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(recordsAfterDropColumn);
+        .containsExactlyElementsOf(recordsAfterDropColumn);
 
     Dataset<Row> resultDf4 =
         spark
@@ -1963,11 +1961,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1999,19 +1995,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .location(table.location() + "/metadata")
             .olderThan(System.currentTimeMillis())
             .execute();
-
     assertThat(result1.orphanFileLocations()).as("Should not delete any metadata files").isEmpty();
 
     DeleteOrphanFiles.Result result2 =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
-
     assertThat(result2.orphanFileLocations()).as("Should delete 1 data file").hasSize(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords =
         resultDF.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-
-    assertThat(actualRecords).as("Rows must match").isEqualTo(records);
+    assertThat(actualRecords).as("Rows must match").containsExactlyInAnyOrderElementsOf(records);
   }
 
   @Test
@@ -2056,9 +2049,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name()))
             .collect(Collectors.toList());
 
-    assertThat(actual)
-        .as("Should have two partition specs")
-        .isEqualTo(ImmutableList.of(spec0, spec1));
+    assertThat(actual).as("Should have two partition specs").containsExactly(spec0, spec1);
   }
 
   @Test

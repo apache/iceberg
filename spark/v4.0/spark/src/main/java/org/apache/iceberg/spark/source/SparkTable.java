@@ -260,7 +260,7 @@ public class SparkTable
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
     ImmutableList.Builder<SparkMetadataColumn> metadataColumns = ImmutableList.builder();
     metadataColumns.add(
-        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, true),
         new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
         new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
         new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),

@@ -23,19 +23,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
 
-  private static final String SESSION_CATALOG_NAME = "spark_catalog";
-  private static final String SESSION_CATALOG_IMPL = SparkSessionCatalog.class.getName();
   private static final Map<String, String> SESSION_CATALOG_CONFIG =
       ImmutableMap.of(
           "type",
@@ -46,6 +48,13 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
           "true",
           CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
           "3000");
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"spark_catalog", SparkSessionCatalog.class.getName(), SESSION_CATALOG_CONFIG},
+    };
+  }
 
   private static String asSqlConfCatalogKeyFor(String catalog, String configKey) {
     // configKey is empty when the catalog's class is being defined
@@ -58,7 +67,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
 
   // Add more catalogs to the spark session, so we only need to start spark one time for multiple
   // different catalog configuration tests.
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     // Catalog - expiration_disabled: Catalog with caching on and expiration disabled.
     ImmutableMap.of(
@@ -87,11 +96,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
             (k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("cache_disabled_implicitly", k), v));
   }
 
-  public TestSparkCatalogCacheExpiration() {
-    super(SESSION_CATALOG_NAME, SESSION_CATALOG_IMPL, SESSION_CATALOG_CONFIG);
-  }
-
-  @Test
+  @TestTemplate
   public void testSparkSessionCatalogWithExpirationEnabled() {
     SparkSessionCatalog<?> sparkCatalog = sparkSessionCatalog();
     assertThat(sparkCatalog)
@@ -112,7 +117,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
             });
   }
 
-  @Test
+  @TestTemplate
   public void testCacheEnabledAndExpirationDisabled() {
     SparkCatalog sparkCatalog = getSparkCatalog("expiration_disabled");
     assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
@@ -126,7 +131,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
             });
   }
 
-  @Test
+  @TestTemplate
   public void testCacheDisabledImplicitly() {
     SparkCatalog sparkCatalog = getSparkCatalog("cache_disabled_implicitly");
     assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);

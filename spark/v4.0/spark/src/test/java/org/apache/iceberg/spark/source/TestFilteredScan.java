@@ -50,7 +50,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
@@ -123,7 +122,7 @@ public class TestFilteredScan {
   @TempDir private Path temp;
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat fileFormat;
 
   @Parameter(index = 1)
   private boolean vectorized;
@@ -134,11 +133,11 @@ public class TestFilteredScan {
   @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, LOCAL},
-      {"parquet", true, DISTRIBUTED},
-      {"avro", false, LOCAL},
-      {"orc", false, DISTRIBUTED},
-      {"orc", true, LOCAL}
+      {FileFormat.PARQUET, false, LOCAL},
+      {FileFormat.PARQUET, true, DISTRIBUTED},
+      {FileFormat.AVRO, false, LOCAL},
+      {FileFormat.ORC, false, DISTRIBUTED},
+      {FileFormat.ORC, true, LOCAL}
     };
   }
 
@@ -164,8 +163,6 @@ public class TestFilteredScan {
                 planningMode.modeName()),
             unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
-
-    FileFormat fileFormat = FileFormat.fromString(format);
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 
@@ -522,8 +519,7 @@ public class TestFilteredScan {
     List<String> matchedData =
         df.select("data").where("data LIKE 'jun%'").as(Encoders.STRING()).collectAsList();
 
-    assertThat(matchedData).hasSize(1);
-    assertThat(matchedData.get(0)).isEqualTo("junction");
+    assertThat(matchedData).singleElement().isEqualTo("junction");
   }
 
   @TestTemplate
@@ -544,8 +540,7 @@ public class TestFilteredScan {
             .filter(d -> !d.startsWith("jun"))
             .collect(Collectors.toList());
 
-    assertThat(matchedData).hasSize(9);
-    assertThat(Sets.newHashSet(matchedData)).isEqualTo(Sets.newHashSet(expected));
+    assertThat(matchedData).hasSize(9).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   private static Record projectFlat(Schema projection, Record record) {

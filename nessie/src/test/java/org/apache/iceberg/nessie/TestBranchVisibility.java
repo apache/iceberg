@@ -36,6 +36,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -455,7 +456,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
     Namespace namespaceA = Namespace.of("a");
     Namespace namespaceAB = Namespace.of("a", "b");
-    assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
+    assertThatThrownBy(() -> nessieCatalog.listNamespaces(namespaceAB))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceAB);
 
     createMissingNamespaces(
         nessieCatalog, Namespace.of(Arrays.copyOf(namespaceAB.levels(), namespaceAB.length() - 1)));
@@ -465,7 +468,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     assertThat(nessieCatalog.listTables(namespaceAB)).isEmpty();
 
     NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
-    assertThat(catalogAtHash1.listNamespaces(namespaceAB)).isEmpty();
+    assertThatThrownBy(() -> catalogAtHash1.listNamespaces(namespaceAB))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceAB);
     assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
 
     TableIdentifier identifier = TableIdentifier.of(namespaceAB, "table");
@@ -486,10 +491,10 @@ public class TestBranchVisibility extends BaseTestIceberg {
     assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should be still possible here
-    nessieCatalog = initCatalog(testBranch);
+    NessieCatalog nessieCatalog2 = initCatalog(testBranch);
     TableIdentifier identifier2 = TableIdentifier.of(namespaceAB, "table2");
     nessieCatalog.createTable(identifier2, schema);
-    assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
+    assertThat(nessieCatalog2.listTables(namespaceAB)).hasSize(2);
   }
 
   @Test

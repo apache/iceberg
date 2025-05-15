@@ -1254,6 +1254,13 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
   "1.9.0":
+    org.apache.iceberg:iceberg-common:
+    - code: "java.method.visibilityReduced"
+      old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Reduce visibilty of deprecated method"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.MetadataUpdate.EnableRowLineage"

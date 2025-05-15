@@ -108,7 +108,7 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
@@ -135,9 +135,9 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
     File checkpoint = new File(parent, "checkpoint");
-    checkpoint.mkdirs();
+    assertThat(checkpoint.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
@@ -167,7 +167,7 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());

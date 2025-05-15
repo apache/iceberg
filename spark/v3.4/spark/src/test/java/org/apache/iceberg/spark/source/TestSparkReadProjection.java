@@ -23,6 +23,7 @@ import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,9 @@ import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
@@ -51,40 +55,33 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReadProjection extends TestReadProjection {
 
   private static SparkSession spark = null;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, LOCAL},
-      {"parquet", true, DISTRIBUTED},
-      {"avro", false, LOCAL},
-      {"orc", false, DISTRIBUTED},
-      {"orc", true, LOCAL}
+      {FileFormat.PARQUET, false, LOCAL},
+      {FileFormat.PARQUET, true, DISTRIBUTED},
+      {FileFormat.AVRO, false, LOCAL},
+      {FileFormat.ORC, false, DISTRIBUTED},
+      {FileFormat.ORC, true, LOCAL}
     };
   }
 
-  private final FileFormat format;
-  private final boolean vectorized;
-  private final PlanningMode planningMode;
+  @Parameter(index = 1)
+  private boolean vectorized;
 
-  public TestSparkReadProjection(String format, boolean vectorized, PlanningMode planningMode) {
-    super(format);
-    this.format = FileFormat.fromString(format);
-    this.vectorized = vectorized;
-    this.planningMode = planningMode;
-  }
+  @Parameter(index = 2)
+  private PlanningMode planningMode;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
     ImmutableMap<String, String> config =
@@ -100,7 +97,7 @@ public class TestSparkReadProjection extends TestReadProjection {
         (key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestSparkReadProjection.spark;
     TestSparkReadProjection.spark = null;
@@ -110,10 +107,10 @@ public class TestSparkReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File parent = temp.newFolder(desc);
+    File parent = new File(temp.toFile(), desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
     File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 

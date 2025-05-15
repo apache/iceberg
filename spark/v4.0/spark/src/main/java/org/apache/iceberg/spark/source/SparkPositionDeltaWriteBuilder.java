@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.MetadataColumns.SPEC_ID_COLUMN_DOC;
+import static org.apache.iceberg.MetadataColumns.SPEC_ID_COLUMN_ID;
+
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -27,6 +30,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.DeltaWrite;
@@ -102,7 +106,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     Preconditions.checkArgument(info.metadataSchema().isPresent(), "Metadata schema must be set");
     Schema expectedMetadataSchema =
         new Schema(
-            MetadataColumns.SPEC_ID,
+            Types.NestedField.optional(
+                SPEC_ID_COLUMN_ID, "_spec_id", Types.IntegerType.get(), SPEC_ID_COLUMN_DOC),
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
 
     StructType metadataSparkType = info.metadataSchema().get();

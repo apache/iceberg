@@ -207,8 +207,9 @@ public class TestHelpers {
         assertThat(expected).as("Should be an int").isInstanceOf(Integer.class);
         assertThat(actual).as("Should be a Date").isInstanceOf(Date.class);
         LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, (Integer) expected);
-        assertThat(actual.toString())
+        assertThat(actual)
             .as("ISO-8601 date should be equal")
+            .asString()
             .isEqualTo(String.valueOf(date));
         break;
       case TIMESTAMP:
@@ -233,14 +234,13 @@ public class TestHelpers {
         }
         break;
       case STRING:
-        assertThat(actual).as("Should be a String").isInstanceOf(String.class);
-        assertThat(actual).as("Strings should be equal").isEqualTo(String.valueOf(expected));
+        assertThat(actual).isInstanceOf(String.class).isEqualTo(String.valueOf(expected));
         break;
       case UUID:
         assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
-        assertThat(actual).as("Should be a String").isInstanceOf(String.class);
-        assertThat(actual.toString())
-            .as("UUID string representation should match")
+        assertThat(actual)
+            .isInstanceOf(String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case FIXED:
@@ -257,18 +257,15 @@ public class TestHelpers {
               "Invalid expected value, not byte[] or Fixed: " + expected);
         }
 
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(expectedBytes);
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(expectedBytes);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(((ByteBuffer) expected).array());
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
-        assertThat(actual).as("Should be a BigDecimal").isInstanceOf(BigDecimal.class);
-        assertThat(actual).as("BigDecimals should be equal").isEqualTo(expected);
+        assertThat(actual).isInstanceOf(BigDecimal.class).isEqualTo(expected);
         break;
       case STRUCT:
         assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
@@ -377,14 +374,13 @@ public class TestHelpers {
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case STRING:
-        assertThat(actual).as("Should be a UTF8String").isInstanceOf(UTF8String.class);
-        assertThat(actual.toString()).as("Strings should be equal").isEqualTo(expected);
+        assertThat(actual).isInstanceOf(UTF8String.class).asString().isEqualTo(expected);
         break;
       case UUID:
         assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
-        assertThat(actual).as("Should be a UTF8String").isInstanceOf(UTF8String.class);
-        assertThat(actual.toString())
-            .as("UUID string representation should match")
+        assertThat(actual)
+            .isInstanceOf(UTF8String.class)
+            .asString()
             .isEqualTo(String.valueOf(expected));
         break;
       case FIXED:
@@ -406,8 +402,7 @@ public class TestHelpers {
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).isInstanceOf(byte[].class).isEqualTo(((ByteBuffer) expected).array());
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
@@ -514,7 +509,7 @@ public class TestHelpers {
     if (expected == null || actual == null) {
       assertThat(actual).as(prefix).isEqualTo(expected);
     } else {
-      assertThat(actual.size()).as(prefix + "length").isEqualTo(expected.numElements());
+      assertThat(actual).as(prefix + "length").hasSize(expected.numElements());
       Type childType = type.elementType();
       for (int e = 0; e < expected.numElements(); ++e) {
         switch (childType.typeId()) {
@@ -527,8 +522,9 @@ public class TestHelpers {
           case DECIMAL:
           case DATE:
           case TIMESTAMP:
-            assertThat(actual.get(e))
+            assertThat(actual)
                 .as(prefix + ".elem " + e + " - " + childType)
+                .element(e)
                 .isEqualTo(getValue(expected, e, childType));
             break;
           case UUID:
@@ -579,14 +575,14 @@ public class TestHelpers {
       Type valueType = type.valueType();
       ArrayData expectedKeyArray = expected.keyArray();
       ArrayData expectedValueArray = expected.valueArray();
-      assertThat(actual.size()).as(prefix + " length").isEqualTo(expected.numElements());
+      assertThat(actual).as(prefix + " length").hasSize(expectedKeyArray.numElements());
       for (int e = 0; e < expected.numElements(); ++e) {
         Object expectedKey = getValue(expectedKeyArray, e, keyType);
         Object actualValue = actual.get(expectedKey);
         if (actualValue == null) {
-          assertThat(true)
+          assertThat(expected.valueArray().isNullAt(e))
               .as(prefix + ".key=" + expectedKey + " has null")
-              .isEqualTo(expected.valueArray().isNullAt(e));
+              .isTrue();
         } else {
           switch (valueType.typeId()) {
             case BOOLEAN:

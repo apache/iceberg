@@ -32,6 +32,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.connector.distributions.Distribution;
@@ -43,7 +44,9 @@ import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
 
   private static final Distribution UNSPECIFIED_DISTRIBUTION = Distributions.unspecified();
