@@ -50,8 +50,7 @@ class TableScanResponseParser {
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
       ImmutableList.Builder<DeleteFile> deleteFilesBuilder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deleteFiles) {
-        DeleteFile deleteFile =
-            (DeleteFile) ContentFileParser.fromJson(deleteFileNode, null);
+        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, null);
         deleteFilesBuilder.add(deleteFile);
       }
       return deleteFilesBuilder.build();

@@ -22,12 +22,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -202,7 +199,9 @@ public class ContentFileParser {
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
       // now its callers responsibility to set specs in the parser
-      partitionData = partitionDataFromRawValue(jsonNode.get(PARTITION), spec == null ? extraSpecs.get().get(specId) : spec);
+      partitionData =
+          partitionDataFromRawValue(
+              jsonNode.get(PARTITION), spec == null ? extraSpecs.get().get(specId) : spec);
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);

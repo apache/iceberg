@@ -70,9 +70,10 @@ public class RESTFileScanTaskParser {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    DataFile dataFile = (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), null);
+    DataFile dataFile =
+        (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), null);
     // get spec id of the file
-    int spec_id = dataFile.specId();
+    int specId = dataFile.specId();
 
     DeleteFile[] deleteFiles = null;
     Set<Integer> deleteFileReferences = Sets.newHashSet();
@@ -89,9 +90,10 @@ public class RESTFileScanTaskParser {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    String schemaString = SchemaParser.toJson(extraSpecs.get().get(spec_id).schema());
-    String specString = PartitionSpecParser.toJson(extraSpecs.get().get(spec_id));
-    ResidualEvaluator boundResidual = ResidualEvaluator.of(extraSpecs.get().get(spec_id), filter, extraCaseSensitive.get());
+    String schemaString = SchemaParser.toJson(extraSpecs.get().get(specId).schema());
+    String specString = PartitionSpecParser.toJson(extraSpecs.get().get(specId));
+    ResidualEvaluator boundResidual =
+        ResidualEvaluator.of(extraSpecs.get().get(specId), filter, extraCaseSensitive.get());
 
     return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, boundResidual);
   }
