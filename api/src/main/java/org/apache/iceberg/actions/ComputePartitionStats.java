@@ -20,11 +20,14 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.PartitionStatisticsFile;
 
-/** An action that computes and writes the partition statistics of an Iceberg table. */
+/**
+ * An action that computes and writes the partition statistics of an Iceberg table. Current snapshot
+ * is used by default.
+ */
 public interface ComputePartitionStats
     extends Action<ComputePartitionStats, ComputePartitionStats.Result> {
   /**
-   * Choose the table snapshot to compute partition stats, by default the current snapshot is used.
+   * Choose the table snapshot to compute partition stats.
    *
    * @param snapshotId long ID of the snapshot for which stats need to be computed
    * @return this for method chaining
@@ -34,7 +37,7 @@ public interface ComputePartitionStats
   /** The result of partition statistics collection. */
   interface Result {
 
-    /** Returns statistics file or none if no statistics were collected. */
+    /** Returns statistics file or null if no statistics were collected. */
     PartitionStatisticsFile statisticsFile();
   }
 }
