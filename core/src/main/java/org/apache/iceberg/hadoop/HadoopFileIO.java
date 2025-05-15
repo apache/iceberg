@@ -22,10 +22,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,7 +38,12 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -45,7 +52,8 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
+public class HadoopFileIO
+    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
@@ -56,6 +64,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+  private List<StorageCredential> storageCredentials = ImmutableList.of();
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -80,6 +89,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    storageCredentialConfig().forEach(getConf()::set);
   }
 
   @Override
@@ -209,6 +219,30 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
 
     return executorService;
+  }
+
+  @Override
+  public void setCredentials(List<StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
+  }
+
+  @Override
+  public List<StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
+  }
+
+  private Map<String, String> storageCredentialConfig() {
+    if (storageCredentials == null) {
+      return ImmutableMap.of();
+    }
+    return storageCredentials.stream()
+        .map(StorageCredential::config)
+        .flatMap(map -> map.entrySet().stream())
+        .collect(
+            Collectors.toMap(
+                Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> replacement));
   }
 
   /**
