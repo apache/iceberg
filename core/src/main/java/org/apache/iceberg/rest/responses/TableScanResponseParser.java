@@ -51,7 +51,7 @@ class TableScanResponseParser {
       ImmutableList.Builder<DeleteFile> deleteFilesBuilder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deleteFiles) {
         DeleteFile deleteFile =
-            (DeleteFile) ContentFileParser.unboundContentFileFromJson(deleteFileNode);
+            (DeleteFile) ContentFileParser.fromJson(deleteFileNode, null);
         deleteFilesBuilder.add(deleteFile);
       }
       return deleteFilesBuilder.build();

@@ -22,9 +22,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -36,6 +38,9 @@ public class RESTFileScanTaskParser {
   private static final String RESIDUAL = "residual-filter";
 
   private RESTFileScanTaskParser() {}
+
+  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs;
+  private static ThreadLocal<Boolean> extraCaseSensitive;
 
   public static void toJson(
       FileScanTask fileScanTask,
@@ -65,11 +70,11 @@ public class RESTFileScanTaskParser {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    UnboundGenericDataFile dataFile =
-        (UnboundGenericDataFile)
-            ContentFileParser.unboundContentFileFromJson(JsonUtil.get(DATA_FILE, jsonNode));
+    DataFile dataFile = (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), null);
+    // get spec id of the file
+    int spec_id = dataFile.specId();
 
-    UnboundGenericDeleteFile[] deleteFiles = null;
+    DeleteFile[] deleteFiles = null;
     Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
@@ -84,6 +89,15 @@ public class RESTFileScanTaskParser {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    return new UnboundBaseFileScanTask(dataFile, deleteFiles, filter);
+    String schemaString = SchemaParser.toJson(extraSpecs.get().get(spec_id).schema());
+    String specString = PartitionSpecParser.toJson(extraSpecs.get().get(spec_id));
+    ResidualEvaluator boundResidual = ResidualEvaluator.of(extraSpecs.get().get(spec_id), filter, extraCaseSensitive.get());
+
+    return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, boundResidual);
+  }
+
+  public static void setExtraInfo(Map<Integer, PartitionSpec> spec, boolean caseSensitive) {
+    extraSpecs.set(spec);
+    extraCaseSensitive.set(caseSensitive);
   }
 }
