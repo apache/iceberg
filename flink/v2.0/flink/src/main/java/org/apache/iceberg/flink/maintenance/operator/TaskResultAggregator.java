@@ -71,6 +71,11 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
     this.taskName = taskName;
     this.taskIndex = taskIndex;
     this.exceptions = Lists.newArrayList();
+  }
+
+  @Override
+  public void open() throws Exception {
+    super.open();
     this.startTime = 0L;
   }
 
@@ -87,16 +92,18 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
-    output.collect(new StreamRecord<>(response));
-    LOG.info(
-        "Aggregated result for table {}, task {}[{}] is {}",
-        tableName,
-        taskName,
-        taskIndex,
-        response);
-    exceptions.clear();
-    startTime = 0L;
+    if (startTime != 0L) {
+      TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
+      output.collect(new StreamRecord<>(response));
+      LOG.info(
+          "Aggregated result for table {}, task {}[{}] is {}",
+          tableName,
+          taskName,
+          taskIndex,
+          response);
+      exceptions.clear();
+      startTime = 0L;
+    }
 
     super.processWatermark(mark);
   }
