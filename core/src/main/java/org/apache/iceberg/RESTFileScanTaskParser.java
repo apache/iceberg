@@ -78,10 +78,10 @@ public class RESTFileScanTaskParser {
     Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
-      ImmutableList.Builder<UnboundGenericDeleteFile> builder = ImmutableList.builder();
+      ImmutableList.Builder<GenericDeleteFile> builder = ImmutableList.builder();
       deleteFileReferences.forEach(
-          delIdx -> builder.add((UnboundGenericDeleteFile) allDeleteFiles.get(delIdx)));
-      deleteFiles = builder.build().toArray(new UnboundGenericDeleteFile[0]);
+          delIdx -> builder.add((GenericDeleteFile) allDeleteFiles.get(delIdx)));
+      deleteFiles = builder.build().toArray(new GenericDeleteFile[0]);
     }
 
     Expression filter = null;
