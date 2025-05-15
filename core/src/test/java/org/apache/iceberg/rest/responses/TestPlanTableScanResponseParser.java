@@ -28,17 +28,28 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.BaseFileScanTask;
+import org.apache.iceberg.ContentFileParser;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponseParser {
+
+  @BeforeEach
+  public void before() {
+    RESTFileScanTaskParser.setExtraInfo(Map.of(SPEC.specId(), SPEC), false);
+    ContentFileParser.setSpec(Map.of(SPEC.specId(), SPEC));
+  }
+
   @Test
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(null))
@@ -205,19 +216,6 @@ public class TestPlanTableScanResponseParser {
     String json = PlanTableScanResponseParser.toJson(response);
     assertThat(json).isEqualTo(expectedToJson);
 
-    String expectedFromJson =
-        "{\"plan-status\":\"completed\","
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-            + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1}],"
-            + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{},"
-            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
-            + "\"delete-file-references\":[0],"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
-            + "}";
-
     PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
     PlanTableScanResponse copyResponse =
         PlanTableScanResponse.builder()
@@ -231,6 +229,6 @@ public class TestPlanTableScanResponseParser {
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
-    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedFromJson);
+    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
   }
 }
