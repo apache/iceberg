@@ -126,6 +126,11 @@ public class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
+    // we need to make sure that spec info flows through all the parser
+    RESTFileScanTaskParser.setExtraInfo(table.specs(), isCaseSensitive());
+    ContentFileParser.setSpec(table.specs());
+
+    // assuming the thread doesn't change and the same thread is doing the serde
     PlanTableScanResponse response =
         client.post(
             resourcePaths.planTableScan(tableIdentifier),
