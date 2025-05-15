@@ -158,7 +158,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       return isHeld(sharedCount.getVersionedValue());
     }
 
-    private boolean isHeld(VersionedValue<Integer> versionedValue) {
+    private static boolean isHeld(VersionedValue<Integer> versionedValue) {
       try {
         return versionedValue.getValue() == LOCKED;
       } catch (Exception e) {
