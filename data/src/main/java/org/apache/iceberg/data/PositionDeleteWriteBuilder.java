@@ -19,36 +19,31 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
 
 /**
- * Builder for generating an {@link EqualityDeleteWriter}.
+ * Builder for generating an {@link PositionDeleteWriter}.
  *
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-public interface EqualityDeleteWriterBuilder<B extends EqualityDeleteWriterBuilder<B, E>, E>
-    extends FileWriterBuilderBase<B, E> {
+public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder<B, E>, E>
+    extends FileWriteBuilderBase<B, E> {
   /** Sets the row schema for the delete writers. */
   B withRowSchema(Schema newSchema);
 
-  /** Sets the equality field ids for the equality delete writer. */
-  B withEqualityFieldIds(List<Integer> fieldIds);
-
-  /** Sets the equality field ids for the equality delete writer. */
-  B withEqualityFieldIds(int... fieldIds);
-
   /**
-   * Creates a writer which generates an equality {@link DeleteFile} based on the configurations
-   * set. The writer will expect inputs defined by the {@link #engineSchema(Object)} which should be
+   * Creates a writer which generates a position {@link DeleteFile} based on the configurations. The
+   * writer will expect {@link org.apache.iceberg.deletes.PositionDelete} records. If {@link
+   * #withRowSchema(Schema)} is set then the positional delete records should contain deleted rows
+   * specified by the {@link #engineSchema(Object)}. The provided engine schema should be
    * convertible to the Iceberg schema defined by {@link #withRowSchema(Schema)}.
    *
    * @param <D> the type of data that the writer will handle
-   * @return a {@link EqualityDeleteWriter} instance configured with the specified settings
+   * @return a {@link PositionDeleteWriter} instance configured with the specified settings
    * @throws IOException if an I/O error occurs during the creation of the writer
    */
-  <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
+  <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
 }

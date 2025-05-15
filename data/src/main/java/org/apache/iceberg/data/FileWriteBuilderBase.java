@@ -38,8 +38,8 @@ import org.apache.iceberg.io.DataWriter;
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-interface FileWriterBuilderBase<B extends FileWriterBuilderBase<B, E>, E>
-    extends WriterBuilderBase<B, E> {
+interface FileWriteBuilderBase<B extends FileWriteBuilderBase<B, E>, E>
+    extends WriteBuilderBase<B, E> {
   /** Sets the partition specification for the Iceberg metadata. */
   B withSpec(PartitionSpec newSpec);
 

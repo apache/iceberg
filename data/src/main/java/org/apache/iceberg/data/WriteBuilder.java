@@ -37,34 +37,32 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
 
 /**
- * Builder implementation for generating the different writer interfaces. The builder is an internal
- * class and could change without notice. Use one of the following specific interfaces:
+ * Implementation for the different Write Builder interfaces. The builder is an internal class and
+ * could change without notice. Use one of the following specific interfaces instead:
  *
  * <ul>
- *   <li>{@link FileAppender}
- *   <li>{@link DataWriter}
- *   <li>{@link EqualityDeleteWriter}
- *   <li>{@link PositionDeleteWriter}
+ *   <li>{@link DataWriteBuilder}
+ *   <li>{@link EqualityDeleteWriteBuilder}
+ *   <li>{@link PositionDeleteWriteBuilder}
  * </ul>
  *
  * The builder wraps the file format specific {@link AppenderBuilder}. To allow further engine and
- * file format specific configuration changes for the given writer the {@link
- * AppenderBuilder#build()} method is called to create the appender used internally to provide the
- * required functionality.
+ * file format specific configuration changes for the given writer, the {@link
+ * AppenderBuilder#build()} method is called to create the appender which is used by the {@link
+ * WriteBuilder} to provide the required functionality.
  *
  * @param <A> type of the appender
  * @param <E> engine specific schema of the input records used for appender initialization
  */
 @SuppressWarnings("unchecked")
 class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A, E>, E>
-    implements DataWriterBuilder<B, E>,
-        EqualityDeleteWriterBuilder<B, E>,
-        PositionDeleteWriterBuilder<B, E> {
+    implements DataWriteBuilder<B, E>,
+        EqualityDeleteWriteBuilder<B, E>,
+        PositionDeleteWriteBuilder<B, E> {
   private final AppenderBuilder<A, E> appenderBuilder;
   private final String location;
   private final FileFormat format;

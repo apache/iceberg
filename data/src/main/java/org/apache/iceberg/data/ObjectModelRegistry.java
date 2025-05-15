@@ -36,15 +36,15 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Registry which provides the available {@link ReadBuilder}s, {@link AppenderBuilder}s and writer
- * builders ({@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
- * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
+ * builders ({@link DataWriteBuilder}, {@link EqualityDeleteWriteBuilder}, {@link
+ * PositionDeleteWriteBuilder}). Based on the `file format` and the requested `object model name`
  * the registry returns the correct reader and writer builders. These builders could be used to
  * generate the readers and writers.
  *
  * <p>The available {@link ObjectModel}s are registered by the {@link
  * #registerObjectModel(ObjectModel)} method. These {@link ObjectModel}s will be used to create the
  * {@link ReadBuilder}s and the {@link AppenderBuilder}s. The former ones are returned directly, the
- * later ones are wrapped in the appropriate writer builder implementations.
+ * later ones either returned directly or wrapped in the appropriate writer builder implementations.
  */
 public final class ObjectModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
@@ -132,7 +132,7 @@ public final class ObjectModelRegistry {
    * @param <E> type for the engine specific schema expected by the writer
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> DataWriterBuilder<?, E> writerBuilder(
+  public static <E> DataWriteBuilder<?, E> writerBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return writerFor(format, objectModelName, outputFile, ObjectModel.WriteMode.DATA_WRITER);
   }
@@ -147,7 +147,7 @@ public final class ObjectModelRegistry {
    * @param <E> type for the engine specific schema expected by the writer
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> EqualityDeleteWriterBuilder<?, E> equalityDeleteWriterBuilder(
+  public static <E> EqualityDeleteWriteBuilder<?, E> equalityDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return writerFor(
         format, objectModelName, outputFile, ObjectModel.WriteMode.EQUALITY_DELETE_WRITER);
@@ -164,7 +164,7 @@ public final class ObjectModelRegistry {
    * @param <E> type for the engine specific schema expected by the writer
    * @return {@link ReadBuilder} for building the actual writer
    */
-  public static <E> PositionDeleteWriterBuilder<?, E> positionDeleteWriterBuilder(
+  public static <E> PositionDeleteWriteBuilder<?, E> positionDeleteWriterBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return writerFor(
         format, objectModelName, outputFile, ObjectModel.WriteMode.POSITION_DELETE_WRITER);

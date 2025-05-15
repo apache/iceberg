@@ -41,7 +41,7 @@ import org.apache.iceberg.io.FileAppender;
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
+interface WriteBuilderBase<B extends WriteBuilderBase<B, E>, E> {
 
   /** Set the file schema. */
   B schema(Schema newSchema);
