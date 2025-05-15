@@ -90,8 +90,7 @@ class TableScanResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.unboundContentFileToJson(
-            deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
