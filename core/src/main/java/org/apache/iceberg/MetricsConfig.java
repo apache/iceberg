@@ -105,7 +105,7 @@ public final class MetricsConfig implements Serializable {
    * @param order sort order columns, will be promoted to truncate(16)
    * @return metrics configuration
    */
-  static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
+  private static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
     int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
@@ -198,6 +198,26 @@ public final class MetricsConfig implements Serializable {
           column,
           METRICS_MODE_COLUMN_CONF_PREFIX + column,
           schema);
+    }
+  }
+
+  /**
+   * Validate that all referenced columns in the properties are valid columns in the schema.
+   *
+   * @param schema schema to validate against
+   * @param props properties may contain metrics mode column overrides
+   */
+  public static void validateReferencedColumns(Schema schema, Map<String, String> props) {
+    for (String key : props.keySet()) {
+      if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
+        String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
+        ValidationException.check(
+            schema.findField(columnAlias) != null,
+            "Invalid metrics config, could not find column %s from table prop %s in schema %s",
+            columnAlias,
+            METRICS_MODE_COLUMN_CONF_PREFIX + columnAlias,
+            schema);
+      }
     }
   }
 

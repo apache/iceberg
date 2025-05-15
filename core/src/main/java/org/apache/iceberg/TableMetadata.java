@@ -136,7 +136,7 @@ public class TableMetadata implements Serializable {
 
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
-    MetricsConfig.from(properties, null, null).validateReferencedColumns(schema);
+    MetricsConfig.validateReferencedColumns(schema, properties);
 
     PropertyUtil.validateCommitProperties(properties);
 
