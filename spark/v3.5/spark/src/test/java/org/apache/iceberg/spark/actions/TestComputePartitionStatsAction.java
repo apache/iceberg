@@ -43,23 +43,34 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestComputePartitionStatsAction extends CatalogTestBase {
 
+  private static final int DEFAULT_SPEC_ID = 0;
+  private static final long DEFAULT_POS_DEL_RECORD_COUNT = 0L;
+  private static final int DEFAULT_POS_DEL_FILE_COUNT = 0;
+  private static final long DEFAULT_EQ_DEL_RECORD_COUNT = 0L;
+  private static final int DEFAULT_EQ_DEL_FILE_COUNT = 0;
+  private static final Long DEFAULT_TOTAL_RECORD_COUNT = null;
+
+  @AfterEach
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
   @TestTemplate
-  public void testEmptyTable() {
+  public void emptyTable() {
     createPartitionTable();
     Table table = validationCatalog.loadTable(tableIdent);
-    SparkActions actions = SparkActions.get();
-    ComputePartitionStatsSparkAction.Result result = actions.computePartitionStats(table).execute();
+    ComputePartitionStatsSparkAction.Result result =
+        SparkActions.get().computePartitionStats(table).execute();
     assertThat(result.statisticsFile()).isNull();
   }
 
   @TestTemplate
-  public void testEmptyBranch() {
+  public void emptyBranch() {
     createPartitionTable();
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("b1").commit();
-    SparkActions actions = SparkActions.get();
     ComputePartitionStatsSparkAction.Result result =
-        actions
+        SparkActions.get()
             .computePartitionStats(table)
             .snapshot(table.refs().get("b1").snapshotId())
             .execute();
@@ -67,17 +78,17 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testInvalidSnapshot() {
+  public void invalidSnapshot() {
     createPartitionTable();
     Table table = validationCatalog.loadTable(tableIdent);
-    SparkActions actions = SparkActions.get();
-    assertThatThrownBy(() -> actions.computePartitionStats(table).snapshot(42L).execute())
+    assertThatThrownBy(
+            () -> SparkActions.get().computePartitionStats(table).snapshot(42L).execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Snapshot not found: 42");
   }
 
   @TestTemplate
-  public void testPartitionStatsCompute() throws IOException {
+  public void partitionStatsComputeOnLatestSnapshot() throws IOException {
     createPartitionTable();
     // foo, A -> 4 records,
     // foo, B -> 2 records,
@@ -95,15 +106,14 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     // snapshot3 is unused for partition stats as the same partition is modified by snapshot4
 
     // delete one record of foo, A
-    spark.sql("DELETE FROM " + tableName + " WHERE c1=1").show(200, false);
+    sql("DELETE FROM %s WHERE c1=1", tableName);
     table.refresh();
     Snapshot snapshot4 = table.currentSnapshot();
 
     assertThat(table.partitionStatisticsFiles()).isEmpty();
 
-    SparkActions actions = SparkActions.get();
     PartitionStatisticsFile statisticsFile =
-        actions.computePartitionStats(table).execute().statisticsFile();
+        SparkActions.get().computePartitionStats(table).execute().statisticsFile();
     assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
     assertThat(statisticsFile.snapshotId()).isEqualTo(snapshot4.snapshotId());
     // check table metadata registration
@@ -116,60 +126,64 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
         dataSchema,
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
-            0,
-            4L, // total 4 records for this partition
-            2,
-            datafileSize("foo", "A"),
-            1L, // position record from delete operation
-            1, // position delete file from delete operation
-            0L,
-            0,
-            null,
-            snapshot4.timestampMillis(), // last modified by snapshot4
-            snapshot4.snapshotId()),
+            DEFAULT_SPEC_ID,
+            4L, // dataRecordCount (total 4 records for this partition)
+            2, // dataFileCount
+            totalDataFileSizeInBytes("foo", "A"),
+            1L, // positionDeleteRecordCount (from delete operation)
+            1, // positionDeleteFileCount (from delete operation)
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot4.timestampMillis(), // lastUpdatedAt (last modified by snapshot4)
+            snapshot4.snapshotId() // lastUpdatedSnapshotId
+            ),
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
-            0,
-            2L,
-            1,
-            datafileSize("foo", "B"),
-            0L,
-            0,
-            0L,
-            0,
-            null,
-            snapshot1.timestampMillis(), // added by snapshot1
-            snapshot1.snapshotId()),
+            DEFAULT_SPEC_ID,
+            2L, // dataRecordCount
+            1, // dataFileCount
+            totalDataFileSizeInBytes("foo", "B"),
+            DEFAULT_POS_DEL_RECORD_COUNT,
+            DEFAULT_POS_DEL_FILE_COUNT,
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot1.timestampMillis(), // lastUpdatedAt (added by snapshot1)
+            snapshot1.snapshotId() // lastUpdatedSnapshotId
+            ),
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "A"),
-            0,
-            2L,
-            1,
-            datafileSize("bar", "A"),
-            0L,
-            0,
-            0L,
-            0,
-            null,
-            snapshot2.timestampMillis(), // added by snapshot2
-            snapshot2.snapshotId()),
+            DEFAULT_SPEC_ID,
+            2L, // dataRecordCount
+            1, // dataFileCount
+            totalDataFileSizeInBytes("bar", "A"),
+            DEFAULT_POS_DEL_RECORD_COUNT,
+            DEFAULT_POS_DEL_FILE_COUNT,
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot2.timestampMillis(), // lastUpdatedAt (added by snapshot2)
+            snapshot2.snapshotId() // lastUpdatedSnapshotId
+            ),
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
-            0,
-            1L,
-            1,
-            datafileSize("bar", "B"),
-            0L,
-            0,
-            0L,
-            0,
-            null,
-            snapshot2.timestampMillis(),
-            snapshot2.snapshotId()));
+            DEFAULT_SPEC_ID,
+            1L, // dataRecordCount
+            1, // dataFileCount
+            totalDataFileSizeInBytes("bar", "B"),
+            DEFAULT_POS_DEL_RECORD_COUNT,
+            DEFAULT_POS_DEL_FILE_COUNT,
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot2.timestampMillis(), // lastUpdatedAt
+            snapshot2.snapshotId() // lastUpdatedSnapshotId
+            ));
   }
 
   @TestTemplate
-  public void testPartitionStatsComputeOnSnapshot() throws IOException {
+  public void partitionStatsComputeOnSnapshot() throws IOException {
     createPartitionTable();
     // foo, A -> 2 records,
     // foo, B -> 1 record,
@@ -182,9 +196,8 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
     assertThat(table.partitionStatisticsFiles()).isEmpty();
 
-    SparkActions actions = SparkActions.get();
     PartitionStatisticsFile statisticsFile =
-        actions
+        SparkActions.get()
             .computePartitionStats(table)
             .snapshot(snapshot1.snapshotId())
             .execute()
@@ -203,33 +216,34 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
         dataSchema,
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
-            0,
-            2L,
-            1,
-            datafileSize("foo", "A"),
-            0L,
-            0,
-            0L,
-            0,
-            null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()),
+            DEFAULT_SPEC_ID,
+            2L, // dataRecordCount
+            1, // dataFileCount
+            totalDataFileSizeInBytes("foo", "A"),
+            DEFAULT_POS_DEL_RECORD_COUNT,
+            DEFAULT_POS_DEL_FILE_COUNT,
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot1.timestampMillis(), // lastUpdatedAt
+            snapshot1.snapshotId()), // lastUpdatedSnapshotId
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
-            0,
-            1L,
-            1,
-            datafileSize("foo", "B"),
-            0L,
-            0,
-            0L,
-            0,
-            null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()));
+            DEFAULT_SPEC_ID,
+            1L, // dataRecordCount
+            1, // dataFileCount
+            totalDataFileSizeInBytes("foo", "B"),
+            DEFAULT_POS_DEL_RECORD_COUNT,
+            DEFAULT_POS_DEL_FILE_COUNT,
+            DEFAULT_EQ_DEL_RECORD_COUNT,
+            DEFAULT_EQ_DEL_FILE_COUNT,
+            DEFAULT_TOTAL_RECORD_COUNT,
+            snapshot1.timestampMillis(), // lastUpdatedAt
+            snapshot1.snapshotId() // lastUpdatedSnapshotId
+            ));
   }
 
-  private long datafileSize(String col1, String col2) {
+  private long totalDataFileSizeInBytes(String col1, String col2) {
     return (long)
         sql(
                 "SELECT sum(file_size_in_bytes) FROM %s.data_files WHERE partition.c2 = '%s' AND partition.c3 = '%s'",
@@ -243,7 +257,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
         tableName);
   }
 
-  private static void validatePartitionStats(
+  private void validatePartitionStats(
       PartitionStatisticsFile result, Schema recordSchema, Tuple... expectedValues)
       throws IOException {
     // read the partition entries from the stats file
@@ -271,16 +285,10 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
         .containsExactlyInAnyOrder(expectedValues);
   }
 
-  private static StructLike partitionRecord(
-      Types.StructType partitionType, String val1, String val2) {
+  private StructLike partitionRecord(Types.StructType partitionType, String val1, String val2) {
     GenericRecord record = GenericRecord.create(partitionType);
     record.set(0, val1);
     record.set(1, val2);
     return record;
-  }
-
-  @AfterEach
-  public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 }
