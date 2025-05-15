@@ -861,6 +861,22 @@ public class JdbcSnowflakeClientTest {
         .withCause(injectedException);
   }
 
+  /**
+   * Verifies that loading table metadata fails with a clear exception when the result set is empty,
+   * indicating that no metadata was returned for a valid table identifier.
+   */
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testGetTableMetadataReturnsNullIfNoRowInResultSet() throws SQLException {
+    when(mockResultSet.next()).thenReturn(false); // No data row present
+
+    assertThatExceptionOfType(UncheckedSQLException.class)
+            .isThrownBy(() ->
+                    snowflakeClient.loadTableMetadata(
+                            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
+            .withMessageContaining("No metadata returned for table 'DB_1.SCHEMA_1.TABLE_1'");
+  }
+
   /** Calling close() propagates to closing underlying client pool. */
   @Test
   public void testClose() {
