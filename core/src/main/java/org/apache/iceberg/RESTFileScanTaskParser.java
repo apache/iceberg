@@ -53,7 +53,7 @@ public class RESTFileScanTaskParser {
 
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
-    ContentFileParser.unboundContentFileToJson(fileScanTask.file(), partitionSpec, generator);
+    ContentFileParser.toJson(fileScanTask.file(), partitionSpec, generator);
     if (deleteFileReferences != null) {
       JsonUtil.writeIntegerArray(DELETE_FILE_REFERENCES, deleteFileReferences, generator);
     }
