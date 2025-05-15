@@ -654,10 +654,31 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void addAllPartitionsToNonStringPartitionedWithNullValue() {
+    createPartitionedTableWithNullValueInPartitionColumnOnId("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Add all partitions including null partitions.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 10L, 5L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void addPartitionsWithNullValueShouldAddFilesToNullPartition() {
     // This test is to ensure that "null" string partition is not incorrectly created.
 
-    createPartitionedTableWithNullValueInPartitionColumn("parquet");
+    createPartitionedTableWithNullValueInPartitionColumnOnDept("parquet");
 
     createIcebergTable(
         "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
@@ -1323,7 +1344,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     unionedDF.write().insertInto(sourceTableName);
   }
 
-  private void createPartitionedTableWithNullValueInPartitionColumn(String format) {
+  private void createPartitionedTableWithNullValueInPartitionColumnOnDept(String format) {
     String createParquet =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
             + "PARTITIONED BY (dept) LOCATION '%s'";
@@ -1333,7 +1354,22 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         unpartitionedDF()
             .select("id", "name", "subdept", "dept")
             .unionAll(singleNullRecordDF().select("id", "name", "subdept", "dept"))
-            .select("id", "name", "subdept", "dept")
+            .repartition(1);
+
+    unionedDF.write().insertInto(sourceTableName);
+    unionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createPartitionedTableWithNullValueInPartitionColumnOnId(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (id) LOCATION '%s'";
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    Dataset<Row> unionedDF =
+        unpartitionedDF()
+            .select("name", "subdept", "dept", "id")
+            .unionAll(singleNullRecordDF().select("name", "subdept", "dept", "id"))
             .repartition(1);
 
     unionedDF.write().insertInto(sourceTableName);
