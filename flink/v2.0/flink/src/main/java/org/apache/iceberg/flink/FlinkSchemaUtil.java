@@ -137,7 +137,9 @@ public class FlinkSchemaUtil {
    * @param flinkSchema a Flink TableSchema
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   * @deprecated use {@link #convert(Schema, ResolvedSchema)} instead.
    */
+  @Deprecated
   public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
     // convert to a type with fresh ids
     Types.StructType struct = convert(flinkSchema).asStruct();
@@ -153,6 +155,35 @@ public class FlinkSchemaUtil {
     } else {
       return fixedSchema;
     }
+  }
+
+  /**
+   * Convert a Flink {@link ResolvedSchema} to a {@link Schema} based on the given schema.
+   *
+   * <p>This conversion does not assign new ids; it uses ids from the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the Flink type. This conversion may
+   * return a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param flinkSchema a Flink ResolvedSchema
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
+    // convert to a type with fresh ids
+    Types.StructType struct = convert(flinkSchema).asStruct();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // reassign doc to match the base schema
+    schema = TypeUtil.reassignDoc(schema, baseSchema);
+
+    // fix types that can't be represented in Flink (UUID)
+    Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
+    return flinkSchema
+        .getPrimaryKey()
+        .map(pk -> freshIdentifierFieldIds(fixedSchema, pk.getColumns()))
+        .orElse(fixedSchema);
   }
 
   /**

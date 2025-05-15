@@ -125,7 +125,7 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
     }
 
     sourceBuilder.filters(filters);
-    sourceBuilder.properties(options);
+    sourceBuilder.setAll(options);
 
     DataStream<Row> stream =
         sourceBuilder

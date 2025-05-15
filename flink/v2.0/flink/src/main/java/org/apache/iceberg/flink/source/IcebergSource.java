@@ -41,8 +41,8 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -291,7 +291,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private RowDataConverter<T> converter;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
-    private TableSchema projectedFlinkSchema;
+    private ResolvedSchema projectedFlinkSchema;
     private Boolean exposeLocality;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
@@ -458,7 +458,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder<T> project(TableSchema newProjectedFlinkSchema) {
+    public Builder<T> project(ResolvedSchema newProjectedFlinkSchema) {
       this.projectedFlinkSchema = newProjectedFlinkSchema;
       return this;
     }
@@ -542,15 +542,6 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
      */
     public Builder<T> watermarkColumnTimeUnit(TimeUnit timeUnit) {
       readOptions.put(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT, timeUnit.name());
-      return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setAll} instead.
-     */
-    @Deprecated
-    public Builder<T> properties(Map<String, String> properties) {
-      readOptions.putAll(properties);
       return this;
     }
 
