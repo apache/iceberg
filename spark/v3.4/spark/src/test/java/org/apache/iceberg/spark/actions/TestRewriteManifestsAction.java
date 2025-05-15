@@ -57,6 +57,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -73,6 +74,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -1011,6 +1013,63 @@ public class TestRewriteManifestsAction extends TestBase {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsActionCommitProperties() throws InterruptedException {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records2);
+
+    Thread rewriteManifestThread =
+        new Thread(
+            () -> {
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
+              CommitMetadata.withCommitProperties(
+                  properties,
+                  () -> {
+                    SparkActions actions = SparkActions.get();
+
+                    actions
+                        .rewriteManifests(table)
+                        .rewriteIf(manifest -> true)
+                        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+                        .execute();
+                    return 0;
+                  },
+                  RuntimeException.class);
+            });
+    rewriteManifestThread.setName("test-extra-commit-message-rewrite-manifest");
+    rewriteManifestThread.start();
+    rewriteManifestThread.join();
+
+    table.refresh();
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    assertThat(snapshots.get(1).summary()).doesNotContainKey("writer-thread");
+    assertThat(snapshots.get(2).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-rewrite-manifest")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 
   private List<ThreeColumnRecord> actualRecords() {

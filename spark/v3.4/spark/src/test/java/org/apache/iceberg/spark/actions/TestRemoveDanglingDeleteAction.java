@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -37,12 +38,16 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
@@ -433,5 +438,58 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
     assertThat(result.removedDeleteFiles()).as("No-op for unpartitioned tables").isEmpty();
+  }
+
+  @TestTemplate
+  public void testRemoveDanglingDeleteCommitProperties() throws InterruptedException {
+    setupPartitionedTable();
+    // Add Data Files
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_C).appendFile(FILE_D).commit();
+    // Add Data Files with EQ and POS deletes
+    table
+        .newRowDelta()
+        .addRows(FILE_A2)
+        .addRows(FILE_B2)
+        .addRows(FILE_C2)
+        .addRows(FILE_D2)
+        .addDeletes(FILE_A_POS_DELETES)
+        .addDeletes(FILE_A2_POS_DELETES)
+        .addDeletes(FILE_A_EQ_DELETES)
+        .addDeletes(FILE_A2_EQ_DELETES)
+        .addDeletes(FILE_B_POS_DELETES)
+        .addDeletes(FILE_B2_POS_DELETES)
+        .addDeletes(FILE_B_EQ_DELETES)
+        .addDeletes(FILE_B2_EQ_DELETES)
+        .commit();
+    Thread removeDanglingDeletesThread =
+        new Thread(
+            () -> {
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
+              CommitMetadata.withCommitProperties(
+                  properties,
+                  () -> {
+                    SparkActions.get().removeDanglingDeleteFiles(table).execute();
+                    return 0;
+                  },
+                  RuntimeException.class);
+            });
+    removeDanglingDeletesThread.setName("test-extra-commit-message-remove-dangling-delete");
+    removeDanglingDeletesThread.start();
+    removeDanglingDeletesThread.join();
+
+    table.refresh();
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    assertThat(snapshots.get(1).summary()).doesNotContainKey("writer-thread");
+    assertThat(snapshots.get(2).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-remove-dangling-delete")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 }

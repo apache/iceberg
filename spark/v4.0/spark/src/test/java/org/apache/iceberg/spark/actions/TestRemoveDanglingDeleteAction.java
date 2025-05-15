@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -39,6 +40,8 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
@@ -46,6 +49,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
@@ -513,6 +517,91 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_C.location()),
             Tuple2.apply(2L, fileADeletes.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
+  }
+
+  @TestTemplate
+  public void testRemoveDanglingDeleteCommitProperties() throws InterruptedException {
+    setupPartitionedTable();
+
+    // Add Data Files
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).appendFile(FILE_D).commit();
+
+    // Add Delete Files
+    DeleteFile fileADeletes = fileADeletes();
+    DeleteFile fileA2Deletes = fileA2Deletes();
+    DeleteFile fileBDeletes = fileBDeletes();
+    DeleteFile fileB2Deletes = fileB2Deletes();
+    table
+        .newRowDelta()
+        .addDeletes(fileADeletes)
+        .addDeletes(fileA2Deletes)
+        .addDeletes(fileBDeletes)
+        .addDeletes(fileB2Deletes)
+        .addDeletes(FILE_A_EQ_DELETES)
+        .addDeletes(FILE_A2_EQ_DELETES)
+        .addDeletes(FILE_B_EQ_DELETES)
+        .addDeletes(FILE_B2_EQ_DELETES)
+        .commit();
+
+    // Add More Data Files
+    table
+        .newAppend()
+        .appendFile(FILE_A2)
+        .appendFile(FILE_B2)
+        .appendFile(FILE_C2)
+        .appendFile(FILE_D2)
+        .commit();
+
+    List<Tuple2<Long, String>> actual = allEntries();
+    List<Tuple2<Long, String>> expected =
+        ImmutableList.of(
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileADeletes.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileA2Deletes.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
+
+    Thread removeDanglingDeletesThread =
+        new Thread(
+            () -> {
+              Map<String, String> properties =
+                  ImmutableMap.of(
+                      "writer-thread",
+                      String.valueOf(Thread.currentThread().getName()),
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "extra-key",
+                      "someValue",
+                      SnapshotSummary.EXTRA_METADATA_PREFIX + "another-key",
+                      "anotherValue");
+              CommitMetadata.withCommitProperties(
+                  properties,
+                  () -> {
+                    SparkActions.get().removeDanglingDeleteFiles(table).execute();
+                    return 0;
+                  },
+                  RuntimeException.class);
+            });
+    removeDanglingDeletesThread.setName("test-extra-commit-message-remove-dangling-delete");
+    removeDanglingDeletesThread.start();
+    removeDanglingDeletesThread.join();
+
+    table.refresh();
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    assertThat(snapshots.get(2).summary()).doesNotContainKey("writer-thread");
+    assertThat(snapshots.get(3).summary())
+        .containsEntry("writer-thread", "test-extra-commit-message-remove-dangling-delete")
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 
   private List<Tuple2<Long, String>> liveEntries() {
