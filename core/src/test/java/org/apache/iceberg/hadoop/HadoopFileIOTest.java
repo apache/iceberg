@@ -232,15 +232,20 @@ public class HadoopFileIOTest {
   }
 
   @Test
-  public void testPassCredentials() {
-    this.hadoopFileIO = new HadoopFileIO();
+  public void testStorageCredentialsOverrideHadoopConf() {
+    Configuration conf = new Configuration();
+    conf.set("key1", "val1");
+    conf.set("key2", "val2");
+    conf.set("key3", "val3");
+    this.hadoopFileIO = new HadoopFileIO(conf);
     hadoopFileIO.setCredentials(
         ImmutableList.of(
-            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2")),
-            StorageCredential.create("prefix", Map.of("key1", "val3", "key2", "val2"))));
+            StorageCredential.create("prefix", Map.of("key1", "val2", "key2", "val3")),
+            StorageCredential.create("prefix", Map.of("key1", "val3", "key2", "val3"))));
     hadoopFileIO.initialize(Map.of());
     assertThat(hadoopFileIO.getConf().get("key1")).isEqualTo("val3");
-    assertThat(hadoopFileIO.getConf().get("key2")).isEqualTo("val2");
+    assertThat(hadoopFileIO.getConf().get("key2")).isEqualTo("val3");
+    assertThat(hadoopFileIO.getConf().get("key3")).isEqualTo("val3");
   }
 
   private static void testJsonParser(HadoopFileIO hadoopFileIO, File tempDir) throws Exception {
