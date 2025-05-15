@@ -106,48 +106,6 @@ public class ContentFileParser {
     generator.writeEndObject();
   }
 
-  public static ContentFile<?> unboundContentFileFromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
-
-    int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
-    FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
-    String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
-    FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
-
-    long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
-    Metrics metrics = metricsFromJson(jsonNode);
-    ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
-    List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
-    int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
-    Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
-
-    if (fileContent == FileContent.DATA) {
-      return new UnboundGenericDataFile(
-          specId,
-          filePath,
-          fileFormat,
-          jsonNode.get(PARTITION),
-          fileSizeInBytes,
-          metrics,
-          keyMetadata,
-          splitOffsets,
-          sortOrderId);
-    } else {
-      return new UnboundGenericDeleteFile(
-          specId,
-          fileContent,
-          filePath,
-          fileFormat,
-          jsonNode.get(PARTITION),
-          fileSizeInBytes,
-          metrics,
-          equalityFieldIds,
-          sortOrderId,
-          splitOffsets,
-          keyMetadata);
-    }
-  }
-
   private static boolean hasPartitionData(StructLike partitionData) {
     return partitionData != null && partitionData.size() > 0;
   }
