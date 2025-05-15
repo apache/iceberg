@@ -50,7 +50,7 @@ public class ContentFileParser {
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
 
-  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs;
+  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs = new ThreadLocal<>();
 
   private ContentFileParser() {}
 
