@@ -54,7 +54,8 @@
                 // MS Java extension settings:
                 // Point the Gradle at the Java installation in the devcontainer.
                 "java.import.gradle.java.home": "/usr/local/sdkman/candidates/java/current",
-                "gradle.nestedProjects": true
+                "gradle.nestedProjects": true,
+                "java.jdt.ls.java.home": "/usr/local/sdkman/candidates/java/current"
             }
         }
     }
