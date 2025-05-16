@@ -24,12 +24,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.legacy.api.TableColumn;
-import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.Schema;
@@ -43,6 +45,7 @@ import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestIcebergSourceBounded extends TestFlinkScan {
@@ -65,17 +68,24 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
 
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
+    // Convert Iceberg schema to Flink schema
     Schema icebergTableSchema =
         CATALOG_EXTENSION.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
-    TableSchema.Builder builder = TableSchema.builder();
-    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergTableSchema));
-    for (String field : projected) {
-      TableColumn column = schema.getTableColumn(field).get();
-      builder.field(column.getName(), column.getType());
-    }
-    TableSchema flinkSchema = builder.build();
-    Schema projectedSchema = FlinkSchemaUtil.convert(icebergTableSchema, flinkSchema);
-    return run(projectedSchema, Lists.newArrayList(), Maps.newHashMap(), "", projected);
+    ResolvedSchema fullFlinkSchema =
+        FlinkSchemaUtil.toResolvedSchema(FlinkSchemaUtil.convert(icebergTableSchema));
+
+    // Projection
+    Set<String> projectedFields = Sets.newHashSet(projected);
+    List<Column> projectedColumns =
+        fullFlinkSchema.getColumns().stream()
+            .filter(column -> projectedFields.contains(column.getName()))
+            .collect(Collectors.toList());
+
+    // Convert back to Iceberg schema
+    ResolvedSchema projectedFlinkSchema = ResolvedSchema.of(projectedColumns);
+    Schema projectedIcebergSchema =
+        FlinkSchemaUtil.convert(icebergTableSchema, projectedFlinkSchema);
+    return run(projectedIcebergSchema, Lists.newArrayList(), Maps.newHashMap(), "", projected);
   }
 
   @Override

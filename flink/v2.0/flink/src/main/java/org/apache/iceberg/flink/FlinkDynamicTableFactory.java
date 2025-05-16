@@ -21,9 +21,11 @@ package org.apache.iceberg.flink;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
+import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
@@ -61,7 +63,11 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> tableProps = resolvedCatalogTable.getOptions();
-    ResolvedSchema tableSchema = resolvedCatalogTable.getResolvedSchema();
+    ResolvedSchema tableSchema =
+        ResolvedSchema.of(
+            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     TableLoader tableLoader;
     if (catalog != null) {

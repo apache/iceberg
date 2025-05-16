@@ -102,11 +102,10 @@ public class FlinkSchemaUtil {
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
     Schema icebergSchema = new Schema(converted.asStructType().fields());
-    if (flinkSchema.getPrimaryKey().isPresent()) {
-      return freshIdentifierFieldIds(icebergSchema, flinkSchema.getPrimaryKey().get().getColumns());
-    } else {
-      return icebergSchema;
-    }
+    return flinkSchema
+        .getPrimaryKey()
+        .map(pk -> freshIdentifierFieldIds(icebergSchema, pk.getColumns()))
+        .orElse(icebergSchema);
   }
 
   private static Schema freshIdentifierFieldIds(Schema icebergSchema, List<String> primaryKeys) {
@@ -223,13 +222,30 @@ public class FlinkSchemaUtil {
    *
    * @param rowType a RowType
    * @return Flink TableSchema
+   * @deprecated use {@link #toResolvedSchema(RowType)} instead
    */
+  @Deprecated
   public static TableSchema toSchema(RowType rowType) {
     TableSchema.Builder builder = TableSchema.builder();
     for (RowType.RowField field : rowType.getFields()) {
       builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
     }
     return builder.build();
+  }
+
+  /**
+   * Convert a {@link RowType} to a {@link ResolvedSchema}.
+   *
+   * @param rowType a RowType
+   * @return Flink ResolvedSchema
+   */
+  public static ResolvedSchema toResolvedSchema(RowType rowType) {
+    List<Column> columns = Lists.newArrayListWithExpectedSize(rowType.getFieldCount());
+    for (RowType.RowField field : rowType.getFields()) {
+      columns.add(
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType())));
+    }
+    return ResolvedSchema.of(columns);
   }
 
   /**
