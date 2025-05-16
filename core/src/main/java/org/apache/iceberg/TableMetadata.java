@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,6 +64,9 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
   static final int INITIAL_ROW_ID = 0;
+
+  @VisibleForTesting
+  static final Set<FileFormat> V3_SUPPORTED_FILE_FORMATS = Set.of(FileFormat.PARQUET);
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -1553,6 +1560,8 @@ public class TableMetadata implements Serializable {
           "Cannot set metadata location with changes to table metadata: %s changes",
           changes.size());
 
+      validateFileFormatCompatibility(formatVersion, properties);
+
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
@@ -1906,6 +1915,24 @@ public class TableMetadata implements Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+
+    /**
+     * Parquet is currently the only format compatible with v3. Other formats are missing support
+     * for features like default values, type support, etc. which makes creating or updating to v3
+     * tables unsafe. Supported formats should be expanded as support is implemented.
+     */
+    private static void validateFileFormatCompatibility(
+        int formatVersion, Map<String, String> properties) {
+      FileFormat targetFormat =
+          FileFormat.fromString(
+              properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+
+      Preconditions.checkArgument(
+          V3_SUPPORTED_FILE_FORMATS.contains(targetFormat) || formatVersion <= 2,
+          "%s file format is not supported in table format version v%s",
+          targetFormat,
+          formatVersion);
     }
   }
 }
