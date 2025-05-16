@@ -28,7 +28,7 @@ import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
 
-class IcebergStreamWriterMetrics {
+public class IcebergStreamWriterMetrics {
   // 1,024 reservoir size should cost about 8KB, which is quite small.
   // It should also produce good accuracy for histogram distribution (like percentiles).
   private static final int HISTOGRAM_RESERVOIR_SIZE = 1024;
@@ -40,7 +40,7 @@ class IcebergStreamWriterMetrics {
   private final Histogram dataFilesSizeHistogram;
   private final Histogram deleteFilesSizeHistogram;
 
-  IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName) {
+  public IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName) {
     MetricGroup writerMetrics =
         metrics.addGroup("IcebergStreamWriter").addGroup("table", fullTableName);
     this.flushedDataFiles = writerMetrics.counter("flushedDataFiles");
@@ -63,7 +63,7 @@ class IcebergStreamWriterMetrics {
             new DropwizardHistogramWrapper(dropwizardDeleteFilesSizeHistogram));
   }
 
-  void updateFlushResult(WriteResult result) {
+  public void updateFlushResult(WriteResult result) {
     flushedDataFiles.inc(result.dataFiles().length);
     flushedDeleteFiles.inc(result.deleteFiles().length);
     flushedReferencedDataFiles.inc(result.referencedDataFiles().length);
@@ -84,7 +84,7 @@ class IcebergStreamWriterMetrics {
             });
   }
 
-  void flushDuration(long flushDurationMs) {
+  public void flushDuration(long flushDurationMs) {
     lastFlushDurationMs.set(flushDurationMs);
   }
 }

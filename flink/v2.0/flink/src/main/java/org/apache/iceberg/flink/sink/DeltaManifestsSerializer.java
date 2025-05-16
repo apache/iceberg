@@ -28,12 +28,12 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifests> {
+public class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifests> {
   private static final int VERSION_1 = 1;
   private static final int VERSION_2 = 2;
   private static final byte[] EMPTY_BINARY = new byte[0];
 
-  static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
+  public static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
 
   @Override
   public int getVersion() {
