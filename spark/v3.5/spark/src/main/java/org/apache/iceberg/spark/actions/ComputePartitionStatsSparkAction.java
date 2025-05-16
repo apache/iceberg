@@ -25,6 +25,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ComputePartitionStats;
 import org.apache.iceberg.actions.ImmutableComputePartitionStats;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.spark.sql.SparkSession;
@@ -84,7 +85,7 @@ public class ComputePartitionStatsSparkAction
     try {
       statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table, snapshot.snapshotId());
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new RuntimeIOException(e);
     }
 
     if (statisticsFile == null) {
