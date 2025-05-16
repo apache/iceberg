@@ -100,6 +100,22 @@ public class TriggerEvaluator implements Serializable {
       return this;
     }
 
+    public Integer getDataFileCount() {
+      return dataFileCount;
+    }
+
+    public Long getDataFileSizeInBytes() {
+      return dataFileSizeInBytes;
+    }
+
+    public Integer getCommitCount() {
+      return commitCount;
+    }
+
+    public Duration getTimeout() {
+      return timeout;
+    }
+
     public TriggerEvaluator build() {
       List<Predicate> predicates = Lists.newArrayList();
       if (dataFileCount != null) {
