@@ -523,7 +523,7 @@ class TestBinPackRewriteFilePlanner {
   }
 
   @Test
-  public void testRewriteMaxFilesOptionInequality() {
+  public void testRewriteMaxFilesRewriteGreaterThanTotalFiles() {
     addFiles();
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     Map<String, String> options =
