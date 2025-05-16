@@ -193,7 +193,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
         null,
-        LOCAL,
+        DISTRIBUTED,
         3
       },
       {
