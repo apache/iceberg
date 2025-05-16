@@ -76,9 +76,15 @@ public class TestMultipleClients extends BaseTestIceberg {
     assertThat(catalog.listNamespaces()).isEmpty();
     assertThat(anotherCatalog.listNamespaces()).isEmpty();
 
-    // listing a non-existent namespace should return empty
-    assertThat(catalog.listNamespaces(Namespace.of("db1"))).isEmpty();
-    assertThat(anotherCatalog.listNamespaces(Namespace.of("db1"))).isEmpty();
+    // listing a non-existent namespace should throw an NoSuchNamespaceExists exception
+    Namespace namespaceDb1 = Namespace.of("db1");
+    assertThatThrownBy(() -> catalog.listNamespaces(namespaceDb1))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceDb1);
+
+    assertThatThrownBy(() -> anotherCatalog.listNamespaces(namespaceDb1))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: %s", namespaceDb1);
 
     catalog.createNamespace(Namespace.of("db1"), Collections.emptyMap());
 

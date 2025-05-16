@@ -54,6 +54,6 @@ public class TestOrcWrite {
 
     writer.addAll(rows);
     writer.close();
-    assertThat(writer.splitOffsets()).as("Split offsets not present").isNotNull();
+    assertThat(writer.splitOffsets()).as("Split offsets not present").isNotEmpty();
   }
 }

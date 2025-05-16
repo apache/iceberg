@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
@@ -93,7 +92,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testFullMetricsCollectionForParquet() throws IOException {
+  public void testFullMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -116,7 +115,6 @@ public class TestWriteMetricsConfig {
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-
       assertThat(file.nullValueCounts()).hasSize(2);
       assertThat(file.valueCounts()).hasSize(2);
       assertThat(file.lowerBounds()).hasSize(2);
@@ -125,7 +123,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCountMetricsCollectionForParquet() throws IOException {
+  public void testCountMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -156,7 +154,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testNoMetricsCollectionForParquet() throws IOException {
+  public void testNoMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -187,7 +185,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCustomMetricCollectionForParquet() throws IOException {
+  public void testCustomMetricCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -221,7 +219,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testBadCustomMetricCollectionForParquet() throws IOException {
+  public void testBadCustomMetricCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -237,7 +235,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCustomMetricCollectionForNestedParquet() throws IOException {
+  public void testCustomMetricCollectionForNestedParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -271,16 +269,12 @@ public class TestWriteMetricsConfig {
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
       assertThat(nullValueCounts)
           .hasSize(3)
-          .containsKey(longCol.fieldId())
-          .containsKey(recordId.fieldId())
-          .containsKey(recordData.fieldId());
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
       assertThat(valueCounts)
           .hasSize(3)
-          .containsKey(longCol.fieldId())
-          .containsKey(recordId.fieldId())
-          .containsKey(recordData.fieldId());
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
       assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());

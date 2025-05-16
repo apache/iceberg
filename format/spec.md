@@ -1109,7 +1109,7 @@ This section details how to encode row-level deletes in Iceberg delete files. Ro
 There are three types of row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
-* Position delete files identify deleted rows by file location and row position (**deprecated**)
+* Position delete files identify deleted rows by file location and row position (**deprecated** in v3)
 * Equality delete files identify deleted rows by the value of one or more columns
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.

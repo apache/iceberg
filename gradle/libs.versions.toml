@@ -24,6 +24,7 @@ activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 analyticsaccelerator = "1.0.0"
 antlr = "4.9.3"
+antlr413 = "4.13.1" # For Spark 4.0 support
 aircompressor = "0.27"
 apiguardian = "1.1.2"
 arrow = "15.0.2"
@@ -47,7 +48,7 @@ findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
-google-libraries-bom = "26.59.0"
+google-libraries-bom = "26.60.0"
 guava = "33.4.7-jre"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.4.4"
@@ -72,7 +73,7 @@ microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
 nessie = "0.103.6"
-netty-buffer = "4.2.0.Final"
+netty-buffer = "4.2.1.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.6"
 parquet = "1.15.2"
@@ -82,6 +83,7 @@ slf4j = "2.0.17"
 snowflake-jdbc = "3.24.0"
 spark34 = "3.4.4"
 spark35 = "3.5.5"
+spark40 = "4.0.0"
 sqlite-jdbc = "3.49.1.0"
 testcontainers = "1.21.0"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
@@ -93,6 +95,8 @@ aliyun-sdk-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliy
 analyticsaccelerator-s3 = { module = "software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3", version.ref = "analyticsaccelerator" }
 antlr-antlr4 = { module = "org.antlr:antlr4", version.ref = "antlr" }
 antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
+antlr-antlr413 = { module = "org.antlr:antlr4", version.ref = "antlr413" }
+antlr-runtime413 = { module = "org.antlr:antlr4-runtime", version.ref = "antlr413" }
 arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.ref = "arrow" }
 arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
 avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
@@ -198,7 +202,6 @@ junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", vers
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
-junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
