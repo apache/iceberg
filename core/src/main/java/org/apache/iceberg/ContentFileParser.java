@@ -27,7 +27,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-class ContentFileParser {
+public class ContentFileParser {
   private static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
@@ -50,6 +50,8 @@ class ContentFileParser {
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
 
+  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs = new ThreadLocal<>();
+
   private ContentFileParser() {}
 
   private static boolean hasPartitionData(StructLike partitionData) {
@@ -61,7 +63,7 @@ class ContentFileParser {
         generator -> ContentFileParser.toJson(contentFile, spec, generator), false);
   }
 
-  static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
+  public static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
     Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
@@ -134,11 +136,11 @@ class ContentFileParser {
     generator.writeEndObject();
   }
 
-  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+  public static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
-    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
+    // Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
 
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
@@ -147,18 +149,10 @@ class ContentFileParser {
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = new PartitionData(spec.partitionType());
-      StructLike structLike =
-          (StructLike) SingleValueParser.fromJson(spec.partitionType(), jsonNode.get(PARTITION));
-      Preconditions.checkState(
-          partitionData.size() == structLike.size(),
-          "Invalid partition data size: expected = %s, actual = %s",
-          partitionData.size(),
-          structLike.size());
-      for (int pos = 0; pos < partitionData.size(); ++pos) {
-        Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
-        partitionData.set(pos, structLike.get(pos, javaClass));
-      }
+      // now its callers responsibility to set specs in the parser
+      partitionData =
+          partitionDataFromRawValue(
+              jsonNode.get(PARTITION), spec == null ? extraSpecs.get().get(specId) : spec);
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
@@ -201,6 +195,32 @@ class ContentFileParser {
           contentOffset,
           contentSizeInBytes);
     }
+  }
+
+  public static void setSpec(Map<Integer, PartitionSpec> partitionSpec) {
+    // sets a thread local
+    extraSpecs.set(partitionSpec);
+  }
+
+  static PartitionData partitionDataFromRawValue(JsonNode rawPartitionValue, PartitionSpec spec) {
+    if (rawPartitionValue == null) {
+      return null;
+    }
+
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    StructLike structLike =
+        (StructLike) SingleValueParser.fromJson(spec.partitionType(), rawPartitionValue);
+    Preconditions.checkState(
+        partitionData.size() == structLike.size(),
+        "Invalid partition data size: expected = %s, actual = %s",
+        partitionData.size(),
+        structLike.size());
+    for (int pos = 0; pos < partitionData.size(); ++pos) {
+      Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
+      partitionData.set(pos, structLike.get(pos, javaClass));
+    }
+
+    return partitionData;
   }
 
   private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)
