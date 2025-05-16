@@ -165,6 +165,14 @@ public class PartitionStatsHandler {
           "Using full compute as previous statistics file is not present for incremental compute.");
       stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
     } else {
+      if (statisticsFile.snapshotId() == snapshotId) {
+        // no-op
+        LOG.info(
+            "Snapshot {} already has statistics file computed. Returning the same file as result.",
+            snapshotId);
+        return statisticsFile;
+      }
+
       stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
     }
 

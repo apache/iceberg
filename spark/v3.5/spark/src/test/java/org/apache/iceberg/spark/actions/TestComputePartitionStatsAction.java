@@ -57,7 +57,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void emptyTable() {
-    createPartitionTable();
+    createPartitionedTable();
     Table table = validationCatalog.loadTable(tableIdent);
     ComputePartitionStatsSparkAction.Result result =
         SparkActions.get().computePartitionStats(table).execute();
@@ -66,7 +66,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void emptyBranch() {
-    createPartitionTable();
+    createPartitionedTable();
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("b1").commit();
     ComputePartitionStatsSparkAction.Result result =
@@ -79,7 +79,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void invalidSnapshot() {
-    createPartitionTable();
+    createPartitionedTable();
     Table table = validationCatalog.loadTable(tableIdent);
     assertThatThrownBy(
             () -> SparkActions.get().computePartitionStats(table).snapshot(42L).execute())
@@ -89,7 +89,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void partitionStatsComputeOnLatestSnapshot() throws IOException {
-    createPartitionTable();
+    createPartitionedTable();
     // foo, A -> 4 records,
     // foo, B -> 2 records,
     // bar, A -> 2 records,
@@ -184,7 +184,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void partitionStatsComputeOnSnapshot() throws IOException {
-    createPartitionTable();
+    createPartitionedTableV1();
     // foo, A -> 2 records,
     // foo, B -> 1 record,
     // bar, A -> 2 records,
@@ -241,6 +241,15 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             snapshot1.timestampMillis(), // lastUpdatedAt
             snapshot1.snapshotId() // lastUpdatedSnapshotId
             ));
+
+    // try again on same snapshot
+    PartitionStatisticsFile newStatsFile =
+        SparkActions.get()
+            .computePartitionStats(table)
+            .snapshot(snapshot1.snapshotId())
+            .execute()
+            .statisticsFile();
+    assertThat(newStatsFile).isEqualTo(statisticsFile);
   }
 
   private long totalDataFileSizeInBytes(String col1, String col2) {
@@ -251,9 +260,15 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             .get(0)[0];
   }
 
-  private void createPartitionTable() {
+  private void createPartitionedTable() {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg PARTITIONED BY (c2, c3) TBLPROPERTIES('write.delete.mode'='merge-on-read')",
+        tableName);
+  }
+
+  private void createPartitionedTableV1() {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg PARTITIONED BY (c2, c3) TBLPROPERTIES('format-version'='1')",
         tableName);
   }
 
