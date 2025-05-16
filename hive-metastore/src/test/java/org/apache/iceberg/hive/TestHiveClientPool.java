@@ -20,7 +20,6 @@ package org.apache.iceberg.hive;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -30,7 +29,6 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
@@ -41,7 +39,6 @@ import org.apache.thrift.transport.TTransportException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 public class TestHiveClientPool {
@@ -73,19 +70,19 @@ public class TestHiveClientPool {
   @Test
   public void testConf() {
     HiveConf conf = createHiveConf();
-    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
+    conf.set("hive.metastore.warehouse.dir", "file:/mywarehouse/");
 
     HiveClientPool clientPool = new HiveClientPool(10, conf);
     HiveConf clientConf = clientPool.hiveConf();
 
-    assertThat(clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
-        .isEqualTo(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    assertThat(clientConf.get("hive.metastore.warehouse.dir"))
+        .isEqualTo(conf.get("hive.metastore.warehouse.dir"));
     assertThat(clientPool.poolSize()).isEqualTo(10);
 
     // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
-    assertThat(clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname))
-        .isEqualTo(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
-    assertThat(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL)).isTrue();
+    assertThat(clientConf.get("hive.metastore.sasl.enabled"))
+        .isEqualTo(conf.get("hive.metastore.sasl.enabled"));
+    assertThat(clientConf.getBoolVar(HiveConf.getConfVars("hive.metastore.sasl.enabled"))).isTrue();
   }
 
   private HiveConf createHiveConf() {
@@ -121,44 +118,32 @@ public class TestHiveClientPool {
 
   @Test
   public void testExceptionMessages() {
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
-      mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
-          .thenThrow(new RuntimeException(new MetaException("Another meta exception")));
-      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
-          .isInstanceOf(RuntimeMetaException.class)
-          .hasMessage("Failed to connect to Hive Metastore");
-    }
+    Mockito.doThrow(new RuntimeException(new MetaException("Another meta exception")))
+        .when(clients)
+        .newClientInternal();
+    assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+        .isInstanceOf(RuntimeMetaException.class)
+        .hasMessage("Failed to connect to Hive Metastore");
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
-      mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
-          .thenThrow(new RuntimeException(new MetaException()));
-      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
-          .isInstanceOf(RuntimeMetaException.class)
-          .hasMessage("Failed to connect to Hive Metastore");
-    }
+    Mockito.doThrow(new RuntimeException(new MetaException())).when(clients).newClientInternal();
+    assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+        .isInstanceOf(RuntimeMetaException.class)
+        .hasMessage("Failed to connect to Hive Metastore");
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
-      mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
-          .thenThrow(new RuntimeException());
-      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
-          .isInstanceOf(RuntimeMetaException.class)
-          .hasMessage("Failed to connect to Hive Metastore");
-    }
+    Mockito.doThrow(new RuntimeException()).when(clients).newClientInternal();
+    assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+        .isInstanceOf(RuntimeMetaException.class)
+        .hasMessage("Failed to connect to Hive Metastore");
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
-      mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
-          .thenThrow(new RuntimeException("Another instance of Derby may have already booted"));
-      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
-          .isInstanceOf(RuntimeMetaException.class)
-          .hasMessage(
-              "Failed to start an embedded metastore because embedded "
-                  + "Derby supports only one client at a time. To fix this, use a metastore that supports "
-                  + "multiple clients.");
-    }
+    Mockito.doThrow(new RuntimeException("Another instance of Derby may have already booted"))
+        .when(clients)
+        .newClientInternal();
+    assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+        .isInstanceOf(RuntimeMetaException.class)
+        .hasMessage(
+            "Failed to start an embedded metastore because embedded "
+                + "Derby supports only one client at a time. To fix this, use a metastore that supports "
+                + "multiple clients.");
   }
 
   @Test
