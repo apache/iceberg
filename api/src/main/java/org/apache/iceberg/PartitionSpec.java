@@ -648,7 +648,7 @@ public class PartitionSpec implements Serializable {
       // checks
       if (!transform.equals(Transforms.alwaysNull())) {
         ValidationException.check(
-            sourceTypes.isEmpty(), "Cannot find source column for partition field: %s", field);
+            !sourceTypes.isEmpty(), "Cannot find source column for partition field: %s", field);
         for (Type sourceType : sourceTypes) {
           ValidationException.check(
               sourceType.isPrimitiveType(),
