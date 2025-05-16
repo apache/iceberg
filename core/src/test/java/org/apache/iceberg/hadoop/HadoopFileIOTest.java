@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.Vector;
@@ -39,6 +40,8 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -201,6 +204,48 @@ public class HadoopFileIOTest {
     assertThat(hadoopFileIO.properties().get("properties-bar")).isEqualTo("2");
 
     testJsonParser(hadoopFileIO, tempDir);
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    this.hadoopFileIO = new HadoopFileIO();
+    hadoopFileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
+    hadoopFileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(hadoopFileIO).credentials())
+        .isEqualTo(hadoopFileIO.credentials());
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    this.hadoopFileIO = new HadoopFileIO();
+    hadoopFileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
+    hadoopFileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.roundTripSerialize(hadoopFileIO).credentials())
+        .isEqualTo(hadoopFileIO.credentials());
+  }
+
+  @Test
+  public void testStorageCredentialsOverrideHadoopConf() {
+    Configuration conf = new Configuration();
+    conf.set("key1", "val1");
+    conf.set("key2", "val2");
+    conf.set("key3", "val3");
+    this.hadoopFileIO = new HadoopFileIO(conf);
+    hadoopFileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val2", "key2", "val3")),
+            StorageCredential.create("prefix", Map.of("key1", "val3", "key2", "val3"))));
+    hadoopFileIO.initialize(Map.of());
+    assertThat(hadoopFileIO.getConf().get("key1")).isEqualTo("val3");
+    assertThat(hadoopFileIO.getConf().get("key2")).isEqualTo("val3");
+    assertThat(hadoopFileIO.getConf().get("key3")).isEqualTo("val3");
   }
 
   private static void testJsonParser(HadoopFileIO hadoopFileIO, File tempDir) throws Exception {
