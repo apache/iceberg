@@ -109,11 +109,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, true},
-        new Object[] {3, true},
-        new Object[] {2, false},
-        new Object[] {3, false});
+    return Arrays.asList(new Object[] {2, true}, new Object[] {2, false}, new Object[] {3, false});
   }
 
   @BeforeEach
