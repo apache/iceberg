@@ -636,7 +636,10 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema) {
     final Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.findType(field.sourceIds().get(0));
+      List<Type> sourceTypes = Lists.newArrayList();
+      for (int sourceId : field.sourceIds()) {
+        sourceTypes.add(schema.findType(sourceId));
+      }
       Transform<?, ?> transform = field.transform();
       // In the case of a Version 1 partition-spec field gets deleted,
       // it is replaced with a void transform, see:
@@ -645,15 +648,18 @@ public class PartitionSpec implements Serializable {
       // checks
       if (!transform.equals(Transforms.alwaysNull())) {
         ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
+            sourceTypes.isEmpty(), "Cannot find source column for partition field: %s", field);
+        for (Type sourceType : sourceTypes) {
+          ValidationException.check(
+              sourceType.isPrimitiveType(),
+              "Cannot partition by non-primitive source field: %s (%s)",
+              field,
+              sourceType);
+        }
         ValidationException.check(
-            sourceType.isPrimitiveType(),
-            "Cannot partition by non-primitive source field: %s",
-            sourceType);
-        ValidationException.check(
-            transform.canTransform(sourceType),
+            transform.canTransform(sourceTypes),
             "Invalid source type %s for transform: %s",
-            sourceType,
+            sourceTypes,
             transform);
         // The only valid parent types for a PartitionField are StructTypes. This must be checked
         // recursively.
