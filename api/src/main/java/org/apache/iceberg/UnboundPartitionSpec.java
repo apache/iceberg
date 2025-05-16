@@ -128,7 +128,7 @@ public class UnboundPartitionSpec {
     }
 
     public int sourceId() {
-      Preconditions.checkArgument(sourceIds.size() == 1, "Only one source is expected");
+      Preconditions.checkArgument(sourceIds.size() >= 1, "At least one source is expected");
       return sourceIds.get(0);
     }
 
