@@ -86,7 +86,7 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   }
 
   @Override
-  public void processWatermark(Watermark mark) {
+  public void processWatermark(Watermark mark) throws Exception {
     TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
     output.collect(new StreamRecord<>(response));
     LOG.info(
@@ -97,5 +97,7 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
         response);
     exceptions.clear();
     startTime = 0L;
+
+    super.processWatermark(mark);
   }
 }
