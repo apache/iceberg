@@ -218,18 +218,8 @@ public final class MetricsConfig implements Serializable {
    * @param schema schema to validate against
    * @param props properties may contain metrics mode column overrides
    */
-  public static void validateReferencedColumns(Schema schema, Map<String, String> props) {
-    for (String key : props.keySet()) {
-      if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
-        String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
-        ValidationException.check(
-            schema.findField(columnAlias) != null,
-            "Invalid metrics config, could not find column %s from table prop %s in schema %s",
-            columnAlias,
-            METRICS_MODE_COLUMN_CONF_PREFIX + columnAlias,
-            schema);
-      }
-    }
+  static void validateReferencedColumns(Schema schema, Map<String, String> props) {
+    from(props, null, null).validateReferencedColumns(schema);
   }
 
   public MetricsMode columnMode(String columnAlias) {
