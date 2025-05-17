@@ -22,12 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 class TestTaskResultAggregator extends OperatorTestBase {
