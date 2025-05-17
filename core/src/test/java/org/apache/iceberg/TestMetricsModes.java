@@ -27,12 +27,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -78,14 +76,22 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testInvalidColumnModeValue() {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            TableProperties.DEFAULT_WRITE_METRICS_MODE,
-            "full",
-            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
-            "troncate(5)");
+    Schema schema = new Schema(required(1, "col", Types.IntegerType.get()));
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)")
+        .commit();
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.forTable(testTable);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to table default (full)")
         .isEqualTo(MetricsModes.Full.get());
@@ -93,14 +99,22 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testInvalidDefaultColumnModeValue() {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            TableProperties.DEFAULT_WRITE_METRICS_MODE,
-            "fuull",
-            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
-            "troncate(5)");
+    Schema schema = new Schema(required(1, "col", Types.IntegerType.get()));
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+    testTable
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "fuull")
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)")
+        .commit();
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.forTable(testTable);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to library default (truncate(16))")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
