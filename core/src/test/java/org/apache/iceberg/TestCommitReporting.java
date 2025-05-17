@@ -49,6 +49,7 @@ public class TestCommitReporting extends TestBase {
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
+    assertThat(report.timestampMillis()).isNotZero();
     assertThat(report.operation()).isEqualTo("append");
     assertThat(report.snapshotId()).isEqualTo(1L);
     assertThat(report.sequenceNumber()).isEqualTo(1L);
@@ -68,6 +69,7 @@ public class TestCommitReporting extends TestBase {
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_D).commit();
     report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
+    assertThat(report.timestampMillis()).isNotZero();
     assertThat(report.operation()).isEqualTo("delete");
     assertThat(report.snapshotId()).isEqualTo(2L);
     assertThat(report.sequenceNumber()).isEqualTo(2L);
@@ -103,6 +105,7 @@ public class TestCommitReporting extends TestBase {
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
+    assertThat(report.timestampMillis()).isNotZero();
     assertThat(report.operation()).isEqualTo("delete");
     assertThat(report.snapshotId()).isEqualTo(1L);
     assertThat(report.sequenceNumber()).isEqualTo(1L);
@@ -141,6 +144,7 @@ public class TestCommitReporting extends TestBase {
 
     report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
+    assertThat(report.timestampMillis()).isNotZero();
     assertThat(report.operation()).isEqualTo("replace");
     assertThat(report.snapshotId()).isEqualTo(2L);
     assertThat(report.sequenceNumber()).isEqualTo(2L);
@@ -182,6 +186,7 @@ public class TestCommitReporting extends TestBase {
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
+    assertThat(report.timestampMillis()).isNotZero();
     assertThat(report.operation()).isEqualTo("replace");
     assertThat(report.snapshotId()).isEqualTo(3L);
     assertThat(report.sequenceNumber()).isEqualTo(3L);

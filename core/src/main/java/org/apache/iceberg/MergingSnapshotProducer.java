@@ -962,20 +962,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   public Object updateEvent() {
     long snapshotId = snapshotId();
     Snapshot justSaved = ops().refresh().snapshot(snapshotId);
-    long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
-    Map<String, String> summary;
     if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to
       // eventual
       // consistency problems in refresh.
       LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
-      summary = summary();
+      return new CreateSnapshotEvent(
+          tableName, operation(), snapshotId, TableMetadata.INVALID_SEQUENCE_NUMBER, summary());
     } else {
-      sequenceNumber = justSaved.sequenceNumber();
-      summary = justSaved.summary();
+      return new CreateSnapshotEvent(tableName, justSaved);
     }
-
-    return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

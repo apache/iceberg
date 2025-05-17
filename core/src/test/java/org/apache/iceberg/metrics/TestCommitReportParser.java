@@ -300,4 +300,37 @@ public class TestCommitReportParser {
     assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     assertThat(json).isEqualTo(expectedJson);
   }
+
+  @Test
+  public void roundTripSerdeWithTimestamp() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .timestampMillis(1L)
+            .snapshotId(23L)
+            .operation("DELETE")
+            .sequenceNumber(4L)
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
+            .metadata(ImmutableMap.of("k1", "v1", "k2", "v2"))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"timestamp-millis\" : 1,\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"sequence-number\" : 4,\n"
+            + "  \"operation\" : \"DELETE\",\n"
+            + "  \"metrics\" : { },\n"
+            + "  \"metadata\" : {\n"
+            + "    \"k1\" : \"v1\",\n"
+            + "    \"k2\" : \"v2\"\n"
+            + "  }\n"
+            + "}";
+
+    String json = CommitReportParser.toJson(commitReport, true);
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+    assertThat(json).isEqualTo(expectedJson);
+  }
 }
