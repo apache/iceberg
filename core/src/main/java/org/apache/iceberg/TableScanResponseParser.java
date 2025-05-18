@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,11 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.ContentFileParser;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -36,12 +31,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
-class TableScanResponseParser {
+public class TableScanResponseParser {
 
   private TableScanResponseParser() {}
 
   static final String FILE_SCAN_TASKS = "file-scan-tasks";
   static final String DELETE_FILES = "delete-files";
+
+  private static final ThreadLocal<Map<Integer, PartitionSpec>> SPEC_BY_ID = new ThreadLocal<>();
+  private static final ThreadLocal<Boolean> IS_CASE_SENSITIVE = new ThreadLocal<>();
 
   public static List<DeleteFile> parseDeleteFiles(JsonNode node) {
     if (node.has(DELETE_FILES)) {
@@ -50,7 +48,8 @@ class TableScanResponseParser {
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
       ImmutableList.Builder<DeleteFile> deleteFilesBuilder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deleteFiles) {
-        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, null);
+        DeleteFile deleteFile =
+            (DeleteFile) ContentFileParser.fromJson(deleteFileNode, SPEC_BY_ID.get());
         deleteFilesBuilder.add(deleteFile);
       }
       return deleteFilesBuilder.build();
@@ -60,13 +59,17 @@ class TableScanResponseParser {
   }
 
   public static List<FileScanTask> parseFileScanTasks(JsonNode node, List<DeleteFile> deleteFiles) {
+    // TODO: add assertions in the code to make sure all these are set
+    // before we start parsing.
     if (node.has(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
           scanTasks.isArray(), "Cannot parse file scan tasks from non-array: %s", scanTasks);
       List<FileScanTask> fileScanTaskList = Lists.newArrayList();
       for (JsonNode fileScanTaskNode : scanTasks) {
-        FileScanTask fileScanTask = RESTFileScanTaskParser.fromJson(fileScanTaskNode, deleteFiles);
+        FileScanTask fileScanTask =
+            RESTFileScanTaskParser.fromJson(
+                fileScanTaskNode, deleteFiles, SPEC_BY_ID.get(), IS_CASE_SENSITIVE.get());
         fileScanTaskList.add(fileScanTask);
       }
 
@@ -114,5 +117,10 @@ class TableScanResponseParser {
       }
       gen.writeEndArray();
     }
+  }
+
+  public static void setState(Map<Integer, PartitionSpec> specsById, boolean isCaseSensitive) {
+    SPEC_BY_ID.set(specsById);
+    IS_CASE_SENSITIVE.set(isCaseSensitive);
   }
 }

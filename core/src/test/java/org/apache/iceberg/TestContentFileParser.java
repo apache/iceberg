@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Comparators;
@@ -43,23 +44,24 @@ public class TestContentFileParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content file: null");
 
-    //    assertThatThrownBy(() -> ContentFileParser.toJson(TestBase.FILE_A, null))
-    //        .isInstanceOf(IllegalArgumentException.class)
-    //        .hasMessage("Invalid partition spec: null");
+    assertThatThrownBy(() -> ContentFileParser.toJson(TestBase.FILE_A, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid partition spec: null");
 
     assertThatThrownBy(() -> ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> ContentFileParser.fromJson(null, TestBase.SPEC))
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(null, Map.of(TestBase.SPEC.specId(), TestBase.SPEC)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON node for content file: null");
 
     String jsonStr = ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    //    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
-    //        .isInstanceOf(IllegalArgumentException.class)
-    //        .hasMessage("Invalid partition spec: null");
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid partition spec: null");
   }
 
   @ParameterizedTest
@@ -69,7 +71,8 @@ public class TestContentFileParser {
     String jsonStr = ContentFileParser.toJson(dataFile, spec);
     assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
     assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
     assertContentFileEquals(dataFile, deserializedContentFile, spec);
   }
@@ -81,7 +84,8 @@ public class TestContentFileParser {
     String jsonStr = ContentFileParser.toJson(deleteFile, spec);
     assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), TestBase.SPEC));
     assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
     assertContentFileEquals(deleteFile, deserializedContentFile, spec);
   }
