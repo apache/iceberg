@@ -145,7 +145,6 @@ public class RESTSerializers {
             FetchPlanningResultResponse.class, new FetchPlanningResultResponseDeserializer<>())
         .addSerializer(FetchScanTasksResponse.class, new FetchScanTaskResponseSerializer<>())
         .addDeserializer(FetchScanTasksResponse.class, new FetchScanTaskResponseDeserializer<>())
-        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>())
         .addSerializer(LoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
         .addSerializer(
             ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())

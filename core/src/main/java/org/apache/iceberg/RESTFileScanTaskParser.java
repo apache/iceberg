@@ -39,9 +39,6 @@ public class RESTFileScanTaskParser {
 
   private RESTFileScanTaskParser() {}
 
-  private static ThreadLocal<Map<Integer, PartitionSpec>> extraSpecs = new ThreadLocal<>();
-  private static ThreadLocal<Boolean> extraCaseSensitive = new ThreadLocal<>();
-
   public static void toJson(
       FileScanTask fileScanTask,
       Set<Integer> deleteFileReferences,
@@ -65,14 +62,18 @@ public class RESTFileScanTaskParser {
     generator.writeEndObject();
   }
 
-  public static FileScanTask fromJson(JsonNode jsonNode, List<DeleteFile> allDeleteFiles) {
+  public static FileScanTask fromJson(
+      JsonNode jsonNode,
+      List<DeleteFile> allDeleteFiles,
+      Map<Integer, PartitionSpec> specsById,
+      boolean isCaseSensitive) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
     DataFile dataFile =
-        (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), null);
-    // get spec id of the file
+        (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), specsById);
+    // specId from the dataFile
     int specId = dataFile.specId();
 
     DeleteFile[] deleteFiles = null;
@@ -90,16 +91,11 @@ public class RESTFileScanTaskParser {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    String schemaString = SchemaParser.toJson(extraSpecs.get().get(specId).schema());
-    String specString = PartitionSpecParser.toJson(extraSpecs.get().get(specId));
+    String schemaString = SchemaParser.toJson(specsById.get(specId).schema());
+    String specString = PartitionSpecParser.toJson(specsById.get(specId));
     ResidualEvaluator boundResidual =
-        ResidualEvaluator.of(extraSpecs.get().get(specId), filter, extraCaseSensitive.get());
+        ResidualEvaluator.of(specsById.get(specId), filter, isCaseSensitive);
 
     return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, boundResidual);
-  }
-
-  public static void setExtraInfo(Map<Integer, PartitionSpec> spec, boolean caseSensitive) {
-    extraSpecs.set(spec);
-    extraCaseSensitive.set(caseSensitive);
   }
 }

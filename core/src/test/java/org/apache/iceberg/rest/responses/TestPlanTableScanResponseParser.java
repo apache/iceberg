@@ -28,14 +28,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.BaseFileScanTask;
-import org.apache.iceberg.ContentFileParser;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
-import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
@@ -46,8 +44,7 @@ public class TestPlanTableScanResponseParser {
 
   @BeforeEach
   public void before() {
-    RESTFileScanTaskParser.setExtraInfo(Map.of(SPEC.specId(), SPEC), false);
-    ContentFileParser.setSpec(Map.of(SPEC.specId(), SPEC));
+    TableScanResponseParser.setState(PARTITION_SPECS_BY_ID, false);
   }
 
   @Test
