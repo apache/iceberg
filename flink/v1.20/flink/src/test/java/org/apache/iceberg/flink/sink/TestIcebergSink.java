@@ -31,7 +31,7 @@ import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -223,7 +223,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     IcebergSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(leftTable)
         .tableLoader(leftTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .distributionMode(DistributionMode.NONE)
         .uidSuffix("leftIcebergSink")
         .append();
@@ -236,7 +236,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     IcebergSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(rightTable)
         .tableLoader(rightTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidSuffix("rightIcebergSink")
@@ -305,7 +305,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testOperatorsUidNameNoUidSuffix() throws Exception {
+  void testOperatorsUidNameNoUidSuffix() {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
@@ -313,7 +313,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .append();
@@ -327,7 +327,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testOperatorsUidNameWitUidSuffix() throws Exception {
+  void testOperatorsUidNameWitUidSuffix() {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
@@ -335,7 +335,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidSuffix("data-ingestion")
@@ -350,7 +350,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testErrorOnNullForRequiredField() throws Exception {
+  void testErrorOnNullForRequiredField() {
     assumeThat(format)
         .as("ORC file format supports null values even for required fields.")
         .isNotEqualTo(FileFormat.ORC);
@@ -377,18 +377,18 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
 
-    TableSchema flinkSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    ResolvedSchema flinkSchema = FlinkSchemaUtil.toResolvedSchema(icebergSchema);
     IcebergSink.forRow(dataStream, flinkSchema)
         .table(table2)
         .tableLoader(TableLoader.fromCatalog(CATALOG_EXTENSION.catalogLoader(), tableIdentifier))
-        .tableSchema(flinkSchema)
+        .resolvedSchema(flinkSchema)
         .writeParallelism(parallelism)
         .append();
 
     assertThatThrownBy(() -> env.execute()).hasRootCauseInstanceOf(NullPointerException.class);
   }
 
-  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
+  private void testWriteRow(ResolvedSchema resolvedSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
@@ -397,7 +397,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
+        .resolvedSchema(resolvedSchema)
         .writeParallelism(parallelism)
         .distributionMode(distributionMode)
         .append();

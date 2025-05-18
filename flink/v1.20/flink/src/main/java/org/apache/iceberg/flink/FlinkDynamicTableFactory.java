@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ObjectIdentifier;
@@ -37,7 +36,6 @@ import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
-import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.flink.source.IcebergTableSource;
@@ -90,7 +88,11 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> writeProps = resolvedCatalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(resolvedCatalogTable.getSchema());
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -104,7 +106,8 @@ public class FlinkDynamicTableFactory
               objectIdentifier.getObjectName());
     }
 
-    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration(), writeProps);
+    return new IcebergTableSink(
+        tableLoader, resolvedSchema, context.getConfiguration(), writeProps);
   }
 
   @Override
