@@ -533,7 +533,6 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
-| `max-files-to-rewrite` | null | This option sets an upper limit on the number of files eligible for rewrite operation. It can be useful for improving job stability, particularly when dealing with a large number of files. If this option is not specified, all files will be considered for rewriting |
 
 #### Output
 
@@ -867,11 +866,11 @@ that provide additional information about the changes being tracked. These colum
 Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
 second snapshot deleted 1 record. 
 
-|  id   | name    |_change_type |   _change_ordinal | _commit_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
-|1  | Alice  |INSERT    |0  |5390529835796506035|
-|2  | Bob      |INSERT  |0  |5390529835796506035|
-|1  | Alice  |DELETE    |1  |8764748981452218370|
+|1	| Alice	 |INSERT	|0	|5390529835796506035|
+|2	| Bob	   |INSERT	|0	|5390529835796506035|
+|1	| Alice  |DELETE	|1	|8764748981452218370|
 
 #### Net Changes
 
@@ -887,9 +886,9 @@ CALL spark_catalog.system.create_changelog_view(
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
 
-|  id   | name    |_change_type |   _change_ordinal | _commit_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
-|2  | Bob      |INSERT  |0  |5390529835796506035|
+|2	| Bob	   |INSERT	|0	|5390529835796506035|
 
 #### Carry-over Rows
 
