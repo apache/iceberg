@@ -39,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -422,44 +421,22 @@ public class TestMetadataUpdateParser {
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
-  /** RemoveSnapshot * */
-  @Test
-  public void testRemoveSnapshotFromJson() {
-    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    long snapshotId = 2L;
-    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotId);
-    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
-  }
-
-  @Test
-  public void testRemoveSnapshotToJson() {
-    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    long snapshotId = 2L;
-    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotId);
-    String actual = MetadataUpdateParser.toJson(update);
-    assertThat(actual)
-        .as("Remove snapshots should serialize to the correct JSON value")
-        .isEqualTo(expected);
-  }
-
   /** RemoveSnapshots * */
   @Test
   public void testRemoveSnapshotsFromJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
-    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    long snapshotId = 2L;
+    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshot(snapshotId);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
   @Test
   public void testRemoveSnapshotsToJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
-    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
-    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    long snapshotId = 2L;
+    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Remove snapshots should serialize to the correct JSON value")
@@ -1066,8 +1043,8 @@ public class TestMetadataUpdateParser {
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
         assertEqualsRemoveSnapshots(
-            (MetadataUpdate.RemoveSnapshots) expectedUpdate,
-            (MetadataUpdate.RemoveSnapshots) actualUpdate);
+            (MetadataUpdate.RemoveSnapshot) expectedUpdate,
+            (MetadataUpdate.RemoveSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef(
@@ -1279,10 +1256,10 @@ public class TestMetadataUpdateParser {
   }
 
   private static void assertEqualsRemoveSnapshots(
-      MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
-    assertThat(actual.snapshotIds())
+      MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
+    assertThat(actual.snapshotId())
         .as("Snapshots to remove should be the same")
-        .isEqualTo(expected.snapshotIds());
+        .isEqualTo(expected.snapshotId());
   }
 
   private static void assertEqualsSetSnapshotRef(
