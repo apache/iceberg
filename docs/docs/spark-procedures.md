@@ -533,7 +533,7 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
-| `max-files-to-rewrite` | null | This option sets an upper limit on the number of files eligible for rewrite operation. It can be useful for improving job stability, particularly when dealing with a large number of files. If this option is not specified, all files will be considered for rewriting |
+| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 #### Output
 
