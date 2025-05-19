@@ -73,10 +73,8 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
                 appenderFactory.set(
                     TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
                     MetricsModes.None.get().toString()))
-        .as("Should not allow setting metrics property if the table was provided")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot set metrics properties when the table is provided, use table properties instead");
+        .hasMessageContaining("Cannot set metrics properties, use table properties instead");
   }
 
   @TestTemplate
@@ -92,10 +90,8 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
             MetricsModes.Full.get().toString());
 
     assertThatThrownBy(() -> appenderFactory.setAll(properties))
-        .as("Should not allow setting metrics property if the table was provided")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot set metrics properties when the table is provided, use table properties instead");
+        .hasMessageContaining("Cannot set metrics properties, use table properties instead");
   }
 
   @TestTemplate
@@ -108,16 +104,18 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   }
 
   @TestTemplate
-  void setConfigWithoutTable() {
+  void setConfigContainsMetricsConfig() {
     GenericAppenderFactory appenderFactory = new GenericAppenderFactory(SCHEMA);
-    assertThatNoException()
-        .isThrownBy(
-            () -> appenderFactory.set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "10"));
-    assertThatNoException()
-        .isThrownBy(
+    assertThatThrownBy(
+            () -> appenderFactory.set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "10"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set metrics properties, use table properties instead");
+    assertThatThrownBy(
             () ->
                 appenderFactory.setAll(
-                    ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")));
+                    ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set metrics properties, use table properties instead");
   }
 
   @TestTemplate
@@ -133,7 +131,6 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
     assertThatThrownBy(
             () -> new GenericAppenderFactory(table, SCHEMA, SPEC, config, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot set metrics properties when the table is provided, use table properties instead");
+        .hasMessageContaining("Cannot set metrics properties, use table properties instead");
   }
 }
