@@ -26,13 +26,13 @@ import org.apache.iceberg.io.DataWriter;
  * Builder for generating a {@link DataWriter}.
  *
  * @param <B> type of the builder
- * @param <E> engine specific schema of the input records used for appender initialization
+ * @param <E> engine-specific schema of the input records used for appender initialization
  */
 public interface DataWriteBuilder<B extends DataWriteBuilder<B, E>, E>
-    extends FileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilderBase<B, E> {
   /**
    * Creates a writer which generates a {@link org.apache.iceberg.DataFile} based on the
-   * configurations. The data writer will expect inputs defined by the {@link #engineSchema(Object)}
+   * configurations. The data writer will expect inputs defined by the {@link #dataSchema(Object)}
    * which should be convertible to the Iceberg schema defined by {@link #schema(Schema)}.
    *
    * @param <D> the type of data that the writer will handle

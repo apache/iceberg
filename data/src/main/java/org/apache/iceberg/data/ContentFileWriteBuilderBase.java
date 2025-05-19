@@ -21,36 +21,38 @@ package org.apache.iceberg.data;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAppender;
 
 /**
  * Builder for generating one of the following:
  *
  * <ul>
- *   <li>{@link FileAppender}
  *   <li>{@link DataWriter}
  *   <li>{@link EqualityDeleteWriter}
  *   <li>{@link PositionDeleteWriter}
  * </ul>
  *
  * @param <B> type of the builder
- * @param <E> engine specific schema of the input records used for appender initialization
+ * @param <E> engine-specific schema of the input records used for appender initialization
  */
-interface WriteBuilderBase<B extends WriteBuilderBase<B, E>, E> {
+interface ContentFileWriteBuilderBase<B extends ContentFileWriteBuilderBase<B, E>, E> {
 
   /** Set the file schema. */
   B schema(Schema newSchema);
 
   /**
-   * Sets the engine specific schema for the input. Used by the {@link AppenderBuilder#build()} to
-   * configure the engine specific converters.
+   * Sets the engine-specific schema for the input. Used by the {@link AppenderBuilder#build()} to
+   * configure the engine-specific converters.
    */
-  B engineSchema(E engineSchema);
+  B dataSchema(E engineSchema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -93,14 +95,26 @@ interface WriteBuilderBase<B extends WriteBuilderBase<B, E>, E> {
   B overwrite();
 
   /**
-   * Sets the encryption key used for writing the file. If encryption is not supported by the writer
+   * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
   B fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
-   * Sets the additional authentication data prefix used for writing the file. If encryption is not
-   * supported by the writer then an exception should be thrown.
+   * Sets the additional authentication data prefix used for writing the file. If the writer does
+   * not support encryption, then an exception should be thrown.
    */
   B aadPrefix(ByteBuffer aadPrefix);
+
+  /** Sets the partition specification for the Iceberg metadata. */
+  B spec(PartitionSpec newSpec);
+
+  /** Sets the partition value for the Iceberg metadata. */
+  B partition(StructLike newPartition);
+
+  /** Sets the encryption key metadata for Iceberg metadata. */
+  B keyMetadata(EncryptionKeyMetadata metadata);
+
+  /** Sets the sort order for the Iceberg metadata. */
+  B sortOrder(SortOrder newSortOrder);
 }

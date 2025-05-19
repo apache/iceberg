@@ -56,7 +56,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * WriteBuilder} to provide the required functionality.
  *
  * @param <A> type of the appender
- * @param <E> engine specific schema of the input records used for appender initialization
+ * @param <E> engine-specific schema of the input records used for appender initialization
  */
 @SuppressWarnings("unchecked")
 class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A, E>, E>
@@ -86,8 +86,8 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
   }
 
   @Override
-  public B engineSchema(E engineSchema) {
-    appenderBuilder.engineSchema(engineSchema);
+  public B dataSchema(E engineSchema) {
+    appenderBuilder.dataSchema(engineSchema);
     return (B) this;
   }
 
@@ -140,43 +140,43 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
   }
 
   @Override
-  public B withRowSchema(Schema newSchema) {
+  public B rowSchema(Schema newSchema) {
     this.rowSchema = newSchema;
     return (B) this;
   }
 
   @Override
-  public B withEqualityFieldIds(List<Integer> fieldIds) {
+  public B equalityFieldIds(List<Integer> fieldIds) {
     this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
     return (B) this;
   }
 
   @Override
-  public B withEqualityFieldIds(int... fieldIds) {
+  public B equalityFieldIds(int... fieldIds) {
     this.equalityFieldIds = fieldIds;
     return (B) this;
   }
 
   @Override
-  public B withSpec(PartitionSpec newSpec) {
+  public B spec(PartitionSpec newSpec) {
     this.spec = newSpec;
     return (B) this;
   }
 
   @Override
-  public B withPartition(StructLike newPartition) {
+  public B partition(StructLike newPartition) {
     this.partition = newPartition;
     return (B) this;
   }
 
   @Override
-  public B withKeyMetadata(EncryptionKeyMetadata metadata) {
+  public B keyMetadata(EncryptionKeyMetadata metadata) {
     this.keyMetadata = metadata;
     return (B) this;
   }
 
   @Override
-  public B withSortOrder(SortOrder newSortOrder) {
+  public B sortOrder(SortOrder newSortOrder) {
     this.sortOrder = newSortOrder;
     return (B) this;
   }

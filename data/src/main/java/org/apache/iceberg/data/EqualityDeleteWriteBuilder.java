@@ -28,23 +28,23 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
  * Builder for generating an {@link EqualityDeleteWriter}.
  *
  * @param <B> type of the builder
- * @param <E> engine specific schema of the input records used for appender initialization
+ * @param <E> engine-specific schema of the input records used for appender initialization
  */
 public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, E>, E>
-    extends FileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilderBase<B, E> {
   /** Sets the row schema for the delete writers. */
-  B withRowSchema(Schema newSchema);
+  B rowSchema(Schema newSchema);
 
   /** Sets the equality field ids for the equality delete writer. */
-  B withEqualityFieldIds(List<Integer> fieldIds);
+  B equalityFieldIds(List<Integer> fieldIds);
 
   /** Sets the equality field ids for the equality delete writer. */
-  B withEqualityFieldIds(int... fieldIds);
+  B equalityFieldIds(int... fieldIds);
 
   /**
    * Creates a writer which generates an equality {@link DeleteFile} based on the configurations.
-   * The writer will expect inputs defined by the {@link #engineSchema(Object)} which should be
-   * convertible to the Iceberg schema defined by {@link #withRowSchema(Schema)}.
+   * The writer will expect inputs defined by the {@link #dataSchema(Object)} which should be
+   * convertible to the Iceberg schema defined by {@link #rowSchema(Schema)}.
    *
    * @param <D> the type of data that the writer will handle
    * @return a {@link EqualityDeleteWriter} instance configured with the specified settings

@@ -34,7 +34,7 @@ import org.apache.iceberg.mapping.NameMapping;
  * @param <B> type returned by builder API to allow chained calls
  */
 public interface ReadBuilder<B extends ReadBuilder<B>> {
-  /** The configuration key for the batch size in case of vectorized reads. */
+  /** The configuration key for the batch size in the case of vectorized reads. */
   String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
 
   /**
@@ -50,9 +50,9 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
-   * records. Some readers might not be able to filter some part of the expression. In this case the
-   * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
-   * apply the filter again.
+   * records. Some readers might not be able to filter some parts of the expression. In this case
+   * the reader might return unfiltered or partially filtered rows. It is the caller's
+   * responsibility to apply the filter again.
    *
    * @param newFilter the filter to set
    * @param filterCaseSensitive whether the filtering is case-sensitive or not
@@ -85,7 +85,7 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
 
   /**
    * Enables reusing the containers returned by the reader. Decreases pressure on GC. Readers could
-   * decide to ignore the user provided setting if is not supported by them.
+   * decide to ignore the user-provided setting if it is not supported by them.
    */
   default B reuseContainers() {
     // Skip container reuse configuration if not applicable
@@ -94,27 +94,27 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
 
   /**
    * Accessors for constant field values. Used for calculating values in the result which are coming
-   * from metadata, and not coming from the data files themselves. The keys of the map are the
-   * column ids, the values are the accessors generating the values.
+   * from metadata and not coming from the data files themselves. The keys of the map are the column
+   * ids, the values are the accessors generating the values.
    */
   B constantFieldAccessors(Map<Integer, ?> constantFieldAccessors);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
-  B withNameMapping(NameMapping newNameMapping);
+  B nameMapping(NameMapping newNameMapping);
 
   /**
-   * Sets the file encryption key used for reading the file. If encryption is not supported by the
-   * reader then an exception should be thrown.
+   * Sets the file encryption key used for reading the file. If the reader does not support
+   * encryption, then an exception should be thrown.
    */
-  default B withFileEncryptionKey(ByteBuffer encryptionKey) {
+  default B fileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
   /**
-   * Sets the additional authentication data prefix for encryption. If encryption is not supported
-   * by the reader then an exception should be thrown.
+   * Sets the additional authentication data prefix for encryption. If the reader does not support
+   * encryption, then an exception should be thrown.
    */
-  default B withAADPrefix(ByteBuffer aadPrefix) {
+  default B aadPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 
@@ -30,14 +31,14 @@ import org.apache.iceberg.Schema;
  *
  * <ul>
  *   <li>file format
- *   <li>engine specific object model
- *   <li>{@link ObjectModel.WriteMode}
+ *   <li>engine-specific object model
+ *   <li>{@link FileContent}
  * </ul>
  *
  * The {@link AppenderBuilder} is used to write data to the target files.
  *
  * @param <B> type returned by builder API to allow chained calls
- * @param <E> the engine specific schema of the input data
+ * @param <E> the engine-specific schema of the input data for the appender
  */
 public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   /** Set the file schema. */
@@ -82,7 +83,7 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   B overwrite(boolean enabled);
 
   /**
-   * Sets the encryption key used for writing the file. If encryption is not supported by the reader
+   * Sets the encryption key used for writing the file. If the reader does not support encryption,
    * then an exception should be thrown.
    */
   default B fileEncryptionKey(ByteBuffer encryptionKey) {
@@ -90,8 +91,8 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   }
 
   /**
-   * Sets the additional authentication data prefix used for writing the file. If encryption is not
-   * supported by the reader then an exception should be thrown.
+   * Sets the additional authentication data (aad) prefix used for writing the file. If the reader
+   * does not support encryption, then an exception should be thrown.
    */
   default B aadPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
@@ -102,7 +103,7 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
    * mapping between the engine type and the Iceberg type, and providing the Iceberg schema is not
    * enough for the conversion.
    */
-  B engineSchema(E newEngineSchema);
+  B dataSchema(E newEngineSchema);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   <D> FileAppender<D> build() throws IOException;

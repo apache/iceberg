@@ -27,19 +27,19 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
  * Builder for generating an {@link PositionDeleteWriter}.
  *
  * @param <B> type of the builder
- * @param <E> engine specific schema of the input records used for appender initialization
+ * @param <E> engine-specific schema of the input records used for appender initialization
  */
 public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder<B, E>, E>
-    extends FileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilderBase<B, E> {
   /** Sets the row schema for the delete writers. */
-  B withRowSchema(Schema newSchema);
+  B rowSchema(Schema newSchema);
 
   /**
    * Creates a writer which generates a position {@link DeleteFile} based on the configurations. The
    * writer will expect {@link org.apache.iceberg.deletes.PositionDelete} records. If {@link
-   * #withRowSchema(Schema)} is set then the positional delete records should contain deleted rows
-   * specified by the {@link #engineSchema(Object)}. The provided engine schema should be
-   * convertible to the Iceberg schema defined by {@link #withRowSchema(Schema)}.
+   * #rowSchema(Schema)} is set then the positional delete records should contain deleted rows
+   * specified by the {@link #dataSchema(Object)} (Object)}. The provided engine schema should be
+   * convertible to the Iceberg schema defined by {@link #rowSchema(Schema)} (Schema)}.
    *
    * @param <D> the type of data that the writer will handle
    * @return a {@link PositionDeleteWriter} instance configured with the specified settings
