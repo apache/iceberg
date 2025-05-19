@@ -70,7 +70,7 @@ public final class MetricsConfig implements Serializable {
     return DEFAULT;
   }
 
-  public static MetricsConfig getDefaultForPosDelete() {
+  public static MetricsConfig defaultForPosDelete() {
     return DEFAULT_POS_DELETE;
   }
 

@@ -92,12 +92,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       Schema posDeleteRowSchema) {
     this.table = table;
     this.config = config == null ? Maps.newHashMap() : config;
+    validateMetricsConfig(this.config);
 
     if (table != null) {
       // If the table is provided and schema and spec are not provided, derive them from the table
       this.schema = schema == null ? table.schema() : schema;
       this.spec = spec == null ? table.spec() : spec;
-      validateMetricsConfig(this.config);
     } else {
       this.schema = schema;
       this.spec = spec;
@@ -248,7 +248,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null
             ? MetricsConfig.forPositionDelete(table)
-            : MetricsConfig.getDefaultForPosDelete();
+            : MetricsConfig.defaultForPosDelete();
 
     try {
       switch (format) {
@@ -296,13 +296,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   private void validateMetricsConfig(Map<String, String> writeConfig) {
-    if (table == null) {
-      return;
-    }
-
     if (writeConfig.keySet().stream().anyMatch(k -> k.startsWith("write.metadata.metrics."))) {
       throw new IllegalArgumentException(
-          "Cannot set metrics properties when the table is provided, use table properties instead");
+          "Cannot set metrics properties, use table properties instead");
     }
   }
 }
