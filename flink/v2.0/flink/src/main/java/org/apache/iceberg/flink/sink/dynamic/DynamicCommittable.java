@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.sink.IcebergCommittableSerializer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -67,6 +69,22 @@ class DynamicCommittable implements Serializable {
 
   Long checkpointId() {
     return checkpointId;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == null || getClass() != o.getClass()) return false;
+    DynamicCommittable that = (DynamicCommittable) o;
+    return checkpointId == that.checkpointId
+        && Objects.equals(key, that.key)
+        && Objects.deepEquals(manifest, that.manifest)
+        && Objects.equals(jobId, that.jobId)
+        && Objects.equals(operatorId, that.operatorId);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(key, Arrays.hashCode(manifest), jobId, operatorId, checkpointId);
   }
 
   @Override
