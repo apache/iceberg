@@ -25,6 +25,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundTransform;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -112,12 +113,10 @@ public class PartitionSpecEvolution {
 
     @Override
     public String toString() {
-      return "PartitionSpecChanges{"
-          + "termsToAdd="
-          + termsToAdd
-          + ", termsToRemove="
-          + termsToRemove
-          + '}';
+      return MoreObjects.toStringHelper(PartitionSpecEvolution.class)
+          .add("termsToAdd", termsToAdd)
+          .add("termsToRemove", termsToRemove)
+          .toString();
     }
   }
 

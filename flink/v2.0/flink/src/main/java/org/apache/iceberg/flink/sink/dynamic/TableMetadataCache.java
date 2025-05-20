@@ -35,10 +35,15 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * TableMetadataCache is responsible for caching table metadata to avoid hitting the catalog too
+ * frequently. We store table identifier, schema, partition spec, and a set of past schema
+ * comparison results of the active table schema against the last input schemas.
+ */
 @Internal
-class TableDataCache {
+class TableMetadataCache {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TableDataCache.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TableMetadataCache.class);
   private static final int MAX_SIZE = 10;
   private static final Tuple2<Boolean, Exception> EXISTS = Tuple2.of(true, null);
   private static final Tuple2<Boolean, Exception> NOT_EXISTS = Tuple2.of(false, null);
@@ -49,7 +54,7 @@ class TableDataCache {
   private final long refreshMs;
   private final Cache<TableIdentifier, CacheItem> cache;
 
-  TableDataCache(Catalog catalog, int maximumSize, long refreshMs) {
+  TableMetadataCache(Catalog catalog, int maximumSize, long refreshMs) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
     this.cache = Caffeine.newBuilder().maximumSize(maximumSize).build();

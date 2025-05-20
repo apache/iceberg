@@ -29,6 +29,26 @@ import org.apache.iceberg.types.Types;
 /**
  * Visitor class that accumulates the set of changes needed to evolve an existing schema into the
  * target schema. Changes are applied to an {@link UpdateSchema} operation.
+ *
+ * <p>We support:
+ *
+ * <ul>
+ *   <li>Adding new columns
+ *   <li>Widening the type of existing columsn
+ *   <li>Reordering columns
+ * </ul>
+ *
+ * We don't support:
+ *
+ * <ul>
+ *   <li>Dropping columns
+ *   <li>Renaming columns
+ * </ul>
+ *
+ * The reason is that dropping columns would create issues with late / out of order data. Once we
+ * drop fields, we wouldn't be able to easily add them back later without losing the associated
+ * data. Renaming columns is not supported because we compare schemas by name, which doesn't allow
+ * for renaming without additional hints.
  */
 public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boolean> {
 

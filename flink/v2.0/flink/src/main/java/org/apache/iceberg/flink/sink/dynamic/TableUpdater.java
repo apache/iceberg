@@ -39,10 +39,10 @@ import org.slf4j.LoggerFactory;
 class TableUpdater {
 
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
-  private final TableDataCache cache;
+  private final TableMetadataCache cache;
   private final Catalog catalog;
 
-  TableUpdater(TableDataCache cache, Catalog catalog) {
+  TableUpdater(TableMetadataCache cache, Catalog catalog) {
     this.cache = cache;
     this.catalog = catalog;
   }
@@ -183,18 +183,19 @@ class TableUpdater {
     try {
       updater.commit();
     } catch (CommitFailedException e) {
-      LOG.info(
-          "Partition spec update failed for {} from {} to {}",
-          identifier,
-          currentSpec,
-          targetSpec,
-          e);
+      cache.invalidate(identifier);
       PartitionSpec newSpec = cache.spec(identifier, targetSpec);
       result = PartitionSpecEvolution.evolve(targetSpec, newSpec);
       if (result.isEmpty()) {
-        LOG.info("Table {} partition spec updated concurrently to {}", identifier, newSpec);
+        LOG.debug("Table {} partition spec updated concurrently to {}", identifier, newSpec);
         return newSpec;
       } else {
+        LOG.error(
+            "Partition spec update failed for {} from {} to {}",
+            identifier,
+            currentSpec,
+            targetSpec,
+            e);
         throw e;
       }
     }

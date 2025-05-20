@@ -29,7 +29,7 @@ import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestTableDataCache extends TestFlinkIcebergSinkBase {
+public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
   static final Schema SCHEMA =
       new Schema(
@@ -47,14 +47,14 @@ public class TestTableDataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableDataCache cache = new TableDataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
 
     Schema schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
     assertThat(cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).f0)
         .isEqualTo(schema1);
 
-    assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableDataCache.NOT_FOUND);
+    assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableMetadataCache.NOT_FOUND);
 
     schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
     assertThat(cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).f0)
@@ -66,7 +66,7 @@ public class TestTableDataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableDataCache cache = new TableDataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
     Schema schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
@@ -85,7 +85,7 @@ public class TestTableDataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableDataCache cache = new TableDataCache(catalog, 0, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE);
 
     // Cleanup routine doesn't run after every write
     cache.getInternalCache().cleanUp();

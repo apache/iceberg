@@ -46,7 +46,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableDataCache cache = new TableDataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
     cache.schema(tableIdentifier, SCHEMA);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
@@ -61,7 +61,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableDataCache cache = new TableDataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
     // Initialize cache

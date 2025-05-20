@@ -26,7 +26,19 @@ import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-/** Visitor class which compares two schemas and decides whether they are compatible. */
+/**
+ * Visitor class which compares an input schema to a table schema and emits a compatibility {@link
+ * Result}.
+ *
+ * <ul>
+ *   <li>SAME: The two schemas are semantically identical
+ *   <li>CONVERSION_NEEDED: We can evolve the data associated with the input schema to match the
+ *       table schema.
+ *   <li>INCOMPATIBLE: We need to migrate the table schema to match the input schema.
+ * </ul>
+ *
+ * The input schema fields are compared to the table schema via their names.
+ */
 public class CompareSchemasVisitor
     extends SchemaWithPartnerVisitor<Integer, CompareSchemasVisitor.Result> {
 
