@@ -138,9 +138,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         valuesRead += 1;
 
         return last;
-      }
-      catch (ParquetDecodingException e) {
-        if(reader != null) {
+      } catch (ParquetDecodingException e) {
+        if (reader != null) {
           // Knowing the exact parquet file is essential for tracing bad nodes
           // that produced the corrupt file, parquet lib doesn't do this today.
           LOG.error("Error decoding Parquet file {}", reader.getFile(), e);
