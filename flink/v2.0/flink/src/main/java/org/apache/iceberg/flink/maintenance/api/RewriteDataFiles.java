@@ -171,6 +171,18 @@ public class RewriteDataFiles {
     }
 
     /**
+     * Configures max files to rewrite. See {@link BinPackRewriteFilePlanner#MAX_FILES_TO_REWRITE}
+     * for more details.
+     *
+     * @param maxFilesToRewrite maximum files to rewrite
+     */
+    public Builder maxFilesToRewrite(int maxFilesToRewrite) {
+      this.rewriteOptions.put(
+          BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, String.valueOf(maxFilesToRewrite));
+      return this;
+    }
+
+    /**
      * The input is a {@link DataStream} with {@link Trigger} events and every event should be
      * immediately followed by a {@link Watermark} with the same timestamp as the event.
      *

@@ -170,6 +170,12 @@ public class RewriteDataFiles {
       return this;
     }
 
+    /**
+     * Configures max files to rewrite. See {@link BinPackRewriteFilePlanner#MAX_FILES_TO_REWRITE}
+     * for more details.
+     *
+     * @param maxFilesToRewrite maximum files to rewrite
+     */
     public Builder maxFilesToRewrite(int maxFilesToRewrite) {
       this.rewriteOptions.put(
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, String.valueOf(maxFilesToRewrite));
