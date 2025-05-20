@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
@@ -75,6 +76,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
@@ -419,6 +421,39 @@ public class IcebergSink
     }
 
     /**
+     * If sort order contains partition columns, each sort key would map to one partition and data
+     * file. This relative weight can avoid placing too many small files for sort keys with low
+     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * each key has a base weight of `2%` of the targeted traffic weight per writer task.
+     *
+     * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
+     * contains events from now up to 180 days ago. With event time, traffic weight distribution
+     * across different days typically has a long tail pattern. Current day contains the most
+     * traffic. The older days (long tail) contain less and less traffic. Assume writer parallelism
+     * is `10`. The total weight across all 180 days is `10,000`. Target traffic weight per writer
+     * task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`. Normally,
+     * the range partitioner would put all the oldest 150 days in one writer task. That writer task
+     * would write to 150 small files (one per day). Keeping 150 open files can potentially consume
+     * large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
+     * can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+     * base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
+     * avoid placing more than `50` data files (one per day) on one writer task no matter how small
+     * they are.
+     *
+     * <p>This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
+     * {@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
+     * partition columns. Otherwise, too many partitions and small files may be generated during
+     * write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.
+     *
+     * <p>Default is {@code 0.0%}.
+     */
+    public Builder rangeDistributionSortKeyBaseWeight(double weight) {
+      writeOptions.put(
+          FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key(), Double.toString(weight));
+      return this;
+    }
+
+    /**
      * Configuring the write parallel number for iceberg stream writer.
      *
      * @param newWriteParallelism the number of parallel iceberg stream writer.
@@ -692,40 +727,34 @@ public class IcebergSink
   }
 
   private DataStream<RowData> distributeDataStreamByNoneDistributionMode(
-      DataStream<RowData> input, Schema schema) {
+      DataStream<RowData> input, Schema iSchema) {
     if (equalityFieldIds.isEmpty()) {
       return input;
     } else {
       LOG.info("Distribute rows by equality fields, because there are equality fields set");
-      return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
+      return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
     }
   }
 
   private DataStream<RowData> distributeDataStreamByHashDistributionMode(
-      DataStream<RowData> input, Schema schema, PartitionSpec spec) {
+      DataStream<RowData> input, Schema iSchema, PartitionSpec partitionSpec) {
     if (equalityFieldIds.isEmpty()) {
-      if (table.spec().isUnpartitioned()) {
+      if (partitionSpec.isUnpartitioned()) {
         LOG.warn(
             "Fallback to use 'none' distribution mode, because there are no equality fields set "
                 + "and table is unpartitioned");
         return input;
       } else {
-        if (BucketPartitionerUtil.hasOneBucketField(spec)) {
-          return input.partitionCustom(
-              new BucketPartitioner(spec),
-              new BucketPartitionKeySelector(spec, schema, flinkRowType));
-        } else {
-          return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
-        }
+        return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
       }
     } else {
-      if (spec.isUnpartitioned()) {
+      if (partitionSpec.isUnpartitioned()) {
         LOG.info(
             "Distribute rows by equality fields, because there are equality fields set "
                 + "and table is unpartitioned");
-        return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
+        return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
       } else {
-        for (PartitionField partitionField : spec.fields()) {
+        for (PartitionField partitionField : partitionSpec.fields()) {
           Preconditions.checkState(
               equalityFieldIds.contains(partitionField.sourceId()),
               "In 'hash' distribution mode with equality fields set, partition field '%s' "
@@ -733,18 +762,24 @@ public class IcebergSink
               partitionField,
               equalityFieldColumns);
         }
-        return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
+        return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
       }
     }
   }
 
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
-      DataStream<RowData> input, Schema schema, PartitionSpec spec, SortOrder sortOrderParam) {
+      DataStream<RowData> input,
+      Schema iSchema,
+      PartitionSpec partitionSpec,
+      SortOrder sortOrderParam) {
 
     int writerParallelism =
         flinkWriteConf.writeParallelism() == null
             ? input.getParallelism()
             : flinkWriteConf.writeParallelism();
+
+    // needed because of checkStyle not allowing us to change the value of an argument
+    SortOrder sortOrder = sortOrderParam;
 
     // Ideally, exception should be thrown in the combination of range distribution and
     // equality fields. Primary key case should use hash distribution mode.
@@ -755,43 +790,54 @@ public class IcebergSink
               + "Range distribution for primary keys are not always safe in "
               + "Flink streaming writer.",
           WRITE_DISTRIBUTION_MODE);
-      return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
+      return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
     }
 
-    SortOrder sortOrder = sortOrderParam;
     // range distribute by partition key or sort key if table has an SortOrder
     Preconditions.checkState(
-        sortOrder.isSorted() || spec.isPartitioned(),
+        sortOrder.isSorted() || partitionSpec.isPartitioned(),
         "Invalid write distribution mode: range. Need to define sort order or partition spec.");
     if (sortOrder.isUnsorted()) {
-      sortOrder = Partitioning.sortOrderFor(spec);
+      sortOrder = Partitioning.sortOrderFor(partitionSpec);
       LOG.info("Construct sort order from partition spec");
     }
 
     LOG.info("Range distribute rows by sort order: {}", sortOrder);
+    StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+        new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
     StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
     SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
         input
             .transform(
                 operatorName("range-shuffle"),
-                TypeInformation.of(StatisticsOrRecord.class),
+                statisticsOrRecordTypeInformation,
                 new DataStatisticsOperatorFactory(
-                    schema,
+                    iSchema,
                     sortOrder,
                     writerParallelism,
                     statisticsType,
                     flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
-            // Set slotSharingGroup and same parallelism as input operator to force chaining
-            .slotSharingGroup("input-and-shuffle-chain")
+            // Set the parallelism same as input operator to encourage chaining
             .setParallelism(input.getParallelism());
+
     if (uidSuffix != null) {
       shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
     }
 
     return shuffleStream
-        .partitionCustom(new RangePartitioner(schema, sortOrder), r -> r)
-        .filter(StatisticsOrRecord::hasRecord)
-        .map(StatisticsOrRecord::record);
+        .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
+        .flatMap(
+            (FlatMapFunction<StatisticsOrRecord, RowData>)
+                (statisticsOrRecord, out) -> {
+                  if (statisticsOrRecord.hasRecord()) {
+                    out.collect(statisticsOrRecord.record());
+                  }
+                })
+        // Set slot sharing group and the parallelism same as writerParallelism to
+        // promote operator chaining with the downstream writer operator
+        .slotSharingGroup("shuffle-partition-custom-group")
+        .setParallelism(writerParallelism)
+        .returns(RowData.class);
   }
 
   /**

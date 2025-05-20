@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,9 +31,6 @@ import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.graph.StreamEdge;
-import org.apache.flink.streaming.api.graph.StreamNode;
-import org.apache.flink.streaming.runtime.partitioner.CustomPartitionerWrapper;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
@@ -55,7 +51,6 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.IcebergSink.Builder;
-import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -148,90 +143,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   @TestTemplate
   void testWriteRowWithTableSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
-  }
-
-  @TestTemplate
-  void testWriteRowWithTableSchemaRANGE() throws Exception {
-    if (partitioned) {
-      testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.RANGE);
-    }
-  }
-
-  @TestTemplate
-  void testRangePartitionedIsSet() throws Exception {
-    if (partitioned) {
-      List<Row> rows = createRows("");
-      DataStream<Row> dataStream =
-          env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
-
-      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-          .table(table)
-          .tableLoader(tableLoader)
-          .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-          .writeParallelism(parallelism)
-          .distributionMode(DistributionMode.RANGE)
-          .append();
-
-      boolean found = false;
-      for (StreamNode node : env.getStreamGraph().getStreamNodes()) {
-        for (StreamEdge edge : node.getOutEdges()) {
-          if (edge.getPartitioner() instanceof CustomPartitionerWrapper) {
-            CustomPartitionerWrapper wrapper = (CustomPartitionerWrapper) edge.getPartitioner();
-            try {
-              Field privatePartitionerField =
-                  CustomPartitionerWrapper.class.getDeclaredField("partitioner");
-              privatePartitionerField.setAccessible(true);
-              Object wrappedPartitionerObject = privatePartitionerField.get(wrapper);
-              if (wrappedPartitionerObject instanceof RangePartitioner) {
-                found = true;
-              }
-            } catch (Exception e) {
-              throw new RuntimeException(e);
-            }
-          }
-        }
-      }
-      assertThat(found).as("RangePartitioner was found").isTrue();
-    }
-  }
-
-  @TestTemplate
-  void testJobNoneDistributeMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, DistributionMode.NONE);
-
-    if (parallelism > 1) {
-      if (partitioned) {
-        int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
-        assertThat(files).as("Should have more than 3 files in iceberg table.").isGreaterThan(3);
-      }
-    }
-  }
-
-  @TestTemplate
-  void testJobNullDistributionMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, null);
-
-    if (partitioned) {
-      assertThat(partitionFiles("aaa"))
-          .as("There should be only 1 data file in partition 'aaa'")
-          .isEqualTo(1);
-      assertThat(partitionFiles("bbb"))
-          .as("There should be only 1 data file in partition 'bbb'")
-          .isEqualTo(1);
-      assertThat(partitionFiles("ccc"))
-          .as("There should be only 1 data file in partition 'ccc'")
-          .isEqualTo(1);
-    }
   }
 
   @TestTemplate
@@ -347,25 +258,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(rightTable.currentSnapshot().summary().get("flink.test"))
         .isEqualTo(TestIcebergSink.class.getName());
     assertThat(rightTable.currentSnapshot().summary().get("direction")).isEqualTo("rightTable");
-  }
-
-  @TestTemplate
-  void testOverrideWriteConfigWithUnknownDistributionMode() {
-    Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
-
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .setAll(newProps)
-        .append();
-
-    assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @TestTemplate
