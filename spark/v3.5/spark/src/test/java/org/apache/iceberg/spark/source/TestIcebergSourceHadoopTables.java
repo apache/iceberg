@@ -36,7 +36,7 @@ public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
   String tableLocation = null;
 
   @BeforeEach
-  public void setupTable() throws Exception {
+  public void setupTable() {
     this.tableLocation = tableDir.toURI().toString();
   }
 

@@ -174,6 +174,9 @@ public class TableProperties {
   public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
       "write.parquet.bloom-filter-enabled.column.";
 
+  public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
+      "write.parquet.stats-enabled.column.";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
@@ -388,11 +391,4 @@ public class TableProperties {
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
-
-  /**
-   * Property to enable row lineage.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated public static final String ROW_LINEAGE = "row-lineage";
 }

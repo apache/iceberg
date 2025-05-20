@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -33,7 +34,9 @@ import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
 
   @BeforeEach

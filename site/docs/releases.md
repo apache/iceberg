@@ -29,8 +29,6 @@ The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apach
 * [{{ icebergVersion }} Spark 3.5\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.13-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Spark 3.4\_with Scala 2.12 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.12-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Spark 3.4\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.13-{{ icebergVersion }}.jar)
-* [{{ icebergVersion }} Spark 3.3\_with Scala 2.12 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.3_2.12-{{ icebergVersion }}.jar)
-* [{{ icebergVersion }} Spark 3.3\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.3_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.3_2.13-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.20 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.19 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.18 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar)
@@ -69,6 +67,81 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.9.0 release
+
+Apache Iceberg 1.9.0 was released on April 28, 2025.
+
+The 1.9.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.9.0)
+
+* Deprecation / End of Support
+    - Spark: Remove Spark 3.3 support ([\#12279](https://github.com/apache/iceberg/pull/12279))
+    - Build: Remove Hadoop 2 ([\#12348](https://github.com/apache/iceberg/pull/12348))
+* Spec
+    - Spec: Support geo type ([\#10981](https://github.com/apache/iceberg/pull/10981))
+    - Spec: Allow Equality Deletes with Row Lineage and Define Behavior ([\#12230](https://github.com/apache/iceberg/pull/12230))
+    - Spec: Add implementation note on `current-snapshot-id` ([\#12334](https://github.com/apache/iceberg/pull/12334))
+    - Spec: update to reflect lineage is required ([\#12580](https://github.com/apache/iceberg/pull/12580))
+    - Spec: Update row lineage requirements for upgrading tables ([\#12781](https://github.com/apache/iceberg/pull/12781))
+    - Spec: Clarify variant lower/upper bounds ([\#12658](https://github.com/apache/iceberg/pull/12658))
+    - Spec: Allow the use of source-id in V3 ([\#12644](https://github.com/apache/iceberg/pull/12644))
+* API
+    - Support default values in UpdateSchema ([\#12211](https://github.com/apache/iceberg/pull/12211))
+    - Move variant to API and add extract expression ([\#12304](https://github.com/apache/iceberg/pull/12304))
+    - Implement Variant#toString ([\#12531](https://github.com/apache/iceberg/pull/12531))
+* Core
+    - Add partition stats writer and reader ([\#11216](https://github.com/apache/iceberg/pull/11216))
+    - Auth Manager API enablement ([\#12197](https://github.com/apache/iceberg/pull/12197))
+    - Add InternalData read and write builders ([\#12060](https://github.com/apache/iceberg/pull/12060))
+    - Enable row lineage for all v3 tables ([\#12593](https://github.com/apache/iceberg/pull/12593))
+    - FileRewritePlanner implementation ([\#12493](https://github.com/apache/iceberg/pull/12493))
+    - Interface changes for separating rewrite planner and runner ([\#12306](https://github.com/apache/iceberg/pull/12306))
+    - Add variant type support to utils and visitors ([\#11831](https://github.com/apache/iceberg/pull/11831))
+    - Add Variant logical type for Avro ([\#12238](https://github.com/apache/iceberg/pull/12238))
+    - Add variant readers and writers ([\#12457](https://github.com/apache/iceberg/pull/12457))
+    - Remove namespace/table/view HEAD endpoints from defaults ([\#12351](https://github.com/apache/iceberg/pull/12351))
+    - Support nanosecond timestamps and unknown types ([\#12455](https://github.com/apache/iceberg/pull/12455))
+    - Write null for `current-snapshot-id` for V3+ ([\#12335](https://github.com/apache/iceberg/pull/12335))
+    - Apply correct metric configs in GenericAppenderFactory ([\#12366](https://github.com/apache/iceberg/pull/12366))
+    - Close FileIO instance in JdbcCatalog ([\#12540](https://github.com/apache/iceberg/pull/12540))
+    - Add view-override catalog property ([\#12534](https://github.com/apache/iceberg/pull/12534))
+    - Use InternalData with Avro for readers ([\#12476](https://github.com/apache/iceberg/pull/12476))
+    - Fix missing data when writing unknown ([\#12581](https://github.com/apache/iceberg/pull/12581))
+    - Bulk deletion in RemoveSnapshots ([\#11837](https://github.com/apache/iceberg/pull/11837))
+    - Add update event for rewrite manifests ([\#12627](https://github.com/apache/iceberg/pull/12627))
+    - Add commit metrics for rewriting manifests ([\#12630](https://github.com/apache/iceberg/pull/12630))
+    - Add geometry and geography types support ([\#12346](https://github.com/apache/iceberg/pull/12346))
+    - Add MetricsReporter for SnapshotManager ([\#12665](https://github.com/apache/iceberg/pull/12665))
+* Parquet
+    - Implement Variant readers ([\#12139](https://github.com/apache/iceberg/pull/12139))
+    - Implement Variant writers ([\#12323](https://github.com/apache/iceberg/pull/12323))
+    - Support unknown and nanosecond timestamps in internal model and generics ([\#12463](https://github.com/apache/iceberg/pull/12463))
+    - Implement Variant metrics ([\#12496](https://github.com/apache/iceberg/pull/12496))
+* ORC
+    - Support nanosecond timestamps, variant, and unknown in generics ([\#12567](https://github.com/apache/iceberg/pull/12567))
+* AWS
+    - Integrate S3 analytics accelerator library ([\#12299](https://github.com/apache/iceberg/pull/12299))
+* Spark
+    - Rewrite V2 deletes to V3 DVs ([\#12250](https://github.com/apache/iceberg/pull/12250))
+    - Detect dangling DVs properly ([\#12270](https://github.com/apache/iceberg/pull/12270))
+    - Add `_row_id` and `_last_updated_sequence_number` readers ([\#12836](https://github.com/apache/iceberg/pull/12836))
+* Kafka Connect
+    - Add SMTs for Debezium and AWS DMS ([\#11936](https://github.com/apache/iceberg/pull/11936))
+    - Add config for transactional ID prefix ([\#11780](https://github.com/apache/iceberg/pull/11780))
+    - Handle no coordinator and data loss in ICR mode ([\#12372](https://github.com/apache/iceberg/pull/12372))
+* Flink
+    - Support create table like in flink catalog ([\#12199](https://github.com/apache/iceberg/pull/12199))
+    - Support Avro and Parquet timestamp(9), unknown, and defaults ([\#12470](https://github.com/apache/iceberg/pull/12470))
+    - Support source watermark for flink sql windows ([\#12191](https://github.com/apache/iceberg/pull/12191))
+* Dependencies
+    - Netty to 4.2.0.Final
+    - Nessie to 0.103.3
+    - Parquet to 1.15.1 (Fixes CVE-2025-30065)
+    - Sqllite JDBC to 3.49.1.0
+    - Jackson to 2.18.3
+    - downgraded AWS SDK to 2.29.52 ([\#12649](https://github.com/apache/iceberg/pull/12649))
+
+## Past releases
+
 ### 1.8.1 release
 
 Apache Iceberg 1.8.1 was released on February 28, 2025.
@@ -85,8 +158,6 @@ The 1.8.1 release contains bug fixes and fixes to LICENSE/NOTICE files. For full
     - Fix performance regression in reader init ([\#12329](https://github.com/apache/iceberg/pull/12329))
 * Dependencies
     - downgraded AWS SDK to 2.29.52 ([\#12339](https://github.com/apache/iceberg/pull/12339))
-
-## Past releases
 
 ### 1.8.0 release
 

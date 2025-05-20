@@ -462,7 +462,8 @@ public class TestS3FileIO {
   public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
     S3FileIO fileIO = new S3FileIO();
     fileIO.setCredentials(
-        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
     fileIO.initialize(Map.of());
 
     assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
@@ -474,7 +475,8 @@ public class TestS3FileIO {
       throws IOException, ClassNotFoundException {
     S3FileIO fileIO = new S3FileIO();
     fileIO.setCredentials(
-        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
     fileIO.initialize(Map.of());
 
     assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())

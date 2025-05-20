@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -395,7 +396,25 @@ class ParquetVariantUtil {
 
     @Override
     public Type array(VariantArray array, List<Type> elementResults) {
+      if (elementResults.isEmpty()) {
+        return null;
+      }
+
+      // Shred if all the elements are of a uniform type and build 3-level list
+      Type shredType = elementResults.get(0);
+      if (shredType != null
+          && elementResults.stream().allMatch(type -> Objects.equals(type, shredType))) {
+        return list(shredType);
+      }
+
       return null;
+    }
+
+    private static GroupType list(Type shreddedType) {
+      GroupType elementType = field("element", shreddedType);
+      checkField(elementType);
+
+      return Types.optionalList().element(elementType).named("typed_value");
     }
 
     @Override

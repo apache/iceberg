@@ -19,8 +19,8 @@
 package org.apache.iceberg.flink.source.assigner;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @Internal
 public class GetSplitResult {
