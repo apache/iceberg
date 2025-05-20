@@ -678,105 +678,119 @@ public class IcebergSink
     PartitionSpec spec = table.spec();
     SortOrder sortOrder = table.sortOrder();
 
+    LOG.info("Write distribution mode is '{}'", mode.modeName());
+    switch (mode) {
+      case NONE:
+        return distributeDataStreamByNoneDistributionMode(input, schema);
+      case HASH:
+        return distributeDataStreamByHashDistributionMode(input, schema, spec);
+      case RANGE:
+        return distributeDataStreamByRangeDistributionMode(input, schema, spec, sortOrder);
+      default:
+        throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
+    }
+  }
+
+  private DataStream<RowData> distributeDataStreamByNoneDistributionMode(
+      DataStream<RowData> input, Schema schema) {
+    if (equalityFieldIds.isEmpty()) {
+      return input;
+    } else {
+      LOG.info("Distribute rows by equality fields, because there are equality fields set");
+      return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
+    }
+  }
+
+  private DataStream<RowData> distributeDataStreamByHashDistributionMode(
+      DataStream<RowData> input, Schema schema, PartitionSpec spec) {
+    if (equalityFieldIds.isEmpty()) {
+      if (table.spec().isUnpartitioned()) {
+        LOG.warn(
+            "Fallback to use 'none' distribution mode, because there are no equality fields set "
+                + "and table is unpartitioned");
+        return input;
+      } else {
+        if (BucketPartitionerUtil.hasOneBucketField(spec)) {
+          return input.partitionCustom(
+              new BucketPartitioner(spec),
+              new BucketPartitionKeySelector(spec, schema, flinkRowType));
+        } else {
+          return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
+        }
+      }
+    } else {
+      if (spec.isUnpartitioned()) {
+        LOG.info(
+            "Distribute rows by equality fields, because there are equality fields set "
+                + "and table is unpartitioned");
+        return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
+      } else {
+        for (PartitionField partitionField : spec.fields()) {
+          Preconditions.checkState(
+              equalityFieldIds.contains(partitionField.sourceId()),
+              "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                  + "should be included in equality fields: '%s'",
+              partitionField,
+              equalityFieldColumns);
+        }
+        return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
+      }
+    }
+  }
+
+  private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
+      DataStream<RowData> input, Schema schema, PartitionSpec spec, SortOrder sortOrderParam) {
+
     int writerParallelism =
         flinkWriteConf.writeParallelism() == null
             ? input.getParallelism()
             : flinkWriteConf.writeParallelism();
-    LOG.info("Write distribution mode is '{}'", mode.modeName());
-    switch (mode) {
-      case NONE:
-        if (equalityFieldIds.isEmpty()) {
-          return input;
-        } else {
-          LOG.info("Distribute rows by equality fields, because there are equality fields set");
-          return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-        }
 
-      case HASH:
-        if (equalityFieldIds.isEmpty()) {
-          if (table.spec().isUnpartitioned()) {
-            LOG.warn(
-                "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                    + "and table is unpartitioned");
-            return input;
-          } else {
-            if (BucketPartitionerUtil.hasOneBucketField(spec)) {
-              return input.partitionCustom(
-                  new BucketPartitioner(spec),
-                  new BucketPartitionKeySelector(spec, schema, flinkRowType));
-            } else {
-              return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
-            }
-          }
-        } else {
-          if (spec.isUnpartitioned()) {
-            LOG.info(
-                "Distribute rows by equality fields, because there are equality fields set "
-                    + "and table is unpartitioned");
-            return input.keyBy(
-                new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-          } else {
-            for (PartitionField partitionField : spec.fields()) {
-              Preconditions.checkState(
-                  equalityFieldIds.contains(partitionField.sourceId()),
-                  "In 'hash' distribution mode with equality fields set, partition field '%s' "
-                      + "should be included in equality fields: '%s'",
-                  partitionField,
-                  equalityFieldColumns);
-            }
-            return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
-          }
-        }
-
-      case RANGE:
-        // Ideally, exception should be thrown in the combination of range distribution and
-        // equality fields. Primary key case should use hash distribution mode.
-        // Keep the current behavior of falling back to keyBy for backward compatibility.
-        if (!equalityFieldIds.isEmpty()) {
-          LOG.warn(
-              "Hash distribute rows by equality fields, even though {}=range is set. "
-                  + "Range distribution for primary keys are not always safe in "
-                  + "Flink streaming writer.",
-              WRITE_DISTRIBUTION_MODE);
-          return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-        }
-
-        // range distribute by partition key or sort key if table has an SortOrder
-        Preconditions.checkState(
-            sortOrder.isSorted() || spec.isPartitioned(),
-            "Invalid write distribution mode: range. Need to define sort order or partition spec.");
-        if (sortOrder.isUnsorted()) {
-          sortOrder = Partitioning.sortOrderFor(spec);
-          LOG.info("Construct sort order from partition spec");
-        }
-
-        LOG.info("Range distribute rows by sort order: {}", sortOrder);
-        StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
-        SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
-            input
-                .transform(
-                    operatorName("range-shuffle"),
-                    TypeInformation.of(StatisticsOrRecord.class),
-                    new DataStatisticsOperatorFactory(
-                        schema,
-                        sortOrder,
-                        writerParallelism,
-                        statisticsType,
-                        flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
-                // Set the parallelism same as input operator to encourage chaining
-                .setParallelism(input.getParallelism());
-        if (uidSuffix != null) {
-          shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
-        }
-
-        return shuffleStream
-            .partitionCustom(new RangePartitioner(schema, sortOrder), r -> r)
-            .filter(StatisticsOrRecord::hasRecord)
-            .map(StatisticsOrRecord::record);
-
-      default:
-        throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
+    // Ideally, exception should be thrown in the combination of range distribution and
+    // equality fields. Primary key case should use hash distribution mode.
+    // Keep the current behavior of falling back to keyBy for backward compatibility.
+    if (!equalityFieldIds.isEmpty()) {
+      LOG.warn(
+          "Hash distribute rows by equality fields, even though {}=range is set. "
+              + "Range distribution for primary keys are not always safe in "
+              + "Flink streaming writer.",
+          WRITE_DISTRIBUTION_MODE);
+      return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
     }
+
+    SortOrder sortOrder = sortOrderParam;
+    // range distribute by partition key or sort key if table has an SortOrder
+    Preconditions.checkState(
+        sortOrder.isSorted() || spec.isPartitioned(),
+        "Invalid write distribution mode: range. Need to define sort order or partition spec.");
+    if (sortOrder.isUnsorted()) {
+      sortOrder = Partitioning.sortOrderFor(spec);
+      LOG.info("Construct sort order from partition spec");
+    }
+
+    LOG.info("Range distribute rows by sort order: {}", sortOrder);
+    StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
+    SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
+        input
+            .transform(
+                operatorName("range-shuffle"),
+                TypeInformation.of(StatisticsOrRecord.class),
+                new DataStatisticsOperatorFactory(
+                    schema,
+                    sortOrder,
+                    writerParallelism,
+                    statisticsType,
+                    flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
+            // Set the parallelism same as input operator to encourage chaining
+            .setParallelism(input.getParallelism());
+    if (uidSuffix != null) {
+      shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
+    }
+
+    return shuffleStream
+        .partitionCustom(new RangePartitioner(schema, sortOrder), r -> r)
+        .filter(StatisticsOrRecord::hasRecord)
+        .map(StatisticsOrRecord::record);
   }
 
   /**
