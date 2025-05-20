@@ -69,6 +69,7 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
       view.read(manifestBuf);
       return new DynamicCommittable(key, manifestBuf, jobId, operatorId, checkpointId);
     }
+
     throw new IOException("Unrecognized version or corrupt state: " + version);
   }
 }
