@@ -41,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -211,13 +212,14 @@ public class RecordConverterTest {
   public void before() {
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    when(config.supportBackwardCompatibility()).thenReturn(false);
   }
 
   @Test
   public void testMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
+    Converter converter = new RecordConverter(table, config);
 
     Map<String, Object> data = createMapData();
     Record record = converter.convert(data);
@@ -879,6 +881,323 @@ public class RecordConverterTest {
 
     assertThat(updateMap.get("st.ii").type()).isInstanceOf(LongType.class);
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  public void testSimpleFieldRemoval() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "id", IntegerType.get()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct data = new Struct(SchemaBuilder.struct().build());
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("id");
+  }
+
+  @Test
+  public void testNestedStructFieldRemoval() {
+    org.apache.iceberg.Schema nestedSchema =
+        new org.apache.iceberg.Schema(NestedField.required(2, "name", StringType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(3, "info", nestedSchema.asStruct()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct info = new Struct(SchemaBuilder.struct().build());
+    Struct data =
+        new Struct(
+                SchemaBuilder.struct()
+                    .field("id", Schema.INT32_SCHEMA)
+                    .field("info", info.schema())
+                    .build())
+            .put("id", 1)
+            .put("info", info);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("info.name");
+  }
+
+  @Test
+  public void testStructInArrayFieldRemoval() {
+    org.apache.iceberg.Schema itemSchema =
+        new org.apache.iceberg.Schema(NestedField.required(2, "name", StringType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "items", ListType.ofRequired(3, itemSchema.asStruct())));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct item = new Struct(SchemaBuilder.struct().build());
+    Struct data =
+        new Struct(
+                SchemaBuilder.struct().field("items", SchemaBuilder.array(item.schema())).build())
+            .put("items", ImmutableList.of(item));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("items.element.name");
+  }
+
+  @Test
+  public void testStructInMapValueFieldRemoval() {
+    org.apache.iceberg.Schema valueSchema =
+        new org.apache.iceberg.Schema(NestedField.required(2, "name", StringType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "properties",
+                MapType.ofRequired(3, 4, StringType.get(), valueSchema.asStruct())));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct property = new Struct(SchemaBuilder.struct().build());
+    Struct data =
+        new Struct(
+                SchemaBuilder.struct()
+                    .field("properties", SchemaBuilder.map(Schema.STRING_SCHEMA, property.schema()))
+                    .build())
+            .put("properties", ImmutableMap.of("key", property));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("properties.value.name");
+  }
+
+  @Test
+  public void testDeeplyNestedFieldRemoval() {
+    org.apache.iceberg.Schema innerSchema =
+        new org.apache.iceberg.Schema(NestedField.required(4, "name", StringType.get()));
+    org.apache.iceberg.Schema middleSchema =
+        new org.apache.iceberg.Schema(NestedField.required(3, "inner", innerSchema.asStruct()));
+    org.apache.iceberg.Schema outerSchema =
+        new org.apache.iceberg.Schema(NestedField.required(2, "middle", middleSchema.asStruct()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "outer", outerSchema.asStruct()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct inner = new Struct(SchemaBuilder.struct().build());
+    Struct middle =
+        new Struct(SchemaBuilder.struct().field("inner", inner.schema()).build())
+            .put("inner", inner);
+    Struct outer =
+        new Struct(SchemaBuilder.struct().field("middle", middle.schema()).build())
+            .put("middle", middle);
+    Struct data =
+        new Struct(SchemaBuilder.struct().field("outer", outer.schema()).build())
+            .put("outer", outer);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("outer.middle.inner.name");
+  }
+
+  @Test
+  public void testMultipleNestedFieldRemovals() {
+    org.apache.iceberg.Schema nestedSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(2, "name", StringType.get()),
+            NestedField.required(3, "value", IntegerType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "data", nestedSchema.asStruct()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct data =
+        new Struct(SchemaBuilder.struct().field("data", SchemaBuilder.struct().build()).build())
+            .put("data", new Struct(SchemaBuilder.struct().build()));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactlyInAnyOrder("data.name", "data.value");
+  }
+
+  @Test
+  public void testStructInListInMapFieldRemoval() {
+    org.apache.iceberg.Schema itemSchema =
+        new org.apache.iceberg.Schema(NestedField.required(4, "id", IntegerType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "complex",
+                MapType.ofRequired(
+                    2, 3, StringType.get(), ListType.ofRequired(5, itemSchema.asStruct()))));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct item = new Struct(SchemaBuilder.struct().build());
+    Struct data =
+        new Struct(
+                SchemaBuilder.struct()
+                    .field(
+                        "complex",
+                        SchemaBuilder.map(
+                            Schema.STRING_SCHEMA,
+                            SchemaBuilder.array(SchemaBuilder.struct().build())))
+                    .build())
+            .put("complex", ImmutableMap.of("key", ImmutableList.of(item)));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("complex.value.element.id");
+  }
+
+  @Test
+  public void testFieldRemovalWithNameMapping() {
+    String nameMappingJson =
+        "[\n"
+            + "  { \"field-id\": 1, \"names\": [\"id\"] },\n"
+            + "  { \"field-id\": 3, \"names\": [\"info\"], \"fields\": [\n"
+            + "    { \"field-id\": 2, \"names\": [\"name\"] }\n"
+            + "  ] }\n"
+            + "]";
+
+    org.apache.iceberg.Schema nestedSchema =
+        new org.apache.iceberg.Schema(NestedField.required(2, "name", StringType.get()));
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(3, "info", nestedSchema.asStruct()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+
+    Map<String, String> properties =
+        ImmutableMap.of("schema.name-mapping.default", nameMappingJson);
+    when(table.properties()).thenReturn(properties);
+
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct info = new Struct(SchemaBuilder.struct().build());
+    Struct data =
+        new Struct(
+                SchemaBuilder.struct()
+                    .field("id", Schema.INT32_SCHEMA)
+                    .field("info", info.schema())
+                    .build())
+            .put("id", 1)
+            .put("info", info);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+    assertThat(optionalFields).containsExactly("info.name");
+  }
+
+  @Test
+  public void testNestedFieldRemovalWithComplexNameMapping() {
+    String nameMappingJson =
+        "[\n"
+            + "  { \"field-id\": 1, \"names\": [\"user\"], \"fields\": [\n"
+            + "    { \"field-id\": 2, \"names\": [\"id\"] },\n"
+            + "    { \"field-id\": 3, \"names\": [\"address\"], \"fields\": [\n"
+            + "      { \"field-id\": 4, \"names\": [\"street\"] },\n"
+            + "      { \"field-id\": 5, \"names\": [\"city\"] }\n"
+            + "    ] }\n"
+            + "  ] }\n"
+            + "]";
+
+    org.apache.iceberg.Schema addressSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(4, "street", StringType.get()),
+            NestedField.required(5, "city", StringType.get()));
+
+    org.apache.iceberg.Schema userSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(2, "id", IntegerType.get()),
+            NestedField.required(3, "address", addressSchema.asStruct()));
+
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "user", userSchema.asStruct()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+
+    Map<String, String> properties =
+        ImmutableMap.of("schema.name-mapping.default", nameMappingJson);
+    when(table.properties()).thenReturn(properties);
+
+    Converter converter = new BackwardCompatibleRecordConverter(table, config);
+
+    Struct address =
+        new Struct(SchemaBuilder.struct().field("city", Schema.STRING_SCHEMA).build())
+            .put("city", "New York");
+
+    Struct user =
+        new Struct(
+                SchemaBuilder.struct()
+                    .field("id", Schema.INT32_SCHEMA)
+                    .field("address", address.schema())
+                    .build())
+            .put("id", 123)
+            .put("address", address);
+
+    Struct data =
+        new Struct(SchemaBuilder.struct().field("user", user.schema()).build()).put("user", user);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+
+    Collection<String> optionalFields =
+        consumer.deleteColumns().stream()
+            .map(SchemaUpdate.DeleteColumn::name)
+            .collect(Collectors.toList());
+
+    assertThat(optionalFields).containsExactly("user.address.street");
   }
 
   public static Map<String, Object> createMapData() {
