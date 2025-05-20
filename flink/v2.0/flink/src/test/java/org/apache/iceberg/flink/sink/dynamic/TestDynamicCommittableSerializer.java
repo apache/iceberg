@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.flink.api.common.JobID;
@@ -41,5 +42,21 @@ class TestDynamicCommittableSerializer {
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
     assertThat(serializer.deserialize(serializer.getVersion(), serializer.serialize(committable)))
         .isEqualTo(committable);
+  }
+
+  @Test
+  void testUnsupportedVersion() throws IOException {
+    DynamicCommittable committable =
+        new DynamicCommittable(
+            new WriteTarget("table", "branch", 42, 23, false, Lists.newArrayList(1, 2)),
+            new byte[] {3, 4},
+            JobID.generate().toHexString(),
+            new OperatorID().toHexString(),
+            5);
+
+    DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
+    assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(committable)))
+        .hasMessage("Unrecognized version or corrupt state: -1")
+        .isInstanceOf(IOException.class);
   }
 }
