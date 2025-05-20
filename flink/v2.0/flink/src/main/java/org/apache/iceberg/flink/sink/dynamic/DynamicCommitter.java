@@ -168,6 +168,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           break;
         }
       }
+
       Long parentSnapshotId = snapshot.parentId();
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
@@ -253,6 +254,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       } else {
         commitDeltaTxn(table, branch, pendingResults, summary, newFlinkJobId, operatorId);
       }
+
       continuousEmptyCheckpoints = 0;
     } else {
       long checkpointId = pendingResults.lastKey();

@@ -19,10 +19,12 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
+@Internal
 public class DeltaManifests {
 
   private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
