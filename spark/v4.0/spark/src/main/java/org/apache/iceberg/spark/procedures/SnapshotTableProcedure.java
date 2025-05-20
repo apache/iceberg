@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -26,7 +27,9 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -34,16 +37,18 @@ import org.apache.spark.sql.types.StructType;
 
 class SnapshotTableProcedure extends BaseProcedure {
 
+  public static final String NAME = "snapshot";
+
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
-      ProcedureParameter.required("source_table", DataTypes.StringType);
+      ProcedureParameter.in("source_table", DataTypes.StringType).build();
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      ProcedureParameter.in("table", DataTypes.StringType).build();
   private static final ProcedureParameter LOCATION_PARAM =
-      ProcedureParameter.optional("location", DataTypes.StringType);
+      ProcedureParameter.in("location", DataTypes.StringType).defaultValue("NULL").build();
   private static final ProcedureParameter PROPERTIES_PARAM =
-      ProcedureParameter.optional("properties", STRING_MAP);
+      ProcedureParameter.in("properties", STRING_MAP).defaultValue("NULL").build();
   private static final ProcedureParameter PARALLELISM_PARAM =
-      ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+      ProcedureParameter.in("parallelism", DataTypes.IntegerType).defaultValue("NULL").build();
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -70,17 +75,22 @@ class SnapshotTableProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
+  public boolean isDeterministic() {
+    return false;
   }
 
   @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     String source = input.asString(SOURCE_TABLE_PARAM, null);
@@ -112,7 +122,12 @@ class SnapshotTableProcedure extends BaseProcedure {
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();
-    return new InternalRow[] {newInternalRow(result.importedDataFilesCount())};
+    return asIteratorScan(OUTPUT_TYPE, newInternalRow(result.importedDataFilesCount()));
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override
