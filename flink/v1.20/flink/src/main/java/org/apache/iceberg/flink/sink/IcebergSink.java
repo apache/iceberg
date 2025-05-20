@@ -781,7 +781,8 @@ public class IcebergSink
                     writerParallelism,
                     statisticsType,
                     flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
-            // Set the parallelism same as input operator to encourage chaining
+            // Set slotSharingGroup and same parallelism as input operator to force chaining
+            .slotSharingGroup("input-and-shuffle-chain")
             .setParallelism(input.getParallelism());
     if (uidSuffix != null) {
       shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);

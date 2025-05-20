@@ -229,14 +229,14 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
+
+    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .append();
 
     // sort based on partition columns
-    builder.append();
     env.execute(getClass().getSimpleName());
 
     table.refresh();
