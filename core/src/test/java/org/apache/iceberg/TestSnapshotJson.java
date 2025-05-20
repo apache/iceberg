@@ -40,6 +40,7 @@ public class TestSnapshotJson {
     int snapshotId = 23;
     Long parentId = null;
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+    String keyId = "key-1";
 
     Snapshot expected =
         new BaseSnapshot(
@@ -52,7 +53,8 @@ public class TestSnapshotJson {
             1,
             manifestList,
             null,
-            null);
+            null,
+            keyId);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -63,6 +65,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.schemaId()).isEqualTo(1);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
+    assertThat(snapshot.keyId()).isEqualTo(keyId);
   }
 
   @Test
@@ -81,6 +84,7 @@ public class TestSnapshotJson {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
     String json = SnapshotParser.toJson(expected);
@@ -112,6 +116,7 @@ public class TestSnapshotJson {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
             manifestList,
+            null,
             null,
             null);
 
@@ -152,7 +157,8 @@ public class TestSnapshotJson {
             null,
             manifestList,
             firstRowId,
-            addedRows);
+            addedRows,
+            null);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -229,7 +235,8 @@ public class TestSnapshotJson {
             new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(manifests);
     }
 

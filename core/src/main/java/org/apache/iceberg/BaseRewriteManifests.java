@@ -158,6 +158,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
+        manifest.firstRowId(),
         toCopy,
         specsById,
         newFile,

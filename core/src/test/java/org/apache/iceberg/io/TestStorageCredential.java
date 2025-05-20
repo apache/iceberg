@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestStorageCredential {
@@ -43,15 +44,20 @@ public class TestStorageCredential {
 
   @Test
   public void kryoSerDe() throws IOException {
+    // using a single element in the map will create a singleton map, which will work with Kryo.
+    // However, creating two config elements will fail if the config in StorageCredential isn't a
+    // SerializableMap
     StorageCredential credential =
-        StorageCredential.create("randomPrefix", Map.of("token", "storageToken"));
+        StorageCredential.create(
+            "randomPrefix", ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"));
     assertThat(TestHelpers.KryoHelpers.roundTripSerialize(credential)).isEqualTo(credential);
   }
 
   @Test
   public void javaSerDe() throws IOException, ClassNotFoundException {
     StorageCredential credential =
-        StorageCredential.create("randomPrefix", Map.of("token", "storageToken"));
+        StorageCredential.create(
+            "randomPrefix", ImmutableMap.of("token", "storageToken", "token2", "storageToken2"));
     assertThat(TestHelpers.roundTripSerialize(credential)).isEqualTo(credential);
   }
 }

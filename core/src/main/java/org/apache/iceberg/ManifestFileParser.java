@@ -44,6 +44,7 @@ class ManifestFileParser {
   private static final String DELETED_ROWS_COUNT = "deleted-rows-count";
   private static final String PARTITION_FIELD_SUMMARY = "partition-field-summary";
   private static final String KEY_METADATA = "key-metadata";
+  private static final String FIRST_ROW_ID = "first-row-id";
 
   private ManifestFileParser() {}
 
@@ -64,33 +65,18 @@ class ManifestFileParser {
     generator.writeNumberField(SEQUENCE_NUMBER, manifestFile.sequenceNumber());
     generator.writeNumberField(MIN_SEQUENCE_NUMBER, manifestFile.minSequenceNumber());
 
-    if (manifestFile.snapshotId() != null) {
-      generator.writeNumberField(ADDED_SNAPSHOT_ID, manifestFile.snapshotId());
-    }
-
-    if (manifestFile.addedFilesCount() != null) {
-      generator.writeNumberField(ADDED_FILES_COUNT, manifestFile.addedFilesCount());
-    }
-
-    if (manifestFile.existingFilesCount() != null) {
-      generator.writeNumberField(EXISTING_FILES_COUNT, manifestFile.existingFilesCount());
-    }
-
-    if (manifestFile.deletedFilesCount() != null) {
-      generator.writeNumberField(DELETED_FILES_COUNT, manifestFile.deletedFilesCount());
-    }
-
-    if (manifestFile.addedRowsCount() != null) {
-      generator.writeNumberField(ADDED_ROWS_COUNT, manifestFile.addedRowsCount());
-    }
-
-    if (manifestFile.existingRowsCount() != null) {
-      generator.writeNumberField(EXISTING_ROWS_COUNT, manifestFile.existingRowsCount());
-    }
-
-    if (manifestFile.deletedRowsCount() != null) {
-      generator.writeNumberField(DELETED_ROWS_COUNT, manifestFile.deletedRowsCount());
-    }
+    JsonUtil.writeLongFieldIfPresent(ADDED_SNAPSHOT_ID, manifestFile.snapshotId(), generator);
+    JsonUtil.writeIntegerFieldIfPresent(
+        ADDED_FILES_COUNT, manifestFile.addedFilesCount(), generator);
+    JsonUtil.writeIntegerFieldIfPresent(
+        EXISTING_FILES_COUNT, manifestFile.existingFilesCount(), generator);
+    JsonUtil.writeIntegerFieldIfPresent(
+        DELETED_FILES_COUNT, manifestFile.deletedFilesCount(), generator);
+    JsonUtil.writeLongFieldIfPresent(ADDED_ROWS_COUNT, manifestFile.addedRowsCount(), generator);
+    JsonUtil.writeLongFieldIfPresent(
+        EXISTING_ROWS_COUNT, manifestFile.existingRowsCount(), generator);
+    JsonUtil.writeLongFieldIfPresent(
+        DELETED_ROWS_COUNT, manifestFile.deletedRowsCount(), generator);
 
     if (manifestFile.partitions() != null) {
       generator.writeArrayFieldStart(PARTITION_FIELD_SUMMARY);
@@ -105,6 +91,8 @@ class ManifestFileParser {
       generator.writeFieldName(KEY_METADATA);
       SingleValueParser.toJson(DataFile.KEY_METADATA.type(), manifestFile.keyMetadata(), generator);
     }
+
+    JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, manifestFile.firstRowId(), generator);
 
     generator.writeEndObject();
   }
@@ -125,41 +113,13 @@ class ManifestFileParser {
 
     long sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, jsonNode);
     long minSequenceNumber = JsonUtil.getLong(MIN_SEQUENCE_NUMBER, jsonNode);
-
-    Long addedSnapshotId = null;
-    if (jsonNode.has(ADDED_SNAPSHOT_ID)) {
-      addedSnapshotId = JsonUtil.getLong(ADDED_SNAPSHOT_ID, jsonNode);
-    }
-
-    Integer addedFilesCount = null;
-    if (jsonNode.has(ADDED_FILES_COUNT)) {
-      addedFilesCount = JsonUtil.getInt(ADDED_FILES_COUNT, jsonNode);
-    }
-
-    Integer existingFilesCount = null;
-    if (jsonNode.has(EXISTING_FILES_COUNT)) {
-      existingFilesCount = JsonUtil.getInt(EXISTING_FILES_COUNT, jsonNode);
-    }
-
-    Integer deletedFilesCount = null;
-    if (jsonNode.has(DELETED_FILES_COUNT)) {
-      deletedFilesCount = JsonUtil.getInt(DELETED_FILES_COUNT, jsonNode);
-    }
-
-    Long addedRowsCount = null;
-    if (jsonNode.has(ADDED_ROWS_COUNT)) {
-      addedRowsCount = JsonUtil.getLong(ADDED_ROWS_COUNT, jsonNode);
-    }
-
-    Long existingRowsCount = null;
-    if (jsonNode.has(EXISTING_ROWS_COUNT)) {
-      existingRowsCount = JsonUtil.getLong(EXISTING_ROWS_COUNT, jsonNode);
-    }
-
-    Long deletedRowsCount = null;
-    if (jsonNode.has(DELETED_ROWS_COUNT)) {
-      deletedRowsCount = JsonUtil.getLong(DELETED_ROWS_COUNT, jsonNode);
-    }
+    Long addedSnapshotId = JsonUtil.getLongOrNull(ADDED_SNAPSHOT_ID, jsonNode);
+    Integer addedFilesCount = JsonUtil.getIntOrNull(ADDED_FILES_COUNT, jsonNode);
+    Integer existingFilesCount = JsonUtil.getIntOrNull(EXISTING_FILES_COUNT, jsonNode);
+    Integer deletedFilesCount = JsonUtil.getIntOrNull(DELETED_FILES_COUNT, jsonNode);
+    Long addedRowsCount = JsonUtil.getLongOrNull(ADDED_ROWS_COUNT, jsonNode);
+    Long existingRowsCount = JsonUtil.getLongOrNull(EXISTING_ROWS_COUNT, jsonNode);
+    Long deletedRowsCount = JsonUtil.getLongOrNull(DELETED_ROWS_COUNT, jsonNode);
 
     List<ManifestFile.PartitionFieldSummary> partitionFieldSummaries = null;
     if (jsonNode.has(PARTITION_FIELD_SUMMARY)) {
@@ -181,6 +141,8 @@ class ManifestFileParser {
 
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
 
+    Long firstRowId = JsonUtil.getLongOrNull(FIRST_ROW_ID, jsonNode);
+
     return new GenericManifestFile(
         path,
         length,
@@ -196,7 +158,8 @@ class ManifestFileParser {
         existingFilesCount,
         existingRowsCount,
         deletedFilesCount,
-        deletedRowsCount);
+        deletedRowsCount,
+        firstRowId);
   }
 
   private static class PartitionFieldSummaryParser {

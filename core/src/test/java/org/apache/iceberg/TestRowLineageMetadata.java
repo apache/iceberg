@@ -26,7 +26,6 @@ import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRowLineageMetadata {
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
-    return Ints.asList(TestHelpers.ALL_VERSIONS);
+    return TestHelpers.ALL_VERSIONS;
   }
 
   @Parameter private int formatVersion;
@@ -71,37 +70,41 @@ public class TestRowLineageMetadata {
   @Test
   public void testSnapshotRowIDValidation() {
     Snapshot snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null);
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows will be set to null if first-row-id is null
     snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L);
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows and first-row-id can be 0
-    snapshot = new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, 0L);
+    snapshot =
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, 0L, null);
     assertThat(snapshot.firstRowId()).isEqualTo(0);
     assertThat(snapshot.addedRows()).isEqualTo(0);
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (required when first-row-id is set): null");
 
     assertThatThrownBy(
             () ->
-                new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L))
+                new BaseSnapshot(
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
-                new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L))
+                new BaseSnapshot(
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
@@ -116,7 +119,7 @@ public class TestRowLineageMetadata {
 
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
 
     TableMetadata firstAddition = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
@@ -124,7 +127,17 @@ public class TestRowLineageMetadata {
 
     Snapshot addMoreRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", firstAddition.nextRowId(), newRows);
+            1,
+            2,
+            1L,
+            0,
+            DataOperations.APPEND,
+            null,
+            1,
+            "foo",
+            firstAddition.nextRowId(),
+            newRows,
+            null);
 
     TableMetadata secondAddition =
         TableMetadata.buildFrom(firstAddition).addSnapshot(addMoreRows).build();
@@ -141,7 +154,7 @@ public class TestRowLineageMetadata {
     TableMetadata base = baseMetadata();
 
     Snapshot invalidLastRow =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, newRows);
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, newRows, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -150,12 +163,12 @@ public class TestRowLineageMetadata {
     // add rows to check TableMetadata validation; Snapshot rejects negative next-row-id
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
     TableMetadata added = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L);
+            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(added).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)
@@ -359,10 +372,38 @@ public class TestRowLineageMetadata {
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
-    // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
+    // rewrites produce new manifests without first-row-id or any information about how many rows
+    // are new. without tracking a new metric for a manifest (e.g., assigned-rows) or assuming that
+    // rewrites do not assign any new IDs, replace will allocate ranges like normal writes.
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
     assertThat(table.ops().current().nextRowId()).isEqualTo(120);
+  }
+
+  @TestTemplate
+  public void testMetadataRewrite() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
+
+    DataFile file1 = fileWithRows(30);
+    DataFile file2 = fileWithRows(30);
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
+
+    table.rewriteManifests().commit();
+
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
   }
 
   private final AtomicInteger fileNum = new AtomicInteger(0);

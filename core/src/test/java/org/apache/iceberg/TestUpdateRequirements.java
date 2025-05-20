@@ -265,7 +265,6 @@ public class TestUpdateRequirements {
 
   @Test
   public void addSchemaForView() {
-    int lastColumnId = 1;
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata,
@@ -705,7 +704,7 @@ public class TestUpdateRequirements {
 
     requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(0L)));
 
     assertThat(requirements)
         .hasSize(1)

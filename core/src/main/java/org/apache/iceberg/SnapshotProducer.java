@@ -35,13 +35,11 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -75,6 +73,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -263,14 +262,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     OutputFile manifestList = manifestListPath();
 
-    try (ManifestListWriter writer =
+    ManifestListWriter writer =
         ManifestLists.write(
             ops.current().formatVersion(),
             manifestList,
             snapshotId(),
             parentSnapshotId,
-            sequenceNumber)) {
+            sequenceNumber,
+            base.nextRowId());
 
+    try (writer) {
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
 
@@ -287,11 +288,28 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
-    Long addedRows = null;
-    Long firstRowId = null;
+    Long nextRowId = null;
+    Long assignedRows = null;
     if (base.formatVersion() >= 3) {
-      addedRows = calculateAddedRows(manifests);
-      firstRowId = base.nextRowId();
+      nextRowId = base.nextRowId();
+      assignedRows = writer.nextRowId() - base.nextRowId();
+    }
+
+    Map<String, String> summary = summary();
+    String operation = operation();
+
+    if (summary != null && DataOperations.REPLACE.equals(operation)) {
+      long addedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
+      long replacedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
+
+      // added may be less than replaced when records are already deleted by delete files
+      Preconditions.checkArgument(
+          addedRecords <= replacedRecords,
+          "Invalid REPLACE operation: %s added records > %s replaced records",
+          addedRecords,
+          replacedRecords);
     }
 
     return new BaseSnapshot(
@@ -303,27 +321,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
-        firstRowId,
-        addedRows);
-  }
-
-  private Long calculateAddedRows(List<ManifestFile> manifests) {
-    return manifests.stream()
-        .filter(
-            manifest ->
-                manifest.snapshotId() == null
-                    || Objects.equals(manifest.snapshotId(), this.snapshotId))
-        .filter(manifest -> manifest.content() == ManifestContent.DATA)
-        .mapToLong(
-            manifest -> {
-              Preconditions.checkArgument(
-                  manifest.addedRowsCount() != null,
-                  "Cannot determine number of added rows in snapshot because"
-                      + " the entry for manifest %s is missing the field `added-rows-count`",
-                  manifest.path());
-              return manifest.addedRowsCount();
-            })
-        .sum();
+        nextRowId,
+        assignedRows,
+        null);
   }
 
   protected abstract Map<String, String> summary();
@@ -650,7 +650,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
       for (DeleteFile file : files) {
         Preconditions.checkArgument(
-            file instanceof PendingDeleteFile, "Invalid delete file: must be PendingDeleteFile");
+            file instanceof Delegates.PendingDeleteFile,
+            "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {
@@ -752,13 +753,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           manifest.sequenceNumber(),
           manifest.minSequenceNumber(),
           snapshotId,
+          stats.summaries(),
+          null,
           addedFiles,
           addedRows,
           existingFiles,
           existingRows,
           deletedFiles,
           deletedRows,
-          stats.summaries(),
           null);
 
     } catch (IOException e) {
@@ -795,185 +797,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (NumberFormatException e) {
         // ignore and do not add total
       }
-    }
-  }
-
-  protected static class PendingDeleteFile implements DeleteFile {
-    private final DeleteFile deleteFile;
-    private final Long dataSequenceNumber;
-
-    /**
-     * Wrap a delete file for commit with a given data sequence number.
-     *
-     * @param deleteFile delete file
-     * @param dataSequenceNumber data sequence number to apply
-     */
-    PendingDeleteFile(DeleteFile deleteFile, long dataSequenceNumber) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = dataSequenceNumber;
-    }
-
-    /**
-     * Wrap a delete file for commit with the latest sequence number.
-     *
-     * @param deleteFile delete file
-     */
-    PendingDeleteFile(DeleteFile deleteFile) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = null;
-    }
-
-    private PendingDeleteFile wrap(DeleteFile file) {
-      if (null != dataSequenceNumber) {
-        return new PendingDeleteFile(file, dataSequenceNumber);
-      }
-
-      return new PendingDeleteFile(file);
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return dataSequenceNumber;
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return deleteFile.fileSequenceNumber();
-    }
-
-    @Override
-    public DeleteFile copy() {
-      return wrap(deleteFile.copy());
-    }
-
-    @Override
-    public DeleteFile copyWithoutStats() {
-      return wrap(deleteFile.copyWithoutStats());
-    }
-
-    @Override
-    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return wrap(deleteFile.copyWithStats(requestedColumnIds));
-    }
-
-    @Override
-    public DeleteFile copy(boolean withStats) {
-      return wrap(deleteFile.copy(withStats));
-    }
-
-    @Override
-    public String manifestLocation() {
-      return deleteFile.manifestLocation();
-    }
-
-    @Override
-    public Long pos() {
-      return deleteFile.pos();
-    }
-
-    @Override
-    public int specId() {
-      return deleteFile.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return deleteFile.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return deleteFile.location();
-    }
-
-    @Override
-    public String location() {
-      return deleteFile.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return deleteFile.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return deleteFile.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return deleteFile.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return deleteFile.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return deleteFile.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return deleteFile.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return deleteFile.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return deleteFile.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return deleteFile.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return deleteFile.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return deleteFile.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return deleteFile.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return deleteFile.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return deleteFile.sortOrderId();
-    }
-
-    @Override
-    public String referencedDataFile() {
-      return deleteFile.referencedDataFile();
-    }
-
-    @Override
-    public Long contentOffset() {
-      return deleteFile.contentOffset();
-    }
-
-    @Override
-    public Long contentSizeInBytes() {
-      return deleteFile.contentSizeInBytes();
     }
   }
 }

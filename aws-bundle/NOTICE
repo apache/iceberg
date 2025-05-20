@@ -90,16 +90,16 @@ from the source code management (SCM) system project uses.
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.netty  Name: netty-buffer                          Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-codec                           Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-codec-http                      Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-codec-http2                     Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-common                          Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-handler                         Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-resolver                        Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-transport                       Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-transport-classes-epoll         Version: 4.2.0.Final
-NOTICE for Group: io.netty  Name: netty-transport-native-unix-common    Version: 4.2.0.Final
+NOTICE for Group: io.netty  Name: netty-buffer                          Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-codec                           Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-codec-http                      Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-codec-http2                     Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-common                          Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-handler                         Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-resolver                        Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-transport                       Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-transport-classes-epoll         Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-transport-native-unix-common    Version: 4.1.115.Final
 
 |                             The Netty Project
 |                             =================

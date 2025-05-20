@@ -18,15 +18,20 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
+  private final DataFileSet deletedDataFiles = DataFileSet.create();
   private boolean validateDeletes = false;
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
@@ -59,6 +64,13 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   @Override
   public RowDelta addDeletes(DeleteFile deletes) {
     add(deletes);
+    return this;
+  }
+
+  @Override
+  public RowDelta deleteFile(DataFile file) {
+    deletedDataFiles.add(file);
+    delete(file);
     return this;
   }
 
@@ -132,15 +144,47 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             parent);
       }
 
+      if (validateDeletes) {
+        failMissingDeletePaths();
+      }
+
       if (validateNewDataFiles) {
         validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
       if (validateNewDeleteFiles) {
+        // validate that explicitly deleted files have not had added deletes
+        if (!deletedDataFiles.isEmpty()) {
+          validateNoNewDeletesForDataFiles(
+              base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+        }
+
+        // validate that previous deletes do not conflict with added deletes
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
+      validateNoConflictingFileAndPositionDeletes();
+
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
+    }
+  }
+
+  /**
+   * Validates that the data files removed in this commit do not overlap with data files with delete
+   * files added
+   */
+  @SuppressWarnings("CollectionUndefinedEquality")
+  private void validateNoConflictingFileAndPositionDeletes() {
+    List<CharSequence> deletedFileWithNewDVs =
+        deletedDataFiles.stream()
+            .map(DataFile::path)
+            .filter(referencedDataFiles::contains)
+            .collect(Collectors.toList());
+
+    if (!deletedFileWithNewDVs.isEmpty()) {
+      throw new ValidationException(
+          "Cannot delete data files %s that are referenced by new delete files",
+          deletedFileWithNewDVs);
     }
   }
 }

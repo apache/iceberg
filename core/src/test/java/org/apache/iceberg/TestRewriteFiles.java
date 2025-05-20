@@ -35,7 +35,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.internal.util.collections.Sets;
@@ -48,7 +47,7 @@ public class TestRewriteFiles extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Ints.asList(TestHelpers.ALL_VERSIONS).stream()
+    return TestHelpers.ALL_VERSIONS.stream()
         .flatMap(i -> Stream.of(new Object[] {i, "main"}, new Object[] {i, "branch"}))
         .collect(Collectors.toList());
   }

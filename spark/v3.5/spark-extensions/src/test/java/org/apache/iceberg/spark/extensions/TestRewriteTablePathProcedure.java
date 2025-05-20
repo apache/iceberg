@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.atIndex;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -101,11 +102,13 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
             v1Metadata,
             v0Metadata,
             stagingLocation);
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
-    assertThat(result.get(0)[1])
-        .as("Should return correct file_list_location")
-        .isEqualTo(expectedFileListLocation);
+    assertThat(result)
+        .singleElement()
+        .satisfies(
+            objects -> {
+              assertThat(objects).contains(v1Metadata, atIndex(0));
+              assertThat(objects).contains(expectedFileListLocation, atIndex(1));
+            });
     checkFileListLocationCount((String) result.get(0)[1], 4);
   }
 

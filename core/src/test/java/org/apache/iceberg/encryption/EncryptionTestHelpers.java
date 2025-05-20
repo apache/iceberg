@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
@@ -36,6 +37,6 @@ public class EncryptionTestHelpers {
     tableProperties.put(TableProperties.FORMAT_VERSION, "2");
 
     return EncryptionUtil.createEncryptionManager(
-        tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
+        List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
   }
 }

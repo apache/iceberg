@@ -529,7 +529,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     assertThatThrownBy(() -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -548,7 +548,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable, true);
   }

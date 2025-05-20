@@ -64,7 +64,6 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -653,7 +652,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .hasSameSizeAs(deletedFiles);
     // Take the diff
     expectedDeletes.removeAll(deletedFiles);
-    Assert.assertTrue("Exactly same files should be deleted", expectedDeletes.isEmpty());
+    assertThat(expectedDeletes).as("Exactly same files should be deleted").isEmpty();
   }
 
   /**
@@ -669,7 +668,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     // `B` commit
     Set<String> deletedAFiles = Sets.newHashSet();
     table.newOverwrite().addFile(FILE_B).deleteFile(FILE_A).deleteWith(deletedAFiles::add).commit();
-    Assert.assertTrue("No files should be physically deleted", deletedAFiles.isEmpty());
+    assertThat(deletedAFiles).as("No files should be physically deleted").isEmpty();
 
     // pick the snapshot 'B`
     Snapshot snapshotB = table.currentSnapshot();
@@ -704,7 +703,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        Assert.assertFalse(deletedFiles.contains(item.location()));
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
 
@@ -753,7 +752,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        Assert.assertFalse(deletedFiles.contains(item.location()));
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 1L, 1L, firstResult);
@@ -773,7 +772,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        Assert.assertFalse(deletedFiles.contains(item.location()));
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, secondResult);

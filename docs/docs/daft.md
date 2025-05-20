@@ -22,7 +22,7 @@ title: "Daft"
 
 [Daft](https://www.getdaft.io/) is a distributed query engine written in Python and Rust, two fast-growing ecosystems in the data engineering and machine learning industry.
 
-It exposes its flavor of the familiar [Python DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api_docs/dataframe.html) which is a common abstraction over querying tables of data in the Python data ecosystem.
+It exposes its flavor of the familiar [Python DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api/dataframe/) which is a common abstraction over querying tables of data in the Python data ecosystem.
 
 Daft DataFrames are a powerful interface to power use-cases across ML/AI training, batch inference, feature engineering and traditional analytics. Daft's tight integration with Iceberg unlocks novel capabilities for both traditional analytics and Pythonic ML workloads on your data catalog.
 
@@ -125,21 +125,21 @@ Daft and Iceberg have compatible type systems. Here are how types are converted 
 | Iceberg | Daft |
 |---------|------|
 | **Primitive Types** |
-| `boolean` | [`daft.DataType.bool()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.bool) |
-| `int` | [`daft.DataType.int32()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.int32) |
-| `long` | [`daft.DataType.int64()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.int64) |
-| `float` | [`daft.DataType.float32()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.float32) |
-| `double` | [`daft.DataType.float64()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.float64) |
-| `decimal(precision, scale)` | [`daft.DataType.decimal128(precision, scale)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.decimal128) |
-| `date` | [`daft.DataType.date()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.date) |
-| `time` | [`daft.DataType.time(timeunit="us")`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.int64) |
-| `timestamp` | [`daft.DataType.timestamp(timeunit="us", timezone=None)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.timestamp) |
-| `timestampz` | [`daft.DataType.timestamp(timeunit="us", timezone="UTC")`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.timestamp) |
-| `string` | [`daft.DataType.string()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.string) |
-| `uuid` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.binary) |
-| `fixed(L)` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.binary) |
-| `binary` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.binary) |
+| `boolean` | [`daft.DataType.bool()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.bool) |
+| `int` | [`daft.DataType.int32()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.int32) |
+| `long` | [`daft.DataType.int64()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.int64) |
+| `float` | [`daft.DataType.float32()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.float32) |
+| `double` | [`daft.DataType.float64()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.float64) |
+| `decimal(precision, scale)` | [`daft.DataType.decimal128(precision, scale)`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.decimal128) |
+| `date` | [`daft.DataType.date()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.date) |
+| `time` | [`daft.DataType.time(timeunit="us")`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.int64) |
+| `timestamp` | [`daft.DataType.timestamp(timeunit="us", timezone=None)`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.timestamp) |
+| `timestampz` | [`daft.DataType.timestamp(timeunit="us", timezone="UTC")`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.timestamp) |
+| `string` | [`daft.DataType.string()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.string) |
+| `uuid` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
+| `fixed(L)` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.fixed_size_binary) |
+| `binary` | [`daft.DataType.binary()`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
 | **Nested Types** |
-| `struct(**fields)` | [`daft.DataType.struct(**fields)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.struct) |
-| `list(child_type)` | [`daft.DataType.list(child_type)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.list) |
-| `map(K, V)` | [`daft.DataType.map(K, V)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.map) |
+| `struct(**fields)` | [`daft.DataType.struct(**fields)`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.struct) |
+| `list(child_type)` | [`daft.DataType.list(child_type)`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.list) |
+| `map(K, V)` | [`daft.DataType.map(K, V)`](https://www.getdaft.io/projects/docs/en/latest/api/datatypes/#daft.datatype.DataType.map) |

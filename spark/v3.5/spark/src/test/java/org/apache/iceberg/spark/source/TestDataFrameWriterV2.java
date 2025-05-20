@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.util.List;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
@@ -41,7 +42,9 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   @BeforeEach
   public void createTable() {

@@ -22,8 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
@@ -46,7 +44,8 @@ class V3Metadata {
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
           ManifestFile.PARTITION_SUMMARIES,
-          ManifestFile.KEY_METADATA);
+          ManifestFile.KEY_METADATA,
+          ManifestFile.FIRST_ROW_ID);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v3 write schema.
@@ -58,14 +57,16 @@ class V3Metadata {
     private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
+    private Long wrappedFirstRowId = null;
 
     ManifestFileWrapper(long commitSnapshotId, long sequenceNumber) {
       this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
     }
 
-    public ManifestFile wrap(ManifestFile file) {
+    public ManifestFile wrap(ManifestFile file, Long firstRowId) {
       this.wrapped = file;
+      this.wrappedFirstRowId = firstRowId;
       return this;
     }
 
@@ -140,6 +141,22 @@ class V3Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          if (wrappedFirstRowId != null) {
+            // if first-row-id is assigned, ensure that it is valid
+            Preconditions.checkState(
+                wrapped.content() == ManifestContent.DATA && wrapped.firstRowId() == null,
+                "Found invalid first-row-id assignment: %s",
+                wrapped);
+            return wrappedFirstRowId;
+          } else if (wrapped.content() != ManifestContent.DATA) {
+            return null;
+          } else {
+            Preconditions.checkState(
+                wrapped.firstRowId() != null,
+                "Found unassigned first-row-id for file: " + wrapped.path());
+            return wrapped.firstRowId();
+          }
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -236,6 +253,11 @@ class V3Metadata {
     }
 
     @Override
+    public Long firstRowId() {
+      return wrapped.firstRowId();
+    }
+
+    @Override
     public ManifestFile copy() {
       return wrapped.copy();
     }
@@ -274,6 +296,7 @@ class V3Metadata {
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
         DataFile.SORT_ORDER_ID,
+        DataFile.FIRST_ROW_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
         DataFile.CONTENT_SIZE);
@@ -398,17 +421,18 @@ class V3Metadata {
   }
 
   /** Wrapper used to write DataFile or DeleteFile to v3 metadata. */
-  static class DataFileWrapper<F> implements ContentFile<F>, StructLike {
+  static class DataFileWrapper<F extends ContentFile<F>> extends Delegates.DelegatingContentFile<F>
+      implements ContentFile<F>, StructLike {
     private final int size;
-    private ContentFile<F> wrapped = null;
 
     DataFileWrapper() {
+      super(null);
       this.size = fileType(Types.StructType.of()).fields().size();
     }
 
     @SuppressWarnings("unchecked")
     DataFileWrapper<F> wrap(ContentFile<?> file) {
-      this.wrapped = (ContentFile<F>) file;
+      setWrapped((F) file);
       return this;
     }
 
@@ -462,18 +486,24 @@ class V3Metadata {
         case 15:
           return wrapped.sortOrderId();
         case 16:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).referencedDataFile();
+          if (wrapped.content() == FileContent.DATA) {
+            return wrapped.firstRowId();
           } else {
             return null;
           }
         case 17:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentOffset();
+            return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
           }
         case 18:
+          if (wrapped.content() == FileContent.POSITION_DELETES) {
+            return ((DeleteFile) wrapped).contentOffset();
+          } else {
+            return null;
+          }
+        case 19:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
           } else {
@@ -491,116 +521,6 @@ class V3Metadata {
     @Override
     public Long pos() {
       return null;
-    }
-
-    @Override
-    public int specId() {
-      return wrapped.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return wrapped.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return wrapped.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return wrapped.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return wrapped.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return wrapped.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return wrapped.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return wrapped.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return wrapped.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return wrapped.sortOrderId();
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return wrapped.dataSequenceNumber();
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return wrapped.fileSequenceNumber();
-    }
-
-    @Override
-    public F copy() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithStats(Set<Integer> requestedColumnIds) {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
-    }
-
-    @Override
-    public F copyWithoutStats() {
-      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
 }

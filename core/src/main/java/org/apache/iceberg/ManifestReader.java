@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -80,6 +81,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
+  private final Long firstRowId;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -103,8 +105,22 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Map<Integer, PartitionSpec> specsById,
       InheritableMetadata inheritableMetadata,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, null, content);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      FileType content) {
+    Preconditions.checkArgument(
+        firstRowId == null || content == FileType.DATA_FILES,
+        "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
+    this.firstRowId = firstRowId;
     this.content = content;
 
     if (specsById != null) {
@@ -259,6 +275,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
+    if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
+      fields.add(DataFile.RECORD_COUNT);
+    }
+    if (projection.findField(DataFile.FIRST_ROW_ID.fieldId()) == null) {
+      fields.add(DataFile.FIRST_ROW_ID);
+    }
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
@@ -272,7 +294,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     addCloseable(reader);
 
-    return CloseableIterable.transform(reader, inheritableMetadata::apply);
+    CloseableIterable<ManifestEntry<F>> withMetadata =
+        CloseableIterable.transform(reader, inheritableMetadata::apply);
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -368,6 +392,37 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
       return projectColumns;
+    }
+  }
+
+  private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
+      Long firstRowId) {
+    if (firstRowId != null) {
+      return new Function<>() {
+        private long nextRowId = firstRowId;
+
+        @Override
+        public ManifestEntry<F> apply(ManifestEntry<F> entry) {
+          if (entry.file() instanceof BaseFile && entry.status() != ManifestEntry.Status.DELETED) {
+            BaseFile<?> file = (BaseFile<?>) entry.file();
+            if (null == file.firstRowId()) {
+              file.setFirstRowId(nextRowId);
+              nextRowId += file.recordCount();
+            }
+          }
+
+          return entry;
+        }
+      };
+    } else {
+      // data file's first_row_id is null when the manifest's first_row_id is null
+      return entry -> {
+        if (entry.file() instanceof BaseFile) {
+          ((BaseFile<?>) entry.file()).setFirstRowId(null);
+        }
+
+        return entry;
+      };
     }
   }
 }

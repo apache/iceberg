@@ -132,6 +132,7 @@ public class RewriteTablePathUtil {
         // TODO: update partition statistics file paths
         metadata.partitionStatisticsFiles(),
         metadata.nextRowId(),
+        metadata.encryptionKeys(),
         metadata.changes());
   }
 
@@ -205,7 +206,8 @@ public class RewriteTablePathUtil {
               snapshot.schemaId(),
               newManifestListLocation,
               snapshot.firstRowId(),
-              snapshot.addedRows());
+              snapshot.addedRows(),
+              snapshot.keyId());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;
@@ -252,7 +254,8 @@ public class RewriteTablePathUtil {
             outputFile,
             snapshot.snapshotId(),
             snapshot.parentId(),
-            snapshot.sequenceNumber())) {
+            snapshot.sequenceNumber(),
+            snapshot.firstRowId())) {
 
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();

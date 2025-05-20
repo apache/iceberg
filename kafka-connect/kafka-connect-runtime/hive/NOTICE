@@ -30,7 +30,7 @@ This binary artifact contains code from the following projects:
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.69.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
 
 Notice: 
 |                             The Netty Project

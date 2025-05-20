@@ -499,6 +499,18 @@ assertThat(metadataFileLocations).isNotNull().hasSize(4);
 assertThat(metadataFileLocations).isNotNull().hasSameSizeAs(expected).hasSize(4);
 ```
 ```java
+// if the specific element doesn't match the value, it won't show the content and its index of array 
+assertThat(array).hasSize(2);
+assertThat(array[0]).isEqualTo("value0");
+assertThat(array[1]).isEqualTo("value1");
+
+// better: all checks can be combined and the content of the array will be shown if any check fails
+assertThat(array).hasSize(2).containsExactly("value0", "value1");
+
+// better: if a specific element is checked, the content and its index will be also shown
+assertThat(array).contains("value1", atIndex(1));
+```
+```java
 // if any key doesn't exist, it won't show the content of the map
 assertThat(map.get("key1")).isEqualTo("value1");
 assertThat(map.get("key2")).isNotNull();

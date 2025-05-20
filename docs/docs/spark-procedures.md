@@ -199,7 +199,7 @@ Only append and dynamic overwrite snapshots can be successfully published.
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod |
+| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
 
 #### Output
 

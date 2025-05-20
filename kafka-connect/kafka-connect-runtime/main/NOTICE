@@ -30,7 +30,7 @@ This binary artifact contains code from the following projects:
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.69.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
 
 Notice: 
 |                             The Netty Project
@@ -163,7 +163,6 @@ Group: software.amazon.awssdk  Name: sdk-core  Version: 2.29.52
 Group: software.amazon.awssdk  Name: sso  Version: 2.29.52
 Group: software.amazon.awssdk  Name: sts  Version: 2.29.52
 Group: software.amazon.awssdk  Name: utils  Version: 2.29.52
-Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
 
 Notice: 
 | AWS SDK for Java 2.0

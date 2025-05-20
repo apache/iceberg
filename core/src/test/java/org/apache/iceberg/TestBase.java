@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -198,8 +199,8 @@ public class TestBase {
   public TestTables.TestTable table = null;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Parameter protected int formatVersion;
