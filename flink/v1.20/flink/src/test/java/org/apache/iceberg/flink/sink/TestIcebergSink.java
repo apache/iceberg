@@ -170,18 +170,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testJobHashDistributionMode() {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Flink does not support 'range' write distribution mode now.");
-  }
-
-  @TestTemplate
   void testJobNullDistributionMode() throws Exception {
     table
         .updateProperties()
