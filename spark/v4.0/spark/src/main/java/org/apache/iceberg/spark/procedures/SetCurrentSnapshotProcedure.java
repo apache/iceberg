@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -27,7 +28,9 @@ import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -43,11 +46,13 @@ import org.apache.spark.sql.types.StructType;
  */
 class SetCurrentSnapshotProcedure extends BaseProcedure {
 
+  public static final String NAME = "set_current_snapshot";
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
-        ProcedureParameter.optional("ref", DataTypes.StringType)
+        ProcedureParameter.in("table", DataTypes.StringType).build(),
+        ProcedureParameter.in("snapshot_id", DataTypes.LongType).defaultValue("NULL").build(),
+        ProcedureParameter.in("ref", DataTypes.StringType).defaultValue("NULL").build()
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -71,17 +76,22 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
+  public boolean isDeterministic() {
+    return false;
   }
 
   @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long snapshotId = args.isNullAt(1) ? null : args.getLong(1);
     String ref = args.isNullAt(2) ? null : args.getString(2);
@@ -99,8 +109,13 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
           table.manageSnapshots().setCurrentSnapshot(targetSnapshotId).commit();
 
           InternalRow outputRow = newInternalRow(previousSnapshotId, targetSnapshotId);
-          return new InternalRow[] {outputRow};
+          return asIteratorScan(OUTPUT_TYPE, outputRow);
         });
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

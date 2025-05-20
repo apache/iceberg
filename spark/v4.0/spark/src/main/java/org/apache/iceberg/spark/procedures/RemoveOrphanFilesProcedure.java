@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
@@ -34,7 +35,9 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -50,21 +53,28 @@ import scala.runtime.BoxedUnit;
  * @see SparkActions#deleteOrphanFiles(Table)
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
+
+  public static final String NAME = "remove_orphan_files";
+
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesProcedure.class);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-        ProcedureParameter.optional("location", DataTypes.StringType),
-        ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
-        ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-        ProcedureParameter.optional("file_list_view", DataTypes.StringType),
-        ProcedureParameter.optional("equal_schemes", STRING_MAP),
-        ProcedureParameter.optional("equal_authorities", STRING_MAP),
-        ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),
+        ProcedureParameter.in("table", DataTypes.StringType).build(),
+        ProcedureParameter.in("older_than", DataTypes.TimestampType).defaultValue("NULL").build(),
+        ProcedureParameter.in("location", DataTypes.StringType).defaultValue("NULL").build(),
+        ProcedureParameter.in("dry_run", DataTypes.BooleanType).defaultValue("NULL").build(),
+        ProcedureParameter.in("max_concurrent_deletes", DataTypes.IntegerType)
+            .defaultValue("NULL")
+            .build(),
+        ProcedureParameter.in("file_list_view", DataTypes.StringType).defaultValue("NULL").build(),
+        ProcedureParameter.in("equal_schemes", STRING_MAP).defaultValue("NULL").build(),
+        ProcedureParameter.in("equal_authorities", STRING_MAP).defaultValue("NULL").build(),
+        ProcedureParameter.in("prefix_mismatch_mode", DataTypes.StringType)
+            .defaultValue("NULL")
+            .build(),
         // List files with prefix operations. Default is false.
-        ProcedureParameter.optional("prefix_listing", DataTypes.BooleanType)
+        ProcedureParameter.in("prefix_listing", DataTypes.BooleanType).defaultValue("NULL").build(),
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -87,18 +97,23 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
+  public boolean isDeterministic() {
+    return false;
   }
 
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     String location = args.isNullAt(2) ? null : args.getString(2);
@@ -190,7 +205,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
           DeleteOrphanFiles.Result result = action.execute();
 
-          return toOutputRows(result);
+          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 
@@ -219,6 +234,11 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
               + "affected by removing orphan files with such a short interval, you can use the Action API "
               + "to remove orphan files with an arbitrary interval.");
     }
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

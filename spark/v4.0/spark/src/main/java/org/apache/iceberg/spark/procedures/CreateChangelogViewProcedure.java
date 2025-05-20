@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +42,9 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -85,18 +88,20 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class CreateChangelogViewProcedure extends BaseProcedure {
 
+  public static final String NAME = "create_changelog_view";
+
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      ProcedureParameter.in("table", DataTypes.StringType).build();
   private static final ProcedureParameter CHANGELOG_VIEW_PARAM =
-      ProcedureParameter.optional("changelog_view", DataTypes.StringType);
+      ProcedureParameter.in("changelog_view", DataTypes.StringType).defaultValue("NULL").build();
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.optional("options", STRING_MAP);
+      ProcedureParameter.in("options", STRING_MAP).defaultValue("NULL").build();
   private static final ProcedureParameter COMPUTE_UPDATES_PARAM =
-      ProcedureParameter.optional("compute_updates", DataTypes.BooleanType);
+      ProcedureParameter.in("compute_updates", DataTypes.BooleanType).defaultValue("NULL").build();
   private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
-      ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
+      ProcedureParameter.in("identifier_columns", STRING_ARRAY).defaultValue("NULL").build();
   private static final ProcedureParameter NET_CHANGES =
-      ProcedureParameter.optional("net_changes", DataTypes.BooleanType);
+      ProcedureParameter.in("net_changes", DataTypes.BooleanType).defaultValue("NULL").build();
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -128,17 +133,22 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
+  public boolean isDeterministic() {
+    return false;
   }
 
   @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     Identifier tableIdent = input.ident(TABLE_PARAM);
@@ -171,7 +181,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     df.createOrReplaceTempView(viewName);
 
-    return toOutputRows(viewName);
+    return asIteratorScan(OUTPUT_TYPE, toOutputRows(viewName));
   }
 
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
@@ -312,6 +322,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(String viewName) {
     InternalRow row = newInternalRow(UTF8String.fromString(viewName));
     return new InternalRow[] {row};
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override
