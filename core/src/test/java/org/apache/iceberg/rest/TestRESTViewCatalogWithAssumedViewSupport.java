@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
@@ -67,7 +68,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(new InetSocketAddress("127.0.0.1", 0));
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 

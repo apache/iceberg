@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3.signer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.file.Path;
@@ -188,7 +189,7 @@ public class TestS3RestSigner {
     servletContext.addServlet(new ServletHolder(servlet), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    Server server = new Server(new InetSocketAddress("127.0.0.1", 0));
+    Server server = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     server.setHandler(servletContext);
     server.start();
     return server;
