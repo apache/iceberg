@@ -810,19 +810,19 @@ public class IcebergSink
             new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
     StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
     SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
-            input
-                    .transform(
-                            operatorName("range-shuffle"),
-                            statisticsOrRecordTypeInformation,
-                            new DataStatisticsOperatorFactory(
-                                    iSchema,
-                                    sortOrder,
-                                    writerParallelism,
-                                    statisticsType,
-                                    flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
-                    // Set the parallelism same as input operator to encourage chaining
-                    .setParallelism(input.getParallelism());
-
+        input
+            .transform(
+                operatorName("range-shuffle"),
+                TypeInformation.of(StatisticsOrRecord.class),
+                new DataStatisticsOperatorFactory(
+                    schema,
+                    sortOrder,
+                    writerParallelism,
+                    statisticsType,
+                    flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
+            // Set slotSharingGroup and same parallelism as input operator to force chaining
+            .slotSharingGroup("input-and-shuffle-chain")
+            .setParallelism(input.getParallelism());
     if (uidSuffix != null) {
       shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
     }
