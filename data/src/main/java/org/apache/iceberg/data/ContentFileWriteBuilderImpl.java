@@ -34,36 +34,39 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
 
 /**
- * Implementation for the different Write Builder interfaces. The builder is an internal class and
- * could change without notice. Use one of the following specific interfaces instead:
+ * An internal implementation that handles all {@link ContentFileWriteBuilder} interface variants.
+ *
+ * <p>This unified implementation serves as a backend for multiple specialized content writers:
  *
  * <ul>
- *   <li>{@link DataWriteBuilder}
- *   <li>{@link EqualityDeleteWriteBuilder}
- *   <li>{@link PositionDeleteWriteBuilder}
+ *   <li>{@link DataWriteBuilder} for creating data files
+ *   <li>{@link EqualityDeleteWriteBuilder} for creating equality delete files
+ *   <li>{@link PositionDeleteWriteBuilder} for creating position delete files
  * </ul>
  *
- * The builder wraps the file format specific {@link AppenderBuilder}. To allow further engine and
- * file format specific configuration changes for the given writer, the {@link
- * AppenderBuilder#build()} method is called to create the appender which is used by the {@link
- * WriteBuilder} to provide the required functionality.
+ * <p>The implementation delegates to a format-specific {@link WriteBuilder} while enriching it with
+ * content-specific functionality. When building a writer, the implementation configures the
+ * underlying builder and calls its {@link WriteBuilder#build()} method to create the appropriate
+ * specialized writer for the requested content type.
  *
- * @param <A> type of the appender
- * @param <E> engine-specific schema of the input records used for appender initialization
+ * @param <C> the concrete builder type for method chaining
+ * @param <W> the type of the wrapped format-specific writer builder
+ * @param <E> the engine-specific schema type required by the writer
  */
 @SuppressWarnings("unchecked")
-class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A, E>, E>
-    implements DataWriteBuilder<B, E>,
-        EqualityDeleteWriteBuilder<B, E>,
-        PositionDeleteWriteBuilder<B, E> {
-  private final AppenderBuilder<A, E> appenderBuilder;
+class ContentFileWriteBuilderImpl<
+        C extends ContentFileWriteBuilderImpl<C, W, E>, W extends WriteBuilder<W, E>, E>
+    implements DataWriteBuilder<C, E>,
+        EqualityDeleteWriteBuilder<C, E>,
+        PositionDeleteWriteBuilder<C, E> {
+  private final org.apache.iceberg.io.WriteBuilder<W, E> writeBuilder;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
@@ -73,112 +76,113 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
   private Schema rowSchema = null;
   private int[] equalityFieldIds = null;
 
-  WriteBuilder(AppenderBuilder<A, E> appenderBuilder, String location, FileFormat format) {
-    this.appenderBuilder = appenderBuilder;
+  ContentFileWriteBuilderImpl(
+      org.apache.iceberg.io.WriteBuilder<W, E> writeBuilder, String location, FileFormat format) {
+    this.writeBuilder = writeBuilder;
     this.location = location;
     this.format = format;
   }
 
   @Override
-  public B schema(Schema newSchema) {
-    appenderBuilder.schema(newSchema);
-    return (B) this;
+  public C schema(Schema newSchema) {
+    writeBuilder.schema(newSchema);
+    return (C) this;
   }
 
   @Override
-  public B dataSchema(E engineSchema) {
-    appenderBuilder.dataSchema(engineSchema);
-    return (B) this;
+  public C dataSchema(E engineSchema) {
+    writeBuilder.dataSchema(engineSchema);
+    return (C) this;
   }
 
   @Override
-  public B set(String property, String value) {
-    appenderBuilder.set(property, value);
-    return (B) this;
+  public C set(String property, String value) {
+    writeBuilder.set(property, value);
+    return (C) this;
   }
 
   @Override
-  public B set(Map<String, String> properties) {
-    properties.forEach(appenderBuilder::set);
-    return (B) this;
+  public C set(Map<String, String> properties) {
+    properties.forEach(writeBuilder::set);
+    return (C) this;
   }
 
   @Override
-  public B meta(String property, String value) {
-    appenderBuilder.meta(property, value);
-    return (B) this;
+  public C meta(String property, String value) {
+    writeBuilder.meta(property, value);
+    return (C) this;
   }
 
   @Override
-  public B meta(Map<String, String> properties) {
-    properties.forEach(appenderBuilder::meta);
-    return (B) this;
+  public C meta(Map<String, String> properties) {
+    properties.forEach(writeBuilder::meta);
+    return (C) this;
   }
 
   @Override
-  public B metricsConfig(MetricsConfig newMetricsConfig) {
-    appenderBuilder.metricsConfig(newMetricsConfig);
-    return (B) this;
+  public C metricsConfig(MetricsConfig newMetricsConfig) {
+    writeBuilder.metricsConfig(newMetricsConfig);
+    return (C) this;
   }
 
   @Override
-  public B overwrite() {
-    appenderBuilder.overwrite();
-    return (B) this;
+  public C overwrite() {
+    writeBuilder.overwrite();
+    return (C) this;
   }
 
   @Override
-  public B fileEncryptionKey(ByteBuffer encryptionKey) {
-    appenderBuilder.fileEncryptionKey(encryptionKey);
-    return (B) this;
+  public C fileEncryptionKey(ByteBuffer encryptionKey) {
+    writeBuilder.fileEncryptionKey(encryptionKey);
+    return (C) this;
   }
 
   @Override
-  public B aadPrefix(ByteBuffer aadPrefix) {
-    appenderBuilder.aadPrefix(aadPrefix);
-    return (B) this;
+  public C aadPrefix(ByteBuffer aadPrefix) {
+    writeBuilder.aadPrefix(aadPrefix);
+    return (C) this;
   }
 
   @Override
-  public B rowSchema(Schema newSchema) {
+  public C rowSchema(Schema newSchema) {
     this.rowSchema = newSchema;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B equalityFieldIds(List<Integer> fieldIds) {
+  public C equalityFieldIds(List<Integer> fieldIds) {
     this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B equalityFieldIds(int... fieldIds) {
+  public C equalityFieldIds(int... fieldIds) {
     this.equalityFieldIds = fieldIds;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B spec(PartitionSpec newSpec) {
+  public C spec(PartitionSpec newSpec) {
     this.spec = newSpec;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B partition(StructLike newPartition) {
+  public C partition(StructLike newPartition) {
     this.partition = newPartition;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B keyMetadata(EncryptionKeyMetadata metadata) {
+  public C keyMetadata(EncryptionKeyMetadata metadata) {
     this.keyMetadata = metadata;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
-  public B sortOrder(SortOrder newSortOrder) {
+  public C sortOrder(SortOrder newSortOrder) {
     this.sortOrder = newSortOrder;
-    return (B) this;
+    return (C) this;
   }
 
   @Override
@@ -189,7 +193,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
         "Partition must not be null when creating data writer for partitioned spec");
 
     return new DataWriter<>(
-        appenderBuilder.build(), format, location, spec, partition, keyMetadata, sortOrder);
+        writeBuilder.build(), format, location, spec, partition, keyMetadata, sortOrder);
   }
 
   @Override
@@ -205,7 +209,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
         "Partition must not be null for partitioned writes");
 
     return new EqualityDeleteWriter<>(
-        appenderBuilder
+        writeBuilder
             .schema(rowSchema)
             .meta("delete-type", "equality")
             .meta(
@@ -234,7 +238,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
         "Partition must not be null for partitioned writes");
 
     return new PositionDeleteWriter<>(
-        appenderBuilder
+        writeBuilder
             .meta("delete-type", "position")
             .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
             .build(),

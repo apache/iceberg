@@ -21,29 +21,42 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 
 /**
- * Builder for generating an {@link PositionDeleteWriter}.
+ * A specialized builder for creating position-based delete file writers.
  *
- * @param <B> type of the builder
- * @param <E> engine-specific schema of the input records used for appender initialization
+ * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * specific to creating {@link PositionDeleteWriter} instances.
+ *
+ * <p>The builder provides methods to configure the schema for the row data that might be included
+ * with the position deletes through {@link #rowSchema(Schema)}, enabling optional preservation of
+ * deleted record content.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> engine-specific schema type required by the writer for data conversion
  */
 public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder<B, E>, E>
-    extends ContentFileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilder<B, E> {
   /** Sets the row schema for the delete writers. */
   B rowSchema(Schema newSchema);
 
   /**
-   * Creates a writer which generates a position {@link DeleteFile} based on the configurations. The
-   * writer will expect {@link org.apache.iceberg.deletes.PositionDelete} records. If {@link
-   * #rowSchema(Schema)} is set then the positional delete records should contain deleted rows
-   * specified by the {@link #dataSchema(Object)} (Object)}. The provided engine schema should be
-   * convertible to the Iceberg schema defined by {@link #rowSchema(Schema)} (Schema)}.
+   * Creates a position-based delete file writer configured with the current builder settings.
    *
-   * @param <D> the type of data that the writer will handle
-   * @return a {@link PositionDeleteWriter} instance configured with the specified settings
-   * @throws IOException if an I/O error occurs during the creation of the writer
+   * <p>The returned {@link PositionDeleteWriter} produces files that identify records to be deleted
+   * by their file path and position, generating proper {@link DeleteFile} metadata on completion.
+   * The writer expects {@link PositionDelete} records as input.
+   *
+   * <p>If {@link #rowSchema(Schema)} is configured, the position delete records should include the
+   * content of the deleted rows. These row values should match the engine schema specified via
+   * {@link #dataSchema(Object)} and will be converted to the target Iceberg schema defined by
+   * {@link #rowSchema(Schema)}.
+   *
+   * @param <D> the type of position delete records the writer will accept
+   * @return a fully configured {@link PositionDeleteWriter} instance
+   * @throws IOException if the writer cannot be created due to I/O errors
    */
   <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
 }

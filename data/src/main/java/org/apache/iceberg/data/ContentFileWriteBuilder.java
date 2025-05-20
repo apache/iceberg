@@ -28,28 +28,34 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.WriteBuilder;
 
 /**
- * Builder for generating one of the following:
+ * A generic builder interface for creating specialized file writers in the Iceberg ecosystem.
+ *
+ * <p>This builder provides a unified configuration API for generating various types of content
+ * writers:
  *
  * <ul>
- *   <li>{@link DataWriter}
- *   <li>{@link EqualityDeleteWriter}
- *   <li>{@link PositionDeleteWriter}
+ *   <li>{@link DataWriter} for creating data files with table records
+ *   <li>{@link EqualityDeleteWriter} for creating files with equality-based delete records
+ *   <li>{@link PositionDeleteWriter} for creating files with position-based delete records
  * </ul>
  *
- * @param <B> type of the builder
- * @param <E> engine-specific schema of the input records used for appender initialization
+ * <p>Each concrete implementation configures the underlying file format writer while adding
+ * content-specific metadata and behaviors.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> engine-specific schema type required by the writer for data conversion
  */
-interface ContentFileWriteBuilderBase<B extends ContentFileWriteBuilderBase<B, E>, E> {
+interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
 
   /** Set the file schema. */
   B schema(Schema newSchema);
 
   /**
-   * Sets the engine-specific schema for the input. Used by the {@link AppenderBuilder#build()} to
+   * Sets the engine-specific schema for the input. Used by the {@link WriteBuilder#build()} to
    * configure the engine-specific converters.
    */
   B dataSchema(E engineSchema);

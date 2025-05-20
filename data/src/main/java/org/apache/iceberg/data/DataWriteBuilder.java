@@ -19,25 +19,34 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.DataWriter;
 
 /**
- * Builder for generating a {@link DataWriter}.
+ * A specialized builder for creating data content file writers.
  *
- * @param <B> type of the builder
- * @param <E> engine-specific schema of the input records used for appender initialization
+ * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * specific to creating {@link DataWriter} instances. Data writers produce table content files
+ * containing actual data records stored in an Iceberg table, configured according to the table's
+ * schema and partition specification.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> engine-specific schema type required by the writer for data conversion
  */
 public interface DataWriteBuilder<B extends DataWriteBuilder<B, E>, E>
-    extends ContentFileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilder<B, E> {
   /**
-   * Creates a writer which generates a {@link org.apache.iceberg.DataFile} based on the
-   * configurations. The data writer will expect inputs defined by the {@link #dataSchema(Object)}
-   * which should be convertible to the Iceberg schema defined by {@link #schema(Schema)}.
+   * Creates a data file writer configured with the current builder settings.
    *
-   * @param <D> the type of data that the writer will handle
-   * @return a {@link DataWriter} instance configured with the specified settings
-   * @throws IOException if an I/O error occurs during the creation of the writer
+   * <p>The returned {@link DataWriter} produces files that conform to the Iceberg table format,
+   * generating proper {@link DataFile} metadata on completion. The writer accepts input records
+   * matching the engine schema specified via {@link #dataSchema(Object)} and converts them to the
+   * target Iceberg schema specified via {@link #schema(Schema)} for writing.
+   *
+   * @param <D> the type of data records the writer will accept
+   * @return a fully configured {@link DataWriter} instance
+   * @throws IOException if the writer cannot be created due to I/O errors
    */
   <D> DataWriter<D> dataWriter() throws IOException;
 }

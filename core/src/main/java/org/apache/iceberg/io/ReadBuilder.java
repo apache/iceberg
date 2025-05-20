@@ -25,13 +25,21 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.mapping.NameMapping;
 
 /**
- * File formats should implement this interface to provide a builder for reading data files. {@link
- * ReadBuilder} reads the data files with the specified parameters. The returned objects are defined
- * by the {@link ObjectModel} which is used to read the data.
+ * Builder interface for creating file readers across supported data file formats. Each {@link
+ * FileAccessFactory} implementation provides appropriate {@link ReadBuilder} instances based on:
  *
- * <p>This interface is directly exposed for the users to parameterize readers.
+ * <ul>
+ *   <li>source file format (Parquet, Avro, ORC)
+ *   <li>engine-specific object representation (spark, flink, generic, etc.)
+ * </ul>
  *
- * @param <B> type returned by builder API to allow chained calls
+ * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link
+ * CloseableIterable} instances that read data from source files. Configuration options include
+ * schema projection, predicate filtering, record batching, and encryption settings.
+ *
+ * <p>This interface is directly exposed to users for parameterizing readers.
+ *
+ * @param <B> the concrete builder type for method chaining
  */
 public interface ReadBuilder<B extends ReadBuilder<B>> {
   /** The configuration key for the batch size in the case of vectorized reads. */

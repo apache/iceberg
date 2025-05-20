@@ -25,13 +25,20 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 
 /**
- * Builder for generating an {@link EqualityDeleteWriter}.
+ * A specialized builder for creating equality-based delete file writers.
  *
- * @param <B> type of the builder
- * @param <E> engine-specific schema of the input records used for appender initialization
+ * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * specific to creating {@link EqualityDeleteWriter} instances.
+ *
+ * <p>The builder provides methods to configure which fields should be used for equality comparison
+ * through {@link #equalityFieldIds(List)} or {@link #equalityFieldIds(int...)}, along with schema
+ * configuration for the delete records.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> engine-specific schema type required by the writer for data conversion
  */
 public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, E>, E>
-    extends ContentFileWriteBuilderBase<B, E> {
+    extends ContentFileWriteBuilder<B, E> {
   /** Sets the row schema for the delete writers. */
   B rowSchema(Schema newSchema);
 
@@ -42,13 +49,18 @@ public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder
   B equalityFieldIds(int... fieldIds);
 
   /**
-   * Creates a writer which generates an equality {@link DeleteFile} based on the configurations.
-   * The writer will expect inputs defined by the {@link #dataSchema(Object)} which should be
-   * convertible to the Iceberg schema defined by {@link #rowSchema(Schema)}.
+   * Creates an equality-based delete file writer configured with the current builder settings.
    *
-   * @param <D> the type of data that the writer will handle
-   * @return a {@link EqualityDeleteWriter} instance configured with the specified settings
-   * @throws IOException if an I/O error occurs during the creation of the writer
+   * <p>The returned {@link EqualityDeleteWriter} produces files that identify records to be deleted
+   * based on field equality, generating proper {@link DeleteFile} metadata on completion.
+   *
+   * <p>The writer accepts input records matching the engine schema specified via {@link
+   * #dataSchema(Object)} and converts them to the target Iceberg schema specified via {@link
+   * #rowSchema(Schema)} for deletion.
+   *
+   * @param <D> the type of delete records the writer will accept
+   * @return a fully configured {@link EqualityDeleteWriter} instance
+   * @throws IOException if the writer cannot be created due to I/O errors
    */
   <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
 }

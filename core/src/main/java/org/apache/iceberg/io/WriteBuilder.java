@@ -26,21 +26,23 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 
 /**
- * Interface which is implemented by the data file format implementations. The {@link ObjectModel}
- * provides the {@link AppenderBuilder} for the given parameters:
+ * Builder interface for creating file writers across supported data file formats. Each {@link
+ * FileAccessFactory} implementation provides appropriate {@link WriteBuilder} instances based on:
  *
  * <ul>
- *   <li>file format
- *   <li>engine-specific object model
- *   <li>{@link FileContent}
+ *   <li>target file format (Parquet, Avro, ORC)
+ *   <li>engine-specific object representation (spark, flink, generic, etc.)
+ *   <li>content type ({@link FileContent#DATA}, {@link FileContent#EQUALITY_DELETES}, {@link
+ *       FileContent#POSITION_DELETES})
  * </ul>
  *
- * The {@link AppenderBuilder} is used to write data to the target files.
+ * The {@link WriteBuilder} follows the builder pattern to configure and create {@link FileAppender}
+ * instances that write data to the target output files.
  *
- * @param <B> type returned by builder API to allow chained calls
- * @param <E> the engine-specific schema of the input data for the appender
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> engine-specific schema type for the input data records
  */
-public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
+public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
   /** Set the file schema. */
   B schema(Schema newSchema);
 
@@ -99,9 +101,17 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   }
 
   /**
-   * Sets the engine native schema for the input. Defines the input type when there is N to 1
-   * mapping between the engine type and the Iceberg type, and providing the Iceberg schema is not
-   * enough for the conversion.
+   * Sets the engine-specific schema for the input data records.
+   *
+   * <p>This method is necessary when the mapping between engine types and Iceberg types is not
+   * one-to-one. For example, when multiple engine types could map to the same Iceberg type, or when
+   * schema metadata beyond the structure is needed to properly interpret the data.
+   *
+   * <p>While the Iceberg schema defines the expected output structure, the engine schema provides
+   * the exact input format details needed for proper type conversion.
+   *
+   * @param newEngineSchema the native schema representation from the engine (Spark, Flink, etc.)
+   * @return this builder for method chaining
    */
   B dataSchema(E newEngineSchema);
 
