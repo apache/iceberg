@@ -22,10 +22,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.util.ScanTaskUtil;
 
+@Internal
 public class CommitSummary {
 
   private final AtomicLong dataFilesCount = new AtomicLong();
