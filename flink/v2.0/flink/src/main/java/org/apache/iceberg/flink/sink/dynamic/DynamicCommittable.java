@@ -73,7 +73,10 @@ class DynamicCommittable implements Serializable {
 
   @Override
   public boolean equals(Object o) {
-    if (o == null || getClass() != o.getClass()) return false;
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
     DynamicCommittable that = (DynamicCommittable) o;
     return checkpointId == that.checkpointId
         && Objects.equals(key, that.key)
