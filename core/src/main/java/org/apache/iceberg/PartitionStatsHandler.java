@@ -168,9 +168,7 @@ public class PartitionStatsHandler {
     } else {
       if (statisticsFile.snapshotId() == snapshotId) {
         // no-op
-        LOG.info(
-            "Snapshot {} already has statistics file computed. Returning the same file as result.",
-            snapshotId);
+        LOG.info("Returning existing statistics file for snapshot {}", snapshotId);
         return statisticsFile;
       }
 
