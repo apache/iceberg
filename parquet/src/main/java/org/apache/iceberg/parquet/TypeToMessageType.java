@@ -99,7 +99,7 @@ public class TypeToMessageType {
       // unknown type is not written to data files
       Type fieldType = field(field);
       if (fieldType != null) {
-        builder.addField(field(field));
+        builder.addField(fieldType);
       }
     }
 
