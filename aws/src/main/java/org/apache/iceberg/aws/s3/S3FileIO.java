@@ -453,7 +453,7 @@ public class S3FileIO
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(propertiesWithCredentials);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
       }

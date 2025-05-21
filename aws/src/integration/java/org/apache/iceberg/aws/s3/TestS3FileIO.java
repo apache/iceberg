@@ -41,6 +41,7 @@ import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -88,10 +89,13 @@ import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.identity.spi.AwsSessionCredentialsIdentity;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ServiceClientConfiguration;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
@@ -717,6 +721,84 @@ public class TestS3FileIO {
                         "sessionTokenFromProperties")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid S3 Credentials: only one S3 credential should exist");
+  }
+
+  @Test
+  public void initFileIOWithoutCredentials() {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.initialize(ImmutableMap.of("client.region", "us-east-1"));
+
+    S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
+    assertThat(actualConfiguration).isNotNull();
+    try {
+      actualConfiguration.credentialsProvider().resolveIdentity();
+    } catch (SdkClientException e) {
+      assertThat(e.getMessage().contains("Unable to load credentials from any of the providers"));
+    }
+  }
+
+  @Test
+  public void initFileIOWithStorageCredentials() throws ExecutionException, InterruptedException {
+    StorageCredential s3Credential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "updateKeyIdFromCredential",
+                "s3.secret-access-key",
+                "updateAccessKeyFromCredential",
+                "s3.session-token",
+                "updateSessionTokenFromCredential"));
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(s3Credential));
+    fileIO.initialize(ImmutableMap.of("client.region", "us-east-1"));
+
+    S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
+    assertThat(actualConfiguration).isNotNull();
+    AwsSessionCredentialsIdentity actualCredIdentity =
+        (AwsSessionCredentialsIdentity)
+            actualConfiguration.credentialsProvider().resolveIdentity().get();
+    assertThat(actualCredIdentity.accessKeyId()).isEqualTo("updateKeyIdFromCredential");
+    assertThat(actualCredIdentity.secretAccessKey()).isEqualTo("updateAccessKeyFromCredential");
+    assertThat(actualCredIdentity.sessionToken()).isEqualTo("updateSessionTokenFromCredential");
+  }
+
+  @Test
+  public void initFileIOWithStorageCredentialsOverwrites()
+      throws ExecutionException, InterruptedException {
+    StorageCredential s3Credential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "updateKeyIdFromCredential",
+                "s3.secret-access-key",
+                "updateAccessKeyFromCredential",
+                "s3.session-token",
+                "updateSessionTokenFromCredential"));
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(s3Credential));
+    fileIO.initialize(
+        ImmutableMap.of(
+            "client.region",
+            "us-east-1",
+            "s3.access-key-id",
+            "keyIdFromProperties",
+            "s3.secret-access-key",
+            "accessKeyFromProperties",
+            "s3.session-token",
+            "sessionTokenFromProperties"));
+
+    S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
+    assertThat(actualConfiguration).isNotNull();
+    AwsSessionCredentialsIdentity actualCredIdentity =
+        (AwsSessionCredentialsIdentity)
+            actualConfiguration.credentialsProvider().resolveIdentity().get();
+    assertThat(actualCredIdentity.accessKeyId()).isEqualTo("updateKeyIdFromCredential");
+    assertThat(actualCredIdentity.secretAccessKey()).isEqualTo("updateAccessKeyFromCredential");
+    assertThat(actualCredIdentity.sessionToken()).isEqualTo("updateSessionTokenFromCredential");
   }
 
   private void createRandomObjects(String prefix, int count) {
