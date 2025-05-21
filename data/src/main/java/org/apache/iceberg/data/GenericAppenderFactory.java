@@ -248,7 +248,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null
             ? MetricsConfig.forPositionDelete(table)
-            : MetricsConfig.defaultForPosDelete();
+            : MetricsConfig.getDefaultForPosDelete();
 
     try {
       switch (format) {
