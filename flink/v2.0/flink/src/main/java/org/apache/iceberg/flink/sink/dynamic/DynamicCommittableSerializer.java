@@ -24,13 +24,11 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
-import org.apache.iceberg.flink.sink.IcebergCommittable;
 
 /**
- * This serializer is used for serializing the {@link IcebergCommittable} objects between the Writer
- * and the Aggregator operator and between the Aggregator and the Committer as well.
- *
- * <p>In both cases only the respective part is serialized.
+ * This serializer is used for serializing the {@link DynamicCommittable} objects between the {@link
+ * DynamicWriter} and the {@link DynamicWriteResultAggregator} operator and for sending it down to
+ * the {@link DynamicCommitter}.
  */
 @Internal
 class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicCommittable> {

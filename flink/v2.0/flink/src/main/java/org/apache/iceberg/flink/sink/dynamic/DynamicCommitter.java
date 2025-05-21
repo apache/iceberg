@@ -35,6 +35,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -43,7 +44,6 @@ import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.IcebergCommittable;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -60,7 +60,7 @@ import org.slf4j.LoggerFactory;
  * commits. The implementation builds on the following assumptions:
  *
  * <ul>
- *   <li>There is a single {@link IcebergCommittable} for every checkpoint
+ *   <li>There is a single {@link DynamicCommittable} for every table / checkpoint
  *   <li>There is no late checkpoint - if checkpoint 'x' has received in one call, then after a
  *       successful run only checkpoints &gt; x will arrive
  *   <li>There is no other writer which would generate another commit to the same branch with the
@@ -118,6 +118,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       return;
     }
 
+    // For every table and every checkpoint, we store the list of to-be-committed
+    // DynamicCommittable.
+    // There may be DynamicCommittable from previous checkpoints which have not been committed yet.
     Map<TableKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>> commitRequestMap =
         Maps.newHashMap();
     for (CommitRequest<DynamicCommittable> request : commitRequests) {
@@ -179,13 +182,12 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   /**
    * Commits the data to the Iceberg table by reading the file data from the {@link DeltaManifests}
    * ordered by the checkpointId, and writing the new snapshot to the Iceberg table. The {@link
-   * org.apache.iceberg.SnapshotSummary} will contain the jobId, snapshotId, checkpointId so in case
-   * of job restart we can identify which changes are committed, and which are still waiting for the
-   * commit.
+   * SnapshotSummary} will contain the jobId, snapshotId, checkpointId so in case of job restart we
+   * can identify which changes are committed, and which are still waiting for the commit.
    *
    * @param commitRequestMap The checkpointId to {@link CommitRequest} map of the changes to commit
-   * @param newFlinkJobId The jobId to store in the {@link org.apache.iceberg.SnapshotSummary}
-   * @param operatorId The operatorId to store in the {@link org.apache.iceberg.SnapshotSummary}
+   * @param newFlinkJobId The jobId to store in the {@link SnapshotSummary}
+   * @param operatorId The operatorId to store in the {@link SnapshotSummary}
    * @throws IOException On commit failure
    */
   private void commitPendingRequests(

@@ -38,7 +38,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
@@ -50,9 +49,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Iceberg writer implementation for the {@link SinkWriter} interface. Used by the {@link
- * IcebergSink} (SinkV2). Writes out the data to the final place, and emits a single {@link
- * WriteResult} at every checkpoint for every data/delete file created by this writer.
+ * Iceberg writer implementation for the {@link SinkWriter} interface. Used by the
+ * DynamicIcebergSink. Writes out the data to the final place, and emits {@link DynamicWriteResult}
+ * for every unique {@link WriteTarget} at checkpoint time.
  */
 @Internal
 class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, DynamicWriteResult> {
