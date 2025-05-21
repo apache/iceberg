@@ -32,7 +32,7 @@ import org.apache.iceberg.io.DataWriter;
  * schema and partition specification.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> engine-specific schema type required by the writer for data conversion
+ * @param <E> output schema type required by the writer for data conversion
  */
 public interface DataWriteBuilder<B extends DataWriteBuilder<B, E>, E>
     extends ContentFileWriteBuilder<B, E> {
@@ -41,7 +41,7 @@ public interface DataWriteBuilder<B extends DataWriteBuilder<B, E>, E>
    *
    * <p>The returned {@link DataWriter} produces files that conform to the Iceberg table format,
    * generating proper {@link DataFile} metadata on completion. The writer accepts input records
-   * matching the engine schema specified via {@link #dataSchema(Object)} and converts them to the
+   * matching the input schema specified via {@link #dataSchema(Object)} and converts them to the
    * target Iceberg schema specified via {@link #schema(Schema)} for writing.
    *
    * @param <D> the type of data records the writer will accept

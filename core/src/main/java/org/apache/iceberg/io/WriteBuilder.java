@@ -31,7 +31,7 @@ import org.apache.iceberg.Schema;
  *
  * <ul>
  *   <li>target file format (Parquet, Avro, ORC)
- *   <li>engine-specific object representation (spark, flink, generic, etc.)
+ *   <li>input data object model (spark, flink, generic, etc.)
  *   <li>content type ({@link FileContent#DATA}, {@link FileContent#EQUALITY_DELETES}, {@link
  *       FileContent#POSITION_DELETES})
  * </ul>
@@ -40,11 +40,11 @@ import org.apache.iceberg.Schema;
  * instances that write data to the target output files.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> engine-specific schema type for the input data records
+ * @param <E> schema type for the input data records
  */
 public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
   /** Set the file schema. */
-  B schema(Schema newSchema);
+  B fileSchema(Schema newSchema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -85,7 +85,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
   B overwrite(boolean enabled);
 
   /**
-   * Sets the encryption key used for writing the file. If the reader does not support encryption,
+   * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
   default B fileEncryptionKey(ByteBuffer encryptionKey) {
@@ -93,27 +93,27 @@ public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
   }
 
   /**
-   * Sets the additional authentication data (aad) prefix used for writing the file. If the reader
+   * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
    * does not support encryption, then an exception should be thrown.
    */
-  default B aadPrefix(ByteBuffer aadPrefix) {
+  default B fileAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 
   /**
-   * Sets the engine-specific schema for the input data records.
+   * Sets the schema for the input data records.
    *
-   * <p>This method is necessary when the mapping between engine types and Iceberg types is not
-   * one-to-one. For example, when multiple engine types could map to the same Iceberg type, or when
+   * <p>This method is necessary when the mapping between input types and Iceberg types is not
+   * one-to-one. For example, when multiple input types could map to the same Iceberg type, or when
    * schema metadata beyond the structure is needed to properly interpret the data.
    *
-   * <p>While the Iceberg schema defines the expected output structure, the engine schema provides
+   * <p>While the Iceberg schema defines the expected output structure, the input schema provides
    * the exact input format details needed for proper type conversion.
    *
-   * @param newEngineSchema the native schema representation from the engine (Spark, Flink, etc.)
+   * @param newDataSchema the native schema representation from the input (Spark, Flink, etc.)
    * @return this builder for method chaining
    */
-  B dataSchema(E newEngineSchema);
+  B dataSchema(E newDataSchema);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   <D> FileAppender<D> build() throws IOException;

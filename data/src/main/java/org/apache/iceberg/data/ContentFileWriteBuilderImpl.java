@@ -58,7 +58,7 @@ import org.apache.iceberg.util.ArrayUtil;
  *
  * @param <C> the concrete builder type for method chaining
  * @param <W> the type of the wrapped format-specific writer builder
- * @param <E> the engine-specific schema type required by the writer
+ * @param <E> output schema type required by the writer for data conversion
  */
 @SuppressWarnings("unchecked")
 class ContentFileWriteBuilderImpl<
@@ -85,13 +85,13 @@ class ContentFileWriteBuilderImpl<
 
   @Override
   public C schema(Schema newSchema) {
-    writeBuilder.schema(newSchema);
+    writeBuilder.fileSchema(newSchema);
     return (C) this;
   }
 
   @Override
-  public C dataSchema(E engineSchema) {
-    writeBuilder.dataSchema(engineSchema);
+  public C dataSchema(E dataSchema) {
+    writeBuilder.dataSchema(dataSchema);
     return (C) this;
   }
 
@@ -138,8 +138,8 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C aadPrefix(ByteBuffer aadPrefix) {
-    writeBuilder.aadPrefix(aadPrefix);
+  public C fileAADPrefix(ByteBuffer aadPrefix) {
+    writeBuilder.fileAADPrefix(aadPrefix);
     return (C) this;
   }
 
@@ -210,7 +210,7 @@ class ContentFileWriteBuilderImpl<
 
     return new EqualityDeleteWriter<>(
         writeBuilder
-            .schema(rowSchema)
+            .fileSchema(rowSchema)
             .meta("delete-type", "equality")
             .meta(
                 "delete-field-ids",
@@ -240,7 +240,7 @@ class ContentFileWriteBuilderImpl<
     return new PositionDeleteWriter<>(
         writeBuilder
             .meta("delete-type", "position")
-            .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
+            .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
             .build(),
         format,
         location,

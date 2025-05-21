@@ -36,10 +36,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.io.WriteBuilder;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +68,7 @@ public final class FileAccessFactoryRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
-  private static final Map<Key, FileAccessFactory<?>> FILE_ACCESS_FACTORIES =
+  private static final Map<Pair<FileFormat, String>, FileAccessFactory<?>> FILE_ACCESS_FACTORIES =
       Maps.newConcurrentMap();
 
   /**
@@ -90,7 +89,8 @@ public final class FileAccessFactoryRegistry {
    */
   @SuppressWarnings("CatchBlockLogException")
   public static void registerFileAccessFactory(FileAccessFactory<?> fileAccessFactory) {
-    Key key = new Key(fileAccessFactory.format(), fileAccessFactory.objectModeName());
+    Pair<FileFormat, String> key =
+        Pair.of(fileAccessFactory.format(), fileAccessFactory.objectModeName());
     if (FILE_ACCESS_FACTORIES.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
@@ -124,18 +124,18 @@ public final class FileAccessFactoryRegistry {
    * Returns a reader builder for the specified file format and object model.
    *
    * <p>The returned {@link ReadBuilder} provides a fluent interface for configuring how data is
-   * read from the input file and converted to engine-specific objects. The builder supports
+   * read from the input file and converted to the output objects. The builder supports
    * configuration options like schema projection, predicate pushdown, batch size and encryption.
    *
    * @param format the file format (Parquet, Avro, ORC) that determines the parsing implementation
-   * @param objectModelName identifier for the engine-specific data representation (generic, spark,
+   * @param objectModelName identifier for the expected output data representation (generic, spark,
    *     flink, etc.)
    * @param inputFile source file to read data from
    * @return a configured reader builder for the specified format and object model
    */
   public static ReadBuilder<?> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return FILE_ACCESS_FACTORIES.get(new Key(format, objectModelName)).readBuilder(inputFile);
+    return FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)).readBuilder(inputFile);
   }
 
   /**
@@ -148,12 +148,12 @@ public final class FileAccessFactoryRegistry {
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
-   * @param <E> type of the engine-specific schema expected by the writer
+   * @param <E> input schema type required by the writer for data conversion
    * @return a configured writer builder for creating the appender
    */
   public static <E> WriteBuilder<?, E> writeBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(new Key(format, objectModelName)))
+    return ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)))
         .writeBuilder(outputFile.encryptingOutputFile(), FileContent.DATA);
   }
 
@@ -168,7 +168,7 @@ public final class FileAccessFactoryRegistry {
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
-   * @param <E> type of the engine-specific schema expected by the writer
+   * @param <E> input schema type required by the writer for data conversion
    * @return a configured data write builder for creating a {@link DataWriter}
    */
   public static <E> DataWriteBuilder<?, E> dataWriteBuilder(
@@ -187,7 +187,7 @@ public final class FileAccessFactoryRegistry {
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
-   * @param <E> type of the engine-specific schema expected by the writer
+   * @param <E> input schema type required by the writer for data conversion
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
   public static <E> EqualityDeleteWriteBuilder<?, E> equalityDeleteWriteBuilder(
@@ -206,7 +206,7 @@ public final class FileAccessFactoryRegistry {
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
-   * @param <E> type of the engine-specific schema expected by the writer
+   * @param <E> input schema type required by the writer for data conversion
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
   public static <E> PositionDeleteWriteBuilder<?, E> positionDeleteWriteBuilder(
@@ -222,48 +222,9 @@ public final class FileAccessFactoryRegistry {
           EncryptedOutputFile outputFile,
           FileContent content) {
     return new ContentFileWriteBuilderImpl<>(
-        ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(new Key(format, objectModelName)))
+        ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)))
             .<B>writeBuilder(outputFile.encryptingOutputFile(), content),
         outputFile.encryptingOutputFile().location(),
         format);
-  }
-
-  /** Key used to identify readers and writers in the {@link FileAccessFactoryRegistry}. */
-  private static class Key {
-    private final FileFormat fileFormat;
-    private final String objectModelName;
-
-    private Key(FileFormat fileFormat, String objectModelName) {
-      this.fileFormat = fileFormat;
-      this.objectModelName = objectModelName;
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("fileFormat", fileFormat)
-          .add("objectModelName", objectModelName)
-          .toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-
-      if (!(o instanceof Key)) {
-        return false;
-      }
-
-      Key other = (Key) o;
-      return Objects.equal(other.fileFormat, fileFormat)
-          && Objects.equal(other.objectModelName, objectModelName);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hashCode(fileFormat, objectModelName);
-    }
   }
 }

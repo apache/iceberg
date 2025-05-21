@@ -30,7 +30,7 @@ import org.apache.iceberg.mapping.NameMapping;
  *
  * <ul>
  *   <li>source file format (Parquet, Avro, ORC)
- *   <li>engine-specific object representation (spark, flink, generic, etc.)
+ *   <li>input/output object representation (spark, flink, generic, etc.)
  * </ul>
  *
  * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link

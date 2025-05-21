@@ -47,7 +47,7 @@ import org.apache.iceberg.io.WriteBuilder;
  * content-specific metadata and behaviors.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> engine-specific schema type required by the writer for data conversion
+ * @param <E> output schema type required by the writer for data conversion
  */
 interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
 
@@ -55,10 +55,10 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
   B schema(Schema newSchema);
 
   /**
-   * Sets the engine-specific schema for the input. Used by the {@link WriteBuilder#build()} to
-   * configure the engine-specific converters.
+   * Sets the data schema for the input. Used by the {@link WriteBuilder#build()} to configure the
+   * converters.
    */
-  B dataSchema(E engineSchema);
+  B dataSchema(E dataSchema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -107,10 +107,10 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
   B fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
-   * Sets the additional authentication data prefix used for writing the file. If the writer does
-   * not support encryption, then an exception should be thrown.
+   * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
+   * does not support encryption, then an exception should be thrown.
    */
-  B aadPrefix(ByteBuffer aadPrefix);
+  B fileAADPrefix(ByteBuffer aadPrefix);
 
   /** Sets the partition specification for the Iceberg metadata. */
   B spec(PartitionSpec newSpec);

@@ -25,10 +25,10 @@ import org.apache.iceberg.deletes.PositionDelete;
 
 /**
  * Interface that provides a unified abstraction for converting between data file formats and
- * engine-specific data representations.
+ * input/output data representations.
  *
- * <p>FileAccessFactory serves as a bridge between storage formats ({@link FileFormat}) and
- * processing engine data structures, optimizing performance through direct conversion without
+ * <p>FileAccessFactory serves as a bridge between storage formats ({@link FileFormat}) and expected
+ * input/output data structures, optimizing performance through direct conversion without
  * intermediate representations. File format implementations handle the low-level parsing details
  * while the object model determines the in-memory representation used for the parsed data.
  * Together, these provide a consistent API for consuming data files while optimizing for specific
@@ -37,10 +37,8 @@ import org.apache.iceberg.deletes.PositionDelete;
  * <p>The interface provides:
  *
  * <ul>
- *   <li>{@link ReadBuilder} - creates readers for converting file formats to engine-specific
- *       objects
- *   <li>{@link WriteBuilder} - creates writers for converting engine-specific objects to file
- *       formats
+ *   <li>{@link ReadBuilder} - creates readers for converting file formats to output objects
+ *   <li>{@link WriteBuilder} - creates writers for converting input objects to file formats
  * </ul>
  *
  * <p>Iceberg provides these built-in object models:
@@ -58,7 +56,7 @@ import org.apache.iceberg.deletes.PositionDelete;
  * <p>Processing engines can implement custom object models to integrate with Iceberg's file reading
  * and writing capabilities.
  *
- * @param <E> engine-specific schema type used for both input (writes) and output (reads)
+ * @param <E> input schema type used for writing data
  */
 public interface FileAccessFactory<E> {
   /** The file format which is read/written by the object model. */
@@ -68,11 +66,11 @@ public interface FileAccessFactory<E> {
    * Returns the unique identifier for the object model implementation processed by this factory.
    *
    * <p>Object model names (such as "generic", "spark", "spark-vectorized", "flink", "arrow")
-   * identify the engine-specific data representations that this implementation can process. These
+   * identify the input/output data representations that this implementation can process. These
    * identifiers allow users/engines to explicitly select which data representation to use.
    *
    * <p>The object model name acts as a contract specifying the expected data structures for both
-   * reading (converting file formats into engine objects) and writing (converting engine objects
+   * reading (converting file formats into output objects) and writing (converting input objects
    * into file formats). This ensures proper integration between Iceberg's storage layer and
    * processing engines.
    *
@@ -83,17 +81,17 @@ public interface FileAccessFactory<E> {
   /**
    * Creates a writer builder for the specified output file and content type.
    *
-   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts
-   * engine-specific data objects into the file format supported by this factory. The content
-   * parameter determines the expected input type and output file purpose:
+   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
+   * objects into the file format supported by this factory. The content parameter determines the
+   * expected input type and output file purpose:
    *
    * <ul>
-   *   <li><strong>Engine-specific data objects</strong> (defined by the object model name) when
-   *       writing standard data files ({@link FileContent#DATA}), or equality delete files ({@link
+   *   <li><strong>Input objects</strong> (defined by the object model name) when writing standard
+   *       data files ({@link FileContent#DATA}), or equality delete files ({@link
    *       FileContent#EQUALITY_DELETES})
    *   <li><strong>{@link PositionDelete}</strong> when writing equality delete files ({@link
    *       FileContent#POSITION_DELETES}). Each PositionDelete object could contain the writer's
-   *       engine-specific data type in its row field
+   *       output type in its row field
    * </ul>
    *
    * <p>The builder follows the fluent pattern for configuring writer properties like compression,
@@ -110,9 +108,9 @@ public interface FileAccessFactory<E> {
    * Creates a file reader builder for the specified input file.
    *
    * <p>The returned {@link ReadBuilder} configures and creates a reader that converts data from the
-   * file format into engine-specific objects supported by this factory. The builder allows for
-   * configuration of various reading aspects like schema projection, predicate pushdown, row/batch
-   * size, container reuse, encryption settings, and other format-specific options.
+   * file format into output objects supported by this factory. The builder allows for configuration
+   * of various reading aspects like schema projection, predicate pushdown, row/batch size,
+   * container reuse, encryption settings, and other format-specific options.
    *
    * <p>The builder follows the fluent pattern for configuring reader properties and ultimately
    * creates a {@link CloseableIterable} for consuming the file data.

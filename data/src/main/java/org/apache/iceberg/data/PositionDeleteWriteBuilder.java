@@ -35,12 +35,28 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
  * deleted record content.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> engine-specific schema type required by the writer for data conversion
+ * @param <E> output schema type required by the writer for data conversion
  */
 public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder<B, E>, E>
     extends ContentFileWriteBuilder<B, E> {
-  /** Sets the row schema for the delete writers. */
-  B rowSchema(Schema newSchema);
+  /**
+   * Configures the schema for deleted row data to be stored in position delete files.
+   *
+   * <p>Position delete files can optionally store the content of deleted rows. When this schema is
+   * set, the writer will expect position delete records to include the complete row data of the
+   * records being deleted.
+   *
+   * <p>The row values provided to the writer should match the structure specified via {@link
+   * #dataSchema(Object)} in the writer's native input data format. These values will be converted
+   * to the Iceberg schema defined here for storage in the delete file's 'row' column.
+   *
+   * <p>If not configured, position delete files will contain only the path and position information
+   * without preserving the deleted record content.
+   *
+   * @param newRowSchema the Iceberg schema defining the structure for deleted row content
+   * @return this builder for method chaining
+   */
+  B rowSchema(Schema newRowSchema);
 
   /**
    * Creates a position-based delete file writer configured with the current builder settings.
@@ -48,11 +64,6 @@ public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder
    * <p>The returned {@link PositionDeleteWriter} produces files that identify records to be deleted
    * by their file path and position, generating proper {@link DeleteFile} metadata on completion.
    * The writer expects {@link PositionDelete} records as input.
-   *
-   * <p>If {@link #rowSchema(Schema)} is configured, the position delete records should include the
-   * content of the deleted rows. These row values should match the engine schema specified via
-   * {@link #dataSchema(Object)} and will be converted to the target Iceberg schema defined by
-   * {@link #rowSchema(Schema)}.
    *
    * @param <D> the type of position delete records the writer will accept
    * @return a fully configured {@link PositionDeleteWriter} instance
