@@ -61,6 +61,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -110,6 +111,18 @@ public class TestIcebergSourceFailover {
         SINK_CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+  }
+
+  @BeforeEach
+  protected void startMiniCluster(@InjectMiniCluster MiniCluster miniCluster) throws Exception {
+    if (!miniCluster.isRunning()) {
+      miniCluster.start();
+    }
+  }
+
+  @AfterEach
+  protected void stopMiniCluster(@InjectMiniCluster MiniCluster miniCluster) throws Exception {
+    miniCluster.close();
   }
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
