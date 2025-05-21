@@ -73,7 +73,7 @@ class TestCompareSchemasVisitor {
                     optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(0, "id", IntegerType.get()), optional(1, "data", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
   @Test
@@ -86,7 +86,7 @@ class TestCompareSchemasVisitor {
                     optional(0, "id", IntegerType.get()),
                     optional(1, "data", StringType.get()),
                     optional(2, "extra", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.CONVERSION_NEEDED);
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
   }
 
   @Test
@@ -97,7 +97,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", LongType.get()), optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
   @Test
@@ -108,7 +108,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(1, "id", LongType.get()), optional(2, "extra", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.CONVERSION_NEEDED);
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
   }
 
   @Test
@@ -118,7 +118,7 @@ class TestCompareSchemasVisitor {
     Schema tableSchema =
         new Schema(required(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
     assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
     assertThat(CompareSchemasVisitor.visit(tableSchema, dataSchema))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -148,7 +148,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(
                         2, "struct1", StructType.of(optional(3, "extra", IntegerType.get()))))))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
   @Test
@@ -178,7 +178,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(
                         2, "map1", MapType.ofOptional(3, 4, IntegerType.get(), StringType.get())))))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
   @Test
@@ -204,6 +204,6 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(1, "id", IntegerType.get()),
                     optional(2, "list1", ListType.ofOptional(3, IntegerType.get())))))
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 }

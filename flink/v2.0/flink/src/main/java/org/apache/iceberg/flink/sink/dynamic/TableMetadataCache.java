@@ -48,7 +48,7 @@ class TableMetadataCache {
   private static final Tuple2<Boolean, Exception> EXISTS = Tuple2.of(true, null);
   private static final Tuple2<Boolean, Exception> NOT_EXISTS = Tuple2.of(false, null);
   static final Tuple2<Schema, CompareSchemasVisitor.Result> NOT_FOUND =
-      Tuple2.of(null, CompareSchemasVisitor.Result.INCOMPATIBLE);
+      Tuple2.of(null, CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
 
   private final Catalog catalog;
   private final long refreshMs;
@@ -126,7 +126,8 @@ class TableMetadataCache {
               Tuple2.of(tableSchema.getValue(), CompareSchemasVisitor.Result.SAME);
           cached.schema.update(input, newResult);
           return newResult;
-        } else if (compatible == null && result == CompareSchemasVisitor.Result.CONVERSION_NEEDED) {
+        } else if (compatible == null
+            && result == CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED) {
           compatible = tableSchema.getValue();
         }
       }
@@ -137,7 +138,7 @@ class TableMetadataCache {
       return schema(identifier, input, false);
     } else if (compatible != null) {
       Tuple2<Schema, CompareSchemasVisitor.Result> newResult =
-          Tuple2.of(compatible, CompareSchemasVisitor.Result.CONVERSION_NEEDED);
+          Tuple2.of(compatible, CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
       cached.schema.update(input, newResult);
       return newResult;
     } else if (cached != null && cached.tableExists) {

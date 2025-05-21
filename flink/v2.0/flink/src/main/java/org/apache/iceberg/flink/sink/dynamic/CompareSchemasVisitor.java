@@ -63,7 +63,7 @@ public class CompareSchemasVisitor
   @Override
   public Result schema(Schema dataSchema, Integer tableSchemaId, Result downstream) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     return downstream;
@@ -72,23 +72,23 @@ public class CompareSchemasVisitor
   @Override
   public Result struct(Types.StructType struct, Integer tableSchemaId, List<Result> fields) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
-    Result result = fields.stream().reduce(Result::merge).orElse(Result.INCOMPATIBLE);
+    Result result = fields.stream().reduce(Result::merge).orElse(Result.SCHEMA_UPDATE_NEEDED);
 
-    if (result == Result.INCOMPATIBLE) {
-      return Result.INCOMPATIBLE;
+    if (result == Result.SCHEMA_UPDATE_NEEDED) {
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     Type tableSchemaType =
         tableSchemaId == -1 ? tableSchema.asStruct() : tableSchema.findField(tableSchemaId).type();
     if (!tableSchemaType.isStructType()) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
-      return Result.CONVERSION_NEEDED;
+      return Result.DATA_ADAPTION_NEEDED;
     }
 
     for (int i = 0; i < struct.fields().size(); ++i) {
@@ -97,7 +97,7 @@ public class CompareSchemasVisitor
           .get(i)
           .name()
           .equals(tableSchemaType.asStructType().fields().get(i).name())) {
-        return Result.CONVERSION_NEEDED;
+        return Result.DATA_ADAPTION_NEEDED;
       }
     }
 
@@ -107,7 +107,7 @@ public class CompareSchemasVisitor
   @Override
   public Result field(Types.NestedField field, Integer tableSchemaId, Result typeResult) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     if (typeResult != Result.SAME) {
@@ -115,7 +115,7 @@ public class CompareSchemasVisitor
     }
 
     if (tableSchema.findField(tableSchemaId).isRequired() && field.isOptional()) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     } else {
       return Result.SAME;
     }
@@ -124,7 +124,7 @@ public class CompareSchemasVisitor
   @Override
   public Result list(Types.ListType list, Integer tableSchemaId, Result elementsResult) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     return elementsResult;
@@ -134,7 +134,7 @@ public class CompareSchemasVisitor
   public Result map(
       Types.MapType map, Integer tableSchemaId, Result keyResult, Result valueResult) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     return keyResult.merge(valueResult);
@@ -144,12 +144,12 @@ public class CompareSchemasVisitor
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Result primitive(Type.PrimitiveType primitive, Integer tableSchemaId) {
     if (tableSchemaId == null) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     Type tableSchemaType = tableSchema.findField(tableSchemaId).type();
     if (!tableSchemaType.isPrimitiveType()) {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
 
     Type.PrimitiveType tableSchemaPrimitiveType = tableSchemaType.asPrimitiveType();
@@ -157,22 +157,22 @@ public class CompareSchemasVisitor
       return Result.SAME;
     } else if (primitive.equals(Types.IntegerType.get())
         && tableSchemaPrimitiveType.equals(Types.LongType.get())) {
-      return Result.CONVERSION_NEEDED;
+      return Result.DATA_ADAPTION_NEEDED;
     } else if (primitive.equals(Types.FloatType.get())
         && tableSchemaPrimitiveType.equals(Types.DoubleType.get())) {
-      return Result.CONVERSION_NEEDED;
+      return Result.DATA_ADAPTION_NEEDED;
     } else if (primitive.equals(Types.DateType.get())
         && tableSchemaPrimitiveType.equals(Types.TimestampType.withoutZone())) {
-      return Result.CONVERSION_NEEDED;
+      return Result.DATA_ADAPTION_NEEDED;
     } else if (primitive.typeId() == Type.TypeID.DECIMAL
         && tableSchemaPrimitiveType.typeId() == Type.TypeID.DECIMAL) {
       Types.DecimalType dataType = (Types.DecimalType) primitive;
       Types.DecimalType tableType = (Types.DecimalType) tableSchemaPrimitiveType;
       return dataType.scale() == tableType.scale() && dataType.precision() < tableType.precision()
-          ? Result.CONVERSION_NEEDED
-          : Result.INCOMPATIBLE;
+          ? Result.DATA_ADAPTION_NEEDED
+          : Result.SCHEMA_UPDATE_NEEDED;
     } else {
-      return Result.INCOMPATIBLE;
+      return Result.SCHEMA_UPDATE_NEEDED;
     }
   }
 
@@ -240,8 +240,8 @@ public class CompareSchemasVisitor
 
   public enum Result {
     SAME(0),
-    CONVERSION_NEEDED(1),
-    INCOMPATIBLE(2);
+    DATA_ADAPTION_NEEDED(1),
+    SCHEMA_UPDATE_NEEDED(2);
 
     private static final Map<Integer, Result> BY_ID = Maps.newHashMap();
 

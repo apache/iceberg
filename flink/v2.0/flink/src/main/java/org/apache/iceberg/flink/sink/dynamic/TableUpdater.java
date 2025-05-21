@@ -112,7 +112,7 @@ class TableUpdater {
   private Tuple2<Schema, CompareSchemasVisitor.Result> findOrCreateSchema(
       TableIdentifier identifier, Schema schema) {
     Tuple2<Schema, CompareSchemasVisitor.Result> fromCache = cache.schema(identifier, schema);
-    if (fromCache.f1 != CompareSchemasVisitor.Result.INCOMPATIBLE) {
+    if (fromCache.f1 != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
     } else {
       Table table = catalog.loadTable(identifier);
@@ -120,10 +120,10 @@ class TableUpdater {
       CompareSchemasVisitor.Result result = CompareSchemasVisitor.visit(schema, tableSchema, true);
       switch (result) {
         case SAME:
-        case CONVERSION_NEEDED:
+        case DATA_ADAPTION_NEEDED:
           cache.update(identifier, table);
           return Tuple2.of(tableSchema, result);
-        case INCOMPATIBLE:
+        case SCHEMA_UPDATE_NEEDED:
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
@@ -142,7 +142,7 @@ class TableUpdater {
                 "Schema update failed for {} from {} to {}", identifier, tableSchema, schema, e);
             Tuple2<Schema, CompareSchemasVisitor.Result> newSchema =
                 cache.schema(identifier, schema);
-            if (newSchema.f1 != CompareSchemasVisitor.Result.INCOMPATIBLE) {
+            if (newSchema.f1 != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
               LOG.info("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;
             } else {

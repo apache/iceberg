@@ -73,7 +73,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     // Cache still stores the old information
     assertThat(cache.schema(tableIdentifier, SCHEMA2).f1)
-        .isEqualTo(CompareSchemasVisitor.Result.INCOMPATIBLE);
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
 
     assertThat(
             tableUpdater.update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned()).f1)
