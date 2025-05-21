@@ -34,14 +34,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.Tables;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -61,7 +60,6 @@ import org.locationtech.jts.io.WKBWriter;
 public class TestGeographyReadersAndWriters {
   private final Schema schema;
   private static final Configuration CONF = new Configuration();
-  private static final Tables TABLES = new HadoopTables(CONF);
 
   @TempDir Path tempDir;
 
@@ -97,15 +95,15 @@ public class TestGeographyReadersAndWriters {
   @Test
   public void testWriteAndReadGeometryValues() throws IOException, ParseException {
     // Create a table
-    File location = tempDir.resolve("geog-table-1").toFile();
+    File location = tempDir.toFile();
     Table table =
-        TABLES.create(
+        TestTables.create(
+            location,
+            "geog_table",
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, "3",
-                TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
-            location.toString());
+            3,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"));
 
     // Write some data
     GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema());

@@ -581,7 +581,7 @@ public class ParquetMetricsRowGroupFilter {
 
       org.apache.parquet.column.statistics.geospatial.BoundingBox boundingBox =
           colGeoStats.getBoundingBox();
-      if (boundingBox == null || !boundingBox.isValid()) {
+      if (boundingBox == null || !boundingBox.isValid() || boundingBox.isXYEmpty()) {
         // No valid geospatial bounds, we cannot make any assumptions about the geospatial data.
         return ROWS_MIGHT_MATCH;
       }
