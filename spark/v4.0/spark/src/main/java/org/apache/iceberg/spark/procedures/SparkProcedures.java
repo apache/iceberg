@@ -54,7 +54,8 @@ public class SparkProcedures {
     mapBuilder.put(RegisterTableProcedure.NAME, RegisterTableProcedure::builder);
     mapBuilder.put(PublishChangesProcedure.NAME, PublishChangesProcedure::builder);
     mapBuilder.put(CreateChangelogViewProcedure.NAME, CreateChangelogViewProcedure::builder);
-    mapBuilder.put(RewritePositionDeleteFilesProcedure.NAME, RewritePositionDeleteFilesProcedure::builder);
+    mapBuilder.put(
+        RewritePositionDeleteFilesProcedure.NAME, RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put(FastForwardBranchProcedure.NAME, FastForwardBranchProcedure::builder);
     mapBuilder.put(ComputeTableStatsProcedure.NAME, ComputeTableStatsProcedure::builder);
     mapBuilder.put(RewriteTablePathProcedure.NAME, RewriteTablePathProcedure::builder);
