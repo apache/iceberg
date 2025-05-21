@@ -19,7 +19,7 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.api.Array;
-import dev.vortex.api.ArrayStream;
+import dev.vortex.api.ArrayIterator;
 import dev.vortex.api.DType;
 import dev.vortex.api.File;
 import dev.vortex.api.Files;
@@ -85,12 +85,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
     Optional<long[]> rowRange = Optional.ofNullable(this.rowRange);
 
-    ArrayStream batchStream =
+    ArrayIterator batchStream =
         vortexFile.newScan(
             ScanOptions.builder()
                 .addAllColumns(projection)
                 .predicate(scanPredicate)
-                .rowRange(rowRange)
+                .rowIndices(rowRange)
                 .build());
     Preconditions.checkNotNull(batchStream, "batchStream");
 
