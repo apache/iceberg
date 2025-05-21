@@ -38,7 +38,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.Tables;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -49,7 +49,6 @@ import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
@@ -67,8 +66,9 @@ public class TestGeometryReadersAndWriters {
 
   private final Schema schema;
   private static final Configuration CONF = new Configuration();
-  private static final Tables TABLES = new HadoopTables(CONF);
   private final List<List<Record>> testData;
+
+  @TempDir java.nio.file.Path tempDir;
 
   public TestGeometryReadersAndWriters() {
     this.schema =
@@ -119,17 +119,16 @@ public class TestGeometryReadersAndWriters {
   }
 
   @Test
-  public void testFilterTableWithSpatialPredicates(@TempDir java.nio.file.Path tempDir)
-      throws IOException {
-    File location = tempDir.resolve("geos-table-2").toFile();
+  public void testFilterTableWithSpatialPredicates() throws IOException {
+    File location = tempDir.toFile();
     Table table =
-        TABLES.create(
+        TestTables.create(
+            location,
+            "geom_table",
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, "3",
-                TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
-            location.toString());
+            3,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"));
 
     AppendFiles append = table.newAppend();
     for (int i = 0; i < testData.size(); i++) {
@@ -174,17 +173,17 @@ public class TestGeometryReadersAndWriters {
   }
 
   @Test
-  public void testPartitionedGeometryTable(@TempDir java.nio.file.Path tempDir) throws IOException {
-    File location = tempDir.resolve("geos-table-2-partitioned").toFile();
+  public void testPartitionedGeometryTable() throws IOException {
+    File location = tempDir.toFile();
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("part").build();
     Table table =
-        TABLES.create(
+        TestTables.create(
+            location,
+            "test_partitioned",
             schema,
             spec,
-            ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, "3",
-                TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
-            location.toString());
+            3,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"));
 
     AppendFiles append = table.newAppend();
     for (int i = 0; i < testData.size(); i++) {

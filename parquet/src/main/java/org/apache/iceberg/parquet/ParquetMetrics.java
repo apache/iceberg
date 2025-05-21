@@ -379,7 +379,7 @@ class ParquetMetrics {
         }
 
         BoundingBox boundingBox = geoStats.getBoundingBox();
-        if (boundingBox == null || !boundingBox.isValid()) {
+        if (boundingBox == null || !boundingBox.isValid() || boundingBox.isXYEmpty()) {
           isBoundValid = false;
           continue;
         }
