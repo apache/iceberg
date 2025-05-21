@@ -26,7 +26,7 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
   private final NamedReference<S> ref;
   private final Transform<S, T> transform;
 
-  public UnboundTransform(NamedReference<S> ref, Transform<S, T> transform) {
+  UnboundTransform(NamedReference<S> ref, Transform<S, T> transform) {
     this.ref = ref;
     this.transform = transform;
   }

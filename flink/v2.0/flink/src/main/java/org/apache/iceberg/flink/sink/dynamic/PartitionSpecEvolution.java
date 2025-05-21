@@ -22,9 +22,8 @@ import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Term;
-import org.apache.iceberg.expressions.UnboundTransform;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -122,7 +121,7 @@ public class PartitionSpecEvolution {
 
   private static Term toTerm(PartitionField field, Schema schema) {
     String sourceName = schema.idToName().get(field.sourceId());
-    return new UnboundTransform<>(new NamedReference<>(sourceName), field.transform());
+    return Expressions.transform(sourceName, field.transform());
   }
 
   private static boolean specFieldsAreCompatible(

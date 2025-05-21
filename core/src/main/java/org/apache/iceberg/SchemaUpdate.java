@@ -46,7 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Schema evolution API implementation. */
-public class SchemaUpdate implements UpdateSchema {
+class SchemaUpdate implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
@@ -71,7 +71,7 @@ public class SchemaUpdate implements UpdateSchema {
   }
 
   /** For testing only. */
-  public SchemaUpdate(Schema schema, int lastColumnId) {
+  SchemaUpdate(Schema schema, int lastColumnId) {
     this(null, null, schema, lastColumnId);
   }
 
