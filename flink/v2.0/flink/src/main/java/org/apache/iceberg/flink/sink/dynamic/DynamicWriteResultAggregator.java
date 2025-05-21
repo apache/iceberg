@@ -40,7 +40,6 @@ import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.IcebergCommittable;
 import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -50,7 +49,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Operator which aggregates the individual {@link WriteResult} objects to a single {@link
- * IcebergCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId,
+ * DynamicCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId,
  * operatorId, checkpointId)
  */
 @Internal

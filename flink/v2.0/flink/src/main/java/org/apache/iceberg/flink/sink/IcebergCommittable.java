@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -32,8 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
  * and the Aggregator operator and between the Aggregator and the Committer as well.
  */
-@Internal
-public class IcebergCommittable implements Serializable {
+class IcebergCommittable implements Serializable {
   private final byte[] manifest;
   private final String jobId;
   private final String operatorId;

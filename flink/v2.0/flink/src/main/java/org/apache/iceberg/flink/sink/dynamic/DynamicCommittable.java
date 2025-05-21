@@ -67,7 +67,7 @@ class DynamicCommittable implements Serializable {
     return operatorId;
   }
 
-  Long checkpointId() {
+  long checkpointId() {
     return checkpointId;
   }
 
