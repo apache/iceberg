@@ -63,7 +63,7 @@ public class CatalogUtilsTest {
             "conf-value",
             "iceberg.catalog.catalog-impl",
             TestCatalog.class.getName());
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     Catalog result = CatalogUtils.loadCatalog(config);
 
     assertThat(result).isInstanceOf(TestCatalog.class);
@@ -97,7 +97,7 @@ public class CatalogUtilsTest {
             "conf-value",
             "iceberg.catalog.catalog-impl",
             TestCatalog.class.getName());
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     Catalog result = CatalogUtils.loadCatalog(config);
 
     assertThat(result).isInstanceOf(TestCatalog.class);
