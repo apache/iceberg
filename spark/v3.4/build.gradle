@@ -80,7 +80,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
-    implementation libs.vortex.jni;
+    implementation(libs.vortex.jni) {
+      classifier("all")
+    }
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
