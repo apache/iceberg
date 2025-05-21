@@ -121,7 +121,7 @@ allprojects {
     mavenCentral()
     mavenLocal()
     maven {
-      url "https://repository.apache.org/content/repositories/orgapachespark-1484/"
+      url "https://repository.apache.org/content/repositories/orgapachespark-1485/"
     }
   }
 }
