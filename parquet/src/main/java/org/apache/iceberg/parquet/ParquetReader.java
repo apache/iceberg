@@ -135,6 +135,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         } else {
           this.last = model.read(null);
         }
+
         valuesRead += 1;
 
         return last;
@@ -144,6 +145,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
           // that produced the corrupt file, parquet lib doesn't do this today.
           LOG.error("Error decoding Parquet file {}", reader.getFile(), e);
         }
+
         throw e;
       }
     }
