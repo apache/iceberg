@@ -82,6 +82,7 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-case-insensitive";
   private static final String ERROR_TOLERANCE = "errors.tolerance";
   private static final String ERROR_LOG_INCLUDE_MESSAGES = "errors.log.include.messages";
+  private static final String ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG = "errors.deadletterqueue.topic.name";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -99,6 +100,7 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private static final String DEFAULT_ERROR_TOLERANCE = ErrorTolerance.NONE.toString();
   private static final String DEFAULT_ERROR_LOG_INCLUDE_MESSAGES = "false";
+  private static final String DEFAULT_ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG = "";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
@@ -195,6 +197,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         DEFAULT_ERROR_LOG_INCLUDE_MESSAGES,
         Importance.MEDIUM,
         "If true, write each error and the details of the failed operation and problematic record to the Connect application log. This is 'false' by default, so that only errors that are not tolerated are reported.");
+    configDef.define(
+        ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG,
+        ConfigDef.Type.STRING,
+        DEFAULT_ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG,
+        Importance.MEDIUM,
+        "The name of the topic to be used as the dead letter queue (DLQ) for messages that result in an error when processed by this sink connector, or its transformations or converters. The topic name is blank by default, which means that no messages are to be recorded in the DLQ");
     configDef.define(
         CONTROL_TOPIC_PROP,
         ConfigDef.Type.STRING,
@@ -458,6 +466,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean errorLogIncludeMessages() {
     return getBoolean(ERROR_LOG_INCLUDE_MESSAGES);
+  }
+
+  public boolean errorDeadLetterQueueTopicNameConfig() {
+    return getBoolean(ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG);
   }
 
   @VisibleForTesting
