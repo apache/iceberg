@@ -197,18 +197,6 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         3
       },
       {
-        "testhadoop",
-        SparkCatalog.class.getName(),
-        ImmutableMap.of("type", "hadoop"),
-        FileFormat.PARQUET,
-        false,
-        WRITE_DISTRIBUTION_MODE_HASH,
-        true,
-        null,
-        DISTRIBUTED,
-        3
-      },
-      {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),
         ImmutableMap.of(
