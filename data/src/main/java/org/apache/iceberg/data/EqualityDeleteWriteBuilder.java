@@ -36,8 +36,9 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
  *
  * @param <B> the concrete builder type for method chaining
  * @param <E> output schema type required by the writer for data conversion
+ * @param <D> the type of data records the writer will accept
  */
-public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, E>, E>
+public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, E, D>, E, D>
     extends ContentFileWriteBuilder<B, E> {
   /** Sets the row schema for the delete writers. */
   B rowSchema(Schema newSchema);
@@ -58,9 +59,8 @@ public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder
    * #dataSchema(Object)} and converts them to the target Iceberg schema specified via {@link
    * #rowSchema(Schema)} for deletion.
    *
-   * @param <D> the type of delete records the writer will accept
    * @return a fully configured {@link EqualityDeleteWriter} instance
    * @throws IOException if the writer cannot be created due to I/O errors
    */
-  <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
+  EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
 }

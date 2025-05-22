@@ -59,25 +59,48 @@ import org.apache.iceberg.util.ArrayUtil;
  * @param <C> the concrete builder type for method chaining
  * @param <W> the type of the wrapped format-specific writer builder
  * @param <E> output schema type required by the writer for data conversion
+ * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
 class ContentFileWriteBuilderImpl<
-        C extends ContentFileWriteBuilderImpl<C, W, E>, W extends WriteBuilder<W, E>, E>
-    implements DataWriteBuilder<C, E>,
-        EqualityDeleteWriteBuilder<C, E>,
-        PositionDeleteWriteBuilder<C, E> {
-  private final org.apache.iceberg.io.WriteBuilder<W, E> writeBuilder;
+        C extends ContentFileWriteBuilder<C, E>, W extends WriteBuilder<W, E, D>, E, D>
+    implements ContentFileWriteBuilder<C, E> {
+  private final WriteBuilder<W, E, D> writeBuilder;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
   private StructLike partition = null;
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
-  private Schema rowSchema = null;
-  private int[] equalityFieldIds = null;
 
-  ContentFileWriteBuilderImpl(
-      org.apache.iceberg.io.WriteBuilder<W, E> writeBuilder, String location, FileFormat format) {
+  static <C extends DataWriteBuilder<C, E, D>, W extends WriteBuilder<W, E, D>, E, D>
+      DataWriteBuilder<C, E, D> forDataFile(
+          WriteBuilder<W, E, D> writeBuilder, String location, FileFormat format) {
+    return (DataWriteBuilder<C, E, D>) new DataFileWriteBuilder<>(writeBuilder, location, format);
+  }
+
+  static <C extends EqualityDeleteWriteBuilder<C, E, D>, W extends WriteBuilder<W, E, D>, E, D>
+      EqualityDeleteWriteBuilder<C, E, D> forEqualityDelete(
+          WriteBuilder<W, E, D> writeBuilder, String location, FileFormat format) {
+    return (EqualityDeleteWriteBuilder<C, E, D>)
+        new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
+  }
+
+  static <
+          C extends PositionDeleteWriteBuilder<C, E, D>,
+          W extends WriteBuilder<W, E, StructLike>,
+          E,
+          D>
+      PositionDeleteWriteBuilder<C, E, D> forPositionDelete(
+          WriteBuilder<W, E, StructLike> writeBuilder, String location, FileFormat format) {
+    return (PositionDeleteWriteBuilder<C, E, D>)
+        new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
+  }
+
+  private ContentFileWriteBuilderImpl(
+      org.apache.iceberg.io.WriteBuilder<W, E, D> writeBuilder,
+      String location,
+      FileFormat format) {
     this.writeBuilder = writeBuilder;
     this.location = location;
     this.format = format;
@@ -144,24 +167,6 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C rowSchema(Schema newSchema) {
-    this.rowSchema = newSchema;
-    return (C) this;
-  }
-
-  @Override
-  public C equalityFieldIds(List<Integer> fieldIds) {
-    this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
-    return (C) this;
-  }
-
-  @Override
-  public C equalityFieldIds(int... fieldIds) {
-    this.equalityFieldIds = fieldIds;
-    return (C) this;
-  }
-
-  @Override
   public C spec(PartitionSpec newSpec) {
     this.spec = newSpec;
     return (C) this;
@@ -185,67 +190,135 @@ class ContentFileWriteBuilderImpl<
     return (C) this;
   }
 
-  @Override
-  public <D> DataWriter<D> dataWriter() throws IOException {
-    Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
-    Preconditions.checkArgument(
-        spec.isUnpartitioned() || partition != null,
-        "Partition must not be null when creating data writer for partitioned spec");
+  private static class DataFileWriteBuilder<
+          C extends DataFileWriteBuilder<C, W, E, D>, W extends WriteBuilder<W, E, D>, E, D>
+      extends ContentFileWriteBuilderImpl<C, W, E, D> implements DataWriteBuilder<C, E, D> {
+    private DataFileWriteBuilder(
+        WriteBuilder<W, E, D> writeBuilder, String location, FileFormat format) {
+      super(writeBuilder, location, format);
+    }
 
-    return new DataWriter<>(
-        writeBuilder.build(), format, location, spec, partition, keyMetadata, sortOrder);
+    @Override
+    public DataWriter<D> dataWriter() throws IOException {
+      Preconditions.checkArgument(super.spec != null, "Cannot create data writer without spec");
+      Preconditions.checkArgument(
+          super.spec.isUnpartitioned() || super.partition != null,
+          "Partition must not be null when creating data writer for partitioned spec");
+
+      return new DataWriter<>(
+          super.writeBuilder.build(),
+          super.format,
+          super.location,
+          super.spec,
+          super.partition,
+          super.keyMetadata,
+          super.sortOrder);
+    }
   }
 
-  @Override
-  public <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException {
-    Preconditions.checkState(
-        rowSchema != null, "Cannot create equality delete file without a schema");
-    Preconditions.checkState(
-        equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
-    Preconditions.checkArgument(
-        spec != null, "Spec must not be null when creating equality delete writer");
-    Preconditions.checkArgument(
-        spec.isUnpartitioned() || partition != null,
-        "Partition must not be null for partitioned writes");
+  private static class EqualityDeleteFileWriteBuilder<
+          C extends EqualityDeleteFileWriteBuilder<C, B, E, D>,
+          B extends WriteBuilder<B, E, D>,
+          E,
+          D>
+      extends ContentFileWriteBuilderImpl<C, B, E, D>
+      implements EqualityDeleteWriteBuilder<C, E, D> {
+    private Schema rowSchema = null;
+    private int[] equalityFieldIds = null;
 
-    return new EqualityDeleteWriter<>(
-        writeBuilder
-            .fileSchema(rowSchema)
-            .meta("delete-type", "equality")
-            .meta(
-                "delete-field-ids",
-                IntStream.of(equalityFieldIds)
-                    .mapToObj(Objects::toString)
-                    .collect(Collectors.joining(", ")))
-            .build(),
-        format,
-        location,
-        spec,
-        partition,
-        keyMetadata,
-        sortOrder,
-        equalityFieldIds);
+    private EqualityDeleteFileWriteBuilder(
+        WriteBuilder<B, E, D> writeBuilder, String location, FileFormat format) {
+      super(writeBuilder, location, format);
+    }
+
+    @Override
+    public C rowSchema(Schema newSchema) {
+      this.rowSchema = newSchema;
+      return (C) this;
+    }
+
+    @Override
+    public C equalityFieldIds(List<Integer> fieldIds) {
+      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
+      return (C) this;
+    }
+
+    @Override
+    public C equalityFieldIds(int... fieldIds) {
+      this.equalityFieldIds = fieldIds;
+      return (C) this;
+    }
+
+    @Override
+    public EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException {
+      Preconditions.checkState(
+          rowSchema != null, "Cannot create equality delete file without a schema");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkArgument(
+          super.spec != null, "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(
+          super.spec.isUnpartitioned() || super.partition != null,
+          "Partition must not be null for partitioned writes");
+
+      return new EqualityDeleteWriter<>(
+          super.writeBuilder
+              .fileSchema(rowSchema)
+              .meta("delete-type", "equality")
+              .meta(
+                  "delete-field-ids",
+                  IntStream.of(equalityFieldIds)
+                      .mapToObj(Objects::toString)
+                      .collect(Collectors.joining(", ")))
+              .build(),
+          super.format,
+          super.location,
+          super.spec,
+          super.partition,
+          super.keyMetadata,
+          super.sortOrder,
+          equalityFieldIds);
+    }
   }
 
-  @Override
-  public <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException {
-    Preconditions.checkState(
-        equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-    Preconditions.checkArgument(
-        spec != null, "Spec must not be null when creating position delete writer");
-    Preconditions.checkArgument(
-        spec.isUnpartitioned() || partition != null,
-        "Partition must not be null for partitioned writes");
+  private static class PositionDeleteFileWriteBuilder<
+          C extends PositionDeleteFileWriteBuilder<C, B, E, D>,
+          B extends WriteBuilder<B, E, StructLike>,
+          E,
+          D>
+      extends ContentFileWriteBuilderImpl<C, B, E, StructLike>
+      implements PositionDeleteWriteBuilder<C, E, D> {
+    private Schema rowSchema = null;
 
-    return new PositionDeleteWriter<>(
-        writeBuilder
-            .meta("delete-type", "position")
-            .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
-            .build(),
-        format,
-        location,
-        spec,
-        partition,
-        keyMetadata);
+    private PositionDeleteFileWriteBuilder(
+        WriteBuilder<B, E, StructLike> writeBuilder, String location, FileFormat format) {
+      super(writeBuilder, location, format);
+    }
+
+    @Override
+    public C rowSchema(Schema newSchema) {
+      this.rowSchema = newSchema;
+      return (C) this;
+    }
+
+    @Override
+    public PositionDeleteWriter<D> positionDeleteWriter() throws IOException {
+      Preconditions.checkArgument(
+          super.spec != null, "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(
+          super.spec.isUnpartitioned() || super.partition != null,
+          "Partition must not be null for partitioned writes");
+
+      return new PositionDeleteWriter<>(
+          super.writeBuilder
+              .meta("delete-type", "position")
+              .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
+              .build(),
+          super.format,
+          super.location,
+          super.spec,
+          super.partition,
+          super.keyMetadata);
+    }
   }
 }

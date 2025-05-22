@@ -42,7 +42,7 @@ import org.apache.iceberg.Schema;
  * @param <B> the concrete builder type for method chaining
  * @param <E> schema type for the input data records
  */
-public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
+public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
   /** Set the file schema. */
   B fileSchema(Schema newSchema);
 
@@ -116,5 +116,5 @@ public interface WriteBuilder<B extends WriteBuilder<B, E>, E> {
   B dataSchema(E newDataSchema);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
-  <D> FileAppender<D> build() throws IOException;
+  FileAppender<D> build() throws IOException;
 }

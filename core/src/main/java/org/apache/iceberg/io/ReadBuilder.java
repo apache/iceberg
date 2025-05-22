@@ -41,7 +41,7 @@ import org.apache.iceberg.mapping.NameMapping;
  *
  * @param <B> the concrete builder type for method chaining
  */
-public interface ReadBuilder<B extends ReadBuilder<B>> {
+public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
   /** The configuration key for the batch size in the case of vectorized reads. */
   String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
 
@@ -127,5 +127,5 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
   }
 
   /** Builds the reader. */
-  <D> CloseableIterable<D> build();
+  CloseableIterable<D> build();
 }

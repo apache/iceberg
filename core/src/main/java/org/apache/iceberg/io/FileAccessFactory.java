@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.io;
 
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 
@@ -58,7 +58,7 @@ import org.apache.iceberg.deletes.PositionDelete;
  *
  * @param <E> input schema type used for writing data
  */
-public interface FileAccessFactory<E> {
+public interface FileAccessFactory<E, D> {
   /** The file format which is read/written by the object model. */
   FileFormat format();
 
@@ -79,30 +79,56 @@ public interface FileAccessFactory<E> {
   String objectModeName();
 
   /**
-   * Creates a writer builder for the specified output file and content type.
+   * Creates a writer builder for standard data files.
    *
    * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
-   * objects into the file format supported by this factory. The content parameter determines the
-   * expected input type and output file purpose:
-   *
-   * <ul>
-   *   <li><strong>Input objects</strong> (defined by the object model name) when writing standard
-   *       data files ({@link FileContent#DATA}), or equality delete files ({@link
-   *       FileContent#EQUALITY_DELETES})
-   *   <li><strong>{@link PositionDelete}</strong> when writing equality delete files ({@link
-   *       FileContent#POSITION_DELETES}). Each PositionDelete object could contain the writer's
-   *       output type in its row field
-   * </ul>
+   * objects into the file format supported by this factory for regular data content.
    *
    * <p>The builder follows the fluent pattern for configuring writer properties like compression,
    * encryption, row group size, and other format-specific options.
    *
    * @param outputFile destination for the written data
-   * @param content type of content to write (DATA, EQUALITY_DELETES, or POSITION_DELETES)
-   * @return configured writer builder for the specified output
+   * @return configured writer builder for standard data files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E>> B writeBuilder(OutputFile outputFile, FileContent content);
+  <B extends WriteBuilder<B, E, D>> B dataWriteBuilder(OutputFile outputFile);
+
+  /**
+   * Creates a writer builder for equality delete files.
+   *
+   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
+   * objects into the file format supported by this factory for equality delete content.
+   *
+   * <p>Equality delete files contain records that identify rows to be deleted based on equality
+   * conditions.
+   *
+   * <p>The builder follows the fluent pattern for configuring writer properties like compression,
+   * encryption, row group size, and other format-specific options.
+   *
+   * @param outputFile destination for the written equality delete data
+   * @return configured writer builder for equality delete files
+   * @param <B> the concrete builder type for method chaining
+   */
+  <B extends WriteBuilder<B, E, D>> B equalityDeleteWriteBuilder(OutputFile outputFile);
+
+  /**
+   * Creates a writer builder for position delete files.
+   *
+   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts {@link
+   * PositionDelete} objects into the file format supported by this factory for position delete
+   * content.
+   *
+   * <p>Position delete files contain records that identify rows to be deleted by file path and
+   * position. Each PositionDelete object could contain the writer's output type in its row field.
+   *
+   * <p>The builder follows the fluent pattern for configuring writer properties like compression,
+   * encryption, row group size, and other format-specific options.
+   *
+   * @param outputFile destination for the written position delete data
+   * @return configured writer builder for position delete files
+   * @param <B> the concrete builder type for method chaining
+   */
+  <B extends WriteBuilder<B, E, StructLike>> B positionDeleteWriteBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
@@ -119,5 +145,5 @@ public interface FileAccessFactory<E> {
    * @return configured reader builder for the specified input
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends ReadBuilder<B>> B readBuilder(InputFile inputFile);
+  <B extends ReadBuilder<B, D>> B readBuilder(InputFile inputFile);
 }

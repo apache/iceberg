@@ -23,8 +23,8 @@ import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -68,8 +68,8 @@ public final class FileAccessFactoryRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
-  private static final Map<Pair<FileFormat, String>, FileAccessFactory<?>> FILE_ACCESS_FACTORIES =
-      Maps.newConcurrentMap();
+  private static final Map<Pair<FileFormat, String>, FileAccessFactory<?, ?>>
+      FILE_ACCESS_FACTORIES = Maps.newConcurrentMap();
 
   /**
    * Registers a file access factory with this registry.
@@ -88,7 +88,7 @@ public final class FileAccessFactoryRegistry {
    *     {@link FileAccessFactory#format()} and {@link FileAccessFactory#objectModeName()}
    */
   @SuppressWarnings("CatchBlockLogException")
-  public static void registerFileAccessFactory(FileAccessFactory<?> fileAccessFactory) {
+  public static void registerFileAccessFactory(FileAccessFactory<?, ?> fileAccessFactory) {
     Pair<FileFormat, String> key =
         Pair.of(fileAccessFactory.format(), fileAccessFactory.objectModeName());
     if (FILE_ACCESS_FACTORIES.containsKey(key)) {
@@ -131,11 +131,13 @@ public final class FileAccessFactoryRegistry {
    * @param objectModelName identifier for the expected output data representation (generic, spark,
    *     flink, etc.)
    * @param inputFile source file to read data from
+   * @param <D> the type of data records the writer will accept
    * @return a configured reader builder for the specified format and object model
    */
-  public static ReadBuilder<?> readBuilder(
+  public static <D> ReadBuilder<?, D> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)).readBuilder(inputFile);
+    FileAccessFactory<?, D> factory = factoryFor(format, objectModelName);
+    return factory.readBuilder(inputFile);
   }
 
   /**
@@ -149,12 +151,13 @@ public final class FileAccessFactoryRegistry {
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
+   * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
-  public static <E> WriteBuilder<?, E> writeBuilder(
+  public static <E, D> WriteBuilder<?, E, D> writeBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)))
-        .writeBuilder(outputFile.encryptingOutputFile(), FileContent.DATA);
+    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    return factory.dataWriteBuilder(outputFile.encryptingOutputFile());
   }
 
   /**
@@ -169,11 +172,16 @@ public final class FileAccessFactoryRegistry {
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
+   * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <E> DataWriteBuilder<?, E> dataWriteBuilder(
+  public static <E, D> DataWriteBuilder<?, E, D> dataWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writeBuilderFor(format, objectModelName, outputFile, FileContent.DATA);
+    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    WriteBuilder<?, E, D> writeBuilder =
+        factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
+    return ContentFileWriteBuilderImpl.forDataFile(
+        writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -190,9 +198,13 @@ public final class FileAccessFactoryRegistry {
    * @param <E> input schema type required by the writer for data conversion
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <E> EqualityDeleteWriteBuilder<?, E> equalityDeleteWriteBuilder(
+  public static <E, D> EqualityDeleteWriteBuilder<?, E, D> equalityDeleteWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writeBuilderFor(format, objectModelName, outputFile, FileContent.EQUALITY_DELETES);
+    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    WriteBuilder<?, E, D> writeBuilder =
+        factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
+    return ContentFileWriteBuilderImpl.forEqualityDelete(
+        writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -207,24 +219,21 @@ public final class FileAccessFactoryRegistry {
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
+   * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <E> PositionDeleteWriteBuilder<?, E> positionDeleteWriteBuilder(
+  public static <E, D> PositionDeleteWriteBuilder<?, E, D> positionDeleteWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    return writeBuilderFor(format, objectModelName, outputFile, FileContent.POSITION_DELETES);
+    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    WriteBuilder<?, E, StructLike> writeBuilder =
+        factory.positionDeleteWriteBuilder(outputFile.encryptingOutputFile());
+    return ContentFileWriteBuilderImpl.forPositionDelete(
+        writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   @SuppressWarnings("unchecked")
-  private static <B extends WriteBuilder<B, E>, E>
-      ContentFileWriteBuilderImpl<?, ?, E> writeBuilderFor(
-          FileFormat format,
-          String objectModelName,
-          EncryptedOutputFile outputFile,
-          FileContent content) {
-    return new ContentFileWriteBuilderImpl<>(
-        ((FileAccessFactory<E>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)))
-            .<B>writeBuilder(outputFile.encryptingOutputFile(), content),
-        outputFile.encryptingOutputFile().location(),
-        format);
+  private static <E, D> FileAccessFactory<E, D> factoryFor(
+      FileFormat format, String objectModelName) {
+    return ((FileAccessFactory<E, D>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)));
   }
 }
