@@ -36,8 +36,6 @@ public class ManifestFileBean implements ManifestFile, Serializable {
   private Long addedSnapshotId = null;
   private Integer content = null;
   private Long sequenceNumber = null;
-
-  /* No getter for firstRowId as it should not be a required field when creating its encoder */
   private Long firstRowId = null;
 
   public static ManifestFileBean fromManifest(ManifestFile manifest) {
