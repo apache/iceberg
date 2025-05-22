@@ -96,7 +96,6 @@ class DynamicWriteResultAggregator
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws IOException {
-    // TODO emit something if there is no incoming result for a given table for a given checkpoint
     Collection<CommittableWithLineage<DynamicCommittable>> committables =
         Sets.newHashSetWithExpectedSize(results.size());
     int count = 0;

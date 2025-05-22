@@ -60,7 +60,7 @@ import org.slf4j.LoggerFactory;
  * commits. The implementation builds on the following assumptions:
  *
  * <ul>
- *   <li>There is a single {@link DynamicCommittable} for every table / checkpoint
+ *   <li>There is a single {@link DynamicCommittable} for every table / branch / checkpoint
  *   <li>There is no late checkpoint - if checkpoint 'x' has received in one call, then after a
  *       successful run only checkpoints &gt; x will arrive
  *   <li>There is no other writer which would generate another commit to the same branch with the
