@@ -468,8 +468,8 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getBoolean(ERROR_LOG_INCLUDE_MESSAGES);
   }
 
-  public boolean errorDeadLetterQueueTopicNameConfig() {
-    return getBoolean(ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG);
+  public String errorDeadLetterQueueTopicNameConfig() {
+    return getString(ERROR_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG);
   }
 
   @VisibleForTesting

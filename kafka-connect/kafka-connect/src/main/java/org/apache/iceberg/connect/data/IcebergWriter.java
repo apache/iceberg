@@ -23,17 +23,29 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
+import java.util.concurrent.Future;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.handler.DlqReporter;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+
 
 class IcebergWriter implements RecordWriter {
 
@@ -46,12 +58,17 @@ class IcebergWriter implements RecordWriter {
 
   private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
+  private DlqReporter dlqReporter;
 
   IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
     this.table = table;
     this.tableName = tableName;
     this.config = config;
     this.writerResults = Lists.newArrayList();
+
+    if (!config.errorDeadLetterQueueTopicNameConfig().isEmpty()) {
+      this.dlqReporter = new DlqReporter(config, config.errorDeadLetterQueueTopicNameConfig());
+    }
     initNewWriter();
   }
 
@@ -59,6 +76,7 @@ class IcebergWriter implements RecordWriter {
     this.writer = RecordUtils.createTableWriter(table, tableName, config);
     this.recordConverter = new RecordConverter(table, config);
   }
+
 
   @Override
   public void write(SinkRecord record) throws DataException {
@@ -84,6 +102,9 @@ class IcebergWriter implements RecordWriter {
                   recordData),
               e);
       if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
+        if (this.dlqReporter != null) {
+          this.dlqReporter.send(record.key().toString(), record.value().toString());
+        }
         LOG.error("An error occurred converting record...", ex);
       } else {
         throw ex;
