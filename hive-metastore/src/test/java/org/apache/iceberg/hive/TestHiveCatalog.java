@@ -1212,7 +1212,6 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   @Override
-  @Disabled("Hive currently returns an empty list instead of throwing a NoSuchNamespaceException")
   public void testListNonExistingNamespace() {
     super.testListNonExistingNamespace();
   }
