@@ -76,13 +76,20 @@ public class RewriteDataFilesConfigTest {
   void testEmptyConfig() {
     RewriteDataFilesConfig config = new RewriteDataFilesConfig(Maps.newHashMap());
 
-    assertThat(config.partialProgressEnable()).isNull();
-    assertThat(config.partialProgressMaxCommits()).isNull();
-    assertThat(config.maxRewriteBytes()).isNull();
-    assertThat(config.scheduleOnCommitCount()).isNull();
-    assertThat(config.scheduleOnDataFileCount()).isNull();
-    assertThat(config.scheduleOnDataFileSize()).isNull();
-    assertThat(config.scheduleOnIntervalSecond()).isNull();
+    assertThat(config.partialProgressEnable())
+        .isEqualTo(org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT);
+    assertThat(config.partialProgressMaxCommits())
+        .isEqualTo(
+            org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
+    assertThat(config.maxRewriteBytes()).isEqualTo(Long.MAX_VALUE);
+    assertThat(config.scheduleOnCommitCount())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT_DEFAULT);
+    assertThat(config.scheduleOnDataFileCount())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT);
+    assertThat(config.scheduleOnDataFileSize())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT);
+    assertThat(config.scheduleOnIntervalSecond())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND_DEFAULT);
   }
 
   @Test
