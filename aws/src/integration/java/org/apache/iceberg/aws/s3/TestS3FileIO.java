@@ -730,11 +730,9 @@ public class TestS3FileIO {
 
     S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
     assertThat(actualConfiguration).isNotNull();
-    try {
-      actualConfiguration.credentialsProvider().resolveIdentity();
-    } catch (SdkClientException e) {
-      assertThat(e.getMessage().contains("Unable to load credentials from any of the providers"));
-    }
+    assertThatThrownBy(() -> actualConfiguration.credentialsProvider().resolveIdentity())
+        .isInstanceOf(SdkClientException.class)
+        .hasMessageContaining("Unable to load credentials from any of the providers");
   }
 
   @Test
