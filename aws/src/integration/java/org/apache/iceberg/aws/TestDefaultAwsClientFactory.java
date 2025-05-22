@@ -21,6 +21,8 @@ package org.apache.iceberg.aws;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import org.apache.iceberg.aws.dynamodb.DynamoDbProperties;
+import org.apache.iceberg.aws.glue.GlueProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,7 @@ public class TestDefaultAwsClientFactory {
   @Test
   public void testGlueEndpointOverride() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.GLUE_CATALOG_ENDPOINT, "https://unknown:1234");
+    properties.put(GlueProperties.GLUE_CATALOG_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     GlueClient glueClient = factory.glue();
     assertThatThrownBy(
@@ -91,7 +93,7 @@ public class TestDefaultAwsClientFactory {
   @Test
   public void testDynamoDbEndpointOverride() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.DYNAMODB_ENDPOINT, "https://unknown:1234");
+    properties.put(DynamoDbProperties.DYNAMODB_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     DynamoDbClient dynamoDbClient = factory.dynamo();
     assertThatThrownBy(dynamoDbClient::listTables)
