@@ -329,24 +329,20 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
-  class RemoveSnapshots implements MetadataUpdate {
-    private final Set<Long> snapshotIds;
+  class RemoveSnapshot implements MetadataUpdate {
+    private final long snapshotId;
 
-    public RemoveSnapshots(long snapshotId) {
-      this.snapshotIds = ImmutableSet.of(snapshotId);
+    public RemoveSnapshot(long snapshotId) {
+      this.snapshotId = snapshotId;
     }
 
-    public RemoveSnapshots(Set<Long> snapshotIds) {
-      this.snapshotIds = snapshotIds;
-    }
-
-    public Set<Long> snapshotIds() {
-      return snapshotIds;
+    public long snapshotId() {
+      return snapshotId;
     }
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeSnapshots(snapshotIds);
+      metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
     }
   }
 
