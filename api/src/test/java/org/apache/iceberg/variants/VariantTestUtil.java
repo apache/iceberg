@@ -32,6 +32,29 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class VariantTestUtil {
+
+  private static final VariantMetadata EMPTY_METADATA = SerializedMetadata.EMPTY_V1_METADATA;
+  private static final SerializedPrimitive NULL = SerializedPrimitive.from(new byte[] {0x00});
+  private static final SerializedPrimitive TRUE = SerializedPrimitive.from(new byte[] {0b100});
+  private static final SerializedPrimitive FALSE = SerializedPrimitive.from(new byte[] {0b1000});
+  private static final SerializedShortString STR =
+      SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
+  private static final SerializedShortString A =
+      SerializedShortString.from(new byte[] {0b101, 'a'});
+  private static final SerializedShortString B =
+      SerializedShortString.from(new byte[] {0b101, 'b'});
+  private static final SerializedShortString C =
+      SerializedShortString.from(new byte[] {0b101, 'c'});
+  private static final SerializedShortString D =
+      SerializedShortString.from(new byte[] {0b101, 'd'});
+  private static final SerializedShortString E =
+      SerializedShortString.from(new byte[] {0b101, 'e'});
+  private static final SerializedPrimitive I34 = SerializedPrimitive.from(new byte[] {0b1100, 34});
+  private static final SerializedPrimitive I1234 =
+      SerializedPrimitive.from(new byte[] {0b10000, (byte) 0xD2, 0x04});
+  private static final SerializedPrimitive DATE =
+      SerializedPrimitive.from(new byte[] {0b101100, (byte) 0xF4, 0x43, 0x00, 0x00});
+
   private VariantTestUtil() {}
 
   public static void assertEqual(VariantMetadata expected, VariantMetadata actual) {
@@ -98,13 +121,131 @@ public class VariantTestUtil {
   }
 
   /** Creates a random string primitive of the given length for forcing large offset sizes */
-  static SerializedPrimitive createString(String string) {
+  public static SerializedPrimitive createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
     buffer.putInt(1, utf8.length);
     writeBufferAbsolute(buffer, 5, ByteBuffer.wrap(utf8));
     return SerializedPrimitive.from(buffer, buffer.get(0));
+  }
+
+  public static SerializedArray createMixedArray() {
+    ByteBuffer nestedBuffer = VariantTestUtil.createArray(A, C, D);
+    SerializedArray nested =
+        SerializedArray.from(EMPTY_METADATA, nestedBuffer, nestedBuffer.get(0));
+    ByteBuffer buffer =
+        VariantTestUtil.createArray(DATE, I34, STR, nested, NULL, E, B, FALSE, TRUE, I1234);
+    return SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
+  }
+
+  public static SerializedPrimitive createInt(int val) {
+    return SerializedPrimitive.from(new byte[] {primitiveHeader(3), (byte) val});
+  }
+
+  public static SerializedPrimitive createInt16() {
+    return SerializedPrimitive.from(new byte[] {primitiveHeader(4), (byte) 0xD2, 0x04});
+  }
+
+  public static SerializedPrimitive createInt32() {
+    return SerializedPrimitive.from(
+        new byte[] {primitiveHeader(5), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
+  }
+
+  public static SerializedPrimitive createInt64() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(6), (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+        });
+  }
+
+  public static SerializedPrimitive createDecimal4() {
+    return SerializedPrimitive.from(
+        new byte[] {primitiveHeader(8), 0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
+  }
+
+  public static SerializedPrimitive createDecimal8() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(9),
+          0x09, // scale=9
+          (byte) 0xB1,
+          0x1C,
+          0x6C,
+          (byte) 0xB1,
+          (byte) 0xF4,
+          0x10,
+          0x22,
+          0x11
+        });
+  }
+
+  public static SerializedPrimitive createDecimal16() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(10),
+          0x09, // scale=9
+          0x15,
+          0x71,
+          0x34,
+          (byte) 0xB0,
+          (byte) 0xB8,
+          (byte) 0x87,
+          0x10,
+          (byte) 0x89,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        });
+  }
+
+  public static SerializedPrimitive createDouble() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(7), (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+        });
+  }
+
+  public static SerializedPrimitive createFloat() {
+    return SerializedPrimitive.from(
+        new byte[] {primitiveHeader(14), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
+  }
+
+  public static SerializedPrimitive createTrue() {
+    return SerializedPrimitive.from(new byte[] {primitiveHeader(1)});
+  }
+
+  public static SerializedPrimitive createFalse() {
+    return SerializedPrimitive.from(new byte[] {primitiveHeader(2)});
+  }
+
+  public static SerializedPrimitive createDate() {
+    return SerializedPrimitive.from(
+        new byte[] {primitiveHeader(11), (byte) 0xF4, 0x43, 0x00, 0x00});
+  }
+
+  public static SerializedPrimitive createTimestampTZ() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(12), 0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
+        });
+  }
+
+  public static SerializedPrimitive createTimestampNTZ() {
+    return SerializedPrimitive.from(
+        new byte[] {
+          primitiveHeader(13), 0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
+        });
+  }
+
+  public static SerializedPrimitive createBinary() {
+    return SerializedPrimitive.from(
+        new byte[] {primitiveHeader(15), 0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'});
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
