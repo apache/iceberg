@@ -61,7 +61,7 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   private final String taskName;
   private final int taskIndex;
   private final List<Exception> exceptions;
-  private transient Long startTime;
+  private transient long startTime;
 
   public TaskResultAggregator(String tableName, String taskName, int taskIndex) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
@@ -71,7 +71,6 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
     this.taskName = taskName;
     this.taskIndex = taskIndex;
     this.exceptions = Lists.newArrayList();
-    this.startTime = 0L;
   }
 
   @Override
@@ -87,16 +86,18 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
-    output.collect(new StreamRecord<>(response));
-    LOG.info(
-        "Aggregated result for table {}, task {}[{}] is {}",
-        tableName,
-        taskName,
-        taskIndex,
-        response);
-    exceptions.clear();
-    startTime = 0L;
+    if (startTime != 0L) {
+      TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
+      output.collect(new StreamRecord<>(response));
+      LOG.info(
+          "Aggregated result for table {}, task {}[{}] is {}",
+          tableName,
+          taskName,
+          taskIndex,
+          response);
+      exceptions.clear();
+      startTime = 0L;
+    }
 
     super.processWatermark(mark);
   }
