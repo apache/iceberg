@@ -75,7 +75,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the source columns of partition fields should be included in equality fields. For partition field `days(ts)`, the source column `ts` should be included in equality fields.
 
 
 
@@ -142,7 +142,8 @@ env.execute("Test Iceberg DataStream");
 ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the source columns of partition fields should be included in equality fields. For partition field `days(ts)`, the source column `ts` should be included in equality fields.
+
 
 
 ### Write with Avro GenericRecord

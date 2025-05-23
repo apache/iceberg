@@ -536,7 +536,8 @@ public class FlinkSink {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
-                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                "In UPSERT mode, source column '%s' of partition field '%s', should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
                 partitionField,
                 equalityFieldColumns);
           }
@@ -613,8 +614,9 @@ public class FlinkSink {
               for (PartitionField partitionField : partitionSpec.fields()) {
                 Preconditions.checkState(
                     equalityFieldIds.contains(partitionField.sourceId()),
-                    "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                    "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
                         + "should be included in equality fields: '%s'",
+                    table.schema().findColumnName(partitionField.sourceId()),
                     partitionField,
                     equalityFieldColumns);
               }
