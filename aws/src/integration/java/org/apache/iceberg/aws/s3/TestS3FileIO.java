@@ -884,7 +884,7 @@ public class TestS3FileIO {
   public void initFileIOWithStorageCredentials() throws ExecutionException, InterruptedException {
     StorageCredential s3Credential =
         StorageCredential.create(
-            "s3://custom-uri",
+            "s3",
             ImmutableMap.of(
                 "s3.access-key-id",
                 "updateKeyIdFromCredential",
@@ -912,7 +912,7 @@ public class TestS3FileIO {
       throws ExecutionException, InterruptedException {
     StorageCredential s3Credential =
         StorageCredential.create(
-            "s3://custom-uri",
+            "s3",
             ImmutableMap.of(
                 "s3.access-key-id",
                 "updateKeyIdFromCredential",
