@@ -44,7 +44,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final Function<MessageType, ParquetValueReader<?>> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final NameMapping nameMapping;
 
   public ParquetReader(
@@ -55,7 +55,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive) {
+      boolean filterCaseSensitive) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -63,7 +63,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
     this.nameMapping = nameMapping;
   }
 
@@ -81,7 +81,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               null,
               nameMapping,
               reuseContainers,
-              caseSensitive,
+              filterCaseSensitive,
               null);
       this.conf = readConf.copy();
       return readConf;

@@ -1285,6 +1285,29 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.TableProperties.ROW_LINEAGE"
       justification: "Removing deprecations for 1.10.0"
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.avro.AvroIterable<D> org.apache.iceberg.avro.Avro.ReadBuilder::build()"
+      new: "method org.apache.iceberg.avro.AvroIterable org.apache.iceberg.avro.Avro.ReadBuilder::build()"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.avro.Avro.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ throws java.io.IOException @ org.apache.iceberg.avro.Avro.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.movedToSuperClass"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.avro.Avro.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ throws java.io.IOException @ org.apache.iceberg.avro.Avro.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
     - code: "java.method.removed"
       old: "method boolean org.apache.iceberg.TableMetadata::rowLineageEnabled()"
       justification: "Removing deprecations for 1.10.0"
@@ -1326,7 +1349,92 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.actions.RewritePositionDeletesGroup::<init>(org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo,\
         \ java.util.List<org.apache.iceberg.PositionDeletesScanTask>)"
       justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.avro.AvroIterable<D> org.apache.iceberg.avro.Avro.ReadBuilder::build()"
+      new: "method org.apache.iceberg.avro.AvroIterable org.apache.iceberg.avro.Avro.ReadBuilder::build()"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.avro.Avro.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B extends org.apache.iceberg.avro.Avro.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ throws java.io.IOException @ org.apache.iceberg.avro.Avro.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    org.apache.iceberg:iceberg-orc:
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.io.CloseableIterable<D> org.apache.iceberg.orc.ORC.ReadBuilder::build()"
+      new: "method org.apache.iceberg.io.CloseableIterable org.apache.iceberg.orc.ORC.ReadBuilder::build()"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.orc.ORC.WriteBuilder::build()"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ @ org.apache.iceberg.orc.ORC.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.movedToSuperClass"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.orc.ORC.WriteBuilder::build()"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ @ org.apache.iceberg.orc.ORC.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.io.CloseableIterable<D> org.apache.iceberg.orc.ORC.ReadBuilder::build()"
+      new: "method org.apache.iceberg.io.CloseableIterable org.apache.iceberg.orc.ORC.ReadBuilder::build()"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.orc.ORC.WriteBuilder::build()"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B extends org.apache.iceberg.orc.ORC.AppenderBuilderInternal<B,\
+        \ E extends java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build()\
+        \ @ org.apache.iceberg.orc.ORC.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
     org.apache.iceberg:iceberg-parquet:
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.io.CloseableIterable<D> org.apache.iceberg.parquet.Parquet.ReadBuilder::build()"
+      new: "method org.apache.iceberg.io.CloseableIterable org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B, D extends java.lang.Object,\
+        \ F extends java.lang.Object>, D, F>, D, F>::build() @ org.apache.iceberg.parquet.Parquet.ReadBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.parquet.Parquet.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B, E extends\
+        \ java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build() throws\
+        \ java.io.IOException @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.movedToSuperClass"
+      old: "method <D> org.apache.iceberg.io.CloseableIterable<D> org.apache.iceberg.parquet.Parquet.ReadBuilder::build()"
+      new: "method org.apache.iceberg.io.CloseableIterable org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B, D extends java.lang.Object,\
+        \ F extends java.lang.Object>, D, F>, D, F>::build() @ org.apache.iceberg.parquet.Parquet.ReadBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.movedToSuperClass"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.parquet.Parquet.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B, E extends\
+        \ java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build() throws\
+        \ java.io.IOException @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
     - code: "java.method.removed"
       old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.parquet.ParquetValueWriter<T>\
         \ org.apache.iceberg.data.parquet.InternalWriter<T extends org.apache.iceberg.StructLike>::create(org.apache.parquet.schema.MessageType)"
@@ -1357,6 +1465,34 @@ acceptedBreaks:
       old: "method org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<org.apache.iceberg.data.Record>\
         \ org.apache.iceberg.data.parquet.GenericParquetWriter::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
       justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method org.apache.iceberg.InternalData.WriteBuilder org.apache.iceberg.InternalData.WriteBuilder::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>) @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+      new: "method B org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B, E extends\
+        \ java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>) @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.io.CloseableIterable<D> org.apache.iceberg.parquet.Parquet.ReadBuilder::build()"
+      new: "method org.apache.iceberg.io.CloseableIterable org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.ReadBuilderInternal<B, D extends java.lang.Object,\
+        \ F extends java.lang.Object>, D, F>, D, F>::build() @ org.apache.iceberg.parquet.Parquet.ReadBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method <D> org.apache.iceberg.io.FileAppender<D> org.apache.iceberg.parquet.Parquet.WriteBuilder::build()\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.io.FileAppender org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B\
+        \ extends org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B extends\
+        \ org.apache.iceberg.parquet.Parquet.AppenderBuilderInternal<B, E extends\
+        \ java.lang.Object, D extends java.lang.Object>, E, D>, E, D>::build() throws\
+        \ java.io.IOException @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+      justification: "We will fix these by duplicating the methods/classes but for\
+        \ testing we accept this"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
