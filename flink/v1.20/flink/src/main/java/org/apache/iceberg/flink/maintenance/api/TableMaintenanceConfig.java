@@ -23,16 +23,15 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class TableMaintenanceConfig {
 
-  public static final String RATE_LIMIT =
-      RewriteDataFilesConfig.CONFIG_PREFIX + "rate-limit-seconds";
+  public static final String CONFIG_PREFIX = "flink-maintenance.";
 
-  public static final String SLOT_SHARING_GROUP =
-      RewriteDataFilesConfig.CONFIG_PREFIX + "slot-sharing-group";
+  public static final String RATE_LIMIT = CONFIG_PREFIX + "rate-limit-seconds";
 
-  public static final String LOCK_CHECK_DELAY =
-      RewriteDataFilesConfig.CONFIG_PREFIX + "lock-check-delay-seconds";
+  public static final String SLOT_SHARING_GROUP = CONFIG_PREFIX + "slot-sharing-group";
 
-  public static final String PARALLELISM = RewriteDataFilesConfig.CONFIG_PREFIX + "parallelism";
+  public static final String LOCK_CHECK_DELAY = CONFIG_PREFIX + "lock-check-delay-seconds";
+
+  public static final String PARALLELISM = CONFIG_PREFIX + "parallelism";
 
   private final Map<String, String> properties;
 
