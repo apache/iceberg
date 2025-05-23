@@ -61,6 +61,7 @@ public class DlqReporter implements AutoCloseable {
       Future<?> result = producer.send(record);
     } catch (Exception ex) {
       LOG.error("Error writing to dead letter queue topic: {}", this.dlqTopic, ex);
+      throw ex;
     }
   }
 
