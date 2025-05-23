@@ -119,7 +119,7 @@ public class VariantTestUtil {
   }
 
   /** Creates a random string primitive of the given length for forcing large offset sizes */
-  static SerializedPrimitive createString(String string) {
+  public static SerializedPrimitive createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
