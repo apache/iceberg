@@ -91,7 +91,7 @@ class IcebergWriter implements RecordWriter {
               e);
       if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
         if (this.dlqReporter != null) {
-          this.dlqReporter.send(record.key().toString(), record.value().toString());
+          this.dlqReporter.send(record);
         }
         LOG.error("An error occurred converting record...", ex);
       } else {

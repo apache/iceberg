@@ -21,10 +21,10 @@ package org.apache.iceberg.connect.handler;
 import java.util.Properties;
 import java.util.concurrent.Future;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,18 +42,20 @@ public class DlqReporter implements AutoCloseable {
   public Properties initiateProperties(IcebergSinkConfig config) {
     Properties producerProps = new Properties();
     producerProps.put(
-        ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        config.kafkaProps().get(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG));
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+            config.kafkaProps().get("bootstrap.servers"));
     producerProps.put(
-        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-        "org.apache.kafka.common.serialization.ByteArraySerializer");
+            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+            "org.apache.kafka.common.serialization.StringSerializer");
     producerProps.put(
-        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-        "org.apache.kafka.common.serialization.ByteArraySerializer");
+            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+            "org.apache.kafka.common.serialization.StringSerializer");
     return producerProps;
   }
 
-  public void send(String key, String value) {
+  public void send(SinkRecord data) {
+    String key = (data.key()==null) ? null : data.key().toString();
+    String value = (data.value()==null) ? null : data.value().toString();
     try {
       ProducerRecord<String, String> record = new ProducerRecord<>(dlqTopic, key, value);
       Future<?> result = producer.send(record);
