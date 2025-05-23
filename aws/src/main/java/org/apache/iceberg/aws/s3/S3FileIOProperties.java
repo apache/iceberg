@@ -966,6 +966,22 @@ public class S3FileIOProperties implements Serializable {
             : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
   }
 
+  public <T extends S3AsyncClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
+    builder.credentialsProvider(
+        isRemoteSigningEnabled
+            ? AnonymousCredentialsProvider.create()
+            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
+  }
+
+  public <T extends S3CrtAsyncClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
+    builder.credentialsProvider(
+        isRemoteSigningEnabled
+            ? AnonymousCredentialsProvider.create()
+            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
+  }
+
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
    * crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
