@@ -355,6 +355,36 @@ public class TestTagDDL extends ExtensionsTestBase {
     assertThat(table.refs().get(tagName).snapshotId()).isEqualTo(snapshotId);
   }
 
+  @TestTemplate
+  public void testTagUpdatedAfterReplace() throws NoSuchTableException {
+    Table table = insertRows();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+    String tag1 = "t1";
+    sql("ALTER TABLE %s CREATE OR REPLACE TAG %s", tableName, tag1);
+    sql("UPDATE %s SET data = 'b' WHERE id = 1", tableName);
+    String tag2 = "t2";
+    sql("ALTER TABLE %s CREATE OR REPLACE TAG %s", tableName, tag2);
+
+    table.refresh();
+    assertThat(table.refs().get(tag1).snapshotId())
+        .as("tag1 needs to point to first snapshot id.")
+        .isEqualTo(firstSnapshot);
+    assertThat(table.refs().get(tag2).snapshotId())
+        .as("tag2 needs to point to current snapshot id.")
+        .isEqualTo(table.currentSnapshot().snapshotId());
+
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s', options => map('rewrite-all','true'))",
+        catalogName, tableIdent);
+    table.refresh();
+    assertThat(table.refs().get(tag1).snapshotId())
+        .as("tag1 should not be changed.")
+        .isEqualTo(firstSnapshot);
+    assertThat(table.refs().get(tag2).snapshotId())
+        .as("The tag needs to be updated after replace operation.")
+        .isEqualTo(table.currentSnapshot().snapshotId());
+  }
+
   private Table insertRows() throws NoSuchTableException {
     List<SimpleRecord> records =
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
