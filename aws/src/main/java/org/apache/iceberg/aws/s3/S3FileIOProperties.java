@@ -1174,4 +1174,8 @@ public class S3FileIOProperties implements Serializable {
           e);
     }
   }
+
+  public Map<String, String> properties() {
+    return allProperties;
+  }
 }
