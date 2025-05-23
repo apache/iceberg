@@ -393,7 +393,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testExtraSnapshotMetadataReflectsSessionConfig() {
     withSQLConf(
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
@@ -407,7 +407,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testExtraSnapshotMetadataWriteOptionsOverrideSessionConfig() {
     withSQLConf(
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
