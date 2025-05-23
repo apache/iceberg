@@ -73,13 +73,12 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.BaseLockFactoryBuilder;
-import org.apache.iceberg.flink.maintenance.api.LockFactoryBuilder;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
-import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
+import org.apache.iceberg.flink.maintenance.operator.LockFactoryBuilder;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
@@ -260,7 +259,8 @@ public class IcebergSink
       RewriteDataFiles.Builder rewriteBuilder =
           RewriteDataFiles.builder().properties(compactProperties);
 
-      TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(compactProperties, table);
+      TriggerLockFactory triggerLockFactory =
+          LockFactoryBuilder.build(compactProperties, table.name());
       TableMaintenance.Builder builder =
           TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
               .add(rewriteBuilder);
@@ -665,9 +665,9 @@ public class IcebergSink
     private Map<String, String> createCompactionProperties(
         Map<String, String> writeProperties, Map<String, String> setProperties) {
       Map<String, String> lowLevelLockProperties =
-          filterPrefix(setProperties, BaseLockFactoryBuilder.CONFIG_PREFIX);
+          filterPrefix(setProperties, LockConfig.CONFIG_PREFIX);
       Map<String, String> compactionProperties =
-          filterPrefix(writeProperties, RewriteDataFilesConfig.CONFIG_PREFIX);
+          filterPrefix(writeProperties, TableMaintenanceConfig.CONFIG_PREFIX);
       lowLevelLockProperties.putAll(compactionProperties);
       return lowLevelLockProperties;
     }

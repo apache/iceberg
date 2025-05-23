@@ -24,7 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {
-  public static final String CONFIG_PREFIX = "flink-maintenance.rewrite.";
+  public static final String CONFIG_PREFIX = TableMaintenanceConfig.CONFIG_PREFIX + "rewrite.";
 
   private final Map<String, String> properties;
 
