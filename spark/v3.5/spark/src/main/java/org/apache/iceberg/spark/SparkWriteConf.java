@@ -56,6 +56,7 @@ import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -253,12 +254,14 @@ public class SparkWriteConf {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
     // Check session configuration for properties with SNAPSHOT_PROPERTY_PREFIX
-    sessionConf.getAll().forEach((key, value) -> {
-      if (key.startsWith(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX)) {
-        extraSnapshotMetadata.put(
-            key.substring(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX.length()), value);
-      }
-    });
+    JavaConverters.mapAsJavaMap(sessionConf.getAll())
+        .forEach(
+            (key, value) -> {
+              if (key.startsWith(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX)) {
+                extraSnapshotMetadata.put(
+                    key.substring(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX.length()), value);
+              }
+            });
 
     // Add write options, overriding session configuration if necessary
     writeOptions.forEach(

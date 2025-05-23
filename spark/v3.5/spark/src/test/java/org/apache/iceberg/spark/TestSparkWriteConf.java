@@ -413,7 +413,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          Map<String, String> writeOptions = ImmutableMap.of("snapshot-property.test-key", "write-option-value");
+          Map<String, String> writeOptions =
+              ImmutableMap.of("snapshot-property.test-key", "write-option-value");
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
 
           Map<String, String> metadata = writeConf.extraSnapshotMetadata();
