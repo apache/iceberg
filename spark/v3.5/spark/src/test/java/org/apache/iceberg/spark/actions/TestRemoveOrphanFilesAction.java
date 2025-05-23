@@ -104,9 +104,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   protected Map<String, String> properties;
   @Parameter private int formatVersion;
 
-  @Parameters(name = "formatVersion = {0}")
+  @Parameter(index = 1)
+  private boolean usePrefixListing;
+
+  @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+    return Arrays.asList(new Object[] {2, true}, new Object[] {2, false}, new Object[] {3, false});
   }
 
   @BeforeEach
@@ -158,7 +161,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result1 =
-        actions.deleteOrphanFiles(table).deleteWith(s -> {}).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .deleteWith(s -> {})
+            .execute();
     assertThat(result1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
@@ -166,6 +173,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result2 =
         actions
             .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {})
             .execute();
@@ -177,7 +185,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .isTrue();
 
     DeleteOrphanFiles.Result result3 =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
     assertThat(result3.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFiles);
@@ -237,7 +249,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 4 files").hasSize(4);
 
@@ -259,6 +275,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void orphanedFileRemovedWithParallelTasks() {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records1 =
@@ -321,6 +340,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testWapFilesAreKept() {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     assumeThat(formatVersion).as("currently fails with DVs").isEqualTo(2);
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
@@ -338,6 +360,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     // wap write
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    spark.conf().unset(SparkSQLProperties.WAP_ID);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
@@ -379,7 +403,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
 
@@ -413,7 +441,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(timestamp).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(timestamp)
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 2 files").hasSize(2);
   }
@@ -439,7 +471,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations())
         .containsExactly(tableLocation + "metadata/v1.metadata.json");
@@ -472,7 +508,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
 
@@ -498,7 +538,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
 
@@ -534,7 +578,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -570,7 +618,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -605,7 +657,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 0 files").isEmpty();
     assertThat(fs.exists(pathToFileInHiddenFolder)).isTrue();
@@ -624,6 +680,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     Table table =
         TABLES.create(
             SCHEMA, PartitionSpec.unpartitioned(), properties, tableDir.getAbsolutePath());
@@ -707,7 +766,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     table.refresh();
 
     DeleteOrphanFiles.Result result =
-        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 1 file").hasSize(1);
 
@@ -739,6 +802,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         SparkActions.get()
             .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     assertThat(result.orphanFileLocations())
@@ -748,6 +812,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testGarbageCollectionDisabled() {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
@@ -767,6 +834,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testCompareToFileList() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
@@ -897,6 +967,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
