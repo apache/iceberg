@@ -944,6 +944,30 @@ public class TestS3FileIO {
     assertThat(actualCredIdentity.sessionToken()).isEqualTo("updateSessionTokenFromCredential");
   }
 
+  @Test
+  public void initFileIOWithStorageCredentialsUnMatchedPrefix() {
+    StorageCredential s3Credential =
+        StorageCredential.create(
+            "unmatchedPrefix",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "updateKeyIdFromCredential",
+                "s3.secret-access-key",
+                "updateAccessKeyFromCredential",
+                "s3.session-token",
+                "updateSessionTokenFromCredential"));
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(s3Credential));
+    fileIO.initialize(ImmutableMap.of("client.region", "us-east-1"));
+
+    S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
+    assertThat(actualConfiguration).isNotNull();
+    assertThatThrownBy(() -> actualConfiguration.credentialsProvider().resolveIdentity())
+        .isInstanceOf(SdkClientException.class)
+        .hasMessageContaining("Unable to load credentials from any of the providers");
+  }
+
   private void createRandomObjects(String prefix, int count) {
     S3URI s3URI = new S3URI(prefix);
 
