@@ -195,6 +195,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a specific data file to be deleted in the new snapshot. */
   protected void delete(DataFile file) {
     filterManager.delete(file);
+    // TODO: can we find in-memory whether there's a matching DV file that can be removed?
+    // can we add a delete(dataFile, deleteFile) API to ManifestFilterManager?
   }
 
   /** Add a specific delete file to be deleted in the new snapshot. */

@@ -22,11 +22,13 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,10 +84,13 @@ public class RewriteDataFilesCommitManager {
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
-    } else {
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
+      rewrite.dataSequenceNumber(sequenceNumber);
     }
+
+    rewrittenDataFiles.forEach(rewrite::deleteFile);
+    addedDataFiles.forEach(rewrite::addFile);
+    DeleteFileSet orphanedDeleteFiles = TableUtil.deletesFilesFor(table, rewrittenDataFiles);
+    orphanedDeleteFiles.forEach(rewrite::deleteFile);
 
     snapshotProperties.forEach(rewrite::set);
 

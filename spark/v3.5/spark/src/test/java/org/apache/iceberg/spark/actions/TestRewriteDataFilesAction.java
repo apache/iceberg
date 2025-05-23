@@ -51,11 +51,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -536,6 +540,76 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
+  }
+
+  @TestTemplate
+  public void removeOrphanedDVsFromDeleteManifest() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete > 100% of records for each data file
+    int numPositionsToDelete = 10;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+          .forEach(rowDelta::addDeletes);
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(deleteFiles).hasSize(numDataFiles);
+
+    for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
+      Set<String> validDataFilePaths =
+          TestHelpers.dataFiles(table).stream()
+              .map(ContentFile::location)
+              .collect(Collectors.toSet());
+      ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(
+              manifestFile, table.io(), ((BaseTable) table).operations().current().specsById());
+      for (DeleteFile deleteFile : reader) {
+        // make sure there are no orphaned DVs
+        assertThat(validDataFilePaths).contains(deleteFile.referencedDataFile());
+      }
+    }
+
+    // there are 5 data files with a delete ratio of > 100% each, so all data files should be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    assertThat(TestHelpers.dataFiles(table)).hasSize(1);
+    assertThat(TestHelpers.deleteFiles(table)).isEmpty();
+
+    Set<String> validDataFilePaths =
+        TestHelpers.dataFiles(table).stream()
+            .map(ContentFile::location)
+            .collect(Collectors.toSet());
+
+    for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
+      ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(
+              manifestFile, table.io(), ((BaseTable) table).operations().current().specsById());
+      for (DeleteFile deleteFile : reader) {
+        // make sure there are no orphaned DVs
+        assertThat(validDataFilePaths).contains(deleteFile.referencedDataFile());
+      }
+    }
   }
 
   @TestTemplate
