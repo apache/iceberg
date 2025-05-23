@@ -197,11 +197,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any());
 
-    // verify initial request with empty pageToken
+    // verify initial request with no pageToken
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
+            eq(ImmutableMap.of("pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
 

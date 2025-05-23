@@ -2199,11 +2199,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
-    // verify initial request with empty pageToken
+    // verify initial request with no pageToken
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
+            eq(ImmutableMap.of("pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class));
 
@@ -2261,11 +2261,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
-    // verify initial request with empty pageToken
+    // verify initial request with no pageToken
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
+            eq(ImmutableMap.of("pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
 
