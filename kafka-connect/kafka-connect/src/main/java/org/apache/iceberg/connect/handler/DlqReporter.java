@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.handler;
 
 import java.util.Properties;
+import java.util.concurrent.Future;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -55,7 +56,7 @@ public class DlqReporter implements AutoCloseable {
   public void send(String key, String value) {
     try {
       ProducerRecord<String, String> record = new ProducerRecord<>(dlqTopic, key, value);
-      producer.send(record);
+      Future<?> result = producer.send(record);
     } catch (Exception ex) {
       LOG.error("Error writing to dead letter queue topic: {}", this.dlqTopic, ex);
     }
