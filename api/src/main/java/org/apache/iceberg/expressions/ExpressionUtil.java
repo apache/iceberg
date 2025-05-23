@@ -39,6 +39,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantData;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantValue;
 
@@ -536,6 +538,8 @@ public class ExpressionUtil {
         return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
+      case VARIANT:
+        return sanitizeVariant((VariantData) value, now, today);
       case UNKNOWN:
         return "(unknown)";
       case BOOLEAN:
@@ -545,8 +549,6 @@ public class ExpressionUtil {
       case BINARY:
         // for boolean, uuid, decimal, fixed, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
-      case VARIANT:
-        return sanitizeVariant((VariantValue) value, now, today);
     }
     throw new UnsupportedOperationException(
         String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
@@ -572,8 +574,10 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.VariantLiteral) {
+      return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else {
-      // for uuid, decimal, fixed, variant, and binary, match the string result
+      // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
   }
@@ -650,39 +654,83 @@ public class ExpressionUtil {
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
   }
 
+  private static String sanitizeVariant(VariantData value, long now, int today) {
+    return sanitizeVariant(value.value(), now, today);
+  }
+
   private static String sanitizeVariant(VariantValue value, long now, int today) {
-    VariantObject variantValue = value.asObject();
+    if (value instanceof VariantObject) {
+      return sanitizeVariantObject(value.asObject(), now, today);
+    } else {
+      return sanitizeVariantArray(value.asArray(), now, today);
+    }
+  }
+
+  private static String sanitizeVariantObject(VariantObject value, long now, int today) {
     StringBuilder builder = new StringBuilder();
     builder.append("{");
     boolean first = true;
-    for (String field : variantValue.fieldNames()) {
+    for (String field : value.fieldNames()) {
       if (first) {
         first = false;
       } else {
         builder.append(", ");
       }
       builder.append(String.format(Locale.ROOT, "(hash-%s)", field)).append(": ");
-      VariantValue fieldValue = variantValue.get(field);
+      VariantValue fieldValue = value.get(field);
       PhysicalType fieldType = fieldValue.type();
-      if (fieldType.equals(PhysicalType.INT8)
-          || fieldType.equals(PhysicalType.INT16)
-          || fieldType.equals(PhysicalType.INT32)
-          || fieldType.equals(PhysicalType.INT64)) {
-        builder.append(sanitizeNumber((Number) fieldValue, "int"));
-      } else if (fieldType.equals(PhysicalType.FLOAT) || fieldType.equals(PhysicalType.DOUBLE)) {
-        builder.append(sanitizeNumber((Number) fieldValue, "float"));
-      } else if (fieldType.equals(PhysicalType.DATE)) {
-        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
-      } else if (fieldType.equals(PhysicalType.TIMESTAMPNTZ)
-          || fieldType.equals(PhysicalType.TIMESTAMPTZ)) {
-        builder
-            .append(": ")
-            .append(sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
-      } else {
-        builder.append(": ").append(sanitizeSimpleString(field));
-      }
+      builder.append(sanitizeVariantField(fieldValue, fieldType, now, today));
     }
-    builder.append("})");
+    builder.append("}");
+    return builder.toString();
+  }
+
+  private static String sanitizeVariantArray(VariantArray value, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("{");
+    boolean first = true;
+    for (int i = 0; i < value.numElements(); i++) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+      builder.append(sanitizeVariantField(value.get(i), value.get(i).type(), now, today));
+    }
+    builder.append("}");
+    return builder.toString();
+  }
+
+  private static String sanitizeVariantField(
+      VariantValue fieldValue, PhysicalType fieldType, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    switch (fieldType) {
+      case INT8:
+      case INT16:
+      case INT32:
+      case INT64:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL4:
+      case DECIMAL8:
+      case DECIMAL16:
+        builder.append(sanitizeNumber((Number) fieldValue.asPrimitive().get(), fieldType.name()));
+        break;
+      case DATE:
+        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
+        break;
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+        builder.append(
+            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+        break;
+      case ARRAY:
+        builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
+        break;
+      default:
+        builder.append(sanitizeSimpleString(fieldValue.toString()));
+        break;
+    }
     return builder.toString();
   }
 

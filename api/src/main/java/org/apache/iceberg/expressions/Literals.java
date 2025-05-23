@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.variants.VariantData;
 
 class Literals {
   private Literals() {}
@@ -82,6 +83,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof VariantData) {
+      return (Literal<T>) new Literals.VariantLiteral((VariantData) value);
     }
 
     throw new IllegalArgumentException(
@@ -502,6 +505,33 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.DECIMAL;
+    }
+  }
+
+  static class VariantLiteral extends BaseLiteral<VariantData> {
+    VariantLiteral(VariantData value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case VARIANT:
+          return (Literal<T>) this;
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public Comparator<VariantData> comparator() {
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.VARIANT;
     }
   }
 
