@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,11 @@ public abstract class ScanTestBase extends AvroDataTest {
 
   @BeforeAll
   public static void startSpark() {
-    ScanTestBase.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    ScanTestBase.spark =
+        SparkSession.builder()
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .master("local[2]")
+            .getOrCreate();
     ScanTestBase.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
