@@ -2219,9 +2219,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       GenericAppenderFactory appenderFactory =
           new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          appenderFactory.newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       posDeleteWriter.write(posDelete.set(path, rowPosition, null));
@@ -2260,9 +2258,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       GenericAppenderFactory appenderFactory =
           new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          appenderFactory.newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       int positionsPerDeleteFile = totalPositionsToDelete / outputDeleteFiles;
