@@ -41,7 +41,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
   private TableEnvironment tEnv;
   private Table icebergTable;
   private static final String TABLE_PROPERTIES =
-      "'flink-maintenance.rewrite.lock.type'='jdbc','flink-maintenance.rewrite.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic','flink-maintenance.rewrite.lock.jdbc.init-lock-table'='true','flink-maintenance.rewrite.rewrite-all'='true','flink-maintenance.rewrite.schedule.data-file-size'='1'";
+      "'flink-maintenance.lock.type'='jdbc','flink-maintenance.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic','flink-maintenance.lock.jdbc.init-lock-table'='true','flink-maintenance.rewrite.rewrite-all'='true','flink-maintenance.rewrite.schedule.data-file-size'='1','flink-maintenance.lock-check-delay-seconds'='60'";
 
   @Parameter(index = 2)
   private boolean userSqlHint = true;

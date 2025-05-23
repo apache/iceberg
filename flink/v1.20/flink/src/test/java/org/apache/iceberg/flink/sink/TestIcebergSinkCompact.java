@@ -42,8 +42,7 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.maintenance.api.BaseLockFactoryBuilder;
-import org.apache.iceberg.flink.maintenance.api.JdbcLockFactoryBuilder;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,20 +58,16 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   void before() throws IOException {
     this.flinkConf = Maps.newHashMap();
     flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+    flinkConf.put(LockConfig.CONFIG_PREFIX + LockConfig.LOCK_TYPE, LockConfig.JDBC);
     flinkConf.put(
-        BaseLockFactoryBuilder.CONFIG_PREFIX + JdbcLockFactoryBuilder.LOCK_TYPE_KEY,
-        JdbcLockFactoryBuilder.JDBC_LOCK);
-    flinkConf.put(
-        BaseLockFactoryBuilder.CONFIG_PREFIX + JdbcLockFactoryBuilder.JDBC_URI,
+        LockConfig.CONFIG_PREFIX + LockConfig.JDBC_URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
-    flinkConf.put(
-        BaseLockFactoryBuilder.CONFIG_PREFIX + JdbcLockFactoryBuilder.LOCK_ID, "test-lock-id");
+    flinkConf.put(LockConfig.CONFIG_PREFIX + LockConfig.LOCK_ID, "test-lock-id");
     flinkConf.put(
         RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE,
         "1");
 
-    flinkConf.put(
-        BaseLockFactoryBuilder.CONFIG_PREFIX + JdbcLockFactoryBuilder.JDBC_INIT_LOCK_TABLE, "true");
+    flinkConf.put(LockConfig.CONFIG_PREFIX + LockConfig.JDBC_INIT_LOCK_TABLE, "true");
     flinkConf.put(
         RewriteDataFilesConfig.CONFIG_PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
 
