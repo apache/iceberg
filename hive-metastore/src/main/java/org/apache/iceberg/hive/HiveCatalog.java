@@ -76,6 +76,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
+  private static final String HMS_CONF_PREFIX = "hive.metastore.";
   public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
@@ -102,6 +103,14 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
       this.conf = new Configuration();
     }
+
+    // Set HMS configs from the catalog properties
+    properties.forEach(
+        (key, value) -> {
+          if (key.startsWith(HMS_CONF_PREFIX)) {
+            this.conf.set(key, value);
+          }
+        });
 
     if (properties.containsKey(CatalogProperties.URI)) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
