@@ -61,7 +61,7 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   private final String taskName;
   private final int taskIndex;
   private final List<Exception> exceptions;
-  private transient Long startTime;
+  private transient long startTime;
 
   public TaskResultAggregator(String tableName, String taskName, int taskIndex) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");

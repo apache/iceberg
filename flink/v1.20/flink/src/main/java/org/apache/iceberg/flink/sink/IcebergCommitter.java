@@ -78,6 +78,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private int maxContinuousEmptyCommits;
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
+  private boolean compactMode = false;
 
   IcebergCommitter(
       TableLoader tableLoader,
@@ -86,7 +87,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       boolean replacePartitions,
       int workerPoolSize,
       String sinkId,
-      IcebergFilesCommitterMetrics committerMetrics) {
+      IcebergFilesCommitterMetrics committerMetrics,
+      boolean compactMode) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
@@ -105,6 +107,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         ThreadPools.newFixedThreadPool(
             "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     this.continuousEmptyCheckpoints = 0;
+    this.compactMode = compactMode;
   }
 
   @Override
@@ -174,7 +177,9 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       committerMetrics.updateCommitSummary(summary);
     }
 
-    FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
+    if (!compactMode) {
+      FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
+    }
   }
 
   private void logCommitSummary(CommitSummary summary, String description) {
