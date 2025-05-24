@@ -91,7 +91,19 @@ public class ErrorHandlers {
         case 404:
           throw new NoSuchTableException("%s", error.message());
         case 409:
-          throw new CommitFailedException("Commit failed: %s", error.message());
+          if (error.isRetried()) {
+            // If the request was retried, it could probably also mean that internal retries
+            // happened
+            // which could have let the commit succeed at persistence but since the request is
+            // retried
+            // without rebase this would not be apt to do a clean-up for.
+            throw new CommitStateUnknownException(
+                new ServiceFailureException(
+                    "Service failed: %s: %s", error.code(), error.message()));
+          } else {
+            throw new CommitFailedException("Commit failed: %s", error.message());
+          }
+
         case 500:
         case 502:
         case 504:

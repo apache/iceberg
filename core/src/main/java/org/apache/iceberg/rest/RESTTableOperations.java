@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,8 +32,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -158,21 +155,13 @@ class RESTTableOperations implements TableOperations {
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    try {
-      LoadTableResponse response =
-          client.post(path, request, LoadTableResponse.class, headers, errorHandler);
-      // all future commits should be simple commits
-      this.updateType = UpdateType.SIMPLE;
+    LoadTableResponse response =
+        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 
-      updateCurrentMetadata(response);
-    } catch (RESTException e) {
-      if (e.getCause() != null && e.getCause() instanceof IOException) {
-        // any IOException or unhandled Exception should be considered as commit unknown
-        // so that caller can attempt to potentially reconcile
-        throw new CommitStateUnknownException(e);
-      }
-      throw e;
-    }
+    // all future commits should be simple commits
+    this.updateType = UpdateType.SIMPLE;
+
+    updateCurrentMetadata(response);
   }
 
   @Override
