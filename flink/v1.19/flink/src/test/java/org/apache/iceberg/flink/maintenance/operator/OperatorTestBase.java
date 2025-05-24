@@ -33,6 +33,7 @@ import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.iceberg.DataFile;
@@ -83,6 +84,7 @@ public class OperatorTestBase {
 
   static final long EVENT_TIME = 10L;
   static final long EVENT_TIME_2 = 11L;
+  static final Watermark WATERMARK = new Watermark(EVENT_TIME);
   protected static final String DUMMY_TASK_NAME = "dummyTask";
   protected static final String DUMMY_TABLE_NAME = "dummyTable";
 
