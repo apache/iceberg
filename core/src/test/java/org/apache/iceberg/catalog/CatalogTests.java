@@ -966,8 +966,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
     assertThatThrownBy(() -> catalog.loadTable(TBL))
-            .isInstanceOf(NoSuchTableException.class)
-            .hasMessageStartingWith("Table does not exist: ns.tbl");
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist: ns.tbl");
   }
 
   @Test

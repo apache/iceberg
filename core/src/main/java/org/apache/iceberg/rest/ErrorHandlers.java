@@ -125,11 +125,9 @@ public class ErrorHandlers {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
-          }
-          else if(NotFoundException.class.getSimpleName().equals(error.type())){
+          } else if (NotFoundException.class.getSimpleName().equals(error.type())) {
             throw new NotFoundException("%s", error.message());
-          }
-          else {
+          } else {
             throw new NoSuchTableException("%s", error.message());
           }
         case 409:
