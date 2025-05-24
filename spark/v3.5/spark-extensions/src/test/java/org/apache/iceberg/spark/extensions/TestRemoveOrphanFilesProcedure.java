@@ -45,6 +45,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.ReachableFileUtil;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
@@ -636,6 +637,11 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       allFiles.add(new FilePathLastModifiedRecord(manifest.path(), lastModifiedTimestamp));
     }
 
+    for (Snapshot snapshot : table.snapshots()) {
+      allFiles.add(
+          new FilePathLastModifiedRecord(snapshot.manifestListLocation(), lastModifiedTimestamp));
+    }
+
     Dataset<Row> compareToFileList =
         spark
             .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
@@ -717,6 +723,11 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     for (ManifestFile manifest : TestHelpers.dataManifests(table)) {
       allFiles.add(new FilePathLastModifiedRecord(manifest.path(), lastModifiedTimestamp));
+    }
+
+    for (Snapshot snapshot : table.snapshots()) {
+      allFiles.add(
+          new FilePathLastModifiedRecord(snapshot.manifestListLocation(), lastModifiedTimestamp));
     }
 
     Dataset<Row> compareToFileList =
