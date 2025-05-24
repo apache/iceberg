@@ -961,6 +961,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadTableWithMissingMetadatafile() {
+    C catalog = catalog();
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
+            .isInstanceOf(NoSuchTableException.class)
+            .hasMessageStartingWith("Table does not exist: ns.tbl");
+  }
+
+  @Test
   public void testRenameTable() {
     C catalog = catalog();
 
