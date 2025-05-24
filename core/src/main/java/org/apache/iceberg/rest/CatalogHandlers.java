@@ -111,6 +111,10 @@ public class CatalogHandlers {
   }
 
   private static <T> Pair<List<T>, String> paginate(List<T> list, String pageToken, int pageSize) {
+    if (pageToken == null) {
+      pageToken = INITIAL_PAGE_TOKEN;
+    }
+
     int pageStart = INITIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
     if (pageStart >= list.size()) {
       return Pair.of(Collections.emptyList(), null);
