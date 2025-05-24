@@ -250,19 +250,24 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.remove_orphan_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessage(
+            "[DUPLICATE_ROUTINE_PARAMETER_ASSIGNMENT.BOTH_POSITIONAL_AND_NAMED] Call to routine `remove_orphan_files` is invalid because it includes multiple argument assignments to the same parameter name `table`. A positional argument and named argument both referred to the same parameter. Please remove the named argument referring to this parameter. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Catalog %s does not support procedures.", catalogName);
+        .hasMessage(
+            "[FAILED_TO_LOAD_ROUTINE] Failed to load routine `%s`.`custom`.`remove_orphan_files`. SQLSTATE: 38000",
+            catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `remove_orphan_files` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("Wrong arg type for older_than");
+        .hasMessageStartingWith(
+            "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The second parameter requires the \"TIMESTAMP\" type, however \"2.2\" has the type \"DECIMAL(2,1)\". SQLSTATE: 42K09");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
