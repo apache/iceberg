@@ -48,6 +48,8 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.protocol.BasicHttpContext;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.exceptions.RESTException;
@@ -183,7 +185,10 @@ public class HTTPClient extends BaseHTTPClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
+      CloseableHttpResponse response,
+      String responseBody,
+      Consumer<ErrorResponse> errorHandler,
+      Object isRetried) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -220,10 +225,19 @@ public class HTTPClient extends BaseHTTPClient {
       errorResponse = buildDefaultErrorResponse(response);
     }
 
-    errorHandler.accept(errorResponse);
+    boolean hasBeenRetried = (isRetried == Boolean.TRUE);
+    ErrorResponse enrichedErrorResponse =
+        ErrorResponse.builder()
+            .isRetried(hasBeenRetried)
+            .responseCode(errorResponse.code())
+            .withMessage(errorResponse.message())
+            .withType(errorResponse.type())
+            .build();
+
+    errorHandler.accept(enrichedErrorResponse);
 
     // Throw an exception in case the provided error handler does not throw.
-    throw new RESTException("Unhandled error: %s", errorResponse);
+    throw new RESTException("Unhandled error: %s", enrichedErrorResponse);
   }
 
   @Override
@@ -286,7 +300,8 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    try (CloseableHttpResponse response = httpClient.execute(request)) {
+    HttpContext context = new BasicHttpContext();
+    try (CloseableHttpResponse response = httpClient.execute(request, context)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
         respHeaders.put(header.getName(), header.getValue());
@@ -304,7 +319,7 @@ public class HTTPClient extends BaseHTTPClient {
 
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler);
+        throwFailure(response, responseBody, errorHandler, context.getAttribute("is-retried"));
       }
 
       if (responseBody == null) {
