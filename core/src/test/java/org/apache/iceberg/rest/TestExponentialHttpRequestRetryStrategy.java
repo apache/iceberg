@@ -37,6 +37,8 @@ import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.protocol.BasicHttpContext;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -80,14 +82,20 @@ public class TestExponentialHttpRequestRetryStrategy {
 
   @Test
   public void basicRetry() {
+    HttpContext context503 = new BasicHttpContext();
     BasicHttpResponse response503 = new BasicHttpResponse(503, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response503, 3, null)).isTrue();
+    assertThat(retryStrategy.retryRequest(response503, 3, context503)).isTrue();
+    assertThat(context503.getAttribute("is-retried") == Boolean.TRUE).isTrue();
 
+    HttpContext context429 = new BasicHttpContext();
     BasicHttpResponse response429 = new BasicHttpResponse(429, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response429, 3, null)).isTrue();
+    assertThat(retryStrategy.retryRequest(response429, 3, context429)).isTrue();
+    assertThat(context429.getAttribute("is-retried") == Boolean.TRUE).isTrue();
 
+    HttpContext context404 = new BasicHttpContext();
     BasicHttpResponse response404 = new BasicHttpResponse(404, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response404, 3, null)).isFalse();
+    assertThat(retryStrategy.retryRequest(response404, 3, context404)).isFalse();
+    assertThat(context429.getAttribute("is-retried") == Boolean.TRUE).isTrue();
   }
 
   @Test

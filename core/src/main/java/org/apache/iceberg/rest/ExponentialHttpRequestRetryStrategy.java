@@ -97,7 +97,6 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   @Override
   public boolean retryRequest(
       HttpRequest request, IOException exception, int execCount, HttpContext context) {
-    context.setAttribute("is-retried", Boolean.TRUE);
     if (execCount > maxRetries) {
       // Do not retry if over max retries
       return false;

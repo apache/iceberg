@@ -32,7 +32,7 @@ public class ErrorResponse implements RESTResponse {
   private final String type;
   private final int code;
   private final List<String> stack;
-  private boolean isRetried;
+  private final boolean isRetried;
 
   private ErrorResponse(
       String message, String type, int code, List<String> stack, boolean isRetried) {
@@ -66,7 +66,7 @@ public class ErrorResponse implements RESTResponse {
   }
 
   public boolean isRetried() {
-    return true;
+    return isRetried;
   }
 
   @Override
