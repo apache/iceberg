@@ -102,11 +102,10 @@ public class FlinkSchemaUtil {
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
     Schema icebergSchema = new Schema(converted.asStructType().fields());
-    if (flinkSchema.getPrimaryKey().isPresent()) {
-      return freshIdentifierFieldIds(icebergSchema, flinkSchema.getPrimaryKey().get().getColumns());
-    } else {
-      return icebergSchema;
-    }
+    return flinkSchema
+        .getPrimaryKey()
+        .map(pk -> freshIdentifierFieldIds(icebergSchema, pk.getColumns()))
+        .orElse(icebergSchema);
   }
 
   private static Schema freshIdentifierFieldIds(Schema icebergSchema, List<String> primaryKeys) {
@@ -137,7 +136,10 @@ public class FlinkSchemaUtil {
    * @param flinkSchema a Flink TableSchema
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #convert(Schema,
+   *     ResolvedSchema)} instead.
    */
+  @Deprecated
   public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
     // convert to a type with fresh ids
     Types.StructType struct = convert(flinkSchema).asStruct();
@@ -153,6 +155,35 @@ public class FlinkSchemaUtil {
     } else {
       return fixedSchema;
     }
+  }
+
+  /**
+   * Convert a Flink {@link ResolvedSchema} to a {@link Schema} based on the given schema.
+   *
+   * <p>This conversion does not assign new ids; it uses ids from the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the Flink type. This conversion may
+   * return a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param flinkSchema a Flink ResolvedSchema
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
+    // convert to a type with fresh ids
+    Types.StructType struct = convert(flinkSchema).asStruct();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // reassign doc to match the base schema
+    schema = TypeUtil.reassignDoc(schema, baseSchema);
+
+    // fix types that can't be represented in Flink (UUID)
+    Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
+    return flinkSchema
+        .getPrimaryKey()
+        .map(pk -> freshIdentifierFieldIds(fixedSchema, pk.getColumns()))
+        .orElse(fixedSchema);
   }
 
   /**
@@ -192,13 +223,32 @@ public class FlinkSchemaUtil {
    *
    * @param rowType a RowType
    * @return Flink TableSchema
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toResolvedSchema(RowType)}
+   *     instead
    */
+  @Deprecated
   public static TableSchema toSchema(RowType rowType) {
     TableSchema.Builder builder = TableSchema.builder();
     for (RowType.RowField field : rowType.getFields()) {
       builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
     }
     return builder.build();
+  }
+
+  /**
+   * Convert a {@link RowType} to a {@link ResolvedSchema}.
+   *
+   * @param rowType a RowType
+   * @return Flink ResolvedSchema
+   */
+  public static ResolvedSchema toResolvedSchema(RowType rowType) {
+    List<Column> columns = Lists.newArrayListWithExpectedSize(rowType.getFieldCount());
+    for (RowType.RowField field : rowType.getFields()) {
+      columns.add(
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType())));
+    }
+
+    return ResolvedSchema.of(columns);
   }
 
   /**

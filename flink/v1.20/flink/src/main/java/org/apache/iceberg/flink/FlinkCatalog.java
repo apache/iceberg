@@ -436,7 +436,7 @@ public class FlinkCatalog extends AbstractCatalog {
     validateFlinkTable(table);
 
     Schema icebergSchema = FlinkSchemaUtil.convert(table.getResolvedSchema());
-    PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
+    PartitionSpec spec = toPartitionSpec(table.getPartitionKeys(), icebergSchema);
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
     String location = null;
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
