@@ -103,7 +103,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Table `tl` was not found.");
 
-    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getResolvedSchema());
     assertThat(tableSchema.asStruct()).isEqualTo(actualSchema.asStruct());
   }
 

@@ -38,6 +38,7 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.TableChange;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
@@ -671,7 +672,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   static CatalogTable toCatalogTableWithProps(Table table, Map<String, String> props) {
-    TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
+    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(table.schema());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer
@@ -680,7 +681,10 @@ public class FlinkCatalog extends AbstractCatalog {
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
     return CatalogTable.newBuilder()
-        .schema(schema.toSchema())
+        .schema(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .fromResolvedSchema(resolvedSchema)
+                .build())
         .partitionKeys(partitionKeys)
         .options(props)
         .build();

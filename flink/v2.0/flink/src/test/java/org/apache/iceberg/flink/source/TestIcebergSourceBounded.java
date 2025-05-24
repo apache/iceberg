@@ -71,8 +71,7 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
     // Convert Iceberg schema to Flink schema
     Schema icebergTableSchema =
         CATALOG_EXTENSION.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
-    ResolvedSchema fullFlinkSchema =
-        FlinkSchemaUtil.toResolvedSchema(FlinkSchemaUtil.convert(icebergTableSchema));
+    ResolvedSchema fullFlinkSchema = FlinkSchemaUtil.toResolvedSchema(icebergTableSchema);
 
     // Projection
     List<Column> projectedColumns =
