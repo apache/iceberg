@@ -91,7 +91,6 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     // ToDo: Remove these as row lineage inheritance gets implemented in the other readers
     assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
-    assumeThat(vectorized).isFalse();
   }
 
   @AfterEach
