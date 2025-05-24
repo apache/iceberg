@@ -92,14 +92,16 @@ public class ErrorHandlers {
           throw new NoSuchTableException("%s", error.message());
         case 409:
           if (error.isRetried()) {
-            // If the request was retried, and if it was 409, it could probably also mean that
-            // HTTP retries, and the IRC service would have actually applied the commit in the
-            // persistence. This would now mean since the base has changed it would conflict with
-            // itself, in cases like this its best not to mark this as failed instead make this
-            // is a commit state unknown.
+            // If the request was retried, and if it final error was 409, it could probably also
+            // mean that HTTP retries happened, and the IRC service would have actually applied
+            // the commit in the persistence during the retries by still gave back 5xx.
+            // This would now mean since the base has changed it would conflict with itself,
+            // in cases like this its best not to mark this as failed instead make this is
+            // a commit state unknown.
             throw new CommitStateUnknownException(
-                new ServiceFailureException(
-                    "Service failed: %s: %s", error.code(), error.message()));
+                new RESTException(
+                    "Commit status unknown, due to retries: %s: %s",
+                    error.code(), error.message()));
           } else {
             throw new CommitFailedException("Commit failed: %s", error.message());
           }

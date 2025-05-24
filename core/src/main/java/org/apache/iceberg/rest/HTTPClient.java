@@ -232,6 +232,7 @@ public class HTTPClient extends BaseHTTPClient {
             .responseCode(errorResponse.code())
             .withMessage(errorResponse.message())
             .withType(errorResponse.type())
+            .withStackTrace(errorResponse.stack())
             .build();
 
     errorHandler.accept(enrichedErrorResponse);

@@ -163,8 +163,9 @@ public class TestExponentialHttpRequestRetryStrategy {
   @Test
   public void retryOnNonAbortedRequests() {
     HttpGet request = new HttpGet("/");
+    HttpContext context = new BasicHttpContext();
 
-    assertThat(retryStrategy.retryRequest(request, new IOException(), 1, null)).isTrue();
+    assertThat(retryStrategy.retryRequest(request, new IOException(), 1, context)).isTrue();
   }
 
   @Test
@@ -207,13 +208,15 @@ public class TestExponentialHttpRequestRetryStrategy {
 
   @Test
   public void testRetryBadGateway() {
+    HttpContext context = new BasicHttpContext();
     BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
-    assertThat(retryStrategy.retryRequest(response502, 3, null)).isTrue();
+    assertThat(retryStrategy.retryRequest(response502, 3, context)).isTrue();
   }
 
   @Test
   public void testRetryGatewayTimeout() {
+    HttpContext context = new BasicHttpContext();
     BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
-    assertThat(retryStrategy.retryRequest(response504, 3, null)).isTrue();
+    assertThat(retryStrategy.retryRequest(response504, 3, context)).isTrue();
   }
 }
