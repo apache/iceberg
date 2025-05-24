@@ -215,6 +215,11 @@ class Snapshot(BaseModel):
         alias='manifest-list',
         description="Location of the snapshot's manifest list file",
     )
+    first_row_id: Optional[int] = Field(
+        None,
+        alias='first-row-id',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+    )
     summary: Summary
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
@@ -1004,6 +1009,11 @@ class ValueMap(BaseModel):
 
 class DataFile(ContentFile):
     content: str = Field(..., const=True)
+    first_row_id: Optional[int] = Field(
+        None,
+        alias='first-row-id',
+        description='The first row ID assigned to the first row in the data file',
+    )
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -1141,6 +1151,11 @@ class TableMetadata(BaseModel):
     table_uuid: str = Field(..., alias='table-uuid')
     location: Optional[str] = None
     last_updated_ms: Optional[int] = Field(None, alias='last-updated-ms')
+    next_row_id: Optional[int] = Field(
+        None,
+        alias='next-row-id',
+        description="A long higher than all assigned row IDs; the next snapshot's first-row-id.",
+    )
     properties: Optional[Dict[str, str]] = None
     schemas: Optional[List[Schema]] = None
     current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
