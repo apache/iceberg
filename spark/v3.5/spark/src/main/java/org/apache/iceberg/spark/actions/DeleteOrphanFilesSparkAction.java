@@ -391,7 +391,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return isHiddenPath;
   }
 
-  private static void listDirRecursivelyWithHadoop(
+  @VisibleForTesting
+  static void listDirRecursivelyWithHadoop(
       String dir,
       Predicate<FileStatus> predicate,
       Configuration conf,
