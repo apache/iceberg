@@ -48,7 +48,7 @@ findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
-google-libraries-bom = "26.60.0"
+google-libraries-bom = "26.61.0"
 guava = "33.4.7-jre"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.4.4"
