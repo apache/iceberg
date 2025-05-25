@@ -22,6 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,11 +42,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
@@ -86,6 +92,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestRemoveOrphanFilesAction extends TestBase {
@@ -1128,6 +1136,38 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         ImmutableMap.of(),
         ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  @TestTemplate
+  public void testDefaultToHadoopListing() {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    DeleteOrphanFilesSparkAction deleteOrphanFilesSparkAction =
+        SparkActions.get().deleteOrphanFiles(table);
+    DeleteOrphanFilesSparkAction spyAction = Mockito.spy(deleteOrphanFilesSparkAction);
+    try (MockedStatic<DeleteOrphanFilesSparkAction> mockedStatic =
+        Mockito.mockStatic(DeleteOrphanFilesSparkAction.class)) {
+      spyAction.execute();
+      mockedStatic.verify(
+          () ->
+              DeleteOrphanFilesSparkAction.listDirRecursivelyWithHadoop(
+                  anyString(),
+                  any(Predicate.class),
+                  any(Configuration.class),
+                  anyInt(),
+                  anyInt(),
+                  anyList(),
+                  any(PathFilter.class),
+                  anyList()));
+    }
   }
 
   protected String randomName(String prefix) {
