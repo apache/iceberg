@@ -93,11 +93,12 @@ public class ErrorHandlers {
         case 409:
           if (error.isRetried()) {
             // If the request was retried, and if it final error was 409, it could probably also
-            // mean that HTTP retries happened, and the IRC service would have actually applied
-            // the commit in the persistence during the retries by still gave back 5xx.
-            // This would now mean since the base has changed it would conflict with itself,
-            // in cases like this its best not to mark this as failed instead make this is
-            // a commit state unknown.
+            // mean that HTTP retries when happened the IRC service could have actually applied
+            // the commit in their persistence, while giving back the client still a 5xx.
+            // If so, since the base has changed, it could conflict with itself.
+            // In cases like this its best not to mark this as failed instead
+            // make this is a commit state unknown, so some reconciliation can happen and
+            // the metadata clean-up is not triggered.
             throw new CommitStateUnknownException(
                 new RESTException(
                     "Commit status unknown, due to retries: %s: %s",
