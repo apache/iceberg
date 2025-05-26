@@ -2520,6 +2520,9 @@ components:
           additionalProperties:
             type: string
         # schema tracking
+        schema:
+          $ref: '#/components/schemas/Schema'
+          description: 'Table schema (deprecated in v2+, use schemas and current-schema-id instead)'
         schemas:
           type: array
           items:
