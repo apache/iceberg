@@ -59,8 +59,6 @@ public class CommittableToTableChangeConverter
   private transient ListState<ManifestFile> manifestFilesToRemoveState;
   private transient List<ManifestFile> manifestFilesToRemoveList;
   private transient long lastCompletedCheckpointId = -1L;
-  private transient long maxCommittedCheckpointId = -1L;
-  private transient ListState<Long> maxCommittedCheckpointIdState;
   private transient String flinkJobId;
 
   public CommittableToTableChangeConverter(TableLoader tableLoader) {
@@ -75,13 +73,8 @@ public class CommittableToTableChangeConverter
         context
             .getOperatorStateStore()
             .getListState(new ListStateDescriptor<>("manifests-to-remove", ManifestFile.class));
-    this.maxCommittedCheckpointIdState =
-        context
-            .getOperatorStateStore()
-            .getListState(new ListStateDescriptor<>("max-commited-id", Long.class));
     if (context.isRestored()) {
       manifestFilesToRemoveList = Lists.newArrayList(manifestFilesToRemoveState.get());
-      maxCommittedCheckpointId = Lists.newArrayList(maxCommittedCheckpointIdState.get()).get(0);
     }
   }
 
@@ -102,7 +95,6 @@ public class CommittableToTableChangeConverter
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
     manifestFilesToRemoveState.update(manifestFilesToRemoveList);
-    maxCommittedCheckpointIdState.update(Lists.newArrayList(maxCommittedCheckpointId));
   }
 
   @Override
@@ -114,12 +106,8 @@ public class CommittableToTableChangeConverter
     if (value instanceof CommittableWithLineage) {
       CommittableWithLineage<IcebergCommittable> committable =
           (CommittableWithLineage<IcebergCommittable>) value;
-      long checkpointIdOrEOI = committable.getCheckpointIdOrEOI();
-      if (checkpointIdOrEOI > maxCommittedCheckpointId && checkpointIdOrEOI != Long.MAX_VALUE) {
-        TableChange tableChange = convertToTableChange(committable.getCommittable());
-        out.collect(tableChange);
-        maxCommittedCheckpointId = checkpointIdOrEOI;
-      }
+      TableChange tableChange = convertToTableChange(committable.getCommittable());
+      out.collect(tableChange);
     } else {
       LOG.warn("Unsupported type of committable message: {}", value.getClass());
     }
