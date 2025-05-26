@@ -18,18 +18,32 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
 import java.util.List;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.typeutils.RowTypeInfo;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
-import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.types.Row;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
+import org.apache.iceberg.flink.source.BoundedTestSource;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,11 +51,23 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
+  private static final TypeInformation<Row> ROW_TYPE_INFO =
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+
+  private static final DataFormatConverters.RowConverter CONVERTER =
+      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+
   private static final String TABLE_NAME = "test_table";
-  private TableEnvironment tEnv;
+  private StreamTableEnvironment tEnv;
+  private StreamExecutionEnvironment env;
   private Table icebergTable;
   private static final String TABLE_PROPERTIES =
-      "'flink-maintenance.lock.type'='jdbc','flink-maintenance.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic','flink-maintenance.lock.jdbc.init-lock-table'='true','flink-maintenance.rewrite.rewrite-all'='true','flink-maintenance.rewrite.schedule.data-file-size'='1','flink-maintenance.lock-check-delay-seconds'='60'";
+      "'flink-maintenance.lock.type'='jdbc',"
+          + "'flink-maintenance.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic',"
+          + "'flink-maintenance.lock.jdbc.init-lock-table'='true',"
+          + "'flink-maintenance.rewrite.rewrite-all'='true',"
+          + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
+          + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
   @Parameter(index = 2)
   private boolean userSqlHint = true;
@@ -59,12 +85,12 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
   }
 
   @Override
-  protected TableEnvironment getTableEnv() {
+  protected StreamTableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
         EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings.newInstance();
         settingsBuilder.inStreamingMode();
-        StreamExecutionEnvironment env =
+        env =
             StreamExecutionEnvironment.getExecutionEnvironment(
                 MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
         env.enableCheckpointing(100);
@@ -88,12 +114,11 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     if (userSqlHint) {
-
       sql("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-
     } else {
       sql("CREATE TABLE %s (id int, data varchar) with (%s)", TABLE_NAME, TABLE_PROPERTIES);
     }
+
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
 
@@ -108,17 +133,12 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
   @TestTemplate
   public void testSQLCompactionE2e() throws Exception {
-    // Register the rows into a temporary table.
-    getTableEnv()
-        .createTemporaryView(
-            "sourceTable",
-            getTableEnv()
-                .fromValues(
-                    SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
-                    Expressions.row(1, "hello"),
-                    Expressions.row(2, "world"),
-                    Expressions.row(3, (String) null),
-                    Expressions.row(null, "bar")));
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(new BoundedTestSource<>(rows.toArray(new Row[0])), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    getTableEnv().createTemporaryView("sourceTable", dataStream);
 
     // Redirect the records from source table to destination table.
     if (userSqlHint) {
@@ -135,7 +155,27 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
         Lists.newArrayList(
             SimpleDataUtil.createRecord(1, "hello"),
             SimpleDataUtil.createRecord(2, "world"),
-            SimpleDataUtil.createRecord(3, null),
-            SimpleDataUtil.createRecord(null, "bar")));
+            SimpleDataUtil.createRecord(3, "foo")));
+
+    // check the data file count after compact
+    List<DataFile> afterCompactDataFiles =
+        getDataFiles(icebergTable.currentSnapshot(), icebergTable);
+    assertThat(afterCompactDataFiles).hasSize(1);
+
+    // check the data file count before compact
+    List<DataFile> preCompactDataFiles =
+        getDataFiles(
+            icebergTable.snapshot(icebergTable.currentSnapshot().parentId()), icebergTable);
+    assertThat(preCompactDataFiles).hasSize(3);
+  }
+
+  private List<DataFile> getDataFiles(Snapshot snapshot, Table table) throws IOException {
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (ManifestFile dataManifest : snapshot.dataManifests(table.io())) {
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(dataManifest, table.io())) {
+        reader.iterator().forEachRemaining(dataFiles::add);
+      }
+    }
+    return dataFiles;
   }
 }

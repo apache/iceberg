@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.CheckpointListener;
 import org.apache.flink.api.common.state.ListState;
@@ -32,30 +33,29 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class CommittableToTableChangeConverter
     extends ProcessFunction<CommittableMessage<IcebergCommittable>, TableChange>
     implements CheckpointedFunction, CheckpointListener {
 
-  private static final Logger LOG =
-      LoggerFactory.getLogger(CommittableToTableChangeConverter.class);
-
   private final TableLoader tableLoader;
-  private transient Table table;
+  private transient FileIO io;
+  private transient String tableName;
+  private transient Map<Integer, PartitionSpec> specs;
   private transient ListState<ManifestFile> manifestFilesToRemoveState;
   private transient List<ManifestFile> manifestFilesToRemoveList;
   private transient long lastCompletedCheckpointId = -1L;
+  private transient long maxCommittedCheckpointId = -1L;
+  private transient ListState<Long> maxCommittedCheckpointIdState;
   private transient String flinkJobId;
 
   public CommittableToTableChangeConverter(TableLoader tableLoader) {
@@ -70,8 +70,13 @@ public class CommittableToTableChangeConverter
         context
             .getOperatorStateStore()
             .getListState(new ListStateDescriptor<>("manifests-to-remove", ManifestFile.class));
+    this.maxCommittedCheckpointIdState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("max-commited-id", Long.class));
     if (context.isRestored()) {
       manifestFilesToRemoveList = Lists.newArrayList(manifestFilesToRemoveState.get());
+      maxCommittedCheckpointId = Lists.newArrayList(maxCommittedCheckpointIdState.get()).get(0);
     }
   }
 
@@ -82,12 +87,17 @@ public class CommittableToTableChangeConverter
     if (!tableLoader.isOpen()) {
       tableLoader.open();
     }
-    this.table = tableLoader.loadTable();
+
+    Table table = tableLoader.loadTable();
+    this.io = table.io();
+    this.specs = table.specs();
+    this.tableName = table.name();
   }
 
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
     manifestFilesToRemoveState.update(manifestFilesToRemoveList);
+    maxCommittedCheckpointIdState.update(Lists.newArrayList(maxCommittedCheckpointId));
   }
 
   @Override
@@ -99,8 +109,12 @@ public class CommittableToTableChangeConverter
     if (value instanceof CommittableWithLineage) {
       CommittableWithLineage<IcebergCommittable> committable =
           (CommittableWithLineage<IcebergCommittable>) value;
-      TableChange tableChange = convertToTableChange(committable.getCommittable());
-      out.collect(tableChange);
+      long checkpointIdOrEOI = committable.getCheckpointIdOrEOI();
+      if (checkpointIdOrEOI > maxCommittedCheckpointId && checkpointIdOrEOI != Long.MAX_VALUE) {
+        TableChange tableChange = convertToTableChange(committable.getCommittable());
+        out.collect(tableChange);
+        maxCommittedCheckpointId = checkpointIdOrEOI;
+      }
     }
   }
 
@@ -113,49 +127,12 @@ public class CommittableToTableChangeConverter
     DeltaManifests deltaManifests =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, icebergCommittable.manifest());
-    WriteResult writeResult =
-        FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
+    WriteResult writeResult = FlinkManifestUtil.readCompletedFiles(deltaManifests, io, specs);
     manifestFilesToRemoveList.addAll(deltaManifests.manifests());
 
-    int dataFileCount = 0;
-    long dataFileSizeInBytes = 0L;
-    for (DataFile dataFile : writeResult.dataFiles()) {
-      dataFileCount++;
-      dataFileSizeInBytes += dataFile.fileSizeInBytes();
-    }
-
-    int posDeleteFileCount = 0;
-    long posDeleteRecordCount = 0L;
-    int eqDeleteFileCount = 0;
-    long eqDeleteRecordCount = 0L;
-
-    for (DeleteFile deleteFile : writeResult.deleteFiles()) {
-      switch (deleteFile.content()) {
-        case POSITION_DELETES:
-          posDeleteFileCount++;
-          posDeleteRecordCount += deleteFile.recordCount();
-          break;
-        case EQUALITY_DELETES:
-          eqDeleteFileCount++;
-          eqDeleteRecordCount += deleteFile.recordCount();
-          break;
-        default:
-          // Unexpected delete file types don't impact compaction task statistics, so ignore.
-          LOG.warn("Unexpected delete file content:{}", deleteFile.content());
-      }
-    }
-
     TableChange tableChange =
-        TableChange.builder()
-            .dataFileCount(dataFileCount)
-            .dataFileSizeInBytes(dataFileSizeInBytes)
-            .posDeleteFileCount(posDeleteFileCount)
-            .posDeleteRecordCount(posDeleteRecordCount)
-            .eqDeleteRecordCount(eqDeleteRecordCount)
-            .eqDeleteFileCount(eqDeleteFileCount)
-            .commitCount(1)
-            .build();
-
+        new TableChange(
+            List.of(writeResult.dataFiles()), List.of(writeResult.deleteFiles()), false);
     return tableChange;
   }
 
@@ -164,7 +141,7 @@ public class CommittableToTableChangeConverter
     if (checkpointId > lastCompletedCheckpointId) {
       this.lastCompletedCheckpointId = checkpointId;
       FlinkManifestUtil.deleteCommittedManifests(
-          table, manifestFilesToRemoveList, flinkJobId, checkpointId);
+          tableName, io, manifestFilesToRemoveList, flinkJobId, checkpointId);
       manifestFilesToRemoveList.clear();
       manifestFilesToRemoveState.clear();
     }
@@ -175,7 +152,9 @@ public class CommittableToTableChangeConverter
     super.close();
     if (tableLoader.isOpen()) {
       tableLoader.close();
-      table = null;
     }
+
+    io = null;
+    specs = null;
   }
 }

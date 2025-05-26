@@ -22,35 +22,34 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class TestRewriteDataFilesConfig {
+public class TestRewriteDataFilesConfig extends OperatorTestBase {
+  private Table table;
   Map<String, String> input = Maps.newHashMap();
 
   @BeforeEach
   public void before() {
+    this.table = createTable();
     input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.PARTIAL_PROGRESS_ENABLE,
+        RewriteDataFilesConfig.PREFIX
+            + org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED,
         "true");
     input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.PARTIAL_PROGRESS_MAX_COMMITS,
+        RewriteDataFilesConfig.PREFIX
+            + org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS,
         "5");
-    input.put(RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.MAX_BYTES, "1024");
-    input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT,
-        "10");
-    input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT,
-        "20");
-    input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE,
-        "30");
-    input.put(
-        RewriteDataFilesConfig.CONFIG_PREFIX + RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND,
-        "60");
+    input.put(RewriteDataFilesConfig.MAX_BYTES, "1024");
+    input.put(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT, "10");
+    input.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT, "20");
+    input.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "30");
+    input.put(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND, "60");
     input.put("other.config", "should-be-ignored");
   }
 
@@ -61,7 +60,7 @@ public class TestRewriteDataFilesConfig {
 
   @Test
   void testConfigParsing() {
-    RewriteDataFilesConfig config = new RewriteDataFilesConfig(input);
+    RewriteDataFilesConfig config = new RewriteDataFilesConfig(table, input, new Configuration());
 
     assertThat(config.partialProgressEnable()).isTrue();
     assertThat(config.partialProgressMaxCommits()).isEqualTo(5);
@@ -74,7 +73,8 @@ public class TestRewriteDataFilesConfig {
 
   @Test
   void testEmptyConfig() {
-    RewriteDataFilesConfig config = new RewriteDataFilesConfig(Maps.newHashMap());
+    RewriteDataFilesConfig config =
+        new RewriteDataFilesConfig(table, Maps.newHashMap(), new Configuration());
 
     assertThat(config.partialProgressEnable())
         .isEqualTo(org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT);
@@ -95,7 +95,8 @@ public class TestRewriteDataFilesConfig {
   @Test
   void testPropertiesMethodWithAllConfigs() {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
-    builder.properties(input);
+    RewriteDataFilesConfig config = new RewriteDataFilesConfig(table, input, new Configuration());
+    builder.properties(config);
 
     // check the config about the rewriter
     assertThat(builder.partialProgressEnabled()).isTrue();
@@ -110,19 +111,21 @@ public class TestRewriteDataFilesConfig {
 
     assertThat(builder.rewriteOptions())
         .doesNotContainKey("custom.option")
-        .containsEntry(RewriteDataFilesConfig.PARTIAL_PROGRESS_ENABLE, "true")
-        .containsEntry(RewriteDataFilesConfig.PARTIAL_PROGRESS_MAX_COMMITS, "5")
-        .containsEntry(RewriteDataFilesConfig.MAX_BYTES, "1024")
-        .containsEntry(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT, "10")
-        .containsEntry(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT, "20")
-        .containsEntry(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "30")
-        .containsEntry(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND, "60");
+        .containsEntry("partial-progress.enabled", "true")
+        .containsEntry("partial-progress.max-commits", "5")
+        .containsEntry("max-bytes", "1024")
+        .containsEntry("schedule.commit-count", "10")
+        .containsEntry("schedule.data-file-count", "20")
+        .containsEntry("schedule.data-file-size", "30")
+        .containsEntry("schedule.interval-second", "60");
   }
 
   @Test
   void testPropertiesWithDefaultConfig() {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
-    builder.properties(Maps.newHashMap());
+    RewriteDataFilesConfig config =
+        new RewriteDataFilesConfig(table, Maps.newHashMap(), new Configuration());
+    builder.properties(config);
 
     // check the config about the rewriter
     assertThat(builder.partialProgressEnabled()).isFalse();

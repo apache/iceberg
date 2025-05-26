@@ -20,13 +20,12 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Map;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.maintenance.api.JdbcLockFactory;
-import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
 import org.apache.iceberg.flink.maintenance.api.ZkLockFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 @Internal
@@ -34,83 +33,71 @@ public class LockFactoryBuilder {
 
   private LockFactoryBuilder() {}
 
-  public static TriggerLockFactory build(Map<String, String> config, String tableName) {
-    Map<String, String> lockProperties = filterAndRemovePrefix(config, LockConfig.CONFIG_PREFIX);
+  public static TriggerLockFactory build(LockConfig lockConfig, String tableName) {
+
+    String lockType = lockConfig.lockType();
 
     Preconditions.checkArgument(
-        lockProperties.containsKey(LockConfig.LOCK_TYPE),
+        StringUtils.isNotEmpty(lockType),
         "Configuration must contain key: %s",
-        LockConfig.CONFIG_PREFIX + LockConfig.LOCK_TYPE);
+        LockConfig.LOCK_TYPE);
 
     // Set lock id to catalog.db.table if not set
-    lockProperties.putIfAbsent(LockConfig.LOCK_ID, tableName);
-
-    Preconditions.checkNotNull(config, "Config cannot be null");
-    String lockType = lockProperties.get(LockConfig.LOCK_TYPE);
-
     switch (lockType) {
-      case LockConfig.JDBC:
-        return createJdbcLockFactory(lockProperties);
+      case LockConfig.JdbcLockConfig.JDBC:
+        return createJdbcLockFactory(lockConfig, tableName);
 
-      case LockConfig.ZK:
-        return createZkLockFactory(lockProperties);
+      case LockConfig.ZkLockConfig.ZK:
+        return createZkLockFactory(lockConfig, tableName);
 
       default:
         throw new IllegalArgumentException(String.format("Unsupported lock type: %s ", lockType));
     }
   }
 
-  private static TriggerLockFactory createJdbcLockFactory(Map<String, String> config) {
+  private static TriggerLockFactory createJdbcLockFactory(LockConfig lockConfig, String tableName) {
+    String jdbcUri = lockConfig.stringValue(LockConfig.PREFIX + LockConfig.JdbcLockConfig.JDBC_URI);
+    String lockId = lockConfig.lockId(tableName);
+    Map<String, String> properties = lockConfig.properties();
     Preconditions.checkArgument(
-        config.containsKey(LockConfig.JDBC_URI),
+        StringUtils.isNotEmpty(jdbcUri),
         "JDBC lock requires %s parameter",
-        LockConfig.CONFIG_PREFIX + LockConfig.JDBC_URI);
-    Preconditions.checkArgument(
-        config.containsKey(LockConfig.LOCK_ID),
-        "JDBC lock requires %s parameter",
-        LockConfig.CONFIG_PREFIX + LockConfig.LOCK_ID);
+        LockConfig.PREFIX + LockConfig.JdbcLockConfig.JDBC_URI);
 
-    Optional.ofNullable(config.get(LockConfig.JDBC_INIT_LOCK_TABLE))
-        .ifPresent(value -> config.put(JdbcLockFactory.INIT_LOCK_TABLES_PROPERTY, value));
+    Optional.ofNullable(properties.get(LockConfig.JdbcLockConfig.JDBC_INIT_LOCK_TABLE))
+        .ifPresent(value -> properties.put(JdbcLockFactory.INIT_LOCK_TABLES_PROPERTY, value));
 
-    return new JdbcLockFactory(
-        config.get(LockConfig.JDBC_URI), config.get(LockConfig.LOCK_ID), config);
+    return new JdbcLockFactory(jdbcUri, lockId, properties);
   }
 
-  private static TriggerLockFactory createZkLockFactory(Map<String, String> config) {
+  private static TriggerLockFactory createZkLockFactory(LockConfig lockConfig, String tableName) {
+    String zkUri = lockConfig.stringValue(LockConfig.PREFIX + LockConfig.ZkLockConfig.ZK_URI);
+    String lockId = lockConfig.lockId(tableName);
+    Map<String, String> properties = lockConfig.properties();
+
     Preconditions.checkArgument(
-        config.containsKey(LockConfig.ZK_URI),
+        StringUtils.isNotEmpty(zkUri),
         "Zk lock requires %s parameter",
-        LockConfig.CONFIG_PREFIX + LockConfig.ZK_URI);
-    Preconditions.checkArgument(
-        config.containsKey(LockConfig.LOCK_ID),
-        "Zk lock requires %s parameter",
-        LockConfig.CONFIG_PREFIX + LockConfig.LOCK_ID);
+        LockConfig.PREFIX + LockConfig.ZkLockConfig.ZK_URI);
 
     return new ZkLockFactory(
-        config.get(LockConfig.ZK_URI),
-        config.get(LockConfig.LOCK_ID),
+        zkUri,
+        lockId,
         PropertyUtil.propertyAsInt(
-            config, LockConfig.ZK_SESSION_TIMEOUT_MS, LockConfig.ZK_SESSION_TIMEOUT_MS_DEFAULT),
+            properties,
+            LockConfig.ZkLockConfig.ZK_SESSION_TIMEOUT_MS,
+            LockConfig.ZkLockConfig.ZK_SESSION_TIMEOUT_MS_DEFAULT),
         PropertyUtil.propertyAsInt(
-            config,
-            LockConfig.ZK_CONNECTION_TIMEOUT_MS,
-            LockConfig.ZK_CONNECTION_TIMEOUT_MS_DEFAULT),
+            properties,
+            LockConfig.ZkLockConfig.ZK_CONNECTION_TIMEOUT_MS,
+            LockConfig.ZkLockConfig.ZK_CONNECTION_TIMEOUT_MS_DEFAULT),
         PropertyUtil.propertyAsInt(
-            config, LockConfig.ZK_BASE_SLEEP_MS, LockConfig.ZK_BASE_SLEEP_MS_DEFAULT),
+            properties,
+            LockConfig.ZkLockConfig.ZK_BASE_SLEEP_MS,
+            LockConfig.ZkLockConfig.ZK_BASE_SLEEP_MS_DEFAULT),
         PropertyUtil.propertyAsInt(
-            config, LockConfig.ZK_MAX_RETRIES, LockConfig.ZK_MAX_RETRIES_DEFAULT));
-  }
-
-  private static Map<String, String> filterAndRemovePrefix(
-      Map<String, String> config, String prefix) {
-    Map<String, String> newConfig = Maps.newHashMap();
-    config.forEach(
-        (key, value) -> {
-          if (key.startsWith(prefix)) {
-            newConfig.put(key.substring(prefix.length()), value);
-          }
-        });
-    return newConfig;
+            properties,
+            LockConfig.ZkLockConfig.ZK_MAX_RETRIES,
+            LockConfig.ZkLockConfig.ZK_MAX_RETRIES_DEFAULT));
   }
 }
