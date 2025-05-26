@@ -20,10 +20,13 @@ package org.apache.iceberg.aws.s3;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.s3.analyticsaccelerator.ObjectClientConfiguration;
@@ -39,8 +42,17 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 class AnalyticsAcceleratorUtil {
 
+  private static final Logger LOG = LoggerFactory.getLogger(AnalyticsAcceleratorUtil.class);
+
   private static final Cache<Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>
-      STREAM_FACTORY_CACHE = Caffeine.newBuilder().maximumSize(100).build();
+      STREAM_FACTORY_CACHE =
+          Caffeine.newBuilder()
+              .maximumSize(100)
+              .removalListener(
+                  (RemovalListener<
+                          Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>)
+                      (key, factory, cause) -> close(factory))
+              .build();
 
   private AnalyticsAcceleratorUtil() {}
 
@@ -81,6 +93,16 @@ class AnalyticsAcceleratorUtil {
 
     ObjectClient objectClient = new S3SdkObjectClient(cacheKey.first(), objectClientConfiguration);
     return new S3SeekableInputStreamFactory(objectClient, streamConfiguration);
+  }
+
+  private static void close(S3SeekableInputStreamFactory factory) {
+    if (factory != null) {
+      try {
+        factory.close();
+      } catch (IOException e) {
+        LOG.warn("Failed to close S3SeekableInputStreamFactory", e);
+      }
+    }
   }
 
   public static void cleanupCache(
