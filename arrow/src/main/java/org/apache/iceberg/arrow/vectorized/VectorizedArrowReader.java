@@ -488,7 +488,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       Long baseRowId = (Long) idToConstant.get(id);
       return rowIds(baseRowId, (VectorizedArrowReader) reader);
     } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
-      Long baseRowId = (Long) idToConstant.get(id);
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
       Long fileSeqNumber = (Long) idToConstant.get(id);
       return VectorizedArrowReader.lastUpdated(
           baseRowId, fileSeqNumber, (VectorizedArrowReader) reader);
@@ -679,7 +679,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void close() {
-      // don't close vectors as they are not owned by readers
+      // don't close result vectors as they are not owned by readers
     }
   }
 
@@ -746,7 +746,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void close() {
-      // don't close vectors as they are not owned by readers
+      // don't close result vectors as they are not owned by readers
     }
   }
 

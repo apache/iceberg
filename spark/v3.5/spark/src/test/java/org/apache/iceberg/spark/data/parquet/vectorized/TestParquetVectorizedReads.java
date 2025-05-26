@@ -142,7 +142,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       Function<Record, Record> transform,
       Map<Integer, Object> idToConstant)
       throws IOException {
-    //    // Write test data
+    // Write test data
     assumeThat(
             TypeUtil.find(
                 writeSchema,
