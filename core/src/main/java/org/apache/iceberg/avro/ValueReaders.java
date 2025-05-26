@@ -236,13 +236,26 @@ public class ValueReaders {
       ValueReader<?> fieldReader = fieldReaders.get(pos);
       Integer fieldId = AvroSchemaUtil.fieldId(field);
       Integer projectionPos = idToPos.remove(fieldId);
-
-      Object constant = idToConstant.get(fieldId);
-      if (projectionPos != null && constant != null) {
+      if (fieldId != null && fieldId == MetadataColumns.ROW_ID.fieldId()) {
+        Long firstRowId = (Long) idToConstant.get(fieldId);
         readPlan.add(
-            Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
+            Pair.of(projectionPos, ValueReaders.rowIds(firstRowId, fieldReaders.get(pos))));
+      } else if (fieldId != null
+          && fieldId == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+        Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+        Long fileSeqNumber = (Long) idToConstant.get(fieldId);
+        readPlan.add(
+            Pair.of(
+                projectionPos,
+                ValueReaders.lastUpdated(firstRowId, fileSeqNumber, fieldReaders.get(pos))));
       } else {
-        readPlan.add(Pair.of(projectionPos, fieldReader));
+        Object constant = idToConstant.get(fieldId);
+        if (projectionPos != null && constant != null) {
+          readPlan.add(
+              Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
+        } else {
+          readPlan.add(Pair.of(projectionPos, fieldReader));
+        }
       }
     }
 
@@ -272,6 +285,23 @@ public class ValueReaders {
     }
 
     return readPlan;
+  }
+
+  public static ValueReader<Long> rowIds(Long baseRowId, ValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ValueReader<Long>) idReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
+  }
+
+  public static ValueReader<Long> lastUpdated(
+      Long baseRowId, Long fileLastUpdated, ValueReader<?> seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileLastUpdated, (ValueReader<Long>) seqReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
   }
 
   private static Map<Integer, Integer> idToPos(Types.StructType struct) {
@@ -1233,6 +1263,66 @@ public class ValueReaders {
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
       this.currentPosition = posSupplier.get() - 1;
+    }
+  }
+
+  static class RowIdReader implements ValueReader<Long>, SupportsRowPosition {
+    private final long firstRowId;
+    private final ValueReader<Long> idReader;
+    private final ValueReader<Long> posReader;
+
+    RowIdReader(Long firstRowId, ValueReader<Long> idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : ValueReaders.constant(null);
+      this.posReader = positions();
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long id = idReader.read(ignored, reuse);
+      long pos = posReader.read(ignored, reuse);
+
+      if (id != null) {
+        return id;
+      }
+
+      return firstRowId + pos;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      idReader.skip(decoder);
+      posReader.skip(decoder);
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      ((SupportsRowPosition) posReader).setRowPositionSupplier(posSupplier);
+    }
+  }
+
+  static class LastUpdatedSeqReader implements ValueReader<Long> {
+    private final long fileLastUpdated;
+    private final ValueReader<Long> seqReader;
+
+    LastUpdatedSeqReader(long fileLastUpdated, ValueReader<Long> seqReader) {
+      this.fileLastUpdated = fileLastUpdated;
+      this.seqReader = seqReader;
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long lastUpdated = seqReader.read(ignored, reuse);
+      if (lastUpdated != null) {
+        return lastUpdated;
+      }
+
+      return fileLastUpdated;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      seqReader.skip(decoder);
     }
   }
 }

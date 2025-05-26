@@ -90,7 +90,8 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   public void beforeEach() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     // ToDo: Remove these as row lineage inheritance gets implemented in the other readers
-    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+    assumeThat(fileFormat.equals(FileFormat.PARQUET) || fileFormat.equals(FileFormat.AVRO))
+        .isTrue();
     assumeThat(vectorized).isFalse();
   }
 
@@ -111,6 +112,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         "source",
         "id int, data string",
         "{ \"id\": 101, \"data\": \"updated_b\" }\n " + "{ \"id\": 200, \"data\": \"f\" }\n");
+
     sql(
         "MERGE INTO %s AS t USING source AS s "
             + "ON t.id == s.id "
@@ -399,8 +401,8 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   private List<Object[]> rowsWithLineageAndFilePos() {
     return sql(
         "SELECT s._last_updated_sequence_number, s.id, s.data, s._row_id, files.first_row_id, s._pos FROM %s"
-            + " AS s JOIN %s.files AS files ON files.file_path = s._file ORDER BY s._row_id",
-        selectTarget(), selectTarget());
+            + " AS s JOIN %s.files VERSION AS OF '%s' AS files ON files.file_path = s._file ORDER BY s._row_id",
+        selectTarget(), tableName, branch != null ? branch : "main");
   }
 
   private List<Object[]> rowsWithLineage() {
@@ -472,6 +474,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   }
 
   private Snapshot latestSnapshot(Table table) {
+    table.refresh();
     return branch != null ? table.snapshot(branch) : table.currentSnapshot();
   }
 
