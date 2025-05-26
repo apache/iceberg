@@ -25,13 +25,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.mapping.NameMapping;
 
 /**
- * Builder interface for creating file readers across supported data file formats. Each {@link
- * FileAccessFactory} implementation provides appropriate {@link ReadBuilder} instances based on:
- *
- * <ul>
- *   <li>source file format (Parquet, Avro, ORC)
- *   <li>input/output object representation (spark, flink, generic, etc.)
- * </ul>
+ * Builder interface for creating file readers across supported data file formats. The {@link
+ * FileAccessFactory} implementations provides appropriate {@link ReadBuilder} instances
  *
  * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link
  * CloseableIterable} instances that read data from source files. Configuration options include
@@ -40,6 +35,7 @@ import org.apache.iceberg.mapping.NameMapping;
  * <p>This interface is directly exposed to users for parameterizing readers.
  *
  * @param <B> the concrete builder type for method chaining
+ * @param <D> the output data type produced by the reader
  */
 public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
   /** The configuration key for the batch size in the case of vectorized reads. */
@@ -119,10 +115,10 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
   }
 
   /**
-   * Sets the additional authentication data prefix for encryption. If the reader does not support
-   * encryption, then an exception should be thrown.
+   * Sets the additional authentication data (AAD) prefix for decryption. If the reader does not
+   * support decryption, then an exception should be thrown.
    */
-  default B aadPrefix(ByteBuffer aadPrefix) {
+  default B fileAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 

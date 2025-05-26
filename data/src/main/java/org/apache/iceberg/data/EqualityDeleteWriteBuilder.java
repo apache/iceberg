@@ -62,5 +62,5 @@ public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder
    * @return a fully configured {@link EqualityDeleteWriter} instance
    * @throws IOException if the writer cannot be created due to I/O errors
    */
-  EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
+  EqualityDeleteWriter<D> build() throws IOException;
 }

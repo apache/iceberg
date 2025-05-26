@@ -24,7 +24,6 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -60,8 +59,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>File access factories are registered through {@link
  * #registerFileAccessFactory(FileAccessFactory)} and used for creating readers and writers. Read
- * builders are returned directly from the factory, while write builders may be wrapped in
- * specialized content file writer implementations depending on the requested operation type.
+ * builders are returned directly from the factory. Write builders may be wrapped in specialized
+ * content file writer implementations depending on the requested builder type.
  */
 public final class FileAccessFactoryRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(FileAccessFactoryRegistry.class);
@@ -85,16 +84,16 @@ public final class FileAccessFactoryRegistry {
    *
    * @param fileAccessFactory the factory implementation to register
    * @throws IllegalArgumentException if a factory is already registered for the combination of
-   *     {@link FileAccessFactory#format()} and {@link FileAccessFactory#objectModeName()}
+   *     {@link FileAccessFactory#format()} and {@link FileAccessFactory#objectModelName()}
    */
   @SuppressWarnings("CatchBlockLogException")
   public static void registerFileAccessFactory(FileAccessFactory<?, ?> fileAccessFactory) {
     Pair<FileFormat, String> key =
-        Pair.of(fileAccessFactory.format(), fileAccessFactory.objectModeName());
+        Pair.of(fileAccessFactory.format(), fileAccessFactory.objectModelName());
     if (FILE_ACCESS_FACTORIES.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
-              "Object model %s clashes with %s. Both serves %s",
+              "File access factory %s clashes with %s. Both serves %s",
               fileAccessFactory.getClass(), FILE_ACCESS_FACTORIES.get(key), key));
     }
 
@@ -131,7 +130,7 @@ public final class FileAccessFactoryRegistry {
    * @param objectModelName identifier for the expected output data representation (generic, spark,
    *     flink, etc.)
    * @param inputFile source file to read data from
-   * @param <D> the type of data records the writer will accept
+   * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
   public static <D> ReadBuilder<?, D> readBuilder(
@@ -144,8 +143,8 @@ public final class FileAccessFactoryRegistry {
    * Returns a writer builder for appending data to the specified output file.
    *
    * <p>The returned builder produces a {@link FileAppender} that accepts records defined by the
-   * specified object model and persists them using the given file format. While data is written to
-   * the output file, this basic writer does not collect or return {@link ContentFile} metadata.
+   * specified object model and persists them using the given file format. Data is written to the
+   * output file, but this basic writer does not collect or return {@link ContentFile} metadata.
    *
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
@@ -164,8 +163,8 @@ public final class FileAccessFactoryRegistry {
    * Returns a writer builder for generating a {@link DataFile}.
    *
    * <p>The returned builder produces a writer that accepts records defined by the specified object
-   * model and persists them using the provided file format. Unlike basic writers, these writers
-   * collect file metadata during the writing process and generate a {@link DataFile} that can be
+   * model and persists them using the provided file format. Unlike basic writers, this writer
+   * collects file metadata during the writing process and generates a {@link DataFile} that can be
    * used for table operations.
    *
    * @param format the file format used for writing
@@ -188,14 +187,15 @@ public final class FileAccessFactoryRegistry {
    * Creates a writer builder for generating a {@link DeleteFile} with equality deletes.
    *
    * <p>The returned builder produces a writer that accepts records defined by the specified object
-   * model and persists them using the given file format. These specialized writers collect equality
-   * delete records that identify rows to be deleted based on equality conditions, producing a
+   * model and persists them using the given file format. The writer persists equality delete
+   * records that identify rows to be deleted based on the configured equality fields, producing a
    * {@link DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
+   * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
   public static <E, D> EqualityDeleteWriteBuilder<?, E, D> equalityDeleteWriteBuilder(
@@ -211,21 +211,22 @@ public final class FileAccessFactoryRegistry {
    * Creates a writer builder for generating a {@link DeleteFile} with position-based deletes.
    *
    * <p>The returned builder produces a writer that accepts records defined by the specified object
-   * model and persists them using the given file format. These specialized writers collect {@link
-   * PositionDelete} records that identify rows to be deleted by file path and position, producing a
-   * {@link DeleteFile} that can be used for table operations.
+   * model and persists them using the given file format. The writer accepts {@link PositionDelete}
+   * records that identify rows to be deleted by file path and position, producing a {@link
+   * DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
    * @param objectModelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
-   * @param <D> the type of data records the writer will accept
+   * @param <D> the type of data records contained in the {@link PositionDelete} that the writer
+   *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
   public static <E, D> PositionDeleteWriteBuilder<?, E, D> positionDeleteWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
-    WriteBuilder<?, E, StructLike> writeBuilder =
+    WriteBuilder<?, E, PositionDelete<D>> writeBuilder =
         factory.positionDeleteWriteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forPositionDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);

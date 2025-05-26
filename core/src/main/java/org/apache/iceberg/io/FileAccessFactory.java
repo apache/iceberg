@@ -19,7 +19,6 @@
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 
@@ -33,13 +32,6 @@ import org.apache.iceberg.deletes.PositionDelete;
  * while the object model determines the in-memory representation used for the parsed data.
  * Together, these provide a consistent API for consuming data files while optimizing for specific
  * processing engines.
- *
- * <p>The interface provides:
- *
- * <ul>
- *   <li>{@link ReadBuilder} - creates readers for converting file formats to output objects
- *   <li>{@link WriteBuilder} - creates writers for converting input objects to file formats
- * </ul>
  *
  * <p>Iceberg provides these built-in object models:
  *
@@ -56,7 +48,8 @@ import org.apache.iceberg.deletes.PositionDelete;
  * <p>Processing engines can implement custom object models to integrate with Iceberg's file reading
  * and writing capabilities.
  *
- * @param <E> input schema type used for writing data
+ * @param <E> input schema type used when converting input data to the file format
+ * @param <D> output type used for reading data, and input type for writing data and deletes
  */
 public interface FileAccessFactory<E, D> {
   /** The file format which is read/written by the object model. */
@@ -65,18 +58,14 @@ public interface FileAccessFactory<E, D> {
   /**
    * Returns the unique identifier for the object model implementation processed by this factory.
    *
-   * <p>Object model names (such as "generic", "spark", "spark-vectorized", "flink", "arrow")
-   * identify the input/output data representations that this implementation can process. These
-   * identifiers allow users/engines to explicitly select which data representation to use.
-   *
-   * <p>The object model name acts as a contract specifying the expected data structures for both
-   * reading (converting file formats into output objects) and writing (converting input objects
-   * into file formats). This ensures proper integration between Iceberg's storage layer and
-   * processing engines.
+   * <p>The object model names (such as "generic", "spark", "spark-vectorized", "flink", "arrow")
+   * act as a contract specifying the expected data structures for both reading (converting file
+   * formats into output objects) and writing (converting input objects into file formats). This
+   * ensures proper integration between Iceberg's storage layer and processing engines.
    *
    * @return string identifier for this object model implementation
    */
-  String objectModeName();
+  String objectModelName();
 
   /**
    * Creates a writer builder for standard data files.
@@ -128,7 +117,8 @@ public interface FileAccessFactory<E, D> {
    * @return configured writer builder for position delete files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, StructLike>> B positionDeleteWriteBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, E, PositionDelete<D>>> B positionDeleteWriteBuilder(
+      OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.

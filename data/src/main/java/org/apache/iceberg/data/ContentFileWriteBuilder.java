@@ -52,7 +52,7 @@ import org.apache.iceberg.io.WriteBuilder;
 interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
 
   /** Set the file schema. */
-  B schema(Schema newSchema);
+  B fileSchema(Schema newSchema);
 
   /**
    * Sets the data schema for the input. Used by the {@link WriteBuilder#build()} to configure the

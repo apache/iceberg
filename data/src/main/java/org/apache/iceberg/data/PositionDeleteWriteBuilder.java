@@ -69,5 +69,5 @@ public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder
    * @return a fully configured {@link PositionDeleteWriter} instance
    * @throws IOException if the writer cannot be created due to I/O errors
    */
-  PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
+  PositionDeleteWriter<D> build() throws IOException;
 }

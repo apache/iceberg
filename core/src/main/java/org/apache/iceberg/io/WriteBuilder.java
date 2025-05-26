@@ -21,26 +21,22 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 
 /**
- * Builder interface for creating file writers across supported data file formats. Each {@link
- * FileAccessFactory} implementation provides appropriate {@link WriteBuilder} instances based on:
+ * Builder interface for creating file writers across supported data file formats. The {@link
+ * FileAccessFactory} implementations provide the appropriate {@link WriteBuilder} instances.
  *
- * <ul>
- *   <li>target file format (Parquet, Avro, ORC)
- *   <li>input data object model (spark, flink, generic, etc.)
- *   <li>content type ({@link FileContent#DATA}, {@link FileContent#EQUALITY_DELETES}, {@link
- *       FileContent#POSITION_DELETES})
- * </ul>
+ * <p>The {@link WriteBuilder} follows the builder pattern to configure and create {@link
+ * FileAppender} instances that write data to the target output files.
  *
- * The {@link WriteBuilder} follows the builder pattern to configure and create {@link FileAppender}
- * instances that write data to the target output files.
+ * <p>This interface is directly exposed to users for parameterizing when only an appender is
+ * required.
  *
  * @param <B> the concrete builder type for method chaining
  * @param <E> schema type for the input data records
+ * @param <D> the input data type for the writer
  */
 public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
   /** Set the file schema. */
@@ -74,15 +70,6 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
   B overwrite();
-
-  /**
-   * Overwrite the file if it already exists. The default value is <code>false</code>.
-   *
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Only provided for backward compatibility.
-   *     Use {@link #overwrite()} instead.
-   */
-  @Deprecated
-  B overwrite(boolean enabled);
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,

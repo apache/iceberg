@@ -32,10 +32,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
@@ -88,11 +90,11 @@ class ContentFileWriteBuilderImpl<
 
   static <
           C extends PositionDeleteWriteBuilder<C, E, D>,
-          W extends WriteBuilder<W, E, StructLike>,
+          W extends WriteBuilder<W, E, PositionDelete<D>>,
           E,
           D>
       PositionDeleteWriteBuilder<C, E, D> forPositionDelete(
-          WriteBuilder<W, E, StructLike> writeBuilder, String location, FileFormat format) {
+          WriteBuilder<W, E, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
     return (PositionDeleteWriteBuilder<C, E, D>)
         new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
@@ -107,7 +109,7 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C schema(Schema newSchema) {
+  public C fileSchema(Schema newSchema) {
     writeBuilder.fileSchema(newSchema);
     return (C) this;
   }
@@ -199,7 +201,7 @@ class ContentFileWriteBuilderImpl<
     }
 
     @Override
-    public DataWriter<D> dataWriter() throws IOException {
+    public DataWriter<D> build() throws IOException {
       Preconditions.checkArgument(super.spec != null, "Cannot create data writer without spec");
       Preconditions.checkArgument(
           super.spec.isUnpartitioned() || super.partition != null,
@@ -250,7 +252,7 @@ class ContentFileWriteBuilderImpl<
     }
 
     @Override
-    public EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException {
+    public EqualityDeleteWriter<D> build() throws IOException {
       Preconditions.checkState(
           rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(
@@ -283,15 +285,15 @@ class ContentFileWriteBuilderImpl<
 
   private static class PositionDeleteFileWriteBuilder<
           C extends PositionDeleteFileWriteBuilder<C, B, E, D>,
-          B extends WriteBuilder<B, E, StructLike>,
+          B extends WriteBuilder<B, E, PositionDelete<D>>,
           E,
           D>
-      extends ContentFileWriteBuilderImpl<C, B, E, StructLike>
+      extends ContentFileWriteBuilderImpl<C, B, E, PositionDelete<D>>
       implements PositionDeleteWriteBuilder<C, E, D> {
     private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<B, E, StructLike> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<B, E, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
@@ -302,18 +304,19 @@ class ContentFileWriteBuilderImpl<
     }
 
     @Override
-    public PositionDeleteWriter<D> positionDeleteWriter() throws IOException {
+    public PositionDeleteWriter<D> build() throws IOException {
       Preconditions.checkArgument(
           super.spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(
           super.spec.isUnpartitioned() || super.partition != null,
           "Partition must not be null for partitioned writes");
 
-      return new PositionDeleteWriter<>(
-          super.writeBuilder
-              .meta("delete-type", "position")
-              .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
-              .build(),
+      return new PositionDeleteWriter<D>(
+          (FileAppender)
+              super.writeBuilder
+                  .meta("delete-type", "position")
+                  .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
+                  .build(),
           super.format,
           super.location,
           super.spec,
