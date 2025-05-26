@@ -209,10 +209,9 @@ public class RewriteDataFiles {
     /**
      * Configures the properties for the rewriter.
      *
-     * @param properties properties for the rewriter
+     * @param rewriteDataFilesConfig properties for the rewriter
      */
-    public Builder properties(Map<String, String> properties) {
-      RewriteDataFilesConfig rewriteDataFilesConfig = new RewriteDataFilesConfig(properties);
+    public Builder properties(RewriteDataFilesConfig rewriteDataFilesConfig) {
 
       // Config about the rewriter
       this.partialProgressEnabled(rewriteDataFilesConfig.partialProgressEnable())

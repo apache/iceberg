@@ -25,10 +25,14 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Event describing changes in an Iceberg table */
 @Internal
 public class TableChange {
+  private static final Logger LOG = LoggerFactory.getLogger(TableChange.class);
+
   private int dataFileCount;
   private long dataFileSizeInBytes;
   private int posDeleteFileCount;
@@ -55,9 +59,11 @@ public class TableChange {
   }
 
   TableChange(Snapshot snapshot, FileIO io) {
-    Iterable<DataFile> dataFiles = snapshot.addedDataFiles(io);
-    Iterable<DeleteFile> deleteFiles = snapshot.addedDeleteFiles(io);
+    this(snapshot.addedDataFiles(io), snapshot.addedDeleteFiles(io), true);
+  }
 
+  public TableChange(
+      Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles, boolean throwException) {
     dataFiles.forEach(
         dataFile -> {
           this.dataFileCount++;
@@ -76,7 +82,11 @@ public class TableChange {
               this.eqDeleteRecordCount += deleteFile.recordCount();
               break;
             default:
-              throw new IllegalArgumentException("Unexpected delete file content: " + deleteFile);
+              if (throwException) {
+                throw new IllegalArgumentException("Unexpected delete file content: " + deleteFile);
+              } else {
+                LOG.warn("Unexpected delete file content:{}", deleteFile.content());
+              }
           }
         });
 

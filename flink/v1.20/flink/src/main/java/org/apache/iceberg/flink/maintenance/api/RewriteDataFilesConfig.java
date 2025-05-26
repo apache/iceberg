@@ -19,82 +19,99 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.flink.configuration.ReadableConfig;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.flink.FlinkConfParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {
-  public static final String CONFIG_PREFIX = TableMaintenanceConfig.CONFIG_PREFIX + "rewrite.";
+  public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "rewrite.";
 
-  private final Map<String, String> properties;
+  public static final String MAX_BYTES = PREFIX + "max-bytes";
 
-  public RewriteDataFilesConfig(Map<String, String> newProperties) {
-    this.properties = Maps.newHashMap();
-    newProperties.forEach(
-        (key, value) -> {
-          if (key.startsWith(CONFIG_PREFIX)) {
-            properties.put(key.substring(CONFIG_PREFIX.length()), value);
-          }
-        });
-  }
-
-  public static final String PARTIAL_PROGRESS_ENABLE =
-      org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED;
-
-  public static final String PARTIAL_PROGRESS_MAX_COMMITS =
-      org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS;
-
-  public static final String MAX_BYTES = "max-bytes";
-
-  public static final String SCHEDULE_ON_COMMIT_COUNT = "schedule.commit-count";
+  public static final String SCHEDULE_ON_COMMIT_COUNT = PREFIX + "schedule.commit-count";
   public static final int SCHEDULE_ON_COMMIT_COUNT_DEFAULT = 10;
 
-  public static final String SCHEDULE_ON_DATA_FILE_COUNT = "schedule.data-file-count";
+  public static final String SCHEDULE_ON_DATA_FILE_COUNT = PREFIX + "schedule.data-file-count";
   public static final int SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT = 1000;
 
-  public static final String SCHEDULE_ON_DATA_FILE_SIZE = "schedule.data-file-size";
+  public static final String SCHEDULE_ON_DATA_FILE_SIZE = PREFIX + "schedule.data-file-size";
   public static final long SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT = 100L * 1024 * 1024 * 1024; // 100G
 
-  public static final String SCHEDULE_ON_INTERVAL_SECOND = "schedule.interval-second";
+  public static final String SCHEDULE_ON_INTERVAL_SECOND = PREFIX + "schedule.interval-second";
   public static final int SCHEDULE_ON_INTERVAL_SECOND_DEFAULT = 10 * 60; // 10 minutes
 
+  private final FlinkConfParser confParser;
+  private final Map<String, String> writeProperties;
+
+  public RewriteDataFilesConfig(
+      Table table, Map<String, String> writeOptions, ReadableConfig readableConfig) {
+    this.writeProperties = writeOptions;
+    this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
+  }
+
   public int scheduleOnCommitCount() {
-    return PropertyUtil.propertyAsInt(
-        properties, SCHEDULE_ON_COMMIT_COUNT, SCHEDULE_ON_COMMIT_COUNT_DEFAULT);
+    return confParser
+        .intConf()
+        .option(SCHEDULE_ON_COMMIT_COUNT)
+        .defaultValue(SCHEDULE_ON_COMMIT_COUNT_DEFAULT)
+        .parse();
   }
 
   public int scheduleOnDataFileCount() {
-    return PropertyUtil.propertyAsInt(
-        properties, SCHEDULE_ON_DATA_FILE_COUNT, SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT);
+    return confParser
+        .intConf()
+        .option(SCHEDULE_ON_DATA_FILE_COUNT)
+        .defaultValue(SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT)
+        .parse();
   }
 
   public long scheduleOnDataFileSize() {
-    return PropertyUtil.propertyAsLong(
-        properties, SCHEDULE_ON_DATA_FILE_SIZE, SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT);
+    return confParser
+        .longConf()
+        .option(SCHEDULE_ON_DATA_FILE_SIZE)
+        .defaultValue(SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT)
+        .parse();
   }
 
   public int scheduleOnIntervalSecond() {
-    return PropertyUtil.propertyAsInt(
-        properties, SCHEDULE_ON_INTERVAL_SECOND, SCHEDULE_ON_INTERVAL_SECOND_DEFAULT);
+    return confParser
+        .intConf()
+        .option(SCHEDULE_ON_INTERVAL_SECOND)
+        .defaultValue(SCHEDULE_ON_INTERVAL_SECOND_DEFAULT)
+        .parse();
   }
 
   public boolean partialProgressEnable() {
-    return PropertyUtil.propertyAsBoolean(
-        properties, PARTIAL_PROGRESS_ENABLE, RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT);
+    return confParser
+        .booleanConf()
+        .option(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_ENABLED)
+        .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT)
+        .parse();
   }
 
   public int partialProgressMaxCommits() {
-    return PropertyUtil.propertyAsInt(
-        properties,
-        PARTIAL_PROGRESS_MAX_COMMITS,
-        RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
+    return confParser
+        .intConf()
+        .option(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS)
+        .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT)
+        .parse();
   }
 
   public long maxRewriteBytes() {
-    return PropertyUtil.propertyAsLong(properties, MAX_BYTES, Long.MAX_VALUE);
+    return confParser.longConf().option(MAX_BYTES).defaultValue(Long.MAX_VALUE).parse();
   }
 
   public Map<String, String> properties() {
-    return properties;
+    return writeProperties.entrySet().stream()
+        .filter(entry -> entry.getKey().startsWith(PREFIX))
+        .collect(
+            Collectors.toMap(
+                entry -> entry.getKey().substring(PREFIX.length()),
+                Map.Entry::getValue,
+                (existing, replacement) -> existing,
+                Maps::newHashMap));
   }
 }

@@ -70,11 +70,12 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.LockConfig;
+import org.apache.iceberg.flink.maintenance.api.FlinkMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
-import org.apache.iceberg.flink.maintenance.api.TableMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
+import org.apache.iceberg.flink.maintenance.operator.LockConfig;
 import org.apache.iceberg.flink.maintenance.operator.LockFactoryBuilder;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -150,7 +151,7 @@ public class IcebergSink
   private final boolean overwriteMode;
   private final int workerPoolSize;
   private final boolean compactMode;
-  private final Map<String, String> compactProperties;
+  private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
   private final List<String> equalityFieldColumns = null;
@@ -167,7 +168,7 @@ public class IcebergSink
       List<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
-      Map<String, String> compactProperties) {
+      FlinkMaintenanceConfig flinkMaintenanceConfig) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -188,7 +189,7 @@ public class IcebergSink
     // Also used to generate the aggregator operator name
     this.sinkId = UUID.randomUUID().toString();
     this.compactMode = flinkWriteConf.compactMode();
-    this.compactProperties = compactProperties;
+    this.flinkMaintenanceConfig = flinkMaintenanceConfig;
   }
 
   @Override
@@ -240,39 +241,39 @@ public class IcebergSink
       return;
     }
 
+    String suffix = defaultSuffix(uidSuffix, table.name());
+    String postCommitUid = String.format("Sink post-commit : %s", suffix);
+
     SingleOutputStreamOperator<TableChange> tableChangeStream =
         committables
             .global()
-            .process(new CommittableToTableChangeConverter(tableLoader.clone()))
-            .uid("committable-to-table-change-converter")
+            .process(new CommittableToTableChangeConverter(tableLoader))
+            .uid(postCommitUid)
             .forceNonParallel();
     try {
 
+      RewriteDataFilesConfig rewriteDataFilesConfig =
+          flinkMaintenanceConfig.createRewriteDataFilesConfig();
       RewriteDataFiles.Builder rewriteBuilder =
-          RewriteDataFiles.builder().properties(compactProperties);
+          RewriteDataFiles.builder().properties(rewriteDataFilesConfig);
 
-      TriggerLockFactory triggerLockFactory =
-          LockFactoryBuilder.build(compactProperties, table.name());
+      LockConfig lockConfig = flinkMaintenanceConfig.createLockConfig();
+      TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(lockConfig, table.name());
       TableMaintenance.Builder builder =
           TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
               .add(rewriteBuilder);
 
-      configureTableMaintenance(builder, compactProperties);
-      builder.append();
+      String tableMaintenanceUid = String.format("TableMaintenance : %s", suffix);
+      builder
+          .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
+          .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
+          .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
+          .parallelism(flinkMaintenanceConfig.parallelism())
+          .uidSuffix(tableMaintenanceUid)
+          .append();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
     }
-  }
-
-  private void configureTableMaintenance(
-      TableMaintenance.Builder builder, Map<String, String> properties) {
-    TableMaintenanceConfig config = new TableMaintenanceConfig(properties);
-
-    builder
-        .rateLimit(Duration.ofSeconds(config.rateLimit()))
-        .lockCheckDelay(Duration.ofSeconds(config.lockCheckDelay()))
-        .slotSharingGroup(config.slotSharingGroup())
-        .parallelism(config.parallelism());
   }
 
   @Override
@@ -575,6 +576,8 @@ public class IcebergSink
         }
       }
 
+      FlinkMaintenanceConfig flinkMaintenanceConfig =
+          new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
       return new IcebergSink(
           tableLoader,
           table,
@@ -587,25 +590,7 @@ public class IcebergSink
           equalityFieldIds,
           flinkWriteConf.branch(),
           overwriteMode,
-          createCompactionProperties(writeOptions, readableConfig.toMap()));
-    }
-
-    /**
-     * Create the properties for the compaction. The configuration from SQL hints has a higher
-     * priority than that from SET statements.
-     *
-     * @param writeProperties config from SQL Hints. Height level.
-     * @param setProperties config from SET statement. Low level.
-     * @return config of compaction
-     */
-    private Map<String, String> createCompactionProperties(
-        Map<String, String> writeProperties, Map<String, String> setProperties) {
-      Map<String, String> lowLevelLockProperties =
-          filterPrefix(setProperties, LockConfig.CONFIG_PREFIX);
-      Map<String, String> compactionProperties =
-          filterPrefix(writeProperties, TableMaintenanceConfig.CONFIG_PREFIX);
-      lowLevelLockProperties.putAll(compactionProperties);
-      return lowLevelLockProperties;
+          flinkMaintenanceConfig);
     }
 
     /**
@@ -714,17 +699,6 @@ public class IcebergSink
     }
 
     return writeProperties;
-  }
-
-  private static Map<String, String> filterPrefix(Map<String, String> config, String prefix) {
-    Map<String, String> newConfig = Maps.newHashMap();
-    config.forEach(
-        (key, value) -> {
-          if (key.startsWith(prefix)) {
-            newConfig.put(key, value);
-          }
-        });
-    return newConfig;
   }
 
   private DataStream<RowData> distributeDataStream(DataStream<RowData> input) {

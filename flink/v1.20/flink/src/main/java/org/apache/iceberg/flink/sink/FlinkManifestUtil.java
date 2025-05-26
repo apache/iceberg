@@ -137,14 +137,23 @@ class FlinkManifestUtil {
 
   static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
+    deleteCommittedManifests(table.name(), table.io(), manifests, newFlinkJobId, checkpointId);
+  }
+
+  static void deleteCommittedManifests(
+      String tableName,
+      FileIO io,
+      List<ManifestFile> manifests,
+      String newFlinkJobId,
+      long checkpointId) {
     for (ManifestFile manifest : manifests) {
       try {
-        table.io().deleteFile(manifest.path());
+        io.deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
             MoreObjects.toStringHelper(FlinkManifestUtil.class)
-                .add("tableName", table.name())
+                .add("tableName", tableName)
                 .add("flinkJobId", newFlinkJobId)
                 .add("checkpointId", checkpointId)
                 .add("manifestPath", manifest.path())
