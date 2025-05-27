@@ -93,7 +93,7 @@ public class TableChange {
     this.commitCount = 1;
   }
 
-  public static TableChange empty() {
+  static TableChange empty() {
     return new TableChange(0, 0L, 0, 0L, 0, 0L, 0);
   }
 

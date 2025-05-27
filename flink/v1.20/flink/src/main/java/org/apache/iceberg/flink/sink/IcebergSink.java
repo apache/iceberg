@@ -107,7 +107,7 @@ import org.slf4j.LoggerFactory;
  *       not implemented yet.
  * </ul>
  *
- * <p>The job graph looks like below:
+ * The job graph looks like below:
  *
  * <pre>{@code
  *                            Flink sink
@@ -259,17 +259,17 @@ public class IcebergSink
 
       LockConfig lockConfig = flinkMaintenanceConfig.createLockConfig();
       TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(lockConfig, table.name());
+      String tableMaintenanceUid = String.format("TableMaintenance : %s", suffix);
       TableMaintenance.Builder builder =
           TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
+              .uidSuffix(tableMaintenanceUid)
               .add(rewriteBuilder);
 
-      String tableMaintenanceUid = String.format("TableMaintenance : %s", suffix);
       builder
           .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
           .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
           .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
           .parallelism(flinkMaintenanceConfig.parallelism())
-          .uidSuffix(tableMaintenanceUid)
           .append();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
