@@ -382,7 +382,7 @@ public class TestIcebergSourceFailover {
     }
 
     private static void waitForCondition() throws InterruptedException {
-      countDownLatch1.await();1
+      countDownLatch.await();
     }
 
     private static void continueProcessing() {
