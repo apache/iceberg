@@ -34,6 +34,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -166,7 +168,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 

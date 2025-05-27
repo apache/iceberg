@@ -27,6 +27,8 @@ import static org.mockito.Mockito.times;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -105,7 +107,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
