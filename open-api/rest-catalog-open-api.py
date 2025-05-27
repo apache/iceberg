@@ -741,70 +741,6 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     )
 
 
-class Event(BaseModel):
-    event_id: str = Field(
-        ...,
-        alias='event-id',
-        description='Unique ID of this event. Clients should perform deduplication based on this ID.',
-    )
-    request_id: str = Field(
-        ..., alias='request-id', description='ID of the request this change belongs to.'
-    )
-    event_count: int = Field(
-        ...,
-        alias='event-count',
-        description='Number of events in the request / batch of events',
-    )
-    timestamp_ms: int = Field(
-        ...,
-        alias='timestamp-ms',
-        description='Timestamp when this transaction occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
-    )
-
-
-class ActorChain(BaseModel):
-    """
-    An ordered list of actors involved in the operation, with the most direct actor  (the one who actually performed the operation) first, followed by delegating actors  in order. For example, if a service account (actor[0]) performed an operation  on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents  this delegation path. operation:
-      type: object
-      discriminator:
-        propertyName: operation-type
-        mapping:
-          create-table: "#/components/schemas/CreateTableOperation"
-          register-table: "#/components/schemas/RegisterTableOperation"
-          drop-table: "#/components/schemas/DropTableOperation"
-          update-table: "#/components/schemas/UpdateTableOperation"
-          rename-table: "#/components/schemas/RenameTableOperation"
-          create-view: "#/components/schemas/CreateViewOperation"
-          drop-view: "#/components/schemas/DropViewOperation"
-          replace-view: "#/components/schemas/ReplaceViewOperation"
-          rename-view: "#/components/schemas/RenameTableOperation"
-          create-namespace: "#/components/schemas/CreateNamespaceOperation"
-          update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"
-          drop-namespace: "#/components/schemas/DropNamespaceOperation"
-          custom: "#/components/schemas/CustomOperation"
-      oneOf:
-        - $ref: "#/components/schemas/CreateTableOperation"
-        - $ref: "#/components/schemas/RegisterTableOperation"
-        - $ref: "#/components/schemas/DropTableOperation"
-        - $ref: "#/components/schemas/UpdateTableOperation"
-        - $ref: "#/components/schemas/RenameTableOperation"
-        - $ref: "#/components/schemas/CreateViewOperation"
-        - $ref: "#/components/schemas/DropViewOperation"
-        - $ref: "#/components/schemas/ReplaceViewOperation"
-        - $ref: "#/components/schemas/RenameTableOperation"
-        - $ref: "#/components/schemas/CreateNamespaceOperation"
-        - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"
-        - $ref: "#/components/schemas/DropNamespaceOperation"
-        - $ref: "#/components/schemas/CustomOperation"
-
-    """
-
-    __root__: List[Actor] = Field(
-        ...,
-        description='An ordered list of actors involved in the operation, with the most direct actor  (the one who actually performed the operation) first, followed by delegating actors  in order. For example, if a service account (actor[0]) performed an operation  on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents  this delegation path. operation:\n  type: object\n  discriminator:\n    propertyName: operation-type\n    mapping:\n      create-table: "#/components/schemas/CreateTableOperation"\n      register-table: "#/components/schemas/RegisterTableOperation"\n      drop-table: "#/components/schemas/DropTableOperation"\n      update-table: "#/components/schemas/UpdateTableOperation"\n      rename-table: "#/components/schemas/RenameTableOperation"\n      create-view: "#/components/schemas/CreateViewOperation"\n      drop-view: "#/components/schemas/DropViewOperation"\n      replace-view: "#/components/schemas/ReplaceViewOperation"\n      rename-view: "#/components/schemas/RenameTableOperation"\n      create-namespace: "#/components/schemas/CreateNamespaceOperation"\n      update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"\n      drop-namespace: "#/components/schemas/DropNamespaceOperation"\n      custom: "#/components/schemas/CustomOperation"\n  oneOf:\n    - $ref: "#/components/schemas/CreateTableOperation"\n    - $ref: "#/components/schemas/RegisterTableOperation"\n    - $ref: "#/components/schemas/DropTableOperation"\n    - $ref: "#/components/schemas/UpdateTableOperation"\n    - $ref: "#/components/schemas/RenameTableOperation"\n    - $ref: "#/components/schemas/CreateViewOperation"\n    - $ref: "#/components/schemas/DropViewOperation"\n    - $ref: "#/components/schemas/ReplaceViewOperation"\n    - $ref: "#/components/schemas/RenameTableOperation"\n    - $ref: "#/components/schemas/CreateNamespaceOperation"\n    - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"\n    - $ref: "#/components/schemas/DropNamespaceOperation"\n    - $ref: "#/components/schemas/CustomOperation"\n',
-    )
-
-
 class CustomOperation(BaseModel):
     """
     Extension point for catalog-specific operations not defined in the standard.
@@ -814,7 +750,7 @@ class CustomOperation(BaseModel):
     class Config:
         extra = Extra.allow
 
-    operation_type: str = Field('custom', alias='operation-type', const=True)
+    operation_type: Literal['custom'] = Field(..., alias='operation-type', const=True)
     custom_type: CustomOperationType = Field(..., alias='custom-type')
     identifier: Optional[TableIdentifier] = Field(
         None,
@@ -1161,21 +1097,9 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
-class EventsResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    highest_processed_timestamp_ms: int = Field(
-        ...,
-        alias='highest-processed-timestamp-ms',
-        description='The highest timestamp processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-timestamp-ms` parameter in subsequent  requests to continue retrieving changes after this point.\n',
-    )
-    events: List[Event]
-
-
 class DropTableOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('drop-table'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['drop-table'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
@@ -1183,34 +1107,36 @@ class DropTableOperation(BaseModel):
 
 
 class RenameTableOperation(RenameTableRequest):
-    operation_type: OperationType = Field(..., alias='operation-type', const=True)
+    operation_type: Literal['rename-table', 'rename-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
     table_uuid: UUID = Field(..., alias='table-uuid')
 
 
 class DropViewOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('drop-view'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['drop-view'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class CreateNamespaceOperation(CreateNamespaceResponse):
-    operation_type: OperationType = Field(..., alias='operation-type', const=True)
+    operation_type: Literal['create-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
 
 
 class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
-    operation_type: OperationType = Field(..., alias='operation-type', const=True)
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type', const=True
+    )
     namespace: Namespace
 
 
 class DropNamespaceOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('drop-namespace'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['drop-namespace'] = Field(
+        ..., alias='operation-type', const=True
     )
     namespace: Namespace
 
@@ -1632,11 +1558,59 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
+class EventsResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    highest_processed_timestamp_ms: int = Field(
+        ...,
+        alias='highest-processed-timestamp-ms',
+        description='The highest timestamp processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-timestamp-ms` parameter in subsequent  requests to continue retrieving changes after this point.\n',
+    )
+    events: List[Event]
+
+
+class Event(BaseModel):
+    event_id: str = Field(
+        ...,
+        alias='event-id',
+        description='Unique ID of this event. Clients should perform deduplication based on this ID.',
+    )
+    request_id: str = Field(
+        ..., alias='request-id', description='ID of the request this change belongs to.'
+    )
+    event_count: int = Field(
+        ...,
+        alias='event-count',
+        description='Number of events in the request / batch of events',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this transaction occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
+    )
+    actor_chain: Optional[List[Actor]] = Field(
+        None,
+        alias='actor-chain',
+        description='An ordered list of actors involved in the operation, with the most direct actor  (the one who actually performed the operation) first, followed by delegating actors  in order. For example, if a service account (actor[0]) performed an operation  on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents  this delegation path.\n',
+    )
+    operation: Union[
+        CreateTableOperation,
+        RegisterTableOperation,
+        DropTableOperation,
+        UpdateTableOperation,
+        RenameTableOperation,
+        CreateViewOperation,
+        DropViewOperation,
+        ReplaceViewOperation,
+        CreateNamespaceOperation,
+        UpdateNamespacePropertiesOperation,
+        DropNamespaceOperation,
+        CustomOperation,
+    ] = Field(..., discriminator='operation_type')
+
+
 class CreateTableOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('create-table'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['create-table'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
@@ -1644,10 +1618,8 @@ class CreateTableOperation(BaseModel):
 
 
 class RegisterTableOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('register-table'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['register-table'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
@@ -1655,10 +1627,8 @@ class RegisterTableOperation(BaseModel):
 
 
 class UpdateTableOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('update-table'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['update-table'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
@@ -1666,10 +1636,8 @@ class UpdateTableOperation(BaseModel):
 
 
 class CreateViewOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('create-view'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['create-view'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
@@ -1677,10 +1645,8 @@ class CreateViewOperation(BaseModel):
 
 
 class ReplaceViewOperation(BaseModel):
-    operation_type: OperationType = Field(
-        default_factory=lambda: OperationType.parse_obj('replace-view'),
-        alias='operation-type',
-        const=True,
+    operation_type: Literal['replace-view'] = Field(
+        ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
@@ -1785,6 +1751,8 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+EventsResponse.update_forward_refs()
+Event.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()
