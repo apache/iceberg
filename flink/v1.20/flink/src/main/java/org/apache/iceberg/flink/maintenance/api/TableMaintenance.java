@@ -62,8 +62,6 @@ public class TableMaintenance {
   static final long RATE_LIMIT_SECOND_DEFAULT = 60;
   static final long LOCK_CHECK_DELAY_SECOND_DEFAULT = 30;
   static final int MAX_READ_BACK_DEFAULT = 100;
-  static final int PARALLELISM_DEFAULT = ExecutionConfig.PARALLELISM_DEFAULT;
-  static final String SLOT_SHARING_GROUP_DEFAULT = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
 
   private TableMaintenance() {}
 
@@ -114,10 +112,10 @@ public class TableMaintenance {
     private final TriggerLockFactory lockFactory;
 
     private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
-    private String slotSharingGroup = SLOT_SHARING_GROUP_DEFAULT;
+    private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
     private Duration rateLimit = Duration.ofSeconds(RATE_LIMIT_SECOND_DEFAULT);
     private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
-    private int parallelism = PARALLELISM_DEFAULT;
+    private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = MAX_READ_BACK_DEFAULT;
 
     private Builder(
