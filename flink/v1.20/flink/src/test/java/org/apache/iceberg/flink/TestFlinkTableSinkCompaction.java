@@ -176,6 +176,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
         reader.iterator().forEachRemaining(dataFiles::add);
       }
     }
+
     return dataFiles;
   }
 }

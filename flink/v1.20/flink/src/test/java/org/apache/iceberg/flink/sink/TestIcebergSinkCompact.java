@@ -118,6 +118,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
         reader.iterator().forEachRemaining(dataFiles::add);
       }
     }
+
     return dataFiles;
   }
 
@@ -142,6 +143,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
         break;
       }
     }
+
     assertThat(containRewrite).isTrue();
   }
 }
