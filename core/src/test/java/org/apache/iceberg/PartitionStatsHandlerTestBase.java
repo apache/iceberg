@@ -204,7 +204,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -273,7 +273,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -442,6 +442,52 @@ public abstract class PartitionStatsHandlerTestBase {
   }
 
   @Test
+  public void testCopyOnWriteDelete() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("my_test"), "my_test", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    DataFile dataFile1 =
+        DataFiles.builder(SPEC)
+            .withPath("/df1.parquet")
+            .withPartitionPath("c2=a/c3=a")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(SPEC)
+            .withPath("/df2.parquet")
+            .withPartitionPath("c2=b/c3=b")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    assertThat(
+            PartitionStatsHandler.readPartitionStatsFile(
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable)),
+                testTable.io().newInputFile(statisticsFile.path())))
+        .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
+
+    testTable.newDelete().deleteFile(dataFile1).commit();
+    testTable.newDelete().deleteFile(dataFile2).commit();
+
+    PartitionStatisticsFile statisticsFileNew =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+
+    // stats must be decremented to zero as all the files removed from table.
+    assertThat(
+            PartitionStatsHandler.readPartitionStatsFile(
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable)),
+                testTable.io().newInputFile(statisticsFileNew.path())))
+        .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
+  }
+
+  @Test
   public void testLatestStatsFile() throws Exception {
     Table testTable =
         TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2, fileFormatProperty);
@@ -496,7 +542,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> partitionStats;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            recordSchema, Files.localInput(result.path()))) {
+            recordSchema, testTable.io().newInputFile(result.path()))) {
       partitionStats = Lists.newArrayList(recordIterator);
     }
 
