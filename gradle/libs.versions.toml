@@ -51,7 +51,7 @@ flink20 = { strictly = "2.0.0"}
 google-libraries-bom = "26.60.0"
 guava = "33.4.7-jre"
 hadoop3 = "3.4.1"
-httpcomponents-httpclient5 = "5.4.4"
+httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.10.1"
 jackson-bom = "2.19.0"
