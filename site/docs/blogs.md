@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Real-Time Analytics on Apache Iceberg with Tinybird](https://www.tinybird.co/blog-posts/real-time-analytics-on-apache-iceberg-with-tinybird)
+**Date:** May 20, 2025, **Company**: Tinybird
+**Author**: [Alberto Romeu](https://www.linkedin.com/in/alrocar/)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data into Apache Iceberg: A Step-by-Step Tutorial](https://estuary.dev/blog/loading-data-into-apache-iceberg/)
 **Date**: March 20, 2025, **Company**: Estuary
 **Author**: [Dani Pálma](https://www.linkedin.com/in/danthelion)

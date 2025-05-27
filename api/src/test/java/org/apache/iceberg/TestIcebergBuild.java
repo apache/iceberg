@@ -50,8 +50,8 @@ public class TestIcebergBuild {
   public void testVersionMatchesSystemProperty() {
     assumeThat(System.getProperty("project.version")).isNotNull();
     assertThat(IcebergBuild.version())
-        .isEqualTo(System.getProperty("project.version"))
-        .as("IcebergBuild.version() should match system property project.version");
+        .as("IcebergBuild.version() should match system property project.version")
+        .isEqualTo(System.getProperty("project.version"));
   }
 
   /**
@@ -65,8 +65,8 @@ public class TestIcebergBuild {
     assumeThat(java.nio.file.Files.exists(versionPath)).isTrue();
     String versionText = java.nio.file.Files.readString(versionPath).trim();
     assertThat(IcebergBuild.version())
-        .isEqualTo(versionText)
-        .as("IcebergBuild.version() should match version file");
+        .as("IcebergBuild.version() should match version file")
+        .isEqualTo(versionText);
   }
 
   @Test

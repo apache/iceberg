@@ -1113,6 +1113,7 @@ There are three types of row-level deletes:
 * Equality delete files identify deleted rows by the value of one or more columns
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
+When removing a data file, writers must also remove any deletion vector that applies to that data file from delete manifests. Writers are not required to rewrite Puffin files that contain the removed deletion vectors.
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
@@ -1533,6 +1534,8 @@ The following table describes the possible values for the some of the field with
 
 Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON.
 
+A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952).
+
 |Metadata field|JSON representation|Example|
 |--- |--- |--- |
 |**`format-version`**|`JSON int`|`1`|
@@ -1840,6 +1843,10 @@ Writers should produce positive values for snapshot ids in a manner that minimiz
 The reference Java implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
 
 Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec, but for compatibility, other implementations can accept `-1` as `null`. Java will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
+
+### Naming for GZIP compressed Metadata JSON files
+
+Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
 
 ## Appendix G: Geospatial Notes
 
