@@ -108,7 +108,7 @@ public class ORC {
   private ORC() {}
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -116,7 +116,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -126,7 +126,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
    */
   @Deprecated
   public static class WriteBuilder {
@@ -155,7 +155,7 @@ public class ORC {
 
     public WriteBuilder createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
-      impl.createWriterFunc(writerFunction);
+      impl.createWriterFunc = writerFunction;
       return this;
     }
 
@@ -174,7 +174,7 @@ public class ORC {
     }
 
     public WriteBuilder overwrite(boolean enabled) {
-      impl.overwrite(enabled);
+      impl.overwrite = enabled;
       return this;
     }
 
@@ -186,7 +186,7 @@ public class ORC {
     // supposed to always be a private method used strictly by data and delete write builders
     private void createContextFunc(
         Function<Map<String, String>, WriteBuilderImpl.Context> newCreateContextFunc) {
-      impl.createContextFunc(newCreateContextFunc);
+      impl.createContextFunc = newCreateContextFunc;
     }
 
     public <D> FileAppender<D> build() {
@@ -259,7 +259,7 @@ public class ORC {
 
     @Override
     public WriteBuilderImpl<E, D> overwrite() {
-      overwrite(true);
+      this.overwrite = true;
       return this;
     }
 
@@ -267,23 +267,6 @@ public class ORC {
     public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
-    }
-
-    // supposed to always be a private method used strictly by data and delete write builders
-    // package-protected because of inheritance until deprecation of the WriteBuilder
-    private void createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
-      this.createContextFunc = newCreateContextFunc;
-    }
-
-    private void createWriterFunc(
-        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunction) {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
-      this.createWriterFunc = newWriterFunction;
-    }
-
-    private void overwrite(boolean enabled) {
-      this.overwrite = enabled;
     }
 
     private void initWriterFunctionAndContext() {
@@ -536,7 +519,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
    *     instead.
    */
   @Deprecated
@@ -545,7 +528,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
    *     instead.
    */
   @Deprecated
@@ -556,7 +539,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
    *     instead.
    */
   @Deprecated
@@ -660,8 +643,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     ObjectModelRegistry.positionDeleteWriterBuilder and
-   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
+   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -670,8 +653,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     ObjectModelRegistry.positionDeleteWriterBuilder and
-   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
+   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -682,8 +665,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     ObjectModelRegistry.positionDeleteWriterBuilder and
-   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
+   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {
@@ -864,7 +847,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -875,7 +858,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
    */
   @Deprecated
   public static class ReadBuilder {
@@ -903,7 +886,7 @@ public class ORC {
     }
 
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      impl.caseSensitive(newCaseSensitive);
+      impl.filter(impl.filter, newCaseSensitive);
       return this;
     }
 
@@ -912,8 +895,14 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
-      impl.createReaderFunc(readerFunction);
+    public ReadBuilder createReaderFunc(
+        Function<TypeDescription, OrcRowReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          impl.batchedReaderFunc == null
+              && impl.readerFunction == null
+              && impl.batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      impl.readerFunc = newReaderFunction;
       return this;
     }
 
@@ -923,8 +912,13 @@ public class ORC {
     }
 
     public ReadBuilder createBatchedReaderFunc(
-        Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
-      impl.createBatchedReaderFunc(batchReaderFunction);
+        Function<TypeDescription, OrcBatchReader<?>> newBatchReaderFunction) {
+      Preconditions.checkState(
+          impl.readerFunc == null
+              && impl.readerFunction == null
+              && impl.batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      impl.batchedReaderFunc = newBatchReaderFunction;
       return this;
     }
 
@@ -1037,26 +1031,6 @@ public class ORC {
     public ReadBuilderImpl<D> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
-    }
-
-    private void caseSensitive(boolean newCaseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
-      this.filterCaseSensitive = newCaseSensitive;
-    }
-
-    private void createReaderFunc(Function<TypeDescription, OrcRowReader<?>> newReaderFunc) {
-      Preconditions.checkState(
-          batchedReaderFunc == null && readerFunction == null && batchReaderFunction == null,
-          "Cannot set multiple read builder functions");
-      this.readerFunc = newReaderFunc;
-    }
-
-    private void createBatchedReaderFunc(
-        Function<TypeDescription, OrcBatchReader<?>> newReaderFunction) {
-      Preconditions.checkState(
-          readerFunc == null && readerFunction == null && batchReaderFunction == null,
-          "Cannot set multiple read builder functions");
-      this.batchedReaderFunc = newReaderFunction;
     }
 
     @Override
