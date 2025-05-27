@@ -91,8 +91,8 @@ public class ErrorHandlers {
         case 404:
           throw new NoSuchTableException("%s", error.message());
         case 409:
-          if (error.isRetried()) {
-            // If the request was retried, and if it final error was 409, it could probably also
+          if (error.wasRetried()) {
+            // If the request was retried, and if its final error was 409, It could probably also
             // mean that HTTP retries when happened the IRC service could have actually applied
             // the commit in their persistence, while giving back the client still a 5xx.
             // If so, since the base has changed, it could conflict with itself.

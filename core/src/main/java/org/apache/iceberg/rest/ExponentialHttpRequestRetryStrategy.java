@@ -120,7 +120,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     // Retry if the request is considered idempotent
     boolean shouldRetry = Method.isIdempotent(request.getMethod());
     if (shouldRetry && context != null) {
-      context.setAttribute("is-retried", Boolean.TRUE);
+      context.setAttribute("was-retried", Boolean.TRUE);
     }
     return shouldRetry;
   }
@@ -129,7 +129,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
     boolean shouldRetry = execCount <= maxRetries && retriableCodes.contains(response.getCode());
     if (shouldRetry && context != null) {
-      context.setAttribute("is-retried", Boolean.TRUE);
+      context.setAttribute("was-retried", Boolean.TRUE);
     }
     return shouldRetry;
   }

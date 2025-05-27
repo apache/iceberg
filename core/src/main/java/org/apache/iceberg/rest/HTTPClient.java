@@ -188,7 +188,7 @@ public class HTTPClient extends BaseHTTPClient {
       CloseableHttpResponse response,
       String responseBody,
       Consumer<ErrorResponse> errorHandler,
-      Object isRetried) {
+      Object wasRetried) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -225,10 +225,9 @@ public class HTTPClient extends BaseHTTPClient {
       errorResponse = buildDefaultErrorResponse(response);
     }
 
-    boolean hasBeenRetried = (isRetried == Boolean.TRUE);
     ErrorResponse enrichedErrorResponse =
         ErrorResponse.builder()
-            .isRetried(hasBeenRetried)
+            .wasRetried(wasRetried == Boolean.TRUE)
             .responseCode(errorResponse.code())
             .withMessage(errorResponse.message())
             .withType(errorResponse.type())
@@ -320,7 +319,7 @@ public class HTTPClient extends BaseHTTPClient {
 
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler, context.getAttribute("is-retried"));
+        throwFailure(response, responseBody, errorHandler, context.getAttribute("was-retried"));
       }
 
       if (responseBody == null) {
