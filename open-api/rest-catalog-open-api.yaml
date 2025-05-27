@@ -3506,9 +3506,6 @@ components:
           description: Additional metadata about the actor that may vary between implementations
           additionalProperties:
             type: string
-        assumed-by:
-          $ref: '#/components/schemas/Actor'
-          description: Information about the original actor who assumed this identity. This enables representing delegation chains through recursion.
       example:
         type: "role"
         actor-id: "1234"
@@ -4222,9 +4219,16 @@ components:
             Timestamp when this transaction occurred (epoch milliseconds).
             Timestamps are not guaranteed to be unique. Typically all events in
             a transaction will have the same timestamp.
-        actor:
-          $ref: "#/components/schemas/Actor"
-          description: The actor who performed this request
+    actor-chain:
+      type: array
+      items:
+        $ref: "#/components/schemas/Actor"
+      description: >
+        An ordered list of actors involved in the operation, with the most direct actor 
+        (the one who actually performed the operation) first, followed by delegating actors 
+        in order. For example, if a service account (actor[0]) performed an operation 
+        on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents 
+        this delegation path.
         operation:
           type: object
           discriminator:
