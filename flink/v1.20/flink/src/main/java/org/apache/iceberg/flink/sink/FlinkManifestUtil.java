@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -137,18 +138,20 @@ class FlinkManifestUtil {
 
   static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    deleteCommittedManifests(table.name(), table.io(), manifests, newFlinkJobId, checkpointId);
+    List<String> manifestsPath =
+        manifests.stream().map(ManifestFile::path).collect(Collectors.toList());
+    deleteCommittedManifests(table.name(), table.io(), manifestsPath, newFlinkJobId, checkpointId);
   }
 
   static void deleteCommittedManifests(
       String tableName,
       FileIO io,
-      List<ManifestFile> manifests,
+      List<String> manifestsPath,
       String newFlinkJobId,
       long checkpointId) {
-    for (ManifestFile manifest : manifests) {
+    for (String manifest : manifestsPath) {
       try {
-        io.deleteFile(manifest.path());
+        io.deleteFile(manifest);
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
@@ -156,7 +159,7 @@ class FlinkManifestUtil {
                 .add("tableName", tableName)
                 .add("flinkJobId", newFlinkJobId)
                 .add("checkpointId", checkpointId)
-                .add("manifestPath", manifest.path())
+                .add("manifestPath", manifest)
                 .toString();
         LOG.warn(
             "The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
