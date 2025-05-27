@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -65,6 +66,7 @@ import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -77,10 +79,12 @@ import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.MetricsUtils;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.write.DeltaBatchWrite;
 import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriter;
@@ -113,6 +117,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
+  private InMemoryMetricsReporter metricsReporter;
 
   SparkPositionDeltaWrite(
       SparkSession spark,
@@ -136,6 +141,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
     this.writeProperties = writeConf.writeProperties();
+
+    if (this.table instanceof BaseTable) {
+      this.metricsReporter = new InMemoryMetricsReporter();
+      ((BaseTable) this.table).combineMetricsReporter(metricsReporter);
+    }
   }
 
   @Override
@@ -167,6 +177,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   @Override
   public DeltaBatchWrite toBatch() {
     return new PositionDeltaBatchWrite();
+  }
+
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return MetricsUtils.supportedCustomMetrics();
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
@@ -334,6 +349,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       try {
         long start = System.currentTimeMillis();
         operation.commit(); // abort is automatically called if this fails
+        MetricsUtils.postWriteMetrics(metricsReporter, sparkContext.sc());
         long duration = System.currentTimeMillis() - start;
         LOG.info("Committed in {} ms", duration);
       } catch (Exception e) {
