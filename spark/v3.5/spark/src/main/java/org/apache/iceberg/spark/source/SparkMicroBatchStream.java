@@ -412,7 +412,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              if ((curFilesAdded + 1) > getMaxFiles(limit)) > getMaxRows(limit)) {
+              if ((curFilesAdded + 1) > getMaxFiles(limit)) {
                 shouldContinueReading = false;
                 break;
               }
