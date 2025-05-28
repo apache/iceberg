@@ -59,14 +59,13 @@ class ReadConf<T> {
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
-  @SuppressWarnings("unchecked")
   ReadConf(
       InputFile file,
       ParquetReadOptions options,
       Schema expectedSchema,
       Expression filter,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
-      Function<MessageType, VectorizedReader<?>> batchedReaderFunc,
+      Function<MessageType, ParquetValueReader<T>> readerFunc,
+      Function<MessageType, VectorizedReader<T>> batchedReaderFunc,
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean filterCaseSensitive,
@@ -118,12 +117,12 @@ class ReadConf<T> {
 
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
+      this.model = readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
     } else {
       this.model = null;
-      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
+      this.vectorizedModel = batchedReaderFunc.apply(typeWithIds);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
     }
 

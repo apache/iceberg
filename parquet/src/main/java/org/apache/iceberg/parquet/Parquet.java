@@ -320,7 +320,7 @@ public class Parquet {
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private ParquetFileAccessFactory.WriterFunction<?, E> writerFunction = null;
+    private ParquetFileAccessFactory.WriterFunction<D, E> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -1362,7 +1362,7 @@ public class Parquet {
    */
   @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {
-    private final ReadBuilderImpl<?, ?> impl;
+    private final ReadBuilderImpl<Object, ?> impl;
 
     private ReadBuilder(InputFile file) {
       this.impl = new ReadBuilderImpl<>(file);
@@ -1423,7 +1423,12 @@ public class Parquet {
               && impl.batchedReaderFunc == null
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
-      impl.readerFunc = newReaderFunction;
+      if (newReaderFunction != null) {
+        impl.readerFunc = m -> (ParquetValueReader<Object>) newReaderFunction.apply(m);
+      } else {
+        impl.readerFunc = null;
+      }
+
       return this;
     }
 
@@ -1435,18 +1440,30 @@ public class Parquet {
               && impl.batchedReaderFunc == null
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
-      impl.readerFuncWithSchema = newReaderFunction;
+      if (newReaderFunction != null) {
+        impl.readerFuncWithSchema =
+            (s, m) -> (ParquetValueReader<Object>) newReaderFunction.apply(s, m);
+      } else {
+        impl.readerFunc = null;
+      }
+
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
+    public ReadBuilder createBatchedReaderFunc(
+        Function<MessageType, VectorizedReader<?>> newReaderFunction) {
       Preconditions.checkState(
           impl.readerFunc == null
               && impl.readerFuncWithSchema == null
               && impl.readerFunction == null
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
-      impl.batchedReaderFunc = func;
+      if (newReaderFunction != null) {
+        impl.batchedReaderFunc = m -> (VectorizedReader<Object>) newReaderFunction.apply(m);
+      } else {
+        impl.readerFunc = null;
+      }
+
       return this;
     }
 
@@ -1519,11 +1536,11 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
-    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
-    private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
-    private ParquetFileAccessFactory.BatchReaderFunction<?, F> batchReaderFunction = null;
-    private ParquetFileAccessFactory.ReaderFunction<?> readerFunction = null;
+    private Function<MessageType, VectorizedReader<D>> batchedReaderFunc = null;
+    private Function<MessageType, ParquetValueReader<D>> readerFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueReader<D>> readerFuncWithSchema = null;
+    private ParquetFileAccessFactory.BatchReaderFunction<D, F> batchReaderFunction = null;
+    private ParquetFileAccessFactory.ReaderFunction<D> readerFunction = null;
     private boolean filterRecords = true;
     private boolean filterCaseSensitive = true;
     private boolean callInit = false;
@@ -1764,7 +1781,7 @@ public class Parquet {
                 ? Integer.parseInt(properties.get(RECORDS_PER_BATCH_KEY))
                 : MAX_RECORDS_PER_BATCH_DEFAULT);
       } else {
-        Function<MessageType, ParquetValueReader<?>> readBuilder =
+        Function<MessageType, ParquetValueReader<D>> readBuilder =
             readerFuncWithSchema != null
                 ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                 : readerFunc != null
