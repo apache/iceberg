@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
@@ -133,7 +134,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
           .orElse(ex);
     } finally {
       if (failure) {
-        io().deleteFile(newMetadataLocation);
+        if (!Objects.equals(newMetadataLocation, metadata.metadataFileLocation())) {
+          // Only clean up newly created metadata files.
+          io().deleteFile(newMetadataLocation);
+        }
       }
     }
   }

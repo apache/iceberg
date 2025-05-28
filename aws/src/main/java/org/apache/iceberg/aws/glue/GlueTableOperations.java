@@ -190,7 +190,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           throw new CommitStateUnknownException(persistFailure);
       }
     } finally {
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, metadata);
       cleanupGlueTempTableIfNecessary(glueTempTableCreated, commitStatus);
     }
   }
@@ -386,19 +386,21 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation) {
+  void cleanupMetadataAndUnlock(
+      CommitStatus commitStatus, String newMetadataLocation, TableMetadata metadata) {
     try {
       if (commitStatus == CommitStatus.FAILURE
-          && metadataLocation != null
-          && !metadataLocation.isEmpty()) {
-        // if anything went wrong, clean up the uncommitted metadata file
-        io().deleteFile(metadataLocation);
+          && newMetadataLocation != null
+          && !newMetadataLocation.isEmpty()
+          && !Objects.equals(newMetadataLocation, metadata.metadataFileLocation())) {
+        // if anything went wrong, clean up the uncommitted metadata file, if a new one was created
+        io().deleteFile(newMetadataLocation);
       }
     } catch (RuntimeException e) {
-      LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
+      LOG.error("Failed to cleanup metadata file at {}", newMetadataLocation, e);
     } finally {
       if (lockManager != null) {
-        lockManager.release(commitLockEntityId, metadataLocation);
+        lockManager.release(commitLockEntityId, newMetadataLocation);
       }
     }
   }
