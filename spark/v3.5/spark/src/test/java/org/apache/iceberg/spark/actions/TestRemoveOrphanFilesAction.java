@@ -117,7 +117,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(new Object[] {2, true}, new Object[] {2, false}, new Object[] {3, false});
+    return Arrays.asList(
+        new Object[] {2, true},
+        new Object[] {2, false},
+        new Object[] {3, true},
+        new Object[] {3, false});
   }
 
   @BeforeEach
@@ -1141,7 +1145,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   @TestTemplate
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
-        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .as(
+            "This test verifies default listing behavior and does not require prefix listing to be enabled.")
         .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
