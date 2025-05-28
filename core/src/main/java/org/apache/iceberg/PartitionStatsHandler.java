@@ -162,7 +162,8 @@ public class PartitionStatsHandler {
     if (statisticsFile == null) {
       LOG.info(
           "Using full compute as previous statistics file is not present for incremental compute.");
-      stats = computeStats(table, snapshot, Sets.newHashSet()).values();
+      stats =
+          computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
     } else {
       stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
     }
@@ -336,30 +337,23 @@ public class PartitionStatsHandler {
         Sets.newHashSet(
             SnapshotUtil.ancestorIdsBetween(
                 toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
-    return computeStats(table, toSnapshot, snapshotIdsRange);
+    // DELETED manifest entries are not carried over to subsequent snapshots.
+    // So, for incremental computation, gather the manifests added by each snapshot
+    // instead of relying solely on those from the latest snapshot.
+    List<ManifestFile> manifests =
+        snapshotIdsRange.stream()
+            .flatMap(
+                id ->
+                    table.snapshot(id).allManifests(table.io()).stream()
+                        .filter(file -> file.snapshotId().equals(id)))
+            .collect(Collectors.toList());
+
+    return computeStats(table, manifests, true /* incremental */);
   }
 
   private static PartitionMap<PartitionStats> computeStats(
-      Table table, Snapshot snapshot, Set<Long> snapshotIdsRange) {
+      Table table, List<ManifestFile> manifests, boolean incremental) {
     StructType partitionType = Partitioning.partitionType(table);
-    boolean incremental = !snapshotIdsRange.isEmpty();
-
-    List<ManifestFile> manifests;
-    if (incremental) {
-      // DELETED manifest entries are not carried over to subsequent snapshots.
-      // So, for incremental computation, gather the manifests added by each snapshot
-      // instead of relying solely on those from the latest snapshot.
-      manifests =
-          snapshotIdsRange.stream()
-              .flatMap(
-                  id ->
-                      table.snapshot(id).allManifests(table.io()).stream()
-                          .filter(file -> file.snapshotId().equals(id)))
-              .collect(Collectors.toList());
-    } else {
-      manifests = snapshot.allManifests(table.io());
-    }
-
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
