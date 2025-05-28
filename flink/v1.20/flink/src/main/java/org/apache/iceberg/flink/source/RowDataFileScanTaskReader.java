@@ -24,25 +24,30 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkObjectModels;
+import org.apache.iceberg.flink.data.FlinkOrcReader;
+import org.apache.iceberg.flink.data.FlinkParquetReaders;
+import org.apache.iceberg.flink.data.FlinkPlannedAvroReader;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -52,25 +57,25 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
-  private final boolean filterCaseSensitive;
+  private final boolean caseSensitive;
   private final FlinkSourceFilter rowFilter;
 
   public RowDataFileScanTaskReader(
       Schema tableSchema,
       Schema projectedSchema,
       String nameMapping,
-      boolean filterCaseSensitive,
+      boolean caseSensitive,
       List<Expression> filters) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
-    this.filterCaseSensitive = filterCaseSensitive;
+    this.caseSensitive = caseSensitive;
 
     if (filters != null && !filters.isEmpty()) {
       Expression combinedExpression =
           filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
       this.rowFilter =
-          new FlinkSourceFilter(projectedSchema, combinedExpression, filterCaseSensitive);
+          new FlinkSourceFilter(this.projectedSchema, combinedExpression, this.caseSensitive);
     } else {
       this.rowFilter = null;
     }
@@ -114,30 +119,95 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (task.isDataTask()) {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
-      ReadBuilder<?, RowData> builder =
-          FileAccessFactoryRegistry.readBuilder(
-              task.file().format(),
-              FlinkObjectModels.FLINK_OBJECT_MODEL,
-              inputFilesDecryptor.getInputFile(task));
+      switch (task.file().format()) {
+        case PARQUET:
+          iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-      if (nameMapping != null) {
-        builder.nameMapping(NameMappingParser.fromJson(nameMapping));
+        case AVRO:
+          iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
+
+        case ORC:
+          iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
+
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
       }
-
-      iter =
-          builder
-              .project(schema)
-              .constantFieldAccessors(idToConstant)
-              .split(task.start(), task.length())
-              .filter(task.residual(), filterCaseSensitive)
-              .reuseContainers()
-              .build();
     }
 
     if (rowFilter != null) {
       return CloseableIterable.filter(iter, rowFilter::filter);
     }
     return iter;
+  }
+
+  private CloseableIterable<RowData> newAvroIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    Avro.ReadBuilder builder =
+        Avro.read(inputFilesDecryptor.getInputFile(task))
+            .reuseContainers()
+            .project(schema)
+            .split(task.start(), task.length())
+            .createReaderFunc(readSchema -> FlinkPlannedAvroReader.create(schema, idToConstant));
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
+  }
+
+  private CloseableIterable<RowData> newParquetIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    Parquet.ReadBuilder builder =
+        Parquet.read(inputFilesDecryptor.getInputFile(task))
+            .split(task.start(), task.length())
+            .project(schema)
+            .createReaderFunc(
+                fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
+            .filter(task.residual())
+            .caseSensitive(caseSensitive)
+            .reuseContainers();
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
+  }
+
+  private CloseableIterable<RowData> newOrcIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    Schema readSchemaWithoutConstantAndMetadataFields =
+        TypeUtil.selectNot(
+            schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+
+    ORC.ReadBuilder builder =
+        ORC.read(inputFilesDecryptor.getInputFile(task))
+            .project(readSchemaWithoutConstantAndMetadataFields)
+            .split(task.start(), task.length())
+            .createReaderFunc(
+                readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
+            .filter(task.residual())
+            .caseSensitive(caseSensitive);
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private static class FlinkDeleteFilter extends DeleteFilter<RowData> {
