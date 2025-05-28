@@ -51,6 +51,12 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    */
   B set(String property, String value);
 
+  /**
+   * Sets multiple writer configuration properties that affect the writer behavior.
+   *
+   * @param properties writer config properties to set
+   * @return this for method chaining
+   */
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
     return (B) this;
@@ -64,6 +70,17 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * @return this for method chaining
    */
   B meta(String property, String value);
+
+  /**
+   * Sets multiple file metadata properties in the created file.
+   *
+   * @param properties file metadata properties to set
+   * @return this for method chaining
+   */
+  default B meta(Map<String, String> properties) {
+    properties.forEach(this::meta);
+    return (B) this;
+  }
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
   B metricsConfig(MetricsConfig newMetricsConfig);
