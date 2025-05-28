@@ -18,13 +18,7 @@
  */
 package org.apache.iceberg;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.DataFileSet;
-import org.apache.iceberg.util.DeleteFileSet;
-import org.apache.iceberg.util.ThreadPools;
 
 public class TableUtil {
   private TableUtil() {}
@@ -74,24 +68,5 @@ public class TableUtil {
     }
 
     return formatVersion(table) >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE;
-  }
-
-  public static DeleteFileSet deletesFilesFor(Table table, DataFileSet dataFiles) {
-    Preconditions.checkArgument(null != table, "Invalid table: null");
-    List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
-    DeleteFileSet deleteFiles = DeleteFileSet.create();
-    DeleteFileIndex index =
-        DeleteFileIndex.builderFor(table.io(), deleteManifests)
-            .specsById(table.specs())
-            .planWith(ThreadPools.getWorkerPool())
-            .build();
-
-    // FIXME: only filter out DVs
-
-    for (DataFile dataFile : dataFiles) {
-      deleteFiles.addAll(Arrays.stream(index.forDataFile(dataFile)).collect(Collectors.toList()));
-    }
-
-    return deleteFiles;
   }
 }

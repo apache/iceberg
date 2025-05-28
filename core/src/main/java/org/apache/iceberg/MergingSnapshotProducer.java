@@ -195,8 +195,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a specific data file to be deleted in the new snapshot. */
   protected void delete(DataFile file) {
     filterManager.delete(file);
-    // TODO: can we find in-memory whether there's a matching DV file that can be removed?
-    // can we add a delete(dataFile, deleteFile) API to ManifestFilterManager?
   }
 
   /** Add a specific delete file to be deleted in the new snapshot. */
@@ -915,6 +913,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
+    Set<DataFile> filesToBeDeleted = filterManager.filesToBeDeleted();
+    deleteFilterManager.removeOrphanedDeletesFor(filesToBeDeleted);
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
@@ -1124,6 +1124,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected Set<DataFile> newFileSet() {
       return DataFileSet.create();
+    }
+
+    @Override
+    protected void removeOrphanedDeletesFor(Set<DataFile> dataFiles) {
+      throw new UnsupportedOperationException("Cannot remove orphaned deletes");
     }
   }
 

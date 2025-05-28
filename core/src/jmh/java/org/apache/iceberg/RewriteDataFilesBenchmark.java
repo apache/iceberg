@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +27,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DataFileSet;
-import org.apache.iceberg.util.DeleteFileSet;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -110,20 +109,6 @@ public class RewriteDataFilesBenchmark {
     table.manageSnapshots().rollbackTo(currentSnapshot.snapshotId()).commit();
   }
 
-  @Benchmark
-  @Threads(1)
-  public void rewriteDataFilesAndRemoveOrphanedDVs() {
-    Snapshot currentSnapshot = table.currentSnapshot();
-    RewriteFiles rewriteFiles = table.newRewrite();
-    rewriteFiles.validateFromSnapshot(currentSnapshot.snapshotId());
-    dataFilesToAdd.forEach(rewriteFiles::addFile);
-    dataFilesToRemove.forEach(rewriteFiles::deleteFile);
-    DeleteFileSet deleteFiles = TableUtil.deletesFilesFor(table, dataFilesToRemove);
-    deleteFiles.forEach(rewriteFiles::deleteFile);
-    rewriteFiles.commit();
-    table.manageSnapshots().rollbackTo(currentSnapshot.snapshotId()).commit();
-  }
-
   private void initTable() {
     if (TABLES.exists(TABLE_IDENT)) {
       TABLES.dropTable(TABLE_IDENT);
@@ -144,13 +129,13 @@ public class RewriteDataFilesBenchmark {
     Map<String, DataFile> filesToReplace = Maps.newHashMapWithExpectedSize(numDataFilesToRewrite);
     RowDelta rowDelta = table.newRowDelta();
     for (int ordinal = 0; ordinal < numFiles; ordinal++) {
-      DataFile dataFile = generateDataFile(table);
+      DataFile dataFile = generateDataFile();
       rowDelta.addRows(dataFile);
       DeleteFile deleteFile = FileGenerationUtil.generateDV(table, dataFile);
       rowDelta.addDeletes(deleteFile);
       if (numDataFilesToRewrite > 0) {
         filesToReplace.put(dataFile.location(), dataFile);
-        DataFile pendingDataFile = generateDataFile(table, dataFile.recordCount());
+        DataFile pendingDataFile = generateDataFile(dataFile.recordCount());
         rowDelta.addRows(pendingDataFile);
         pendingDataFiles.add(pendingDataFile);
         numDataFilesToRewrite--;
@@ -178,11 +163,11 @@ public class RewriteDataFilesBenchmark {
     this.dataFilesToAdd = DataFileSet.of(pendingDataFiles);
   }
 
-  private DataFile generateDataFile(Table table) {
-    return generateDataFile(table, -1L);
+  private DataFile generateDataFile() {
+    return generateDataFile(-1L);
   }
 
-  private DataFile generateDataFile(Table table, long recordCount) {
+  private DataFile generateDataFile(long recordCount) {
     Schema schema = table.schema();
     PartitionSpec spec = table.spec();
     LocationProvider locations = table.locationProvider();
