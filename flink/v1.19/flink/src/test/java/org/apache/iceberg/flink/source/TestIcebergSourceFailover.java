@@ -45,7 +45,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.junit5.InjectClusterClient;
 import org.apache.flink.test.junit5.InjectMiniCluster;
-import org.apache.flink.util.function.ThrowingConsumer;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -61,8 +60,8 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -112,7 +111,7 @@ public class TestIcebergSourceFailover {
             .catalog()
             .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.SCHEMA);
   }
-  
+
   @BeforeEach
   protected void startMiniCluster(@InjectMiniCluster MiniCluster miniCluster) throws Exception {
     if (!miniCluster.isRunning()) {
