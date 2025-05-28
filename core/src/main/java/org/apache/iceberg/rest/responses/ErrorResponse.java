@@ -134,7 +134,7 @@ public class ErrorResponse implements RESTResponse {
       return this;
     }
 
-    public Builder wasRetried(Boolean hasBeenRetried) {
+    public Builder wasRetried(boolean hasBeenRetried) {
       this.wasRetried = hasBeenRetried;
       return this;
     }
