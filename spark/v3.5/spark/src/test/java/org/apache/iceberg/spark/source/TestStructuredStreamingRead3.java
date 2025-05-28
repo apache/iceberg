@@ -198,7 +198,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
-        .isEqualTo(4);
+        .isEqualTo(2);
 
     StreamingQuery query =
         startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
