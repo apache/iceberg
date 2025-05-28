@@ -3101,6 +3101,8 @@ components:
       description: >
         Defines the type of operation, either a standard operation defined by the Iceberg REST API
         specification or a custom operation specific to an implementation.
+        This enum is extended in future versions of the REST specification. Clients should
+        ignore unknown operation types.
       anyOf:
       - enum:
         - create-table
@@ -3488,38 +3490,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/ScanTasks'
 
-    Actor:
-      type: object
-      description: Represents an actor that performed operations in the catalog
-      required:
-        - type
-        - actor-id
-      properties:
-        type:
-          type: string
-          description: The type of actor (e.g., "user", "principal", "role")
-        actor-id:
-          type: string
-          description: The identifier of the actor
-        metadata:
-          type: object
-          description: Additional metadata about the actor that may vary between implementations
-          additionalProperties:
-            type: string
-      example:
-        type: "role"
-        actor-id: "1234"
-        metadata:
-          permissions: "read-write"
-          expiration: "2025-06-07T12:00:00Z"
-          name: "Admin Role"
-        assumed-by:
-          type: "user"
-          actor-id: "4567"
-          metadata:
-            name: "Peter Cold"
-            email: "peter@example.com"
-
     GetEventsRequest:
       type: object
       properties:
@@ -3544,12 +3514,6 @@ components:
           description: >
             Filter events by the type of operation.
             If not provided, all types are returned.
-        actors:
-          type: array
-          items:
-            $ref: "#/components/schemas/Actor"
-          description: >
-            Filter events by actors who performed them.
         catalog-objects:
           type: array
           discriminator:
@@ -3568,6 +3532,12 @@ components:
             If not provided, events for all objects will be returned subject to other filters.
             For specified namespaces, events for the namespaces and all containing objects
             (namespaces, tables, views) will be returned.
+        custom-filters:
+          type: object
+          additionalProperties: true
+          description: >
+            Implementation-specific filter extensions. Implementations may define custom filter 
+            properties beyond the standard ones defined in this specification.
 
     NamespaceReference:
       type: object
@@ -4219,18 +4189,16 @@ components:
             Timestamp when this transaction occurred (epoch milliseconds).
             Timestamps are not guaranteed to be unique. Typically all events in
             a transaction will have the same timestamp.
-        actor-chain:
-          type: array
-          items:
-            $ref: "#/components/schemas/Actor"
+        actor:
+          type: string
           description: >
-            An ordered list of actors involved in the operation, with the most direct actor 
-            (the one who actually performed the operation) first, followed by delegating actors 
-            in order. For example, if a service account (actor[0]) performed an operation 
-            on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents 
-            this delegation path.
+            The actor who performed the operation, such as a user or service account.
+            The content of this field is implementation specific.
         operation:
           type: object
+          description: >
+            The operation that was performed, such as creating or updating a table.
+            Clients should discard events with unknown operation types.
           discriminator:
             propertyName: operation-type
             mapping:

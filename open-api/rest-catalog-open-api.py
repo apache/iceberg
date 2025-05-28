@@ -512,23 +512,6 @@ class PlanStatus(BaseModel):
     )
 
 
-class Actor(BaseModel):
-    """
-    Represents an actor that performed operations in the catalog
-    """
-
-    type: str = Field(
-        ..., description='The type of actor (e.g., "user", "principal", "role")'
-    )
-    actor_id: str = Field(
-        ..., alias='actor-id', description='The identifier of the actor'
-    )
-    metadata: Optional[Dict[str, str]] = Field(
-        None,
-        description='Additional metadata about the actor that may vary between implementations',
-    )
-
-
 class NamespaceReference(BaseModel):
     reference_type: str = Field('namespace', alias='reference-type', const=True)
     namespace: Namespace
@@ -1032,7 +1015,7 @@ class OperationType(BaseModel):
         CustomOperationType,
     ] = Field(
         ...,
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation.\n',
+        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
     )
 
 
@@ -1080,9 +1063,6 @@ class GetEventsRequest(BaseModel):
         alias='operation-types',
         description='Filter events by the type of operation. If not provided, all types are returned.\n',
     )
-    actors: Optional[List[Actor]] = Field(
-        None, description='Filter events by actors who performed them.\n'
-    )
     catalog_objects: Optional[
         List[Union[NamespaceReference, TableReference, ViewReference]]
     ] = Field(
@@ -1090,6 +1070,11 @@ class GetEventsRequest(BaseModel):
         alias='catalog-objects',
         description='List of catalog objects (namespaces, tables, views) to get events for. If not provided, events for all objects will be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) will be returned.\n',
         discriminator='reference_type',
+    )
+    custom_filters: Optional[Dict[str, Any]] = Field(
+        None,
+        alias='custom-filters',
+        description='Implementation-specific filter extensions. Implementations may define custom filter  properties beyond the standard ones defined in this specification.\n',
     )
 
 
@@ -1587,10 +1572,9 @@ class Event(BaseModel):
         alias='timestamp-ms',
         description='Timestamp when this transaction occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
     )
-    actor_chain: Optional[List[Actor]] = Field(
+    actor: Optional[str] = Field(
         None,
-        alias='actor-chain',
-        description='An ordered list of actors involved in the operation, with the most direct actor  (the one who actually performed the operation) first, followed by delegating actors  in order. For example, if a service account (actor[0]) performed an operation  on behalf of a role (actor[1]) assumed by a user (actor[2]), the chain represents  this delegation path.\n',
+        description='The actor who performed the operation, such as a user or service account. The content of this field is implementation specific.\n',
     )
     operation: Union[
         CreateTableOperation,
@@ -1605,7 +1589,11 @@ class Event(BaseModel):
         UpdateNamespacePropertiesOperation,
         DropNamespaceOperation,
         CustomOperation,
-    ] = Field(..., discriminator='operation_type')
+    ] = Field(
+        ...,
+        description='The operation that was performed, such as creating or updating a table. Clients should discard events with unknown operation types.\n',
+        discriminator='operation_type',
+    )
 
 
 class CreateTableOperation(BaseModel):
