@@ -461,6 +461,53 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return new PositionVectorReader(true);
   }
 
+  public static VectorizedArrowReader rowIds(Long baseRowId, VectorizedArrowReader idReader) {
+    if (baseRowId != null) {
+      return new RowIdVectorReader(baseRowId, idReader);
+    } else {
+      return nulls();
+    }
+  }
+
+  public static VectorizedArrowReader lastUpdated(
+      Long baseRowId, Long fileLastUpdated, VectorizedArrowReader seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqVectorReader(fileLastUpdated, seqReader);
+    } else {
+      return nulls();
+    }
+  }
+
+  public static VectorizedReader<?> replaceWithMetadataReader(
+      Types.NestedField icebergField,
+      VectorizedReader<?> reader,
+      Map<Integer, ?> idToConstant,
+      boolean setArrowValidityVector) {
+    int id = icebergField.fieldId();
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      return rowIds(baseRowId, (VectorizedArrowReader) reader);
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(id);
+      return VectorizedArrowReader.lastUpdated(
+          baseRowId, fileSeqNumber, (VectorizedArrowReader) reader);
+    } else if (idToConstant.containsKey(id)) {
+      // containsKey is used because the constant may be null
+      return new ConstantVectorReader<>(icebergField, idToConstant.get(id));
+    } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+      if (setArrowValidityVector) {
+        return positionsWithSetArrowValidityVector();
+      } else {
+        return VectorizedArrowReader.positions();
+      }
+    } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+      return new DeletedVectorReader();
+    }
+
+    return reader;
+  }
+
   private static final class NullVectorReader extends VectorizedArrowReader {
     private static final NullVectorReader INSTANCE = new NullVectorReader();
 
@@ -530,12 +577,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return vector;
     }
 
-    private static NullabilityHolder newNullabilityHolder(int size) {
-      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-      nullabilityHolder.setNotNulls(0, size);
-      return nullabilityHolder;
-    }
-
     @Override
     public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
@@ -565,6 +606,164 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public void close() {
       // don't close vectors as they are not owned by readers
     }
+  }
+
+  private static final class RowIdVectorReader extends VectorizedArrowReader {
+    private static final Field ROW_ID_ARROW_FIELD = ArrowSchemaUtil.convert(MetadataColumns.ROW_ID);
+
+    private final long firstRowId;
+    private final VectorizedReader<VectorHolder> idReader;
+    private final VectorizedReader<VectorHolder> posReader;
+    private NullabilityHolder nulls;
+
+    private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : nulls();
+      this.posReader = new PositionVectorReader(true);
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      FieldVector positions = null;
+      FieldVector ids = null;
+
+      try {
+        positions = posReader.read(null, numValsToRead).vector();
+        VectorHolder idsHolder = idReader.read(null, numValsToRead);
+        ids = idsHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
+            ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
+
+        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        ArrowBuf dataBuffer = rowIds.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (idsAccessor == null || isNull(idsHolder, i)) {
+            long rowId = firstRowId + (Long) positions.getObject(i);
+            dataBuffer.setLong(bufferOffset, rowId);
+          } else {
+            long materializedRowId = idsAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedRowId);
+          }
+        }
+
+        rowIds.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(rowIds, MetadataColumns.ROW_ID, nulls);
+      } finally {
+        if (positions != null) {
+          positions.close();
+        }
+
+        if (ids != null) {
+          ids.close();
+        }
+      }
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      idReader.setRowGroupInfo(source, metadata);
+      posReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
+
+      idReader.setBatchSize(batchSize);
+      posReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      // don't close result vectors as they are not owned by readers
+    }
+  }
+
+  private static final class LastUpdatedSeqVectorReader extends VectorizedArrowReader {
+    private static final Field LAST_UPDATED_SEQ =
+        ArrowSchemaUtil.convert(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+
+    private final long lastUpdatedSeq;
+    private final VectorizedReader<VectorHolder> seqReader;
+    private NullabilityHolder nulls;
+
+    private LastUpdatedSeqVectorReader(
+        long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
+      this.lastUpdatedSeq = lastUpdatedSeq;
+      this.seqReader = seqReader == null ? nulls() : seqReader;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      FieldVector seqNumbers = null;
+      try {
+        VectorHolder seqNumbersHolder = seqReader.read(null, numValsToRead);
+        seqNumbers = seqNumbersHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
+            seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
+
+        BigIntVector lastUpdatedSequenceNumbers =
+            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+        ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (seqAccessor == null || isNull(seqNumbersHolder, i)) {
+            dataBuffer.setLong(bufferOffset, lastUpdatedSeq);
+          } else {
+            long materializedSeqNumber = seqAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedSeqNumber);
+          }
+        }
+
+        lastUpdatedSequenceNumbers.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(
+            lastUpdatedSequenceNumbers, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER, nulls);
+      } finally {
+        if (seqNumbers != null) {
+          seqNumbers.close();
+        }
+      }
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      seqReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
+
+      seqReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      // don't close result vectors as they are not owned by readers
+    }
+  }
+
+  private static boolean isNull(VectorHolder holder, int index) {
+    return holder.nullabilityHolder().isNullAt(index) == 1;
+  }
+
+  private static BigIntVector allocateBigIntVector(Field field, int valueCount) {
+    BigIntVector vector = (BigIntVector) field.createVector(ArrowAllocation.rootAllocator());
+    vector.allocateNew(valueCount);
+    return vector;
+  }
+
+  private static NullabilityHolder newNullabilityHolder(int size) {
+    NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
+    nullabilityHolder.setNotNulls(0, size);
+    return nullabilityHolder;
   }
 
   /**
