@@ -31,7 +31,7 @@ arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.27.3"
 awaitility = "4.3.0"
-awssdk-bom = "2.31.45"
+awssdk-bom = "2.31.50"
 azuresdk-bom = "1.2.31"
 awssdk-s3accessgrants = "2.3.0"
 bson-ver = "4.11.5"
@@ -48,10 +48,10 @@ findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
-google-libraries-bom = "26.60.0"
+google-libraries-bom = "26.61.0"
 guava = "33.4.7-jre"
 hadoop3 = "3.4.1"
-httpcomponents-httpclient5 = "5.4.4"
+httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.10.1"
 jackson-bom = "2.19.0"

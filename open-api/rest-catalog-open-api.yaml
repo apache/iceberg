@@ -2430,6 +2430,10 @@ components:
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
+        first-row-id:
+          type: integer
+          format: int64
+          description: The first _row_id assigned to the first row in the first data file in the first manifest
         summary:
           type: object
           required:
@@ -2515,6 +2519,10 @@ components:
         last-updated-ms:
           type: integer
           format: int64
+        next-row-id:
+          type: integer
+          format: int64
+          description: A long higher than all assigned row IDs; the next snapshot's first-row-id.
         properties:
           type: object
           additionalProperties:
@@ -4299,6 +4307,10 @@ components:
         content:
           type: string
           const: "data"
+        first-row-id:
+          type: integer
+          format: int64
+          description: "The first row ID assigned to the first row in the data file"
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
