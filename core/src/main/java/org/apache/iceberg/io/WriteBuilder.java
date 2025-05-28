@@ -65,6 +65,11 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    */
   B meta(String property, String value);
 
+  default B meta(Map<String, String> properties) {
+    properties.forEach(this::meta);
+    return (B) this;
+  }
+
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
   B metricsConfig(MetricsConfig newMetricsConfig);
 

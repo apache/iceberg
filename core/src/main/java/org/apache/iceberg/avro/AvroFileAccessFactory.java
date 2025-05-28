@@ -31,15 +31,15 @@ import org.apache.iceberg.io.OutputFile;
 
 public class AvroFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAccessFactory<E, D> {
   private final String objectModelName;
-  private final BiFunction<Schema, Map<Integer, ?>, DatumReader<?>> readerFunction;
-  private final BiFunction<org.apache.avro.Schema, E, DatumWriter<?>> writerFunction;
-  private final BiFunction<org.apache.avro.Schema, E, DatumWriter<?>> deleteRowWriterFunction;
+  private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
+  private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction;
+  private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> deleteRowWriterFunction;
 
   public AvroFileAccessFactory(
       String objectModelName,
-      BiFunction<Schema, Map<Integer, ?>, DatumReader<?>> readerFunction,
-      BiFunction<org.apache.avro.Schema, E, DatumWriter<?>> writerFunction,
-      BiFunction<org.apache.avro.Schema, E, DatumWriter<?>> deleteRowWriterFunction) {
+      BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
+      BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction,
+      BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> deleteRowWriterFunction) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.writerFunction = writerFunction;
@@ -48,8 +48,8 @@ public class AvroFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAc
 
   public AvroFileAccessFactory(
       String objectModelName,
-      BiFunction<Schema, Map<Integer, ?>, DatumReader<?>> readerFunction,
-      BiFunction<org.apache.avro.Schema, E, DatumWriter<?>> writerFunction) {
+      BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
+      BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction) {
     this(objectModelName, readerFunction, writerFunction, null);
   }
 

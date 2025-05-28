@@ -41,7 +41,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+  private final Function<MessageType, ParquetValueReader<T>> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean filterCaseSensitive;
@@ -51,7 +51,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      Function<MessageType, ParquetValueReader<T>> readerFunc,
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,

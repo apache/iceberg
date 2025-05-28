@@ -87,6 +87,11 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
     return (B) this;
   }
 
+  default B set(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return (B) this;
+  }
+
   /**
    * Enables reusing the containers returned by the reader. Decreases pressure on GC. Readers could
    * decide to ignore the user-provided setting if it is not supported by them.

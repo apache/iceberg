@@ -119,7 +119,7 @@ public class Avro {
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
-    private final WriteBuilderImpl<?, ?> impl;
+    private final WriteBuilderImpl<?, Object> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file, null);
@@ -148,7 +148,11 @@ public class Avro {
       Preconditions.checkState(
           impl.writerFunction == null && impl.deleteRowWriterFunction == null,
           "Cannot set multiple writer builder functions");
-      impl.createWriterFunc = newWriterFunction;
+      if (newWriterFunction != null) {
+        impl.createWriterFunc = s -> (DatumWriter<Object>) newWriterFunction.apply(s);
+      } else {
+        impl.createWriterFunc = null;
+      }
       return this;
     }
 
@@ -212,8 +216,8 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, E, DatumWriter<?>> writerFunction = null;
-    private BiFunction<Schema, E, DatumWriter<?>> deleteRowWriterFunction = null;
+    private BiFunction<Schema, E, DatumWriter<D>> writerFunction = null;
+    private BiFunction<Schema, E, DatumWriter<D>> deleteRowWriterFunction = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -224,7 +228,7 @@ public class Avro {
       this.content = content;
     }
 
-    WriteBuilderImpl<E, D> writerFunction(BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
+    WriteBuilderImpl<E, D> writerFunction(BiFunction<Schema, E, DatumWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -232,7 +236,7 @@ public class Avro {
     }
 
     WriteBuilderImpl<E, D> deleteRowWriterFunction(
-        BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
+        BiFunction<Schema, E, DatumWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.deleteRowWriterFunction = newWriterFunction;

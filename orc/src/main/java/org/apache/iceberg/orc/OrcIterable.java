@@ -45,10 +45,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile file;
   private final Long start;
   private final Long length;
-  private final Function<TypeDescription, OrcRowReader<?>> readerFunction;
+  private final Function<TypeDescription, OrcRowReader<T>> readerFunction;
   private final Expression filter;
   private final boolean filterCaseSensitive;
-  private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
+  private final Function<TypeDescription, OrcBatchReader<T>> batchReaderFunction;
   private final int recordsPerBatch;
   private NameMapping nameMapping;
 
@@ -59,10 +59,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       NameMapping nameMapping,
       Long start,
       Long length,
-      Function<TypeDescription, OrcRowReader<?>> readerFunction,
+      Function<TypeDescription, OrcRowReader<T>> readerFunction,
       boolean filterCaseSensitive,
       Expression filter,
-      Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction,
+      Function<TypeDescription, OrcBatchReader<T>> batchReaderFunction,
       int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;

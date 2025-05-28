@@ -862,7 +862,7 @@ public class ORC {
    */
   @Deprecated
   public static class ReadBuilder {
-    private final ReadBuilderImpl<?> impl;
+    private final ReadBuilderImpl<Object> impl;
 
     private ReadBuilder(InputFile file) {
       this.impl = new ReadBuilderImpl<>(file);
@@ -902,7 +902,12 @@ public class ORC {
               && impl.readerFunction == null
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
-      impl.readerFunc = newReaderFunction;
+      if (newReaderFunction != null) {
+        impl.readerFunc = t -> (OrcRowReader<Object>) newReaderFunction.apply(t);
+      } else {
+        impl.readerFunc = null;
+      }
+
       return this;
     }
 
@@ -918,7 +923,12 @@ public class ORC {
               && impl.readerFunction == null
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
-      impl.batchedReaderFunc = newBatchReaderFunction;
+      if (newBatchReaderFunction != null) {
+        impl.batchedReaderFunc = t -> (OrcBatchReader<Object>) newBatchReaderFunction.apply(t);
+      } else {
+        impl.batchedReaderFunc = null;
+      }
+
       return this;
     }
 
@@ -950,10 +960,10 @@ public class ORC {
     private boolean filterCaseSensitive = true;
     private NameMapping nameMapping = null;
 
-    private Function<TypeDescription, OrcRowReader<?>> readerFunc;
-    private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
-    private ORCFileAccessFactory.ReaderFunction<?> readerFunction;
-    private ORCFileAccessFactory.BatchReaderFunction<?> batchReaderFunction;
+    private Function<TypeDescription, OrcRowReader<D>> readerFunc;
+    private Function<TypeDescription, OrcBatchReader<D>> batchedReaderFunc;
+    private ORCFileAccessFactory.ReaderFunction<D> readerFunction;
+    private ORCFileAccessFactory.BatchReaderFunction<D> batchReaderFunction;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     protected ReadBuilderImpl(InputFile file) {
@@ -1036,13 +1046,13 @@ public class ORC {
     @Override
     public CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      Function<TypeDescription, OrcRowReader<?>> reader =
+      Function<TypeDescription, OrcRowReader<D>> reader =
           readerFunc != null
               ? readerFunc
               : readerFunction != null
                   ? fileType -> readerFunction.read(schema, fileType, constantFieldAccessors)
                   : null;
-      Function<TypeDescription, OrcBatchReader<?>> batchReader =
+      Function<TypeDescription, OrcBatchReader<D>> batchReader =
           batchedReaderFunc != null
               ? batchedReaderFunc
               : batchReaderFunction != null

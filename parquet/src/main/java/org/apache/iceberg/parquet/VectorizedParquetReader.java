@@ -43,7 +43,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
+  private final Function<MessageType, VectorizedReader<T>> batchReaderFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean filterCaseSensitive;
@@ -54,7 +54,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
+      Function<MessageType, VectorizedReader<T>> readerFunc,
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
