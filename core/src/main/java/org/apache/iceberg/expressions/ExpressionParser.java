@@ -31,6 +31,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -167,6 +169,9 @@ public class ExpressionParser {
                 SingleValueParser.toJson(pred.term().type(), value, gen);
               }
               gen.writeEndArray();
+            } else if (pred.isGeospatialPredicate()) {
+              gen.writeFieldName(VALUE);
+              geospatialBoundingBox(pred.asGeospatialPredicate().literal().value());
             }
 
             gen.writeEndObject();
@@ -192,6 +197,13 @@ public class ExpressionParser {
                 }
                 gen.writeEndArray();
 
+              } else if (pred.op() == Expression.Operation.ST_INTERSECTS
+                  || pred.op() == Expression.Operation.ST_DISJOINT) {
+                gen.writeFieldName(VALUE);
+                Literal<ByteBuffer> min = pred.literals().get(0).to(Types.BinaryType.get());
+                Literal<ByteBuffer> max = pred.literals().get(1).to(Types.BinaryType.get());
+                BoundingBox bbox = BoundingBox.fromByteBuffers(min.value(), max.value());
+                geospatialBoundingBox(bbox);
               } else {
                 gen.writeFieldName(VALUE);
                 unboundLiteral(pred.literal().value());
@@ -227,6 +239,44 @@ public class ExpressionParser {
         SingleValueParser.toJson(
             Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
       }
+    }
+
+    private void geospatialBoundingBox(BoundingBox value) throws IOException {
+      gen.writeStartObject();
+
+      // Write x coordinate
+      gen.writeFieldName("x");
+      gen.writeStartObject();
+      gen.writeNumberField("min", value.min().x());
+      gen.writeNumberField("max", value.max().x());
+      gen.writeEndObject();
+
+      // Write y coordinate
+      gen.writeFieldName("y");
+      gen.writeStartObject();
+      gen.writeNumberField("min", value.min().y());
+      gen.writeNumberField("max", value.max().y());
+      gen.writeEndObject();
+
+      // Write z coordinate if present
+      if (value.min().hasZ() || value.max().hasZ()) {
+        gen.writeFieldName("z");
+        gen.writeStartObject();
+        gen.writeNumberField("min", value.min().z());
+        gen.writeNumberField("max", value.max().z());
+        gen.writeEndObject();
+      }
+
+      // Write m coordinate if present
+      if (value.min().hasM() || value.max().hasM()) {
+        gen.writeFieldName("m");
+        gen.writeStartObject();
+        gen.writeNumberField("min", value.min().m());
+        gen.writeNumberField("max", value.max().m());
+        gen.writeEndObject();
+      }
+
+      gen.writeEndObject();
     }
 
     private String operationType(Expression.Operation op) {
@@ -306,6 +356,9 @@ public class ExpressionParser {
         return Expressions.or(
             fromJson(JsonUtil.get(LEFT, json), schema),
             fromJson(JsonUtil.get(RIGHT, json), schema));
+      case ST_INTERSECTS:
+      case ST_DISJOINT:
+        return geospatialPredicateFromJson(op, json);
     }
 
     return predicateFromJson(op, json, schema);
@@ -374,6 +427,15 @@ public class ExpressionParser {
     }
   }
 
+  private static Expression geospatialPredicateFromJson(Expression.Operation op, JsonNode node) {
+    UnboundTerm<ByteBuffer> term = term(JsonUtil.get(TERM, node));
+    Preconditions.checkArgument(node.has(VALUE), "Cannot parse %s predicate: missing value", op);
+    Preconditions.checkArgument(
+        !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
+    BoundingBox boundingBox = geospatialBoundingBox(JsonUtil.get(VALUE, node));
+    return Expressions.geospatialPredicate(op, term, boundingBox);
+  }
+
   private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {
     if (valueNode.isObject() && valueNode.has(TYPE)) {
       String type = JsonUtil.getString(TYPE, valueNode);
@@ -384,6 +446,51 @@ public class ExpressionParser {
 
     // the node is a directly embedded literal value
     return toValue.apply(valueNode);
+  }
+
+  private static BoundingBox geospatialBoundingBox(JsonNode valueNode) {
+    // X and Y coordinates are required
+    double xMin = valueNode.get("x").get("min").asDouble();
+    double xMax = valueNode.get("x").get("max").asDouble();
+    double yMin = valueNode.get("y").get("min").asDouble();
+    double yMax = valueNode.get("y").get("max").asDouble();
+
+    // Create GeospatialBound objects for min and max
+    GeospatialBound minBound;
+    GeospatialBound maxBound;
+
+    // Check if Z coordinate exists
+    boolean hasZ = valueNode.has("z");
+    // Check if M coordinate exists
+    boolean hasM = valueNode.has("m");
+
+    if (hasZ && hasM) {
+      // Both Z and M present
+      double zMin = valueNode.get("z").get("min").asDouble();
+      double zMax = valueNode.get("z").get("max").asDouble();
+      double mMin = valueNode.get("m").get("min").asDouble();
+      double mMax = valueNode.get("m").get("max").asDouble();
+      minBound = GeospatialBound.createXYZM(xMin, yMin, zMin, mMin);
+      maxBound = GeospatialBound.createXYZM(xMax, yMax, zMax, mMax);
+    } else if (hasZ) {
+      // Only Z present, no M
+      double zMin = valueNode.get("z").get("min").asDouble();
+      double zMax = valueNode.get("z").get("max").asDouble();
+      minBound = GeospatialBound.createXYZ(xMin, yMin, zMin);
+      maxBound = GeospatialBound.createXYZ(xMax, yMax, zMax);
+    } else if (hasM) {
+      // Only M present, no Z
+      double mMin = valueNode.get("m").get("min").asDouble();
+      double mMax = valueNode.get("m").get("max").asDouble();
+      minBound = GeospatialBound.createXYM(xMin, yMin, mMin);
+      maxBound = GeospatialBound.createXYM(xMax, yMax, mMax);
+    } else {
+      // Only X and Y present
+      minBound = GeospatialBound.createXY(xMin, yMin);
+      maxBound = GeospatialBound.createXY(xMax, yMax);
+    }
+
+    return new BoundingBox(minBound, maxBound);
   }
 
   private static Object asObject(JsonNode node) {
