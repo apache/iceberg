@@ -54,6 +54,7 @@ nav:
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Daft: daft.md
   - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
+  - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
   - RisingWave: risingwave.md
   - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
   - Presto: https://prestodb.io/docs/current/connector/iceberg.html
@@ -67,6 +68,7 @@ nav:
   - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
   - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+  - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
   - Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
   - Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
   - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview

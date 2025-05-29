@@ -106,7 +106,7 @@ Messages should be converted to a struct or map using the appropriate Kafka Conn
 
 The `iceberg.catalog.*` properties are required for connecting to the Iceberg catalog. The core catalog
 types are included in the default distribution, including REST, Glue, DynamoDB, Hadoop, Nessie,
-JDBC, and Hive. JDBC drivers are not included in the default distribution, so you will need to include
+JDBC, Hive and BigQuery Metastore. JDBC drivers are not included in the default distribution, so you will need to include
 those if needed. When using a Hive catalog, you can use the distribution that includes the Hive metastore client,
 otherwise you will need to include that yourself.
 
@@ -125,7 +125,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 #### Hive example
 
 NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
-using S3 for storage (the default is `HadoopFileIO` with `HiveCatalog`).
+using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
 ```
 "iceberg.catalog.type": "hive",
 "iceberg.catalog.uri": "thrift://hive:9083",
@@ -152,6 +152,17 @@ using S3 for storage (the default is `HadoopFileIO` with `HiveCatalog`).
 "iceberg.catalog.ref": "main",
 "iceberg.catalog.warehouse": "s3a://bucket/warehouse",
 "iceberg.catalog.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+```
+
+#### BigQuery Metastore example
+
+```
+"iceberg.catalog.catalog-impl": "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog",
+"iceberg.catalog.gcp.bigquery.project-id": "my-project",
+"iceberg.catalog.gcp.bigquery.location": "us-east1",
+"iceberg.catalog.warehouse": "gs://bucket/warehouse",
+"iceberg.catalog.io-impl": "org.apache.iceberg.gcp.gcs.GCSFileIO",
+"iceberg.tables.auto-create-props.bq_connection": "projects/my-project/locations/us-east1/connections/my-connection",
 ```
 
 #### Notes

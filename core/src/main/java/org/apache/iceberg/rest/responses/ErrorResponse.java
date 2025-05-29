@@ -32,12 +32,15 @@ public class ErrorResponse implements RESTResponse {
   private final String type;
   private final int code;
   private final List<String> stack;
+  private final boolean wasRetried;
 
-  private ErrorResponse(String message, String type, int code, List<String> stack) {
+  private ErrorResponse(
+      String message, String type, int code, List<String> stack, boolean wasRetried) {
     this.message = message;
     this.type = type;
     this.code = code;
     this.stack = stack;
+    this.wasRetried = wasRetried;
     validate();
   }
 
@@ -60,6 +63,10 @@ public class ErrorResponse implements RESTResponse {
 
   public List<String> stack() {
     return stack;
+  }
+
+  public boolean wasRetried() {
+    return wasRetried;
   }
 
   @Override
@@ -92,6 +99,7 @@ public class ErrorResponse implements RESTResponse {
     private String type;
     private Integer code;
     private List<String> stack;
+    private boolean wasRetried;
 
     private Builder() {}
 
@@ -126,9 +134,14 @@ public class ErrorResponse implements RESTResponse {
       return this;
     }
 
+    public Builder wasRetried(boolean hasBeenRetried) {
+      this.wasRetried = hasBeenRetried;
+      return this;
+    }
+
     public ErrorResponse build() {
       Preconditions.checkArgument(code != null, "Invalid response, missing field: code");
-      return new ErrorResponse(message, type, code, stack);
+      return new ErrorResponse(message, type, code, stack, wasRetried);
     }
   }
 }

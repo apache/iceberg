@@ -22,13 +22,22 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionStatisticsFile;
+import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatsHandler;
+import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -387,5 +396,53 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         "Should have 2 manifests and their partition spec id should be 0 and 1",
         ImmutableList.of(row(0), row(1)),
         sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+  }
+
+  @TestTemplate
+  public void testPartitionStatsIncrementalCompute() throws IOException {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table));
+    List<PartitionStats> statsBeforeRewrite;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsBeforeRewrite = Lists.newArrayList(recordIterator);
+    }
+
+    sql(
+        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, tAbLe => '%s')",
+        catalogName, tableIdent);
+
+    table.refresh();
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    List<PartitionStats> statsAfterRewrite;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsAfterRewrite = Lists.newArrayList(recordIterator);
+    }
+
+    for (int index = 0; index < statsBeforeRewrite.size(); index++) {
+      PartitionStats statsAfter = statsAfterRewrite.get(index);
+      PartitionStats statsBefore = statsBeforeRewrite.get(index);
+
+      assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
+      // data count should match
+      assertThat(statsAfter.dataRecordCount()).isEqualTo(statsBefore.dataRecordCount());
+      // file count should match
+      assertThat(statsAfter.dataFileCount()).isEqualTo(statsBefore.dataFileCount());
+    }
   }
 }

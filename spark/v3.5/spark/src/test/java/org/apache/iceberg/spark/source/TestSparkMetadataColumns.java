@@ -316,6 +316,21 @@ public class TestSparkMetadataColumns extends TestBase {
         sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
+  @TestTemplate
+  public void testRowLineageColumnsAreNullBeforeV3() {
+    assumeThat(formatVersion).isLessThan(3);
+    // ToDo: When the other readers have row lineage plumbed through, remove these assumptions
+    assumeThat(vectorized).isFalse();
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+
+    sql("INSERT INTO TABLE %s VALUES (1L, 'a1', 'b1')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, null, null)),
+        sql("SELECT id, _row_id, _last_updated_sequence_number FROM %s", TABLE_NAME));
+  }
+
   private void createAndInitTable() throws IOException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(FORMAT_VERSION, String.valueOf(formatVersion));

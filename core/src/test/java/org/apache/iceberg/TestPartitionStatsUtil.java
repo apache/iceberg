@@ -33,6 +33,10 @@ import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * @deprecated since 1.10.0, will be removed in 1.11.0; covered by `PartitionStatsHandlerTestBase`.
+ */
+@Deprecated
 public class TestPartitionStatsUtil {
   private static final Schema SCHEMA =
       new Schema(

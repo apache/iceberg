@@ -124,6 +124,14 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 
 [Tabular](https://tabular.io/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
 
+### [Tinybird](https://tinybird.co)
+
+[Tinybird](https://tinybird.co) is a real-time data platform that lets developers and data teams build fast APIs on top of analytical data using SQL. It now offers native support for Apache Iceberg through ClickHouse’s [iceberg() table function](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg), allowing seamless querying of Iceberg tables stored in S3.
+
+This integration enables low-latency, high-concurrency access to Iceberg data, with Tinybird handling ingestion, transformation, and API publishing. Developers can now leverage Iceberg for open storage and governance, while using Tinybird for blazing-fast query performance and real-time delivery.
+
+Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg).
+
 ### [Upsolver](https://upsolver.com)
 
 [Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/content/how-to-guides-1/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.

@@ -97,7 +97,7 @@ public class TestCommitTransactionRequestParser {
                 new UpdateRequirement.AssertDefaultSpecID(4),
                 new UpdateRequirement.AssertCurrentSchemaID(24)),
             ImmutableList.of(
-                new MetadataUpdate.RemoveSnapshot(101L), new MetadataUpdate.SetCurrentSchema(25)));
+                new MetadataUpdate.RemoveSnapshots(101L), new MetadataUpdate.SetCurrentSchema(25)));
 
     CommitTransactionRequest request =
         new CommitTransactionRequest(
