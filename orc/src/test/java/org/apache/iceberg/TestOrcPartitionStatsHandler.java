@@ -53,4 +53,18 @@ public class TestOrcPartitionStatsHandler extends PartitionStatsHandlerTestBase 
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot write using unregistered internal data format: ORC");
   }
+
+  @Override
+  public void testLatestStatsFileWithBranch() throws Exception {
+    assertThatThrownBy(super::testLatestStatsFileWithBranch)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write using unregistered internal data format: ORC");
+  }
+
+  @Override
+  public void testCopyOnWriteDelete() throws Exception {
+    assertThatThrownBy(super::testCopyOnWriteDelete)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write using unregistered internal data format: ORC");
+  }
 }

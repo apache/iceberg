@@ -29,9 +29,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -39,10 +39,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
@@ -163,7 +161,8 @@ public class PartitionStatsHandler {
     if (statisticsFile == null) {
       LOG.info(
           "Using full compute as previous statistics file is not present for incremental compute.");
-      stats = computeStats(table, snapshot, file -> true, false /* incremental */).values();
+      stats =
+          computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
     } else {
       stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
     }
@@ -276,7 +275,8 @@ public class PartitionStatsHandler {
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     // read previous stats, note that partition field will be read as GenericRecord
     try (CloseableIterable<PartitionStats> oldStats =
-        readPartitionStatsFile(schema(partitionType), Files.localInput(previousStatsFile.path()))) {
+        readPartitionStatsFile(
+            schema(partitionType), table.io().newInputFile(previousStatsFile.path()))) {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
@@ -325,28 +325,34 @@ public class PartitionStatsHandler {
       }
     }
 
-    // This is unlikely to happen.
-    throw new RuntimeException(
-        "Unable to find previous stats with valid snapshot. Invalidate partition stats for all the snapshots to use full compute.");
+    // A stats file exists but isn't accessible from the current snapshot chain.
+    // It may belong to a different snapshot reference (like a branch or tag).
+    // Falling back to full computation for current snapshot.
+    return null;
   }
 
   private static PartitionMap<PartitionStats> computeStatsDiff(
       Table table, Snapshot fromSnapshot, Snapshot toSnapshot) {
-    Set<Long> snapshotIdsRange =
-        Sets.newHashSet(
-            SnapshotUtil.ancestorIdsBetween(
-                toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
-    Predicate<ManifestFile> manifestFilePredicate =
-        manifestFile -> snapshotIdsRange.contains(manifestFile.snapshotId());
-    return computeStats(table, toSnapshot, manifestFilePredicate, true /* incremental */);
+    Iterable<Snapshot> snapshots =
+        SnapshotUtil.ancestorsBetween(
+            toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot);
+    // DELETED manifest entries are not carried over to subsequent snapshots.
+    // So, for incremental computation, gather the manifests added by each snapshot
+    // instead of relying solely on those from the latest snapshot.
+    List<ManifestFile> manifests =
+        StreamSupport.stream(snapshots.spliterator(), false)
+            .flatMap(
+                snapshot ->
+                    snapshot.allManifests(table.io()).stream()
+                        .filter(file -> file.snapshotId().equals(snapshot.snapshotId())))
+            .collect(Collectors.toList());
+
+    return computeStats(table, manifests, true /* incremental */);
   }
 
   private static PartitionMap<PartitionStats> computeStats(
-      Table table, Snapshot snapshot, Predicate<ManifestFile> predicate, boolean incremental) {
+      Table table, List<ManifestFile> manifests, boolean incremental) {
     StructType partitionType = Partitioning.partitionType(table);
-    List<ManifestFile> manifests =
-        snapshot.allManifests(table.io()).stream().filter(predicate).collect(Collectors.toList());
-
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
