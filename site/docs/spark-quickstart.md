@@ -36,7 +36,6 @@ which contains a local Spark cluster with a configured Iceberg catalog. To use t
 Once you have those, save the yaml below into a file named `docker-compose.yml`:
 
 ```yaml
-version: "3"
 
 services:
   spark-iceberg:
