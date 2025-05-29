@@ -29,9 +29,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -41,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
@@ -326,26 +325,26 @@ public class PartitionStatsHandler {
       }
     }
 
-    // This is unlikely to happen.
-    throw new RuntimeException(
-        "Unable to find previous stats with valid snapshot. Invalidate partition stats for all the snapshots to use full compute.");
+    // A stats file exists but isn't accessible from the current snapshot chain.
+    // It may belong to a different snapshot reference (like a branch or tag).
+    // Falling back to full computation for current snapshot.
+    return null;
   }
 
   private static PartitionMap<PartitionStats> computeStatsDiff(
       Table table, Snapshot fromSnapshot, Snapshot toSnapshot) {
-    Set<Long> snapshotIdsRange =
-        Sets.newHashSet(
-            SnapshotUtil.ancestorIdsBetween(
-                toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
+    Iterable<Snapshot> snapshots =
+        SnapshotUtil.ancestorsBetween(
+            toSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot);
     // DELETED manifest entries are not carried over to subsequent snapshots.
     // So, for incremental computation, gather the manifests added by each snapshot
     // instead of relying solely on those from the latest snapshot.
     List<ManifestFile> manifests =
-        snapshotIdsRange.stream()
+        StreamSupport.stream(snapshots.spliterator(), false)
             .flatMap(
-                id ->
-                    table.snapshot(id).allManifests(table.io()).stream()
-                        .filter(file -> file.snapshotId().equals(id)))
+                snapshot ->
+                    snapshot.allManifests(table.io()).stream()
+                        .filter(file -> file.snapshotId().equals(snapshot.snapshotId())))
             .collect(Collectors.toList());
 
     return computeStats(table, manifests, true /* incremental */);
