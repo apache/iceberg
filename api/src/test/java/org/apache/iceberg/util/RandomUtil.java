@@ -20,6 +20,8 @@ package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -156,6 +158,19 @@ public class RandomUtil {
         BigInteger unscaled = randomUnscaled(type.precision(), random);
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
+
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // Generate a random point in range [0, 10) for both x and y coordinates
+        double coordX = random.nextDouble() * 10;
+        double coordY = random.nextDouble() * 10;
+        ByteBuffer buffer = ByteBuffer.allocate(21);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.put((byte) 1); // Byte order (1 for Little Endian)
+        buffer.putInt(1); // Geometry type (1 for Point)
+        buffer.putDouble(coordX);
+        buffer.putDouble(coordY);
+        return buffer.flip();
 
       default:
         throw new IllegalArgumentException(

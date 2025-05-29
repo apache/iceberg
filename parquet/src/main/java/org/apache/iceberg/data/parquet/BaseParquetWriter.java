@@ -270,5 +270,17 @@ abstract class BaseParquetWriter<T> {
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueWriters.uuids(desc));
     }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
   }
 }
