@@ -375,7 +375,7 @@ class ParquetVariantUtil {
     }
   }
 
-  private static class ParquetSchemaProducer extends VariantVisitor<Type> {
+  static class ParquetSchemaProducer extends VariantVisitor<Type> {
     @Override
     public Type object(VariantObject object, List<String> names, List<Type> typedValues) {
       if (object.numFields() < 1) {
@@ -492,7 +492,7 @@ class ParquetVariantUtil {
       throw new UnsupportedOperationException("Unsupported shredding type: " + primitive.type());
     }
 
-    private static GroupType objectFields(List<GroupType> fields) {
+    static GroupType objectFields(List<GroupType> fields) {
       Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
       for (GroupType field : fields) {
         checkField(field);
@@ -502,14 +502,14 @@ class ParquetVariantUtil {
       return builder.named("typed_value");
     }
 
-    private static void checkField(GroupType fieldType) {
+    static void checkField(GroupType fieldType) {
       Preconditions.checkArgument(
           fieldType.isRepetition(Type.Repetition.REQUIRED),
           "Invalid field type repetition: %s should be REQUIRED",
           fieldType.getRepetition());
     }
 
-    private static GroupType field(String name, Type shreddedType) {
+    static GroupType field(String name, Type shreddedType) {
       Types.GroupBuilder<GroupType> builder =
           Types.buildGroup(Type.Repetition.REQUIRED)
               .optional(PrimitiveType.PrimitiveTypeName.BINARY)
@@ -523,7 +523,7 @@ class ParquetVariantUtil {
       return builder.named(name);
     }
 
-    private static void checkShreddedType(Type shreddedType) {
+    static void checkShreddedType(Type shreddedType) {
       Preconditions.checkArgument(
           shreddedType.getName().equals("typed_value"),
           "Invalid shredded type name: %s should be typed_value",
@@ -534,16 +534,16 @@ class ParquetVariantUtil {
           shreddedType.getRepetition());
     }
 
-    private static Type shreddedPrimitive(PrimitiveType.PrimitiveTypeName primitive) {
+    static Type shreddedPrimitive(PrimitiveType.PrimitiveTypeName primitive) {
       return Types.optional(primitive).named("typed_value");
     }
 
-    private static Type shreddedPrimitive(
+    static Type shreddedPrimitive(
         PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation) {
       return Types.optional(primitive).as(annotation).named("typed_value");
     }
 
-    private static Type shreddedPrimitive(
+    static Type shreddedPrimitive(
         PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation, int length) {
       return Types.optional(primitive).as(annotation).length(length).named("typed_value");
     }
