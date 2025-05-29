@@ -44,6 +44,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -61,6 +62,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.catalog.Namespace;
@@ -117,11 +119,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, true},
-        new Object[] {2, false},
-        new Object[] {3, true},
-        new Object[] {3, false});
+    return Arrays.stream(TestHelpers.ALL_VERSIONS)
+        .filter(version -> version > 1)
+        .boxed()
+        .flatMap(version -> Stream.of(new Object[] {version, true}, new Object[] {version, false}))
+        .collect(Collectors.toList());
   }
 
   @BeforeEach
@@ -368,21 +370,21 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     // normal write
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    spark.conf().set(SparkSQLProperties.WAP_ID, "1");
+    withSQLConf(
+        Map.of(SparkSQLProperties.WAP_ID, "1"),
+        () -> {
+          // wap write
+          df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    // wap write
-    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+          Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+          List<ThreeColumnRecord> actualRecords =
+              resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    spark.conf().unset(SparkSQLProperties.WAP_ID);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords =
-        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-
-    // TODO: currently fails because DVs delete stuff from WAP branch
-    assertThat(actualRecords)
-        .as("Should not return data from the staged snapshot")
-        .isEqualTo(records);
+          // TODO: currently fails because DVs delete stuff from WAP branch
+          assertThat(actualRecords)
+              .as("Should not return data from the staged snapshot")
+              .isEqualTo(records);
+        });
 
     waitUntilAfter(System.currentTimeMillis());
 
