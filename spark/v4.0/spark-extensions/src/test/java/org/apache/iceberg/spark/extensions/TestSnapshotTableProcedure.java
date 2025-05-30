@@ -200,12 +200,14 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `snapshot` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("Wrong arg type for location");
+        .hasMessageStartingWith(
+            "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The third parameter requires the \"STRING\" type, however \"map(foo, bar)\" has the type \"MAP<STRING, STRING>\". SQLSTATE: 42K09");
 
     assertThatThrownBy(
             () ->

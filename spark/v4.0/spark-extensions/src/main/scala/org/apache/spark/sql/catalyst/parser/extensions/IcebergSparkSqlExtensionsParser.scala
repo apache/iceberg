@@ -136,24 +136,17 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       .replaceAll("`", "")
       .trim()
 
-     isIcebergProcedure(normalized) || (
-        normalized.startsWith("alter table") && (
-            normalized.contains("add partition field") ||
-            normalized.contains("drop partition field") ||
-            normalized.contains("replace partition field") ||
-            normalized.contains("write ordered by") ||
-            normalized.contains("write locally ordered by") ||
-            normalized.contains("write distributed by") ||
-            normalized.contains("write unordered") ||
-            normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields") ||
-            isSnapshotRefDdl(normalized)))
-  }
-
-  // All builtin Iceberg procedures are under the 'system' namespace
-  private def isIcebergProcedure(normalized: String): Boolean = {
-    normalized.startsWith("call") &&
-    SparkProcedures.names().asScala.map("system." + _).exists(normalized.contains)
+      normalized.startsWith("alter table") && (
+          normalized.contains("add partition field") ||
+          normalized.contains("drop partition field") ||
+          normalized.contains("replace partition field") ||
+          normalized.contains("write ordered by") ||
+          normalized.contains("write locally ordered by") ||
+          normalized.contains("write distributed by") ||
+          normalized.contains("write unordered") ||
+          normalized.contains("set identifier fields") ||
+          normalized.contains("drop identifier fields") ||
+          isSnapshotRefDdl(normalized))
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
