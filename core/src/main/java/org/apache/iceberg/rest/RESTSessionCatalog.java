@@ -490,7 +490,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table registerTable(
-      SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
     Endpoint.check(endpoints, Endpoint.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
@@ -503,6 +506,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableRegisterTableRequest.builder()
             .name(ident.name())
             .metadataLocation(metadataFileLocation)
+            .overwrite(overwrite)
             .build();
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
