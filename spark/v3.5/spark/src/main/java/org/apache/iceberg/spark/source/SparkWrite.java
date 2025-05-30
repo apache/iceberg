@@ -101,6 +101,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final boolean useFanoutWriter;
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
+  private final boolean caseSensitive;
 
   private boolean cleanupOnAbort = false;
 
@@ -130,6 +131,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
+    this.caseSensitive = writeConf.caseSensitive();
   }
 
   @Override
@@ -351,6 +353,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       OverwriteFiles overwriteFiles = table.newOverwrite();
       overwriteFiles.overwriteByRowFilter(overwriteExpr);
+      overwriteFiles.caseSensitive(caseSensitive);
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
