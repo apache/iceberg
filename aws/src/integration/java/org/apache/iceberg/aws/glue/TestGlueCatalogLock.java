@@ -35,7 +35,6 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.dynamodb.DynamoDbLockManager;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -69,13 +68,13 @@ public class TestGlueCatalogLock extends GlueTestBase {
     String testBucketPath = "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX;
     lockTableName = getRandomName();
     glueCatalog = new GlueCatalog();
-    AwsProperties awsProperties = new AwsProperties();
+    GlueProperties glueProperties = new GlueProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     dynamo = CLIENT_FACTORY.dynamo();
     glueCatalog.initialize(
         CATALOG_NAME,
         testBucketPath,
-        awsProperties,
+        glueProperties,
         s3FileIOProperties,
         GLUE,
         new DynamoDbLockManager(dynamo, lockTableName),

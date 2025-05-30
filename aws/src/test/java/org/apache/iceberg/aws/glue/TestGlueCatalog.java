@@ -27,7 +27,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -81,7 +80,7 @@ public class TestGlueCatalog {
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
-        new AwsProperties(),
+        new GlueProperties(),
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
@@ -94,7 +93,7 @@ public class TestGlueCatalog {
     catalog.initialize(
         CATALOG_NAME,
         null,
-        new AwsProperties(),
+        new GlueProperties(),
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
@@ -118,7 +117,7 @@ public class TestGlueCatalog {
     catalogWithSlash.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
-        new AwsProperties(),
+        new GlueProperties(),
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
@@ -170,13 +169,13 @@ public class TestGlueCatalog {
   public void testDefaultWarehouseLocationCustomCatalogId() {
     GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
     String catalogId = "myCatalogId";
-    AwsProperties awsProperties = new AwsProperties();
+    GlueProperties glueProperties = new GlueProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
-    awsProperties.setGlueCatalogId(catalogId);
+    glueProperties.setGlueCatalogId(catalogId);
     catalogWithCustomCatalogId.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
-        awsProperties,
+        glueProperties,
         s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
@@ -616,7 +615,7 @@ public class TestGlueCatalog {
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
-        new AwsProperties(),
+        new GlueProperties(),
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
@@ -633,7 +632,7 @@ public class TestGlueCatalog {
 
   @Test
   public void testValidateIdentifierSkipNameValidation() {
-    AwsProperties props = new AwsProperties();
+    GlueProperties props = new GlueProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     props.setGlueCatalogSkipNameValidation(true);
     glueCatalog.initialize(
@@ -655,12 +654,12 @@ public class TestGlueCatalog {
             "true",
             S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
-    AwsProperties awsProperties = new AwsProperties(properties);
+    GlueProperties glueProperties = new GlueProperties(properties);
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
-        awsProperties,
+        glueProperties,
         s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
