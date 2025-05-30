@@ -52,6 +52,7 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RESTException;
@@ -381,7 +382,11 @@ public class HTTPClient extends BaseHTTPClient {
     if (tlsConfigurer != null) {
       connectionManagerBuilder.setTlsSocketStrategy(
           new DefaultClientTlsStrategy(
-              tlsConfigurer.sslContext(), tlsConfigurer.hostnameVerifier()));
+              tlsConfigurer.sslContext(),
+              tlsConfigurer.supportedProtocols(),
+              tlsConfigurer.supportedCipherSuites(),
+              SSLBufferMode.STATIC,
+              tlsConfigurer.hostnameVerifier()));
     }
 
     return connectionManagerBuilder.build();

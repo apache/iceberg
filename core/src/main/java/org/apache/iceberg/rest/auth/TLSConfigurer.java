@@ -35,4 +35,12 @@ public interface TLSConfigurer {
   default HostnameVerifier hostnameVerifier() {
     return HttpsSupport.getDefaultHostnameVerifier();
   }
+
+  default String[] supportedProtocols() {
+    return null;
+  }
+
+  default String[] supportedCipherSuites() {
+    return null;
+  }
 }
