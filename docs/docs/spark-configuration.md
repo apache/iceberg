@@ -32,6 +32,12 @@ spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
 # omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
+If Hive Metastore uses Kerberos authentication, set the following parameter on top of the above to automatically obtain and use delegation token:
+
+```plain
+# replace hive/_HOST@REALM.COM with actual Hive service principal
+spark.sql.catalog.hive_prod.hive.metastore.kerberos.principal = hive/_HOST@REALM.COM
+```
 
 Below is an example for a REST catalog named `rest_prod` that loads tables from REST URL `http://localhost:8080`:
 
