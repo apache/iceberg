@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -87,5 +88,24 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
                 .getSchemaInfo()
                 .getLastResult(SCHEMA2))
         .isNull();
+  }
+
+  @Test
+  void testTableAlreadyExists() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+
+    // Make the table non-existent in cache
+    cache.exists(tableIdentifier);
+    // Create the table
+    catalog.createTable(tableIdentifier, SCHEMA);
+    // Make sure that the cache is invalidated and the table refreshed without an error
+    Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> result =
+        tableUpdater.update(tableIdentifier, null, SCHEMA, PartitionSpec.unpartitioned());
+    assertThat(result.f0.sameSchema(SCHEMA)).isTrue();
+    assertThat(result.f1).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    assertThat(result.f2).isEqualTo(PartitionSpec.unpartitioned());
   }
 }

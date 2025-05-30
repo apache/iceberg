@@ -78,21 +78,16 @@ class TableUpdater {
         } catch (AlreadyExistsException e) {
           LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
         }
-
-        createTable(identifier, schema, spec);
-      } else {
-        LOG.info("Table {} not found during table search. Creating table.", identifier);
-        createTable(identifier, schema, spec);
       }
-    }
-  }
-
-  private void createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
-    try {
-      Table table = catalog.createTable(identifier, schema, spec);
-      cache.update(identifier, table);
-    } catch (AlreadyExistsException e) {
-      LOG.info("Table {} created concurrently. Skipping creation.", identifier, e);
+      LOG.info("Table {} not found during table search. Creating table.", identifier);
+      try {
+        Table table = catalog.createTable(identifier, schema, spec);
+        cache.update(identifier, table);
+      } catch (AlreadyExistsException e) {
+        LOG.debug("Table {} created concurrently. Skipping creation.", identifier, e);
+        cache.invalidate(identifier);
+        findOrCreateTable(identifier, schema, spec);
+      }
     }
   }
 
