@@ -30,7 +30,6 @@ import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -184,26 +183,6 @@ public class RewriteDataFiles {
       this.rewriteOptions.put(
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, String.valueOf(maxFilesToRewrite));
       return this;
-    }
-
-    @VisibleForTesting
-    boolean partialProgressEnabled() {
-      return partialProgressEnabled;
-    }
-
-    @VisibleForTesting
-    int partialProgressMaxCommits() {
-      return partialProgressMaxCommits;
-    }
-
-    @VisibleForTesting
-    Map<String, String> rewriteOptions() {
-      return rewriteOptions;
-    }
-
-    @VisibleForTesting
-    long maxRewriteBytes() {
-      return maxRewriteBytes;
     }
 
     /**

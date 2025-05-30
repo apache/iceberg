@@ -100,18 +100,6 @@ public class TriggerEvaluator implements Serializable {
       return this;
     }
 
-    public Integer dataFileCount() {
-      return dataFileCount;
-    }
-
-    public Long dataFileSizeInBytes() {
-      return dataFileSizeInBytes;
-    }
-
-    public Integer commitCount() {
-      return commitCount;
-    }
-
     public Duration timeout() {
       return timeout;
     }

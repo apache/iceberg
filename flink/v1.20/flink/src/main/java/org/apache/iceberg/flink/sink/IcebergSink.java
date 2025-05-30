@@ -255,7 +255,7 @@ public class IcebergSink
     SingleOutputStreamOperator<TableChange> tableChangeStream =
         committables
             .global()
-            .process(new CommittableToTableChangeConverter(tableLoader))
+            .process(new CommittableToTableChangeConverter(table.io(), table.name(), table.specs()))
             .uid(postCommitUid)
             .forceNonParallel();
     try {

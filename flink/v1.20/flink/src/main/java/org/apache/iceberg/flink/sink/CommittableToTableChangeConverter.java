@@ -40,15 +40,10 @@ import org.apache.flink.util.Collector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -62,27 +57,37 @@ public class CommittableToTableChangeConverter
   private static final Logger LOG =
       LoggerFactory.getLogger(CommittableToTableChangeConverter.class);
 
-  private final TableLoader tableLoader;
-  private transient FileIO io;
-  private transient String tableName;
-  private transient Map<Integer, PartitionSpec> specs;
+  private FileIO io;
+  private String tableName;
+  private Map<Integer, PartitionSpec> specs;
   private transient ListState<Tuple2<Long, String>> manifestFilesCommitedState;
   private transient Set<String> manifestFilesCommitedSet;
+  private transient NavigableMap<Long, List<String>> commitRequestMap;
   private transient List<Tuple2<Long, String>> manifestFilesCommitedList;
   private transient String flinkJobId;
   // Maximum number of manifests to be committed at a time.
   // It is hardcoded for now, we can revisit in the future if config is needed.
   private int maxSize = 1000;
 
-  public CommittableToTableChangeConverter(TableLoader tableLoader) {
-    Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
-    this.tableLoader = tableLoader;
+  public CommittableToTableChangeConverter(
+      FileIO fileIO, String tableName, Map<Integer, PartitionSpec> specs) {
+    Preconditions.checkNotNull(fileIO, "FileIO should not be null");
+    Preconditions.checkNotNull(tableName, "TableName should not be null");
+    Preconditions.checkNotNull(specs, "Specs should not be null");
+    this.io = fileIO;
+    this.tableName = tableName;
+    this.specs = specs;
   }
 
   @VisibleForTesting
-  CommittableToTableChangeConverter(TableLoader tableLoader, int maxSize) {
-    Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
-    this.tableLoader = tableLoader;
+  CommittableToTableChangeConverter(
+      FileIO fileIO, String tableName, Map<Integer, PartitionSpec> specs, int maxSize) {
+    Preconditions.checkNotNull(fileIO, "FileIO should not be null");
+    Preconditions.checkNotNull(tableName, "TableName should not be null");
+    Preconditions.checkNotNull(specs, "Specs should not be null");
+    this.io = fileIO;
+    this.tableName = tableName;
+    this.specs = specs;
     this.maxSize = maxSize;
   }
 
@@ -90,6 +95,7 @@ public class CommittableToTableChangeConverter
   public void initializeState(FunctionInitializationContext context) throws Exception {
     this.manifestFilesCommitedSet = Sets.newHashSet();
     this.manifestFilesCommitedList = Lists.newArrayList();
+    this.commitRequestMap = Maps.newTreeMap();
     this.manifestFilesCommitedState =
         context
             .getOperatorStateStore()
@@ -100,6 +106,11 @@ public class CommittableToTableChangeConverter
       for (Tuple2<Long, String> checkPointIdAndManifestTuple : manifestFilesCommitedState.get()) {
         manifestFilesCommitedSet.add(checkPointIdAndManifestTuple.f1);
         manifestFilesCommitedList.add(checkPointIdAndManifestTuple);
+        manifestFilesCommitedList.forEach(
+            tuple ->
+                commitRequestMap
+                    .computeIfAbsent(tuple.f0, k -> Lists.newArrayList())
+                    .add(tuple.f1));
       }
     }
   }
@@ -107,15 +118,12 @@ public class CommittableToTableChangeConverter
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
-    this.flinkJobId = getRuntimeContext().getJobId().toString();
-    if (!tableLoader.isOpen()) {
-      tableLoader.open();
-    }
+    Preconditions.checkState(
+        getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks() == 1,
+        "CommittableToTableChangeConverter must run with parallelism 1, current parallelism: %s",
+        getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks());
 
-    Table table = tableLoader.loadTable();
-    this.io = table.io();
-    this.specs = table.specs();
-    this.tableName = table.name();
+    this.flinkJobId = getRuntimeContext().getJobId().toString();
   }
 
   @Override
@@ -158,11 +166,7 @@ public class CommittableToTableChangeConverter
       ManifestFile deleteManifest = deltaManifests.deleteManifest();
       if (deleteManifest != null) {
         if (!manifestFilesCommitedSet.contains(deleteManifest.path())) {
-          try (CloseableIterable<DeleteFile> deleteFileIterable =
-              ManifestFiles.readDeleteManifest(deleteManifest, io, specs)) {
-            Iterables.addAll(deleteFiles, deleteFileIterable);
-          }
-
+          deleteFiles.addAll(FlinkManifestUtil.readDeleteFiles(deleteManifest, io, specs));
           addManifestInfo(committable.checkpointId(), deleteManifest.path());
         } else {
           LOG.info("Delete manifest file {} has already been committed", deleteManifest.path());
@@ -173,7 +177,7 @@ public class CommittableToTableChangeConverter
         return;
       }
 
-      TableChange tableChange = new TableChange(dataFiles, deleteFiles, false);
+      TableChange tableChange = new TableChange(dataFiles, deleteFiles);
       out.collect(tableChange);
     } else {
       LOG.warn("Unsupported type of committable message: {}", value.getClass());
@@ -183,14 +187,10 @@ public class CommittableToTableChangeConverter
   private void addManifestInfo(long checkpointId, String manifestPath) {
     manifestFilesCommitedSet.add(manifestPath);
     manifestFilesCommitedList.add(Tuple2.of(checkpointId, manifestPath));
+    commitRequestMap.computeIfAbsent(checkpointId, k -> Lists.newArrayList()).add(manifestPath);
 
     // If the capacity is exceeded, delete the earliest file.
     if (manifestFilesCommitedSet.size() > maxSize) {
-      NavigableMap<Long, List<String>> commitRequestMap = Maps.newTreeMap();
-      manifestFilesCommitedList.forEach(
-          tuple ->
-              commitRequestMap.computeIfAbsent(tuple.f0, k -> Lists.newArrayList()).add(tuple.f1));
-
       long oldestCheckpointId = commitRequestMap.firstEntry().getKey();
       List<String> pathToRemoveList = commitRequestMap.get(oldestCheckpointId);
       commitRequestMap.remove(oldestCheckpointId);
@@ -212,11 +212,5 @@ public class CommittableToTableChangeConverter
   @Override
   public void close() throws Exception {
     super.close();
-    if (tableLoader.isOpen()) {
-      tableLoader.close();
-    }
-
-    io = null;
-    specs = null;
   }
 }

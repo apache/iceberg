@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestRewriteDataFilesConfig extends OperatorTestBase {
   private Table table;
-  Map<String, String> input = Maps.newHashMap();
+  private Map<String, String> input = Maps.newHashMap();
 
   @BeforeEach
   public void before() {
@@ -83,33 +83,31 @@ public class TestRewriteDataFilesConfig extends OperatorTestBase {
             org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
     assertThat(config.maxRewriteBytes()).isEqualTo(Long.MAX_VALUE);
     assertThat(config.scheduleOnCommitCount())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT_DEFAULT);
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue());
     assertThat(config.scheduleOnDataFileCount())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT);
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue());
     assertThat(config.scheduleOnDataFileSize())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT);
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue());
     assertThat(config.scheduleOnIntervalSecond())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND_DEFAULT);
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND_OPTION.defaultValue());
   }
 
   @Test
   void testPropertiesMethodWithAllConfigs() {
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
     RewriteDataFilesConfig config = new RewriteDataFilesConfig(table, input, new Configuration());
-    builder.properties(config);
 
     // check the config about the rewriter
-    assertThat(builder.partialProgressEnabled()).isTrue();
-    assertThat(builder.partialProgressMaxCommits()).isEqualTo(5);
-    assertThat(builder.maxRewriteBytes()).isEqualTo(1024L);
+    assertThat(config.partialProgressEnable()).isTrue();
+    assertThat(config.partialProgressMaxCommits()).isEqualTo(5);
+    assertThat(config.maxRewriteBytes()).isEqualTo(1024L);
 
     // check the config about the schedule
-    assertThat(builder.scheduleCommitCount()).isEqualTo(10);
-    assertThat(builder.scheduleDataFileCount()).isEqualTo(20);
-    assertThat(builder.scheduleDataFileSize()).isEqualTo(30);
-    assertThat(builder.scheduleInterval()).isEqualTo(Duration.ofSeconds(60));
+    assertThat(config.scheduleOnCommitCount()).isEqualTo(10);
+    assertThat(config.scheduleOnDataFileCount()).isEqualTo(20);
+    assertThat(config.scheduleOnDataFileSize()).isEqualTo(30);
+    assertThat(config.scheduleOnIntervalSecond()).isEqualTo(Duration.ofSeconds(60).toSeconds());
 
-    assertThat(builder.rewriteOptions())
+    assertThat(config.properties())
         .doesNotContainKey("custom.option")
         .containsEntry("partial-progress.enabled", "true")
         .containsEntry("partial-progress.max-commits", "5")
@@ -122,26 +120,23 @@ public class TestRewriteDataFilesConfig extends OperatorTestBase {
 
   @Test
   void testPropertiesWithDefaultConfig() {
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder();
     RewriteDataFilesConfig config =
         new RewriteDataFilesConfig(table, Maps.newHashMap(), new Configuration());
-    builder.properties(config);
 
     // check the config about the rewriter
-    assertThat(builder.partialProgressEnabled()).isFalse();
-    assertThat(builder.partialProgressMaxCommits())
-        .isEqualTo(
-            org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
-    assertThat(builder.maxRewriteBytes()).isEqualTo(Long.MAX_VALUE);
+    assertThat(config.partialProgressEnable()).isFalse();
+    assertThat(config.partialProgressMaxCommits())
+        .isEqualTo(RewriteDataFilesConfig.PARTIAL_PROGRESS_MAX_COMMITS_OPTION.defaultValue());
+    assertThat(config.maxRewriteBytes()).isEqualTo(Long.MAX_VALUE);
 
     // check the config about the schedule
-    assertThat(builder.scheduleCommitCount())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT_DEFAULT);
-    assertThat(builder.scheduleDataFileCount())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT);
-    assertThat(builder.scheduleDataFileSize())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT);
-    assertThat(builder.scheduleInterval().toSeconds())
-        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND_DEFAULT);
+    assertThat(config.scheduleOnCommitCount())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue());
+    assertThat(config.scheduleOnDataFileCount())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue());
+    assertThat(config.scheduleOnDataFileSize())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue());
+    assertThat(config.scheduleOnIntervalSecond())
+        .isEqualTo(RewriteDataFilesConfig.SCHEDULE_ON_INTERVAL_SECOND_OPTION.defaultValue());
   }
 }
