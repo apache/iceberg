@@ -35,6 +35,10 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Creates and maintains a view on Iceberg tables. Updates the Iceberg tables in case of schema,
+ * branch, or partition changes.
+ */
 @Internal
 class TableUpdater {
 
