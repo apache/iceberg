@@ -42,6 +42,8 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
+  public static final String KEYVAULT_URI = "keyvault.uri";
+  public static final String KEYVAULT_KEY_WRAPPING_ALGORITHM = "keyvault.key-wrapping-algorithm";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
