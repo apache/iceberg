@@ -34,7 +34,6 @@ public class EncryptionTestHelpers {
         CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
 
     return EncryptionUtil.createEncryptionManager(
         List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
