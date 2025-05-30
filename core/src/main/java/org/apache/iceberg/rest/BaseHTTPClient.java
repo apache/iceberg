@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.InjectableValues;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -78,6 +79,18 @@ public abstract class BaseHTTPClient implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      InjectableValues injectableValues) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers, null);
+    return execute(request, responseType, errorHandler, h -> {}, injectableValues);
+  }
+
+  @Override
   public <T extends RESTResponse> T post(
       String path,
       RESTRequest body,
@@ -98,6 +111,19 @@ public abstract class BaseHTTPClient implements RESTClient {
       Consumer<Map<String, String>> responseHeaders) {
     HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
     return execute(request, responseType, errorHandler, responseHeaders);
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      InjectableValues injectableValues) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
+    return execute(request, responseType, errorHandler, responseHeaders, injectableValues);
   }
 
   @Override
@@ -123,4 +149,11 @@ public abstract class BaseHTTPClient implements RESTClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders);
+
+  protected abstract <T extends RESTResponse> T execute(
+      HTTPRequest request,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      InjectableValues injectableValues);
 }

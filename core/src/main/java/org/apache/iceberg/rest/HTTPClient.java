@@ -19,7 +19,9 @@
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -303,6 +305,16 @@ public class HTTPClient extends BaseHTTPClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
+    return execute(req, responseType, errorHandler, responseHeaders, new InjectableValues.Std());
+  }
+
+  @Override
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest req,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      InjectableValues injectableValues) {
     HttpUriRequestBase request = new HttpUriRequestBase(req.method().name(), req.requestUri());
 
     req.headers().entries().forEach(e -> request.addHeader(e.name(), e.value()));
@@ -341,7 +353,8 @@ public class HTTPClient extends BaseHTTPClient {
       }
 
       try {
-        return mapper.readValue(responseBody, responseType);
+        ObjectReader reader = mapper.readerFor(responseType).with(injectableValues);
+        return reader.readValue(responseBody);
       } catch (JsonProcessingException e) {
         throw new RESTException(
             e,
