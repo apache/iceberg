@@ -66,7 +66,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic',"
           + "'flink-maintenance.lock.jdbc.init-lock-table'='true',"
           + "'flink-maintenance.rewrite.rewrite-all'='true',"
-          + "'flink-maintenance.schedule.data-file-size'='1',"
+          + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
   private static final Object[][] TEST_PARAMETERS = {
