@@ -114,6 +114,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation libs.awaitility
     // runtime dependencies for running REST Catalog based integration test
     testRuntimeOnly libs.jetty.servlet
+    testImplementation libs.mockito.junit.jupiter
   }
 
   test {
