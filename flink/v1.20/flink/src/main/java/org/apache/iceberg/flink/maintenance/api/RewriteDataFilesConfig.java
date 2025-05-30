@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -30,18 +32,38 @@ public class RewriteDataFilesConfig {
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "rewrite.";
 
   public static final String MAX_BYTES = PREFIX + "max-bytes";
+  public static final ConfigOption<Long> MAX_BYTES_OPTION =
+      ConfigOptions.key(MAX_BYTES).longType().defaultValue(Long.MAX_VALUE);
+
+  public static final ConfigOption<Integer> PARTIAL_PROGRESS_MAX_COMMITS_OPTION =
+      ConfigOptions.key(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS)
+          .intType()
+          .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
+
+  public static final ConfigOption<Boolean> PARTIAL_PROGRESS_ENABLED_OPTION =
+      ConfigOptions.key(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_ENABLED)
+          .booleanType()
+          .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
   public static final String SCHEDULE_ON_COMMIT_COUNT = PREFIX + "schedule.commit-count";
-  public static final int SCHEDULE_ON_COMMIT_COUNT_DEFAULT = 10;
+  public static final ConfigOption<Integer> SCHEDULE_ON_COMMIT_COUNT_OPTION =
+      ConfigOptions.key(SCHEDULE_ON_COMMIT_COUNT).intType().defaultValue(10);
 
   public static final String SCHEDULE_ON_DATA_FILE_COUNT = PREFIX + "schedule.data-file-count";
-  public static final int SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT = 1000;
+  public static final ConfigOption<Integer> SCHEDULE_ON_DATA_FILE_COUNT_OPTION =
+      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_COUNT).intType().defaultValue(1000);
 
   public static final String SCHEDULE_ON_DATA_FILE_SIZE = PREFIX + "schedule.data-file-size";
-  public static final long SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT = 100L * 1024 * 1024 * 1024; // 100G
+  public static final ConfigOption<Long> SCHEDULE_ON_DATA_FILE_SIZE_OPTION =
+      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_COUNT)
+          .longType()
+          .defaultValue(100L * 1024 * 1024 * 1024); // 100G
 
   public static final String SCHEDULE_ON_INTERVAL_SECOND = PREFIX + "schedule.interval-second";
-  public static final int SCHEDULE_ON_INTERVAL_SECOND_DEFAULT = 10 * 60; // 10 minutes
+  public static final ConfigOption<Long> SCHEDULE_ON_INTERVAL_SECOND_OPTION =
+      ConfigOptions.key(SCHEDULE_ON_INTERVAL_SECOND)
+          .longType()
+          .defaultValue(10 * 60L); // 10 minutes
 
   private final FlinkConfParser confParser;
   private final Map<String, String> writeProperties;
@@ -56,7 +78,8 @@ public class RewriteDataFilesConfig {
     return confParser
         .intConf()
         .option(SCHEDULE_ON_COMMIT_COUNT)
-        .defaultValue(SCHEDULE_ON_COMMIT_COUNT_DEFAULT)
+        .flinkConfig(SCHEDULE_ON_COMMIT_COUNT_OPTION)
+        .defaultValue(SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue())
         .parse();
   }
 
@@ -64,7 +87,8 @@ public class RewriteDataFilesConfig {
     return confParser
         .intConf()
         .option(SCHEDULE_ON_DATA_FILE_COUNT)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_COUNT_DEFAULT)
+        .flinkConfig(SCHEDULE_ON_DATA_FILE_COUNT_OPTION)
+        .defaultValue(SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue())
         .parse();
   }
 
@@ -72,36 +96,45 @@ public class RewriteDataFilesConfig {
     return confParser
         .longConf()
         .option(SCHEDULE_ON_DATA_FILE_SIZE)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_SIZE_DEFAULT)
+        .flinkConfig(SCHEDULE_ON_DATA_FILE_SIZE_OPTION)
+        .defaultValue(SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue())
         .parse();
   }
 
-  public int scheduleOnIntervalSecond() {
+  public long scheduleOnIntervalSecond() {
     return confParser
-        .intConf()
+        .longConf()
         .option(SCHEDULE_ON_INTERVAL_SECOND)
-        .defaultValue(SCHEDULE_ON_INTERVAL_SECOND_DEFAULT)
+        .flinkConfig(SCHEDULE_ON_INTERVAL_SECOND_OPTION)
+        .defaultValue(SCHEDULE_ON_INTERVAL_SECOND_OPTION.defaultValue())
         .parse();
   }
 
   public boolean partialProgressEnable() {
     return confParser
         .booleanConf()
-        .option(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_ENABLED)
-        .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT)
+        .option(PARTIAL_PROGRESS_ENABLED_OPTION.key())
+        .flinkConfig(PARTIAL_PROGRESS_ENABLED_OPTION)
+        .defaultValue(PARTIAL_PROGRESS_ENABLED_OPTION.defaultValue())
         .parse();
   }
 
   public int partialProgressMaxCommits() {
     return confParser
         .intConf()
-        .option(PREFIX + RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS)
-        .defaultValue(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT)
+        .option(PARTIAL_PROGRESS_MAX_COMMITS_OPTION.key())
+        .flinkConfig(PARTIAL_PROGRESS_MAX_COMMITS_OPTION)
+        .defaultValue(PARTIAL_PROGRESS_MAX_COMMITS_OPTION.defaultValue())
         .parse();
   }
 
   public long maxRewriteBytes() {
-    return confParser.longConf().option(MAX_BYTES).defaultValue(Long.MAX_VALUE).parse();
+    return confParser
+        .longConf()
+        .option(MAX_BYTES)
+        .flinkConfig(MAX_BYTES_OPTION)
+        .defaultValue(MAX_BYTES_OPTION.defaultValue())
+        .parse();
   }
 
   public Map<String, String> properties() {

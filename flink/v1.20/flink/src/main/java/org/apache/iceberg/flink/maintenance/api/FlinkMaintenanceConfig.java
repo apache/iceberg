@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.Table;
@@ -29,10 +31,28 @@ import org.apache.iceberg.flink.maintenance.operator.LockConfig;
 public class FlinkMaintenanceConfig {
 
   public static final String PREFIX = "flink-maintenance.";
-  public static final String RATE_LIMIT = PREFIX + "rate-limit-seconds";
-  public static final String SLOT_SHARING_GROUP = PREFIX + "slot-sharing-group";
+
   public static final String LOCK_CHECK_DELAY = PREFIX + "lock-check-delay-seconds";
+  public static final ConfigOption<Long> LOCK_CHECK_DELAY_OPTION =
+      ConfigOptions.key(LOCK_CHECK_DELAY)
+          .longType()
+          .defaultValue(TableMaintenance.LOCK_CHECK_DELAY_SECOND_DEFAULT);
+
   public static final String PARALLELISM = PREFIX + "parallelism";
+  public static final ConfigOption<Integer> PARALLELISM_OPTION =
+      ConfigOptions.key(PARALLELISM).intType().defaultValue(ExecutionConfig.PARALLELISM_DEFAULT);
+
+  public static final String RATE_LIMIT = PREFIX + "rate-limit-seconds";
+  public static final ConfigOption<Long> RATE_LIMIT_OPTION =
+      ConfigOptions.key(RATE_LIMIT)
+          .longType()
+          .defaultValue(TableMaintenance.RATE_LIMIT_SECOND_DEFAULT);
+
+  public static final String SLOT_SHARING_GROUP = PREFIX + "slot-sharing-group";
+  public static final ConfigOption<String> SLOT_SHARING_GROUP_OPTION =
+      ConfigOptions.key(SLOT_SHARING_GROUP)
+          .stringType()
+          .defaultValue(StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP);
 
   private final FlinkConfParser confParser;
   private final Table table;
@@ -51,7 +71,8 @@ public class FlinkMaintenanceConfig {
     return confParser
         .longConf()
         .option(RATE_LIMIT)
-        .defaultValue(TableMaintenance.RATE_LIMIT_SECOND_DEFAULT)
+        .flinkConfig(RATE_LIMIT_OPTION)
+        .defaultValue(RATE_LIMIT_OPTION.defaultValue())
         .parse();
   }
 
@@ -59,7 +80,8 @@ public class FlinkMaintenanceConfig {
     return confParser
         .intConf()
         .option(PARALLELISM)
-        .defaultValue(ExecutionConfig.PARALLELISM_DEFAULT)
+        .flinkConfig(PARALLELISM_OPTION)
+        .defaultValue(PARALLELISM_OPTION.defaultValue())
         .parse();
   }
 
@@ -67,7 +89,8 @@ public class FlinkMaintenanceConfig {
     return confParser
         .longConf()
         .option(LOCK_CHECK_DELAY)
-        .defaultValue(TableMaintenance.LOCK_CHECK_DELAY_SECOND_DEFAULT)
+        .flinkConfig(LOCK_CHECK_DELAY_OPTION)
+        .defaultValue(LOCK_CHECK_DELAY_OPTION.defaultValue())
         .parse();
   }
 
@@ -75,7 +98,8 @@ public class FlinkMaintenanceConfig {
     return confParser
         .stringConf()
         .option(SLOT_SHARING_GROUP)
-        .defaultValue(StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP)
+        .flinkConfig(SLOT_SHARING_GROUP_OPTION)
+        .defaultValue(SLOT_SHARING_GROUP_OPTION.defaultValue())
         .parse();
   }
 

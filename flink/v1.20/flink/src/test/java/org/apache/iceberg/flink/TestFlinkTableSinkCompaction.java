@@ -66,22 +66,20 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.lock.jdbc.uri'='jdbc:sqlite:file::memory:?ic',"
           + "'flink-maintenance.lock.jdbc.init-lock-table'='true',"
           + "'flink-maintenance.rewrite.rewrite-all'='true',"
-          + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
+          + "'flink-maintenance.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
+
+  private static final Object[][] TEST_PARAMETERS = {
+    {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true},
+    {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false}
+  };
 
   @Parameter(index = 2)
   private boolean userSqlHint = true;
 
   @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}")
   public static List<Object[]> parameters() {
-    List<Object[]> parameters = Lists.newArrayList();
-
-    for (Boolean userSqlHint : new Boolean[] {true, false}) {
-      String catalogName = "testhadoop_basenamespace";
-      Namespace baseNamespace = Namespace.of("l0", "l1");
-      parameters.add(new Object[] {catalogName, baseNamespace, userSqlHint});
-    }
-    return parameters;
+    return Lists.newArrayList(TEST_PARAMETERS);
   }
 
   @Override

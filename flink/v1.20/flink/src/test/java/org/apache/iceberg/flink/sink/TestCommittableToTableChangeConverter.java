@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
+import org.apache.flink.streaming.api.operators.ProcessOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
@@ -36,10 +39,12 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,13 +53,16 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TestCommittableToTableChangeConverter {
   @TempDir private File tempDir;
-  Table table;
-  TableLoader tableLoader;
-  DataFile dataFile;
-  DataFile dataFile1;
-  DataFile dataFile2;
-  DeleteFile posDeleteFile;
-  DeleteFile eqDeleteFile;
+  private Table table;
+  private TableLoader tableLoader;
+  private FileIO fileIO;
+  private String tableName;
+  private Map<Integer, PartitionSpec> specs;
+  private DataFile dataFile;
+  private DataFile dataFile1;
+  private DataFile dataFile2;
+  private DeleteFile posDeleteFile;
+  private DeleteFile eqDeleteFile;
 
   @BeforeEach
   public void before() throws Exception {
@@ -64,6 +72,9 @@ class TestCommittableToTableChangeConverter {
     assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
     table = SimpleDataUtil.createTable(tablePath, Maps.newHashMap(), false);
     tableLoader = TableLoader.fromHadoopTable(tablePath);
+    fileIO = table.io();
+    tableName = table.name();
+    specs = table.specs();
     dataFile =
         DataFiles.builder(table.spec())
             .withPath("/path/to/data.parquet")
@@ -109,7 +120,7 @@ class TestCommittableToTableChangeConverter {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(tableLoader))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
       harness.open();
       WriteResult writeResult =
           WriteResult.builder()
@@ -155,26 +166,14 @@ class TestCommittableToTableChangeConverter {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(tableLoader))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
       harness.open();
-      WriteResult writeResult =
-          WriteResult.builder()
-              .addDataFiles(dataFile)
-              .addDeleteFiles(posDeleteFile, eqDeleteFile)
-              .build();
-      DeltaManifests deltaManifests =
-          FlinkManifestUtil.writeCompletedFiles(writeResult, () -> factory.create(1), table.spec());
-      IcebergCommittable committable =
-          new IcebergCommittable(
-              SimpleVersionedSerialization.writeVersionAndSerialize(
-                  DeltaManifestsSerializer.INSTANCE, deltaManifests),
-              flinkJobId,
-              operatorId,
-              1L);
-      CommittableWithLineage<IcebergCommittable> message =
-          new CommittableWithLineage<>(committable, 1L, 0);
-      harness.processElement(new StreamRecord<>(message));
-      harness.processElement(new StreamRecord<>(message));
+
+      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
+          createIcebergCommittable(
+              dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
       List<TableChange> tableChanges = harness.extractOutputValues();
       assertThat(tableChanges).hasSize(1);
       TableChange tableChange = tableChanges.get(0);
@@ -194,11 +193,60 @@ class TestCommittableToTableChangeConverter {
   }
 
   @Test
+  public void testConvertRestore() throws Exception {
+    String flinkJobId = newFlinkJobId();
+    String operatorId = newOperatorUniqueId();
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
+
+    Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
+        createIcebergCommittable(
+            dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
+        harness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
+      harness.open();
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+      state = harness.snapshot(2L, 2L);
+    }
+
+    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
+        harness =
+            new OneInputStreamOperatorTestHarness(
+                new ProcessOperator(
+                    new CommittableToTableChangeConverter(fileIO, tableName, specs)),
+                1,
+                1,
+                0)) {
+      harness.initializeState(state);
+      harness.open();
+
+      // replay should filter
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+      assertThat(harness.extractOutputValues()).hasSize(0);
+
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+
+      // new committable should not be filtered
+      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable2 =
+          createIcebergCommittable(
+              dataFile2, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 3L);
+
+      harness.processElement(new StreamRecord<>(icebergCommittable2.f0));
+      assertThat(harness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
   public void testEmptyCommit() throws Exception {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(tableLoader))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
 
       harness.open();
       IcebergCommittable emptyCommittable =
@@ -221,7 +269,7 @@ class TestCommittableToTableChangeConverter {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(tableLoader, 0))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs, 0))) {
 
       harness.open();
 
@@ -252,7 +300,7 @@ class TestCommittableToTableChangeConverter {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(tableLoader, 2))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs, 2))) {
       harness.open();
 
       Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
@@ -289,9 +337,11 @@ class TestCommittableToTableChangeConverter {
       for (ManifestFile manifest : icebergCommittable.f1.manifests()) {
         assertThat(new File(manifest.path())).doesNotExist();
       }
+
       for (ManifestFile manifest : icebergCommittable1.f1.manifests()) {
         assertThat(new File(manifest.path())).doesNotExist();
       }
+
       for (ManifestFile manifest : icebergCommittable2.f1.manifests()) {
         assertThat(new File(manifest.path())).exists();
       }

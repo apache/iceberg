@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,12 +30,10 @@ import org.junit.jupiter.api.Test;
 public class TestLockConfig extends OperatorTestBase {
   private static final String TABLE_NAME = "catalog.db.table";
   private static final String LOCK_ID = "test-lock-id";
-  private Table table;
-  Map<String, String> input = Maps.newHashMap();
+  private Map<String, String> input = Maps.newHashMap();
 
   @BeforeEach
   public void before() {
-    this.table = createTable();
     input.put("flink-maintenance.lock.type", "jdbc");
     input.put("flink-maintenance.lock.lock-id", LOCK_ID);
     input.put("other.config", "should-be-ignored");
