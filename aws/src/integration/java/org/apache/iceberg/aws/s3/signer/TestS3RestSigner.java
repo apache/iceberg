@@ -86,7 +86,7 @@ public class TestS3RestSigner {
 
   @Container
   private static final MinIOContainer MINIO_CONTAINER =
-      MinioUtil.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
+      MinioUtil.createContainer(MinioUtil.LATEST_TAG, CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;
