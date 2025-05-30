@@ -834,7 +834,9 @@ project(':iceberg-vortex') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
-    implementation(libs.vortex.jni)
+    implementation(libs.vortex.jni) {
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+    }
 
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
