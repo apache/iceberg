@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.InjectableValues;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -97,6 +98,19 @@ public interface RESTClient extends Closeable {
     return get(path, queryParams, responseType, headers.get(), errorHandler);
   }
 
+  default <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      InjectableValues injectableValues) {
+    if (injectableValues != null) {
+      throw new UnsupportedOperationException("InjectableValues is not supported");
+    }
+    return get(path, queryParams, responseType, headers, errorHandler);
+  }
+
   <T extends RESTResponse> T get(
       String path,
       Map<String, String> queryParams,
@@ -121,6 +135,20 @@ public interface RESTClient extends Closeable {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
     return post(path, body, responseType, headers.get(), errorHandler, responseHeaders);
+  }
+
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      InjectableValues injectableValues) {
+    if (injectableValues != null) {
+      throw new UnsupportedOperationException("InjectableValues is not supported");
+    }
+    return post(path, body, responseType, headers, errorHandler, responseHeaders);
   }
 
   default <T extends RESTResponse> T post(
