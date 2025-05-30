@@ -448,6 +448,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   } else {
                     update.setBranchSnapshot(newSnapshot, targetBranch);
                   }
+                  if (newSnapshot.operation().equals(DataOperations.REPLACE)) {
+                    base.refs()
+                        .forEach(
+                            (name, ref) -> {
+                              if (ref.isTag()
+                                  && ref.snapshotId() == base.currentSnapshot().snapshotId()) {
+                                update.setRef(
+                                    name, SnapshotRef.tagBuilder(newSnapshot.snapshotId()).build());
+                              }
+                            });
+                  }
 
                   TableMetadata updated = update.build();
                   if (updated.changes().isEmpty()) {
