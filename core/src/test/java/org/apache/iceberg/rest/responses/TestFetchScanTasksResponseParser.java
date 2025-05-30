@@ -33,18 +33,11 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestFetchScanTasksResponseParser {
-
-  @BeforeEach
-  public void before() {
-    TableScanResponseParser.setState(PARTITION_SPECS_BY_ID, false);
-  }
 
   @Test
   public void nullAndEmptyCheck() {
@@ -52,7 +45,10 @@ public class TestFetchScanTasksResponseParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchScanTasksResponse null");
 
-    assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(
+            () ->
+                FetchScanTasksResponseParser.fromJson(
+                    (JsonNode) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchScanTasksResponse null");
   }
@@ -65,7 +61,8 @@ public class TestFetchScanTasksResponseParser {
         .hasMessage("Invalid response: planTasks and fileScanTask cannot both be null");
 
     String emptyJson = "{ }";
-    assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson(emptyJson))
+    assertThatThrownBy(
+            () -> FetchScanTasksResponseParser.fromJson(emptyJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchScanTasksResponse null");
   }
@@ -78,7 +75,8 @@ public class TestFetchScanTasksResponseParser {
             FetchScanTasksResponse.builder().withPlanTasks(List.of("task1", "task2")).build());
     assertThat(json).isEqualTo(expectedJson);
 
-    FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
+    FetchScanTasksResponse fromResponse =
+        FetchScanTasksResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
@@ -104,7 +102,8 @@ public class TestFetchScanTasksResponseParser {
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
-    assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> FetchScanTasksResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -146,7 +145,8 @@ public class TestFetchScanTasksResponseParser {
     String json = FetchScanTasksResponseParser.toJson(response, false);
     assertThat(json).isEqualTo(expectedToJson);
 
-    FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
+    FetchScanTasksResponse fromResponse =
+        FetchScanTasksResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
     // Need to make a new response with partitionSpec set
     FetchScanTasksResponse copyResponse =
         FetchScanTasksResponse.builder()

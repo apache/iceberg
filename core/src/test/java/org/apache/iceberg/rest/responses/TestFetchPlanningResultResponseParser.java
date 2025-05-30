@@ -26,26 +26,23 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectReader;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
-import org.junit.jupiter.api.BeforeEach;
+import org.apache.iceberg.rest.RESTObjectMapper;
 import org.junit.jupiter.api.Test;
 
 public class TestFetchPlanningResultResponseParser {
-
-  @BeforeEach
-  public void before() {
-    TableScanResponseParser.setState(PARTITION_SPECS_BY_ID, false);
-  }
 
   @Test
   public void nullAndEmptyCheck() {
@@ -53,7 +50,10 @@ public class TestFetchPlanningResultResponseParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchPanningResultResponse null");
 
-    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(
+                    (JsonNode) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
   }
@@ -68,7 +68,9 @@ public class TestFetchPlanningResultResponseParser {
         .hasMessage("Invalid status: null");
 
     String emptyJson = "{ }";
-    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(emptyJson))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(emptyJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
   }
@@ -76,7 +78,10 @@ public class TestFetchPlanningResultResponseParser {
   @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
-    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidStatusJson))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(
+                    invalidStatusJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid status name: someStatus");
   }
@@ -91,7 +96,8 @@ public class TestFetchPlanningResultResponseParser {
     String json = FetchPlanningResultResponseParser.toJson(response);
     assertThat(json).isEqualTo(expectedJson);
 
-    FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
+    FetchPlanningResultResponse fromResponse =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
     assertThat(FetchPlanningResultResponseParser.toJson(fromResponse)).isEqualTo(expectedJson);
   }
 
@@ -110,7 +116,10 @@ public class TestFetchPlanningResultResponseParser {
     String invalidJson =
         "{\"plan-status\":\"submitted\"," + "\"plan-tasks\":[\"task1\",\"task2\"]}";
 
-    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(
+                    invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
   }
@@ -137,14 +146,17 @@ public class TestFetchPlanningResultResponseParser {
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
-    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(
+                    invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
   }
 
   @Test
-  public void roundTripSerdeWithValidStatusAndFileScanTasks() {
+  public void roundTripSerdeWithValidStatusAndFileScanTasks() throws JsonProcessingException {
     ResidualEvaluator residualEvaluator =
         ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
     FileScanTask fileScanTask =
@@ -181,7 +193,15 @@ public class TestFetchPlanningResultResponseParser {
     String json = FetchPlanningResultResponseParser.toJson(response, false);
     assertThat(json).isEqualTo(expectedToJson);
 
-    FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
+    // use RESTObjectMapper to read this
+    InjectableValues.Std injectableValues = new InjectableValues.Std();
+    injectableValues.addValue("specsById", PARTITION_SPECS_BY_ID);
+    injectableValues.addValue("caseSensitive", false);
+    ObjectReader objectReader =
+        RESTObjectMapper.mapper()
+            .readerFor(FetchPlanningResultResponse.class)
+            .with(injectableValues);
+    FetchPlanningResultResponse fromResponse = objectReader.readValue(json);
     // Need to make a new response with partitionSpec set
     FetchPlanningResultResponse copyResponse =
         FetchPlanningResultResponse.builder()

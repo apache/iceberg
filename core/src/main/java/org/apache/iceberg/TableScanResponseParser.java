@@ -38,18 +38,15 @@ public class TableScanResponseParser {
   static final String FILE_SCAN_TASKS = "file-scan-tasks";
   static final String DELETE_FILES = "delete-files";
 
-  private static final ThreadLocal<Map<Integer, PartitionSpec>> SPEC_BY_ID = new ThreadLocal<>();
-  private static final ThreadLocal<Boolean> IS_CASE_SENSITIVE = new ThreadLocal<>();
-
-  public static List<DeleteFile> parseDeleteFiles(JsonNode node) {
+  public static List<DeleteFile> parseDeleteFiles(
+      JsonNode node, Map<Integer, PartitionSpec> specsById) {
     if (node.has(DELETE_FILES)) {
       JsonNode deleteFiles = JsonUtil.get(DELETE_FILES, node);
       Preconditions.checkArgument(
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
       ImmutableList.Builder<DeleteFile> deleteFilesBuilder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deleteFiles) {
-        DeleteFile deleteFile =
-            (DeleteFile) ContentFileParser.fromJson(deleteFileNode, SPEC_BY_ID.get());
+        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, specsById);
         deleteFilesBuilder.add(deleteFile);
       }
       return deleteFilesBuilder.build();
@@ -58,7 +55,11 @@ public class TableScanResponseParser {
     return null;
   }
 
-  public static List<FileScanTask> parseFileScanTasks(JsonNode node, List<DeleteFile> deleteFiles) {
+  public static List<FileScanTask> parseFileScanTasks(
+      JsonNode node,
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
     // TODO: add assertions in the code to make sure all these are set
     // before we start parsing.
     if (node.has(FILE_SCAN_TASKS)) {
@@ -69,7 +70,7 @@ public class TableScanResponseParser {
       for (JsonNode fileScanTaskNode : scanTasks) {
         FileScanTask fileScanTask =
             RESTFileScanTaskParser.fromJson(
-                fileScanTaskNode, deleteFiles, SPEC_BY_ID.get(), IS_CASE_SENSITIVE.get());
+                fileScanTaskNode, deleteFiles, specsById, caseSensitive);
         fileScanTaskList.add(fileScanTask);
       }
 
@@ -117,10 +118,5 @@ public class TableScanResponseParser {
       }
       gen.writeEndArray();
     }
-  }
-
-  public static void setState(Map<Integer, PartitionSpec> specsById, boolean isCaseSensitive) {
-    SPEC_BY_ID.set(specsById);
-    IS_CASE_SENSITIVE.set(isCaseSensitive);
   }
 }
