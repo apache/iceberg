@@ -31,8 +31,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.api.TableColumn;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
@@ -55,21 +55,20 @@ import org.junit.jupiter.api.Test;
 
 public class TestFlinkFilters {
 
-  private static final TableSchema TABLE_SCHEMA =
-      TableSchema.builder()
-          .field("field1", DataTypes.INT())
-          .field("field2", DataTypes.BIGINT())
-          .field("field3", DataTypes.FLOAT())
-          .field("field4", DataTypes.DOUBLE())
-          .field("field5", DataTypes.STRING())
-          .field("field6", DataTypes.BOOLEAN())
-          .field("field7", DataTypes.BINARY(2))
-          .field("field8", DataTypes.DECIMAL(10, 2))
-          .field("field9", DataTypes.DATE())
-          .field("field10", DataTypes.TIME())
-          .field("field11", DataTypes.TIMESTAMP())
-          .field("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
-          .build();
+  private static final ResolvedSchema RESOLVED_SCHEMA =
+      ResolvedSchema.of(
+          Column.physical("field1", DataTypes.INT()),
+          Column.physical("field2", DataTypes.BIGINT()),
+          Column.physical("field3", DataTypes.FLOAT()),
+          Column.physical("field4", DataTypes.DOUBLE()),
+          Column.physical("field5", DataTypes.STRING()),
+          Column.physical("field6", DataTypes.BOOLEAN()),
+          Column.physical("field7", DataTypes.BINARY(2)),
+          Column.physical("field8", DataTypes.DECIMAL(10, 2)),
+          Column.physical("field9", DataTypes.DATE()),
+          Column.physical("field10", DataTypes.TIME()),
+          Column.physical("field11", DataTypes.TIMESTAMP()),
+          Column.physical("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()));
 
   // A map list of fields and values used to verify the conversion of flink expression to iceberg
   // expression
@@ -397,7 +396,7 @@ public class TestFlinkFilters {
     UnboundPredicate<T> unboundPredicate = (UnboundPredicate<T>) expression;
 
     org.apache.iceberg.expressions.Expression expression1 =
-        unboundPredicate.bind(FlinkSchemaUtil.convert(TABLE_SCHEMA).asStruct(), false);
+        unboundPredicate.bind(FlinkSchemaUtil.convert(RESOLVED_SCHEMA).asStruct(), false);
     assertThat(expression1)
         .as("The expression should be a BoundLiteralPredicate")
         .isInstanceOf(BoundLiteralPredicate.class);
@@ -408,17 +407,19 @@ public class TestFlinkFilters {
 
   private static Expression resolve(Expression originalExpression) {
     return originalExpression.accept(
-        new ApiExpressionDefaultVisitor<Expression>() {
+        new ApiExpressionDefaultVisitor<>() {
           @Override
           public Expression visit(UnresolvedReferenceExpression unresolvedReference) {
             String name = unresolvedReference.getName();
-            Optional<TableColumn> field = TABLE_SCHEMA.getTableColumn(name);
-            if (field.isPresent()) {
-              int index = TABLE_SCHEMA.getTableColumns().indexOf(field.get());
-              return new FieldReferenceExpression(name, field.get().getType(), 0, index);
-            } else {
-              return null;
-            }
+            return RESOLVED_SCHEMA
+                .getColumn(name)
+                .map(
+                    column -> {
+                      int columnIndex = RESOLVED_SCHEMA.getColumns().indexOf(column);
+                      return new FieldReferenceExpression(
+                          name, column.getDataType(), 0, columnIndex);
+                    })
+                .orElse(null);
           }
 
           @Override
