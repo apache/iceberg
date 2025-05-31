@@ -31,7 +31,6 @@ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.values.ValuesReader;
 
 public final class VectorizedParquetDefinitionLevelReader
     extends BaseVectorizedParquetValuesReader {
@@ -46,15 +45,18 @@ public final class VectorizedParquetDefinitionLevelReader
     super(bitWidth, maxDefLevel, readLength, setArrowValidityVector);
   }
 
+  @FunctionalInterface
+  interface ReaderFunction {
+    void apply(Mode mode, int idx, int numValues, byte[] byteArray, ArrowBuf validityBuffer);
+  }
+
   abstract class CommonReader {
     private void nextBatch(
         final FieldVector vector,
         final int startOffset,
         final int typeWidth,
         final int numValsToRead,
-        NullabilityHolder nullabilityHolder,
-        ValuesReader valuesReader,
-        Dictionary dict) {
+        ReaderFunction consumer) {
       int idx = startOffset;
       int left = numValsToRead;
       while (left > 0) {
@@ -69,54 +71,8 @@ public final class VectorizedParquetDefinitionLevelReader
         }
         ArrowBuf validityBuffer = vector.getValidityBuffer();
 
-        switch (mode) {
-          case RLE:
-            if (valuesReader instanceof ValuesAsBytesReader) {
-              nextRleBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (ValuesAsBytesReader) valuesReader,
-                  idx,
-                  numValues,
-                  byteArray);
-            } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
-              nextRleDictEncodedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
-                  dict,
-                  idx,
-                  numValues,
-                  validityBuffer);
-            }
-            idx += numValues;
-            break;
-          case PACKED:
-            if (valuesReader instanceof ValuesAsBytesReader) {
-              nextPackedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (ValuesAsBytesReader) valuesReader,
-                  idx,
-                  numValues,
-                  byteArray);
-            } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
-              nextPackedDictEncodedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
-                  dict,
-                  idx,
-                  numValues,
-                  validityBuffer);
-            }
-            idx += numValues;
-            break;
-        }
+        consumer.apply(mode, idx, numValues, byteArray, validityBuffer);
+        idx += numValues;
         left -= numValues;
         currentCount -= numValues;
       }
@@ -130,7 +86,21 @@ public final class VectorizedParquetDefinitionLevelReader
         NullabilityHolder nullabilityHolder,
         ValuesAsBytesReader valuesReader) {
       nextBatch(
-          vector, startOffset, typeWidth, numValsToRead, nullabilityHolder, valuesReader, null);
+          vector,
+          startOffset,
+          typeWidth,
+          numValsToRead,
+          (mode, idx, numValues, byteArray, validityBuffer) -> {
+            switch (mode) {
+              case RLE:
+                nextRleBatch(
+                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                break;
+              case PACKED:
+                nextPackedBatch(
+                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+            }
+          });
     }
 
     public void nextDictEncodedBatch(
@@ -142,7 +112,35 @@ public final class VectorizedParquetDefinitionLevelReader
         VectorizedDictionaryEncodedParquetValuesReader valuesReader,
         Dictionary dict) {
       nextBatch(
-          vector, startOffset, typeWidth, numValsToRead, nullabilityHolder, valuesReader, dict);
+          vector,
+          startOffset,
+          typeWidth,
+          numValsToRead,
+          (mode, idx, numValues, byteArray, validityBuffer) -> {
+            switch (mode) {
+              case RLE:
+                nextRleDictEncodedBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    valuesReader,
+                    dict,
+                    idx,
+                    numValues,
+                    validityBuffer);
+                break;
+              case PACKED:
+                nextPackedDictEncodedBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    valuesReader,
+                    dict,
+                    idx,
+                    numValues,
+                    validityBuffer);
+            }
+          });
     }
 
     protected abstract void nextRleBatch(
