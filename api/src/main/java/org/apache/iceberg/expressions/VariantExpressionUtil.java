@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -28,9 +29,6 @@ import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantValue;
 
 class VariantExpressionUtil {
-  // TODO: Implement PhysicalType.TIME
-  // TODO: Implement PhysicalType.TIMESTAMPNTZ_NANO and PhysicalType.TIMESTAMPTZ_NANO
-  // TODO: Implement PhysicalType.UUID
   private static final Map<Type, PhysicalType> NO_CONVERSION_NEEDED =
       ImmutableMap.<Type, PhysicalType>builder()
           .put(Types.IntegerType.get(), PhysicalType.INT32)
@@ -40,6 +38,10 @@ class VariantExpressionUtil {
           .put(Types.DateType.get(), PhysicalType.DATE)
           .put(Types.TimestampType.withoutZone(), PhysicalType.TIMESTAMPNTZ)
           .put(Types.TimestampType.withZone(), PhysicalType.TIMESTAMPTZ)
+          .put(Types.TimestampNanoType.withoutZone(), PhysicalType.TIMESTAMPNTZ_NANOS)
+          .put(Types.TimestampNanoType.withZone(), PhysicalType.TIMESTAMPTZ_NANOS)
+          .put(Types.TimeType.get(), PhysicalType.TIME)
+          .put(Types.UUIDType.get(), PhysicalType.UUID)
           .put(Types.StringType.get(), PhysicalType.STRING)
           .put(Types.BinaryType.get(), PhysicalType.BINARY)
           .put(Types.UnknownType.get(), PhysicalType.NULL)
@@ -54,7 +56,6 @@ class VariantExpressionUtil {
     } else if (NO_CONVERSION_NEEDED.get(type) == value.type()) {
       return (T) value.asPrimitive().get();
     }
-
     switch (type.typeId()) {
       case INTEGER:
         switch (value.type()) {
@@ -62,7 +63,6 @@ class VariantExpressionUtil {
           case INT16:
             return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
         }
-
         break;
       case LONG:
         switch (value.type()) {
@@ -71,13 +71,11 @@ class VariantExpressionUtil {
           case INT32:
             return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
         }
-
         break;
       case DOUBLE:
         if (value.type() == PhysicalType.FLOAT) {
           return (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
         }
-
         break;
       case FIXED:
         Types.FixedType fixedType = (Types.FixedType) type;
@@ -87,7 +85,6 @@ class VariantExpressionUtil {
             return (T) buffer;
           }
         }
-
         break;
       case DECIMAL:
         Types.DecimalType decimalType = (Types.DecimalType) type;
@@ -100,7 +97,6 @@ class VariantExpressionUtil {
               return (T) decimalValue;
             }
         }
-
         break;
       case BOOLEAN:
         switch (value.type()) {
@@ -109,10 +105,19 @@ class VariantExpressionUtil {
           case BOOLEAN_TRUE:
             return (T) Boolean.TRUE;
         }
-
         break;
+      case TIMESTAMP:
+      case TIMESTAMP_NANO:
+      case TIME:
+        if (value.type() == PhysicalType.INT64) {
+          return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
+        }
+        break;
+      case UUID:
+        if (value.type() == PhysicalType.STRING) {
+          return (T) UUID.fromString((String) value.asPrimitive().get());
+        }
     }
-
     return null;
   }
 }
