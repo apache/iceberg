@@ -19,6 +19,8 @@
 package org.apache.iceberg.variants;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -229,6 +231,33 @@ public class VariantTestUtil {
         buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
     return buffer;
+  }
+
+  public static Variant createMockVariant(String field1Value, int field2Value) {
+    Variant variant = mock(Variant.class);
+    VariantObject mockObject = mock(VariantObject.class);
+
+    when(variant.value()).thenReturn(mockObject);
+    when(mockObject.type()).thenReturn(PhysicalType.OBJECT);
+    when(mockObject.asObject()).thenReturn(mockObject);
+    when(mockObject.fieldNames()).thenReturn(List.of("field1", "field2"));
+
+    VariantValue mockField1 = createVariantMockField(PhysicalType.STRING, field1Value);
+    VariantValue mockField2 = createVariantMockField(PhysicalType.INT32, field2Value);
+    when(mockObject.get("field1")).thenReturn(mockField1);
+    when(mockObject.get("field2")).thenReturn(mockField2);
+
+    return variant;
+  }
+
+  // Helper method to create mock fields
+  public static VariantValue createVariantMockField(PhysicalType type, Object value) {
+    VariantValue mockField = mock(VariantValue.class);
+    when(mockField.type()).thenReturn(type);
+    VariantPrimitive primitive = mock(VariantPrimitive.class);
+    when(mockField.asPrimitive()).thenReturn(primitive);
+    when(primitive.get()).thenReturn(value);
+    return mockField;
   }
 
   public static ByteBuffer createArray(VariantValue... values) {

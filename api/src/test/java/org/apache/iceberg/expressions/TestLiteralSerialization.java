@@ -19,11 +19,17 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestLiteralSerialization {
@@ -52,6 +58,26 @@ public class TestLiteralSerialization {
     for (Literal<?> lit : literals) {
       checkValue(lit);
     }
+  }
+
+  @Test
+  public void testVariantLiteral() {
+    Variant variantValue = mock(Variant.class);
+    Literals.VariantLiteral literal = new Literals.VariantLiteral(variantValue);
+    Assertions.assertEquals(
+        variantValue, literal.value(), "The value should match the initialized variant");
+    Assertions.assertEquals(Type.TypeID.VARIANT, literal.typeId(), "The typeId should be VARIANT");
+  }
+
+  @Test
+  public void testVariantLiteralComparator() {
+    Variant variantValue1 = VariantTestUtil.createMockVariant("field1", 45);
+    Variant variantValue2 = VariantTestUtil.createMockVariant("field1", 90);
+    Literals.VariantLiteral literal1 = new Literals.VariantLiteral(variantValue1);
+    Comparator<Variant> comparator = literal1.comparator();
+    Assertions.assertTrue(
+        comparator.compare(variantValue1, variantValue2) <= 0,
+        "Comparator should order values correctly");
   }
 
   private <T> void checkValue(Literal<T> lit) throws Exception {

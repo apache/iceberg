@@ -38,6 +38,9 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantValue;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -540,9 +543,10 @@ public class ExpressionUtil {
       case DECIMAL:
       case FIXED:
       case BINARY:
-      case VARIANT:
         // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
+      case VARIANT:
+        return sanitizeVariant((VariantValue) value, now, today);
     }
     throw new UnsupportedOperationException(
         String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
@@ -568,6 +572,8 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.VariantLiteral) {
+      return sanitizeVariant(((Literals.VariantLiteral) literal).value().value(), now, today);
     } else {
       // for uuid, decimal, fixed, variant, and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
@@ -592,7 +598,6 @@ public class ExpressionUtil {
     if (diff < FIVE_MINUTES_IN_MICROS) {
       return "(timestamp-about-now)";
     }
-
     long hours = TimeUnit.MICROSECONDS.toHours(diff);
     if (hours <= THREE_DAYS_IN_HOURS) {
       return "(timestamp-" + hours + "-hours-" + isPast + ")";
@@ -644,6 +649,68 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static String sanitizeVariant(VariantValue variant, long now, int today) {
+    StringBuilder stringBuilder = new StringBuilder();
+    switch (variant.type()) {
+      case OBJECT:
+        stringBuilder.append("{");
+        VariantObject vObj = variant.asObject();
+        for (String field : vObj.fieldNames()) {
+          stringBuilder
+              .append("hash-")
+              .append(field)
+              .append(": ")
+              .append(sanitizeVariant(vObj.get(field), now, today));
+          stringBuilder.append(",");
+        }
+        int lastIndex = stringBuilder.length() - 1;
+        if (lastIndex >= 0 && stringBuilder.charAt(lastIndex) == ',') {
+          stringBuilder.setLength(lastIndex);
+        }
+        stringBuilder.append("}");
+        break;
+      case ARRAY:
+        stringBuilder.append("[");
+        VariantArray vArr = variant.asArray();
+        for (int i = 0; i < vArr.numElements(); i++) {
+          stringBuilder.append(sanitizeVariant(vArr.get(i), now, today));
+          stringBuilder.append(",");
+        }
+        int lastIndex1 = stringBuilder.length() - 1;
+        if (lastIndex1 >= 0 && stringBuilder.charAt(lastIndex1) == ',') {
+          stringBuilder.setLength(lastIndex1);
+        }
+        stringBuilder.append("]");
+        break;
+      case INT8:
+      case INT16:
+      case INT32:
+      case INT64:
+        stringBuilder.append(sanitizeNumber((Number) variant.asPrimitive().get(), "int"));
+        break;
+      case FLOAT:
+        stringBuilder.append(sanitizeNumber((Number) variant.asPrimitive().get(), "float"));
+        break;
+      case DATE:
+        stringBuilder.append(
+            sanitizeDate(((Number) variant.asPrimitive().get()).intValue(), today));
+        break;
+      case TIMESTAMPNTZ:
+      case TIMESTAMPTZ:
+        stringBuilder.append(
+            sanitizeTimestamp(((Number) variant.asPrimitive().get()).longValue(), now));
+        break;
+      case NULL:
+        return "(null)";
+      case TIME:
+        return "(time)";
+      default:
+        stringBuilder.append(sanitizeSimpleString(variant.asPrimitive().get().toString()));
+        break;
+    }
+    return stringBuilder.toString();
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {
