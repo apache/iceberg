@@ -31,7 +31,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
-  private final DataFileSet deletedDataFiles = DataFileSet.create();
+  private final DataFileSet removedDataFiles = DataFileSet.create();
   private boolean validateDeletes = false;
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
@@ -68,8 +68,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta deleteFile(DataFile file) {
-    deletedDataFiles.add(file);
+  public RowDelta removeRows(DataFile file) {
+    removedDataFiles.add(file);
     delete(file);
     return this;
   }
@@ -154,9 +154,9 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
       if (validateNewDeleteFiles) {
         // validate that explicitly deleted files have not had added deletes
-        if (!deletedDataFiles.isEmpty()) {
+        if (!removedDataFiles.isEmpty()) {
           validateNoNewDeletesForDataFiles(
-              base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+              base, startingSnapshotId, conflictDetectionFilter, removedDataFiles, parent);
         }
 
         // validate that previous deletes do not conflict with added deletes
@@ -176,7 +176,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   @SuppressWarnings("CollectionUndefinedEquality")
   private void validateNoConflictingFileAndPositionDeletes() {
     List<CharSequence> deletedFileWithNewDVs =
-        deletedDataFiles.stream()
+        removedDataFiles.stream()
             .map(DataFile::path)
             .filter(referencedDataFiles::contains)
             .collect(Collectors.toList());
