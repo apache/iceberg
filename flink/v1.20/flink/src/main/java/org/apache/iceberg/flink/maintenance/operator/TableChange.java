@@ -55,9 +55,10 @@ public class TableChange {
   }
 
   TableChange(Snapshot snapshot, FileIO io) {
-    Iterable<DataFile> dataFiles = snapshot.addedDataFiles(io);
-    Iterable<DeleteFile> deleteFiles = snapshot.addedDeleteFiles(io);
+    this(snapshot.addedDataFiles(io), snapshot.addedDeleteFiles(io));
+  }
 
+  public TableChange(Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {
     dataFiles.forEach(
         dataFile -> {
           this.dataFileCount++;

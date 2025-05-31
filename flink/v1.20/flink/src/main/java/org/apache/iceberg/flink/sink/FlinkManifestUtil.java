@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -34,6 +35,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +66,18 @@ class FlinkManifestUtil {
     try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, specsById)) {
       return Lists.newArrayList(dataFiles);
     }
+  }
+
+  static List<DeleteFile> readDeleteFiles(
+      ManifestFile manifestFile, FileIO io, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
+    List<DeleteFile> deleteFiles = Lists.newArrayList();
+    try (CloseableIterable<DeleteFile> deleteFileIterable =
+        ManifestFiles.readDeleteManifest(manifestFile, io, specsById)) {
+      Iterables.addAll(deleteFiles, deleteFileIterable);
+    }
+
+    return deleteFiles;
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(
@@ -137,17 +151,28 @@ class FlinkManifestUtil {
 
   static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    for (ManifestFile manifest : manifests) {
+    List<String> manifestsPath =
+        manifests.stream().map(ManifestFile::path).collect(Collectors.toList());
+    deleteCommittedManifests(table.name(), table.io(), manifestsPath, newFlinkJobId, checkpointId);
+  }
+
+  static void deleteCommittedManifests(
+      String tableName,
+      FileIO io,
+      List<String> manifestsPath,
+      String newFlinkJobId,
+      long checkpointId) {
+    for (String manifest : manifestsPath) {
       try {
-        table.io().deleteFile(manifest.path());
+        io.deleteFile(manifest);
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
             MoreObjects.toStringHelper(FlinkManifestUtil.class)
-                .add("tableName", table.name())
+                .add("tableName", tableName)
                 .add("flinkJobId", newFlinkJobId)
                 .add("checkpointId", checkpointId)
-                .add("manifestPath", manifest.path())
+                .add("manifestPath", manifest)
                 .toString();
         LOG.warn(
             "The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",

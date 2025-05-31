@@ -59,6 +59,10 @@ public class TableMaintenance {
   static final String FILTER_OPERATOR_NAME_PREFIX = "Filter ";
   static final String LOCK_REMOVER_OPERATOR_NAME = "Lock remover";
 
+  static final long RATE_LIMIT_SECOND_DEFAULT = 60;
+  static final long LOCK_CHECK_DELAY_SECOND_DEFAULT = 30;
+  static final int MAX_READ_BACK_DEFAULT = 100;
+
   private TableMaintenance() {}
 
   /**
@@ -109,10 +113,10 @@ public class TableMaintenance {
 
     private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
     private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-    private Duration rateLimit = Duration.ofMinutes(1);
-    private Duration lockCheckDelay = Duration.ofSeconds(30);
+    private Duration rateLimit = Duration.ofSeconds(RATE_LIMIT_SECOND_DEFAULT);
+    private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
-    private int maxReadBack = 100;
+    private int maxReadBack = MAX_READ_BACK_DEFAULT;
 
     private Builder(
         StreamExecutionEnvironment env,

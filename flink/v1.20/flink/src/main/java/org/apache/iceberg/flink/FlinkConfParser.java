@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
@@ -29,13 +30,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class FlinkConfParser {
+@Internal
+public class FlinkConfParser {
 
   private final Map<String, String> tableProperties;
   private final Map<String, String> options;
   private final ReadableConfig readableConfig;
 
-  FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
+  public FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
     this.tableProperties = table.properties();
     this.options = options;
     this.readableConfig = readableConfig;
@@ -69,7 +71,7 @@ class FlinkConfParser {
     return new DurationConfParser();
   }
 
-  class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
+  public class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
     private Boolean defaultValue;
 
     @Override
@@ -93,7 +95,7 @@ class FlinkConfParser {
     }
   }
 
-  class IntConfParser extends ConfParser<IntConfParser, Integer> {
+  public class IntConfParser extends ConfParser<IntConfParser, Integer> {
     private Integer defaultValue;
 
     @Override
@@ -116,7 +118,7 @@ class FlinkConfParser {
     }
   }
 
-  class LongConfParser extends ConfParser<LongConfParser, Long> {
+  public class LongConfParser extends ConfParser<LongConfParser, Long> {
     private Long defaultValue;
 
     @Override
@@ -139,7 +141,7 @@ class FlinkConfParser {
     }
   }
 
-  class DoubleConfParser extends ConfParser<DoubleConfParser, Double> {
+  public class DoubleConfParser extends ConfParser<DoubleConfParser, Double> {
     private Double defaultValue;
 
     @Override
@@ -162,7 +164,7 @@ class FlinkConfParser {
     }
   }
 
-  class StringConfParser extends ConfParser<StringConfParser, String> {
+  public class StringConfParser extends ConfParser<StringConfParser, String> {
     private String defaultValue;
 
     @Override
@@ -185,7 +187,7 @@ class FlinkConfParser {
     }
   }
 
-  class EnumConfParser<E extends Enum<E>> extends ConfParser<EnumConfParser<E>, E> {
+  public class EnumConfParser<E extends Enum<E>> extends ConfParser<EnumConfParser<E>, E> {
     private E defaultValue;
     private final Class<E> enumClass;
 
@@ -213,7 +215,7 @@ class FlinkConfParser {
     }
   }
 
-  class DurationConfParser extends ConfParser<DurationConfParser, Duration> {
+  public class DurationConfParser extends ConfParser<DurationConfParser, Duration> {
     private Duration defaultValue;
 
     @Override
@@ -236,7 +238,7 @@ class FlinkConfParser {
     }
   }
 
-  abstract class ConfParser<ThisT, T> {
+  public abstract class ConfParser<ThisT, T> {
     private final List<String> optionNames = Lists.newArrayList();
     private String tablePropertyName;
     private ConfigOption<T> configOption;
