@@ -20,7 +20,7 @@ package org.apache.iceberg.variants;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantData implements Variant {
+public class VariantData implements Variant {
   private final VariantMetadata metadata;
   private final VariantValue value;
 
