@@ -31,9 +31,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -41,12 +44,19 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
+import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
+import org.apache.spark.sql.execution.SparkSqlParser;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 
 /** Helper methods for working with Spark/Hive metadata. */
 public class SparkSchemaUtil {
   private SparkSchemaUtil() {}
+
+  private static final SparkSqlParser SQL_PARSER = new SparkSqlParser();
 
   /**
    * Returns a {@link Schema} for the given table with fresh field ids.
@@ -125,6 +135,76 @@ public class SparkSchemaUtil {
   public static Schema convert(StructType sparkType) {
     Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
     return new Schema(converted.asNestedType().asStructType().fields());
+  }
+
+  public static Schema convert(List<org.apache.spark.sql.connector.catalog.Column> columns) {
+    // Create a spark struct type from the list of columns and run through the existing conversion
+    // visitor to assign IDs
+    StructType sparkSchema = new StructType();
+    Map<String, org.apache.spark.sql.connector.catalog.Column> columnsByName = Maps.newHashMap();
+    for (org.apache.spark.sql.connector.catalog.Column column : columns) {
+      sparkSchema =
+          sparkSchema.add(
+              column.name(),
+              column.dataType(),
+              column.nullable(),
+              column.metadataInJSON() != null
+                  ? Metadata.fromJson(column.metadataInJSON())
+                  : Metadata.empty());
+      columnsByName.put(column.name(), column);
+    }
+
+    Schema icebergSchema = convert(sparkSchema);
+
+    // Do a second pass over the fields to set the default values
+    List<Types.NestedField> fieldsWithDefaults = Lists.newArrayList();
+    for (Types.NestedField field : icebergSchema.columns()) {
+      org.apache.spark.sql.connector.catalog.Column column = columnsByName.get(field.name());
+      if (column.defaultValue() == null) {
+        fieldsWithDefaults.add(field);
+      } else {
+        Literal<?> icebergDefaultValue =
+            convertSparkDefaultValueToLiteral(column.defaultValue(), field.type(), field.name());
+        fieldsWithDefaults.add(
+            Types.NestedField.from(field)
+                .withInitialDefault(icebergDefaultValue)
+                .withWriteDefault(icebergDefaultValue)
+                .build());
+      }
+    }
+
+    return new Schema(fieldsWithDefaults);
+  }
+
+  static Literal<?> convertSparkDefaultValueToLiteral(
+      ColumnDefaultValue defaultValue, Type type, String fieldName) {
+    if (TypeUtil.find(type, t -> t.typeId() == Type.TypeID.STRUCT) != null) {
+      throw new UnsupportedOperationException(
+          String.format("Adding struct %s with default value is not supported", fieldName));
+    }
+
+    org.apache.spark.sql.catalyst.expressions.Expression expression =
+        SQL_PARSER.parseExpression(defaultValue.getSql());
+
+    if (!supportedExpressionForDefaultValues(expression)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Adding expression of type %s for default value for field %s is not supported",
+              expression.prettyName(), fieldName));
+    }
+
+    org.apache.spark.sql.connector.expressions.Literal<?> sparkLiteral = defaultValue.getValue();
+    if (sparkLiteral.value() instanceof UTF8String) {
+      return Expressions.lit(((UTF8String) sparkLiteral.value()).toString());
+    } else if (sparkLiteral.value() instanceof Decimal) {
+      return Expressions.lit(((Decimal) sparkLiteral.value()).toJavaBigDecimal());
+    }
+    return Expressions.lit(sparkLiteral.value());
+  }
+
+  private static boolean supportedExpressionForDefaultValues(
+      org.apache.spark.sql.catalyst.expressions.Expression expression) {
+    return expression instanceof org.apache.spark.sql.catalyst.expressions.Literal;
   }
 
   /**
