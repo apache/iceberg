@@ -268,13 +268,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(ns);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
-    String pageToken = "";
+    String pageToken = null;
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
-      queryParams.put("pageToken", pageToken);
+      if (pageToken != null) {
+        queryParams.put("pageToken", pageToken);
+      }
+
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
           client
@@ -565,13 +568,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
-    String pageToken = "";
+    String pageToken = null;
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
-      queryParams.put("pageToken", pageToken);
+      if (pageToken != null) {
+        queryParams.put("pageToken", pageToken);
+      }
+
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListNamespacesResponse response =
           client
@@ -1075,13 +1081,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(namespace);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
-    String pageToken = "";
+    String pageToken = null;
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
-      queryParams.put("pageToken", pageToken);
+      if (pageToken != null) {
+        queryParams.put("pageToken", pageToken);
+      }
+
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
           client
