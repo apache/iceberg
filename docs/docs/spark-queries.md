@@ -44,34 +44,7 @@ SELECT * FROM prod.db.table.files;
 | 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
 | 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
 
-## Querying with DataFrames
-
-To load a table as a DataFrame, use `table`:
-
-```scala
-val df = spark.table("prod.db.table")
-```
-
-### Catalogs with DataFrameReader
-
-Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
-the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
-variable can take a number of forms as listed below:
-
-*  `file:///path/to/table`: loads a HadoopTable at given path
-*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
-*  `catalog.tablename`: loads `tablename` from the specified catalog.
-*  `namespace.tablename`: loads `namespace.tablename` from current catalog
-*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
-*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
-
-The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
-
-
-### Time travel
-
-#### SQL
-
+### Time travel Queries with SQL
 Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
 
@@ -145,7 +118,32 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
-#### DataFrame
+
+## Querying with DataFrames
+
+To load a table as a DataFrame, use `table`:
+
+```scala
+val df = spark.table("prod.db.table")
+```
+
+### Catalogs with DataFrameReader
+
+Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
+the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
+variable can take a number of forms as listed below:
+
+*  `file:///path/to/table`: loads a HadoopTable at given path
+*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
+*  `catalog.tablename`: loads `tablename` from the specified catalog.
+*  `namespace.tablename`: loads `namespace.tablename` from current catalog
+*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
+*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
+
+The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+
+
+### Time travel Queries with DataFrame
 
 To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
 
