@@ -71,7 +71,6 @@ public interface MetricsContext extends Serializable {
      */
     void increment(T amount);
 
-
     /**
      * Reports the current count.
      *
