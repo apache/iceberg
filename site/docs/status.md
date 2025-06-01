@@ -271,7 +271,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | dropNamespace             | Y    | Y         | Y    | Y  |
 | namespaceExists           | Y    | N         | N    | Y  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
-| loadNamespaceMetadata     | Y    | Y         | N    | N  |
+| loadNamespaceMetadata     | Y    | Y         | N    | Y  |
 
 ### Glue Catalog
 
