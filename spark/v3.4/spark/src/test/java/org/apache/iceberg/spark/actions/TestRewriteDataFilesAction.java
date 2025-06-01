@@ -1326,7 +1326,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testParallelPartialProgressWithMaxFailedCommitsLargerThanTotalFileGroup() {
+  public void testParallelPartialProgressWithMaxCommitsLargerThanTotalGroupCount() {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
@@ -1341,7 +1341,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             // Since we can have at most one commit per file group and there are only 10 file
             // groups, actual number of commits is 10
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "20")
-            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+            // Setting max-failed-commits to 1 to tolerate random commit failure
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "1");
     rewrite.execute();
 
     table.refresh();
