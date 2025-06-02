@@ -65,7 +65,6 @@ public class CommittableToTableChangeConverter
   private transient ListState<Tuple2<Long, String>> manifestFilesCommitedState;
   private transient Set<String> manifestFilesCommitedSet;
   private transient NavigableMap<Long, List<String>> commitRequestMap;
-  private transient List<Tuple2<Long, String>> manifestFilesCommitedList;
   private transient String flinkJobId;
   // Maximum number of manifests to be committed at a time.
   // It is hardcoded for now, we can revisit in the future if config is needed.
@@ -96,7 +95,6 @@ public class CommittableToTableChangeConverter
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
     this.manifestFilesCommitedSet = Sets.newHashSet();
-    this.manifestFilesCommitedList = Lists.newArrayList();
     this.commitRequestMap = Maps.newTreeMap();
     this.manifestFilesCommitedState =
         context
@@ -107,12 +105,9 @@ public class CommittableToTableChangeConverter
     if (context.isRestored()) {
       for (Tuple2<Long, String> checkPointIdAndManifestTuple : manifestFilesCommitedState.get()) {
         manifestFilesCommitedSet.add(checkPointIdAndManifestTuple.f1);
-        manifestFilesCommitedList.add(checkPointIdAndManifestTuple);
-        manifestFilesCommitedList.forEach(
-            tuple ->
-                commitRequestMap
-                    .computeIfAbsent(tuple.f0, k -> Lists.newArrayList())
-                    .add(tuple.f1));
+        commitRequestMap
+            .computeIfAbsent(checkPointIdAndManifestTuple.f0, k -> Lists.newArrayList())
+            .add(checkPointIdAndManifestTuple.f1);
       }
     }
   }
@@ -131,7 +126,11 @@ public class CommittableToTableChangeConverter
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
     manifestFilesCommitedState.clear();
-    manifestFilesCommitedState.addAll(manifestFilesCommitedList);
+    for (Map.Entry<Long, List<String>> entry : commitRequestMap.entrySet()) {
+      for (String path : entry.getValue()) {
+        manifestFilesCommitedState.add(Tuple2.of(entry.getKey(), path));
+      }
+    }
   }
 
   @Override
@@ -145,6 +144,7 @@ public class CommittableToTableChangeConverter
           ((CommittableWithLineage<IcebergCommittable>) value).getCommittable();
 
       if (committable == null || committable.manifest().length == 0) {
+        out.collect(TableChange.builder().commitCount(1).build());
         return;
       }
 
@@ -188,7 +188,6 @@ public class CommittableToTableChangeConverter
 
   private void addManifestInfo(long checkpointId, String manifestPath) {
     manifestFilesCommitedSet.add(manifestPath);
-    manifestFilesCommitedList.add(Tuple2.of(checkpointId, manifestPath));
     commitRequestMap.computeIfAbsent(checkpointId, k -> Lists.newArrayList()).add(manifestPath);
 
     // If the capacity is exceeded, delete the earliest file.
@@ -199,13 +198,11 @@ public class CommittableToTableChangeConverter
       FlinkManifestUtil.deleteCommittedManifests(
           tableName, io, pathToRemoveList, flinkJobId, checkpointId);
       manifestFilesCommitedSet.clear();
-      manifestFilesCommitedList.clear();
       commitRequestMap.forEach(
           (id, paths) -> {
             paths.forEach(
                 path -> {
                   manifestFilesCommitedSet.add(path);
-                  manifestFilesCommitedList.add(Tuple2.of(id, path));
                 });
           });
     }

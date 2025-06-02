@@ -254,7 +254,9 @@ class TestCommittableToTableChangeConverter {
       CommittableWithLineage<IcebergCommittable> message =
           new CommittableWithLineage<>(emptyCommittable, 1L, 0);
       harness.processElement(new StreamRecord<>(message));
-      assertThat(harness.extractOutputValues()).hasSize(0);
+      List<TableChange> tableChanges = harness.extractOutputValues();
+      assertThat(tableChanges).hasSize(1);
+      assertThat(tableChanges.get(0)).isEqualTo(TableChange.builder().commitCount(1).build());
     }
   }
 

@@ -259,7 +259,6 @@ public class IcebergSink
             .uid(postCommitUid)
             .forceNonParallel();
     try {
-
       RewriteDataFilesConfig rewriteDataFilesConfig =
           flinkMaintenanceConfig.createRewriteDataFilesConfig();
       RewriteDataFiles.Builder rewriteBuilder =

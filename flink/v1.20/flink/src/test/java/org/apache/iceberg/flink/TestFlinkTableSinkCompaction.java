@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
@@ -69,17 +70,14 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
-  private static final Object[][] TEST_PARAMETERS = {
-    {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true},
-    {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false}
-  };
-
   @Parameter(index = 2)
   private boolean userSqlHint = true;
 
   @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}")
   public static List<Object[]> parameters() {
-    return Lists.newArrayList(TEST_PARAMETERS);
+    return Arrays.asList(
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false});
   }
 
   @Override
