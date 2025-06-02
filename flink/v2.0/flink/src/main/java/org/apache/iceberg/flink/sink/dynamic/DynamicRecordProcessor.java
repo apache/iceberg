@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
@@ -31,6 +33,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 
 @Internal
 class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
@@ -43,8 +46,10 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final boolean immediateUpdate;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
+  private final int inputSchemaCacheMaximumSize;
 
   private transient TableMetadataCache tableCache;
+  private transient Cache<Schema, DataConverter> converterCache;
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
@@ -56,12 +61,14 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       CatalogLoader catalogLoader,
       boolean immediateUpdate,
       int cacheMaximumSize,
-      long cacheRefreshMs) {
+      long cacheRefreshMs,
+      int inputSchemaCacheMaximumSize) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
+    this.inputSchemaCacheMaximumSize = inputSchemaCacheMaximumSize;
   }
 
   @Override
@@ -69,6 +76,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     super.open(openContext);
     Catalog catalog = catalogLoader.loadCatalog();
     this.tableCache = new TableMetadataCache(catalog, cacheMaximumSize, cacheRefreshMs);
+    this.converterCache = Caffeine.newBuilder().maximumSize(inputSchemaCacheMaximumSize).build();
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
@@ -142,10 +150,19 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       Schema schema,
       CompareSchemasVisitor.Result result,
       PartitionSpec spec) {
-    RowData rowData =
-        result == CompareSchemasVisitor.Result.SAME
-            ? data.rowData()
-            : RowDataEvolver.convert(data.rowData(), data.schema(), schema);
+    RowData rowData;
+    if (result == CompareSchemasVisitor.Result.SAME) {
+      rowData = data.rowData();
+    } else {
+      DataConverter converter =
+          converterCache.get(
+              data.schema(),
+              dataSchema ->
+                  DataConverter.get(
+                      FlinkSchemaUtil.convert(dataSchema), FlinkSchemaUtil.convert(schema)));
+      rowData = (RowData) converter.convert(data.rowData());
+    }
+
     int writerKey = hashKeyGenerator.generateKey(data, schema, spec, rowData);
     String tableName = data.tableIdentifier().toString();
     out.collect(

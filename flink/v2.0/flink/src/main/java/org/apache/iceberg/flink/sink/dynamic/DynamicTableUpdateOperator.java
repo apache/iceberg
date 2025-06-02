@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -28,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 
 /**
  * An optional operator to perform table updates for tables (e.g. schema update) in a non-concurrent
@@ -41,13 +44,20 @@ class DynamicTableUpdateOperator
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
+  private final int inputSchemaCacheMaximumSize;
+
   private transient TableUpdater updater;
+  private transient Cache<Schema, DataConverter> converterCache;
 
   DynamicTableUpdateOperator(
-      CatalogLoader catalogLoader, int cacheMaximumSize, long cacheRefreshMs) {
+      CatalogLoader catalogLoader,
+      int cacheMaximumSize,
+      long cacheRefreshMs,
+      int inputSchemaCacheMaximumSize) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
+    this.inputSchemaCacheMaximumSize = inputSchemaCacheMaximumSize;
   }
 
   @Override
@@ -57,6 +67,7 @@ class DynamicTableUpdateOperator
     this.updater =
         new TableUpdater(
             new TableMetadataCache(catalog, cacheMaximumSize, cacheRefreshMs), catalog);
+    this.converterCache = Caffeine.newBuilder().maximumSize(inputSchemaCacheMaximumSize).build();
   }
 
   @Override
@@ -69,7 +80,13 @@ class DynamicTableUpdateOperator
     data.setSpec(newData.f2);
 
     if (newData.f1 == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
-      RowData newRowData = RowDataEvolver.convert(data.rowData(), data.schema(), newData.f0);
+      DataConverter converter =
+          converterCache.get(
+              data.schema(),
+              dataSchema ->
+                  DataConverter.get(
+                      FlinkSchemaUtil.convert(dataSchema), FlinkSchemaUtil.convert(newData.f0)));
+      RowData newRowData = (RowData) converter.convert(data.rowData());
       data.setRowData(newRowData);
     }
 
