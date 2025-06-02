@@ -89,11 +89,16 @@ import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.identity.spi.AwsSessionCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ServiceClientConfiguration;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
@@ -730,6 +735,19 @@ public class TestS3FileIO {
     s3FileIOProperties
         .extracting(S3FileIOProperties::sessionToken)
         .isEqualTo("sessionTokenFromProperties");
+
+    // verify that the credentials identity gets the correct credentials for the prefixed S3 client
+    assertThat(fileIO.client("s3://my-bucket/table1").serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity).isNotNull();
+              assertThat(identity.accessKeyId()).isEqualTo("keyIdFromProperties");
+              assertThat(identity.secretAccessKey()).isEqualTo("accessKeyFromProperties");
+              assertThat(identity.sessionToken()).isEqualTo("sessionTokenFromProperties");
+            });
   }
 
   @Test
@@ -782,6 +800,32 @@ public class TestS3FileIO {
     s3FileIOProperties
         .extracting(S3FileIOProperties::sessionToken)
         .isEqualTo("sessionTokenFromCredential");
+
+    // verify that the credentials identity gets the correct credentials for the generic S3 client
+    assertThat(fileIO.client().serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity).isNotNull();
+              assertThat(identity.accessKeyId()).isEqualTo("keyIdFromProperties");
+              assertThat(identity.secretAccessKey()).isEqualTo("accessKeyFromProperties");
+              assertThat(identity.sessionToken()).isEqualTo("sessionTokenFromProperties");
+            });
+
+    // verify that the credentials identity gets the correct credentials for the prefixed S3 client
+    assertThat(fileIO.client("s3://custom-uri/table2").serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity).isNotNull();
+              assertThat(identity.accessKeyId()).isEqualTo("keyIdFromCredential");
+              assertThat(identity.secretAccessKey()).isEqualTo("accessKeyFromCredential");
+              assertThat(identity.sessionToken()).isEqualTo("sessionTokenFromCredential");
+            });
   }
 
   @Test
@@ -850,6 +894,18 @@ public class TestS3FileIO {
     s3FileIOProperties1
         .extracting(S3FileIOProperties::sessionToken)
         .isEqualTo("sessionTokenFromCredential1");
+    // verify that the credentials identity gets the correct credentials for the prefixed S3 client
+    assertThat(fileIO.client("s3://custom-uri/1").serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity).isNotNull();
+              assertThat(identity.accessKeyId()).isEqualTo("keyIdFromCredential1");
+              assertThat(identity.secretAccessKey()).isEqualTo("accessKeyFromCredential1");
+              assertThat(identity.sessionToken()).isEqualTo("sessionTokenFromCredential1");
+            });
 
     ObjectAssert<S3FileIOProperties> s3FileIOProperties2 =
         assertThat(fileIO.clientForStoragePath("s3://custom-uri/2/table1").s3FileIOProperties());
@@ -862,6 +918,30 @@ public class TestS3FileIO {
     s3FileIOProperties2
         .extracting(S3FileIOProperties::sessionToken)
         .isEqualTo("sessionTokenFromCredential2");
+    // verify that the credentials identity gets the correct credentials for the prefixed S3 client
+    assertThat(fileIO.client("s3://custom-uri/2").serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity).isNotNull();
+              assertThat(identity.accessKeyId()).isEqualTo("keyIdFromCredential2");
+              assertThat(identity.secretAccessKey()).isEqualTo("accessKeyFromCredential2");
+              assertThat(identity.sessionToken()).isEqualTo("sessionTokenFromCredential2");
+            });
+  }
+
+  @Test
+  public void noStorageCredentialConfiguredWithoutCredentialsInProperties() {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.initialize(ImmutableMap.of("client.region", "us-east-1"));
+
+    S3ServiceClientConfiguration actualConfiguration = fileIO.client().serviceClientConfiguration();
+    assertThat(actualConfiguration).isNotNull();
+    assertThatThrownBy(() -> actualConfiguration.credentialsProvider().resolveIdentity())
+        .isInstanceOf(SdkClientException.class)
+        .hasMessageContaining("Unable to load credentials from any of the providers");
   }
 
   private void createRandomObjects(String prefix, int count) {
