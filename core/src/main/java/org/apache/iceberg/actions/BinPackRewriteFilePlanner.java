@@ -19,7 +19,6 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -270,7 +269,7 @@ public class BinPackRewriteFilePlanner
                       });
             });
 
-    List<RewriteFileGroup> prunedRewriteFileGroupsBySize = new ArrayList<>();
+    List<RewriteFileGroup> prunedRewriteFileGroupsBySize = Lists.newArrayList();
     AtomicLong fileScanTaskSizeCountRunner = new AtomicLong();
 
     selectedFileGroups.stream()
