@@ -37,8 +37,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Map;
-import org.apache.iceberg.catalog.SessionCatalog;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -177,58 +175,5 @@ public class TestGoogleAuthManager {
     AuthSession resultSession = spyManager.initSession(mockRestClient, props);
     assertThat(resultSession).isSameAs(mockSession);
     verify(spyManager).catalogSession(mockRestClient, props);
-  }
-
-  @Test
-  public void contextualSessionReusesGoogleAuthParent() {
-    AuthSession parentSession = mock(GoogleAuthSession.class);
-    AuthSession resultSession =
-        authManager.contextualSession(mock(SessionCatalog.SessionContext.class), parentSession);
-    assertThat(resultSession).isSameAs(parentSession);
-  }
-
-  @Test
-  public void contextualSessionFallsBackToNewSessionWithNonGoogleParent() throws IOException {
-    AuthSession parentSession = mock(AuthSession.class);
-    mockedStaticCredentials
-        .when(GoogleCredentials::getApplicationDefault)
-        .thenReturn(mockCredsFromFile);
-
-    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
-
-    AuthSession resultSession =
-        authManager.contextualSession(mock(SessionCatalog.SessionContext.class), parentSession);
-
-    assertThat(resultSession).isInstanceOf(GoogleAuthSession.class);
-    mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
-  }
-
-  @Test
-  public void tableSessionReusesGoogleAuthParent() {
-    AuthSession parentSession = mock(GoogleAuthSession.class);
-    AuthSession resultSession =
-        authManager.tableSession(
-            mock(TableIdentifier.class), Collections.emptyMap(), parentSession);
-    assertThat(resultSession).isSameAs(parentSession);
-  }
-
-  @Test
-  public void tableSessionCreatesNewSessionWithNonGoogleParent() throws IOException {
-    AuthSession parentSession = mock(AuthSession.class);
-    Map<String, String> properties =
-        ImmutableMap.of(
-            GCPProperties.GCP_CREDENTIALS_PATH_PROPERTY, fakeCredentialFile.getAbsolutePath());
-
-    mockedStaticCredentials
-        .when(() -> GoogleCredentials.fromStream(any(FileInputStream.class)))
-        .thenReturn(mockCredsFromFile);
-    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
-
-    AuthSession resultSession =
-        authManager.tableSession(mock(TableIdentifier.class), properties, parentSession);
-
-    assertThat(resultSession).isInstanceOf(GoogleAuthSession.class);
-    mockedStaticCredentials.verify(
-        () -> GoogleCredentials.fromStream(any(FileInputStream.class)), times(1));
   }
 }

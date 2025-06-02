@@ -22,7 +22,6 @@ import com.google.auth.oauth2.GoogleCredentials;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -123,18 +122,7 @@ public class GoogleAuthManager implements AuthManager {
   public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
     // For GCP, tokens are typically not context-specific in this manner.
     // Re-using the parent (which should be a GoogleAuthSession) is appropriate.
-    // Or, if properties for a specific context were available, a new GoogleAuthSession could be
-    // derived.
-    if (parent instanceof GoogleAuthSession) {
-      return parent;
-    }
-    // Fallback to a new catalog-level session if the parent is not a GoogleAuthSession for some
-    // reason.
-    // This would require properties to be available or a default initialization.
-    LOG.warn(
-        "Parent session is not a GoogleAuthSession. Creating a new default catalog session. This might not be intended.");
-    return catalogSession(
-        null, Collections.emptyMap()); // Assuming default ADC without specific props
+    return parent;
   }
 
   /** Returns a session for a specific table or view. Defaults to the catalog session. */
@@ -142,13 +130,7 @@ public class GoogleAuthManager implements AuthManager {
   public AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     // Similar to contextualSession, GCP tokens are generally not table-specific.
-    if (parent instanceof GoogleAuthSession) {
-      return parent;
-    }
-    LOG.warn(
-        "Parent session for table {} is not a GoogleAuthSession. Creating a new default catalog session.",
-        table);
-    return catalogSession(null, properties);
+    return parent;
   }
 
   /** Closes the manager. This is a no-op for GoogleAuthManager. */
