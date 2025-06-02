@@ -193,9 +193,9 @@ public class BinPackRewriteFilePlanner
   }
 
   private Long maxBytesToRewrite(Map<String, String> options) {
-    Long value = PropertyUtil.propertyAsNullableLong(options, MAX_BYTES_TO_REWRITE);
+    Long value = PropertyUtil.propertyAsLong(options, MAX_BYTES_TO_REWRITE, Long.MAX_VALUE);
     Preconditions.checkArgument(
-        value == null || value > 0,
+         value > 0,
         "Cannot set %s to %s, the value must be positive integer.",
         MAX_BYTES_TO_REWRITE,
         value);
