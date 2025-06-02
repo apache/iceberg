@@ -20,10 +20,12 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.flink.maintenance.api.FlinkMaintenanceConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
+@Internal
 public class LockConfig {
 
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "lock.";

@@ -190,7 +190,7 @@ public class RewriteDataFiles {
      *
      * @param rewriteDataFilesConfig properties for the rewriter
      */
-    public Builder properties(RewriteDataFilesConfig rewriteDataFilesConfig) {
+    public Builder config(RewriteDataFilesConfig rewriteDataFilesConfig) {
 
       // Config about the rewriter
       this.partialProgressEnabled(rewriteDataFilesConfig.partialProgressEnable())

@@ -100,10 +100,6 @@ public class TriggerEvaluator implements Serializable {
       return this;
     }
 
-    public Duration timeout() {
-      return timeout;
-    }
-
     public TriggerEvaluator build() {
       List<Predicate> predicates = Lists.newArrayList();
       if (dataFileCount != null) {

@@ -263,7 +263,7 @@ public class IcebergSink
       RewriteDataFilesConfig rewriteDataFilesConfig =
           flinkMaintenanceConfig.createRewriteDataFilesConfig();
       RewriteDataFiles.Builder rewriteBuilder =
-          RewriteDataFiles.builder().properties(rewriteDataFilesConfig);
+          RewriteDataFiles.builder().config(rewriteDataFilesConfig);
 
       LockConfig lockConfig = flinkMaintenanceConfig.createLockConfig();
       TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(lockConfig, table.name());
