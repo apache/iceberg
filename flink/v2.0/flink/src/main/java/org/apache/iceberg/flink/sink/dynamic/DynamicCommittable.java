@@ -99,4 +99,8 @@ class DynamicCommittable implements Serializable {
         .add("operatorId", operatorId)
         .toString();
   }
+
+  public WriteTarget writeTarget() {
+    return key;
+  }
 }
