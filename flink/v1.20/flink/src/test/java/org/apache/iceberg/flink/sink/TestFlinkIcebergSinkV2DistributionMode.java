@@ -46,6 +46,7 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.source.BoundedTestSource;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -58,9 +59,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 /**
  * This tests the distribution mode of the IcebergSink. Extract them separately since it is
- * unnecessary to test different file formats (Avro, Orc, Parquet) like in {@link
- * TestFlinkIcebergSink}. Removing the file format dimension reduces the number of combinations from
- * 12 to 4, which helps reduce test run time.
+ * unnecessary to test different file formats (Avro, Orc, Parquet) like in {@link TestIcebergSink}.
+ * Removing the file format dimension reduces the number of combinations from 12 to 4, which helps
+ * reduce test run time.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSinkBase {
@@ -81,13 +82,18 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
   @Parameter(index = 1)
   private boolean partitioned;
 
-  @Parameters(name = "parallelism = {0}, partitioned = {1}")
+  @Parameter(index = 2)
+  private int writeParallelism;
+
+  @Parameters(name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {1, true},
-      {1, false},
-      {2, true},
-      {2, false}
+      {1, true, 1},
+      {1, false, 1},
+      {2, true, 2},
+      {2, false, 2},
+      {1, true, 2},
+      {1, false, 2},
     };
   }
 
@@ -109,7 +115,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
                 MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
-            .setMaxParallelism(parallelism);
+            .setMaxParallelism(Math.max(parallelism, writeParallelism));
 
     this.tableLoader = CATALOG_EXTENSION.tableLoader();
   }
@@ -178,7 +184,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .setAll(newProps)
         .append();
 
@@ -205,7 +211,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .append();
 
     // Range distribution requires either sort order or partition spec defined
@@ -229,6 +235,44 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
+
+    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(writeParallelism)
+        .append();
+
+    // sort based on partition columns
+    env.execute(getClass().getSimpleName());
+
+    table.refresh();
+    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+    // only keep the snapshots with added data files
+    snapshots =
+        snapshots.stream()
+            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .collect(Collectors.toList());
+
+    // Sometimes we will have more checkpoints than the bounded source if we pass the
+    // auto checkpoint interval. Thus producing multiple snapshots.
+    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
+  }
+
+  @TestTemplate
+  public void testRangeDistributionWithNullValue() throws Exception {
+    assumeThat(partitioned).isTrue();
+
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
+        .commit();
+
+    int numOfCheckpoints = 6;
+    List<List<Row>> charRows = createCharRows(numOfCheckpoints, 10);
+    charRows.add(ImmutableList.of(Row.of(1, null)));
+    DataStream<Row> dataStream =
+        env.addSource(createRangeDistributionBoundedSource(charRows), ROW_TYPE_INFO);
 
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
@@ -269,7 +313,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Map)
         .append();
     env.execute(getClass().getSimpleName());
@@ -305,9 +349,9 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         List<DataFile> addedDataFiles =
             Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
         // each writer task should only write one file for non-partition sort column
-        assertThat(addedDataFiles).hasSize(parallelism);
+        assertThat(addedDataFiles).hasSize(writeParallelism);
         // verify there is no overlap in min-max stats range
-        if (parallelism == 2) {
+        if (parallelism > 1) {
           assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
         }
       }
@@ -330,7 +374,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Sketch)
         .append();
     env.execute(getClass().getSimpleName());
@@ -361,9 +405,9 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
       List<DataFile> addedDataFiles =
           Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
       // each writer task should only write one file for non-partition sort column
-      assertThat(addedDataFiles).hasSize(parallelism);
+      assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
-      if (parallelism == 2) {
+      if (writeParallelism > 2) {
         assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
       }
     }
@@ -399,7 +443,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Auto)
         .append();
     env.execute(getClass().getSimpleName());
@@ -431,9 +475,9 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
           Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
       // each writer task should only write one file for non-partition sort column
       // sometimes
-      assertThat(addedDataFiles).hasSize(parallelism);
+      assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
-      if (parallelism == 2) {
+      if (writeParallelism > 1) {
         assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
       }
     }

@@ -129,7 +129,7 @@ import org.slf4j.LoggerFactory;
  */
 @Experimental
 public class IcebergSink
-        implements Sink<RowData>,
+    implements Sink<RowData>,
         SupportsPreWriteTopology<RowData>,
         SupportsCommitter<IcebergCommittable>,
         SupportsPreCommitTopology<WriteResult, IcebergCommittable>,
@@ -155,17 +155,17 @@ public class IcebergSink
   private final List<String> equalityFieldColumns = null;
 
   private IcebergSink(
-          TableLoader tableLoader,
-          Table table,
-          Map<String, String> snapshotProperties,
-          String uidSuffix,
-          Map<String, String> writeProperties,
-          RowType flinkRowType,
-          SerializableSupplier<Table> tableSupplier,
-          FlinkWriteConf flinkWriteConf,
-          List<Integer> equalityFieldIds,
-          String branch,
-          boolean overwriteMode) {
+      TableLoader tableLoader,
+      Table table,
+      Map<String, String> snapshotProperties,
+      String uidSuffix,
+      Map<String, String> writeProperties,
+      RowType flinkRowType,
+      SerializableSupplier<Table> tableSupplier,
+      FlinkWriteConf flinkWriteConf,
+      List<Integer> equalityFieldIds,
+      String branch,
+      boolean overwriteMode) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -190,30 +190,30 @@ public class IcebergSink
   @Override
   public SinkWriter<RowData> createWriter(InitContext context) {
     RowDataTaskWriterFactory taskWriterFactory =
-            new RowDataTaskWriterFactory(
-                    tableSupplier,
-                    flinkRowType,
-                    targetDataFileSize,
-                    dataFileFormat,
-                    writeProperties,
-                    equalityFieldIds,
-                    upsertMode);
+        new RowDataTaskWriterFactory(
+            tableSupplier,
+            flinkRowType,
+            targetDataFileSize,
+            dataFileFormat,
+            writeProperties,
+            equalityFieldIds,
+            upsertMode);
     IcebergStreamWriterMetrics metrics =
-            new IcebergStreamWriterMetrics(context.metricGroup(), table.name());
+        new IcebergStreamWriterMetrics(context.metricGroup(), table.name());
     return new IcebergSinkWriter(
-            tableSupplier.get().name(),
-            taskWriterFactory,
-            metrics,
-            context.getSubtaskId(),
-            context.getAttemptNumber());
+        tableSupplier.get().name(),
+        taskWriterFactory,
+        metrics,
+        context.getSubtaskId(),
+        context.getAttemptNumber());
   }
 
   @Override
   public Committer<IcebergCommittable> createCommitter(CommitterInitContext context) {
     IcebergFilesCommitterMetrics metrics =
-            new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
+        new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
     return new IcebergCommitter(
-            tableLoader, branch, snapshotProperties, overwriteMode, workerPoolSize, sinkId, metrics);
+        tableLoader, branch, snapshotProperties, overwriteMode, workerPoolSize, sinkId, metrics);
   }
 
   @Override
@@ -223,7 +223,7 @@ public class IcebergSink
 
   @Override
   public void addPostCommitTopology(
-          DataStream<CommittableMessage<IcebergCommittable>> committables) {
+      DataStream<CommittableMessage<IcebergCommittable>> committables) {
     // TODO Support small file compaction
   }
 
@@ -234,9 +234,9 @@ public class IcebergSink
 
   @Override
   public DataStream<CommittableMessage<IcebergCommittable>> addPreCommitTopology(
-          DataStream<CommittableMessage<WriteResult>> writeResults) {
+      DataStream<CommittableMessage<WriteResult>> writeResults) {
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
-            CommittableMessageTypeInfo.of(this::getCommittableSerializer);
+        CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
     String suffix = defaultSuffix(uidSuffix, table.name());
     String preCommitAggregatorUid = String.format("Sink pre-commit aggregator: %s", suffix);
@@ -246,16 +246,16 @@ public class IcebergSink
     // Once upstream Flink provides the capability of setting committer operator
     // parallelism to 1, this can be removed.
     return writeResults
-            .global()
-            .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
-            .uid(preCommitAggregatorUid)
-            .setParallelism(1)
-            .setMaxParallelism(1)
-            // global forces all output records send to subtask 0 of the downstream committer operator.
-            // This is to ensure commit only happen in one committer subtask.
-            // Once upstream Flink provides the capability of setting committer operator
-            // parallelism to 1, this can be removed.
-            .global();
+        .global()
+        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .uid(preCommitAggregatorUid)
+        .setParallelism(1)
+        .setMaxParallelism(1)
+        // global forces all output records send to subtask 0 of the downstream committer operator.
+        // This is to ensure commit only happen in one committer subtask.
+        // Once upstream Flink provides the capability of setting committer operator
+        // parallelism to 1, this can be removed.
+        .global();
   }
 
   @Override
@@ -286,27 +286,27 @@ public class IcebergSink
       DataType[] fieldDataTypes = inputTableSchema.getFieldDataTypes();
 
       DataFormatConverters.RowConverter rowConverter =
-              new DataFormatConverters.RowConverter(fieldDataTypes);
+          new DataFormatConverters.RowConverter(fieldDataTypes);
       return forMapperOutputType(
               input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
-              .tableSchema(inputTableSchema);
+          .tableSchema(inputTableSchema);
     }
 
     private <T> Builder forMapperOutputType(
-            DataStream<T> input, MapFunction<T, RowData> mapper, TypeInformation<RowData> outputType) {
+        DataStream<T> input, MapFunction<T, RowData> mapper, TypeInformation<RowData> outputType) {
       this.inputCreator =
-              newUidSuffix -> {
-                // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we
-                // need to set the parallelism of map operator same as its input to keep map operator
-                // chaining its input, and avoid rebalanced by default.
-                SingleOutputStreamOperator<RowData> inputStream =
-                        input.map(mapper, outputType).setParallelism(input.getParallelism());
-                if (newUidSuffix != null) {
-                  String uid = String.format("Sink pre-writer mapper: %s", newUidSuffix);
-                  inputStream.name(uid).uid(uid);
-                }
-                return inputStream;
-              };
+          newUidSuffix -> {
+            // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we
+            // need to set the parallelism of map operator same as its input to keep map operator
+            // chaining its input, and avoid rebalanced by default.
+            SingleOutputStreamOperator<RowData> inputStream =
+                input.map(mapper, outputType).setParallelism(input.getParallelism());
+            if (newUidSuffix != null) {
+              String uid = String.format("Sink pre-writer mapper: %s", newUidSuffix);
+              inputStream.name(uid).uid(uid);
+            }
+            return inputStream;
+          };
       return this;
     }
 
@@ -449,7 +449,7 @@ public class IcebergSink
      */
     public Builder rangeDistributionSortKeyBaseWeight(double weight) {
       writeOptions.put(
-              FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key(), Double.toString(weight));
+          FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key(), Double.toString(weight));
       return this;
     }
 
@@ -462,7 +462,7 @@ public class IcebergSink
     @Override
     public Builder writeParallelism(int newWriteParallelism) {
       writeOptions.put(
-              FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
+          FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
       return this;
     }
 
@@ -539,8 +539,8 @@ public class IcebergSink
     IcebergSink build() {
 
       Preconditions.checkArgument(
-              inputCreator != null,
-              "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
+          inputCreator != null,
+          "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader(), "Table loader shouldn't be null");
 
       // Set the table if it is not yet set in the builder, so we can do the equalityId checks
@@ -561,40 +561,40 @@ public class IcebergSink
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
       List<Integer> equalityFieldIds =
-              SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
+          SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
         Preconditions.checkState(
-                !overwriteMode,
-                "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
+            !overwriteMode,
+            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
         Preconditions.checkState(
-                !equalityFieldIds.isEmpty(),
-                "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+            !equalityFieldIds.isEmpty(),
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
-                    equalityFieldIds.contains(partitionField.sourceId()),
-                    "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
-                            + "should be included in equality fields: '%s'",
-                    table.schema().findColumnName(partitionField.sourceId()),
-                    partitionField,
-                    equalityFieldColumns);
+                equalityFieldIds.contains(partitionField.sourceId()),
+                "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
+                    + "should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
+                partitionField,
+                equalityFieldColumns);
           }
-        }x
+        }
       }
 
       return new IcebergSink(
-              tableLoader,
-              table,
-              snapshotSummary,
-              uidSuffix,
-              writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
-              toFlinkRowType(table.schema(), tableSchema),
-              tableSupplier,
-              flinkWriteConf,
-              equalityFieldIds,
-              flinkWriteConf.branch(),
-              overwriteMode);
+          tableLoader,
+          table,
+          snapshotSummary,
+          uidSuffix,
+          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
+          toFlinkRowType(table.schema(), tableSchema),
+          tableSupplier,
+          flinkWriteConf,
+          equalityFieldIds,
+          flinkWriteConf.branch(),
+          overwriteMode);
     }
 
     /**
@@ -611,7 +611,7 @@ public class IcebergSink
       // operators like writer,
       // committer. E.g. "Sink writer: <uidSuffix>
       DataStreamSink<RowData> rowDataDataStreamSink =
-              rowDataInput.sinkTo(sink).uid(suffix).name(suffix);
+          rowDataInput.sinkTo(sink).uid(suffix).name(suffix);
 
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
@@ -644,7 +644,7 @@ public class IcebergSink
         return (SerializableTable) SerializableTable.copyOf(loader.loadTable());
       } catch (IOException e) {
         throw new UncheckedIOException(
-                "Failed to load iceberg table from table loader: " + tableLoader, e);
+            "Failed to load iceberg table from table loader: " + tableLoader, e);
       }
     }
 
@@ -678,7 +678,7 @@ public class IcebergSink
    * @return The properties to use for writing
    */
   private static Map<String, String> writeProperties(
-          Table table, FileFormat format, FlinkWriteConf conf) {
+      Table table, FileFormat format, FlinkWriteConf conf) {
     Map<String, String> writeProperties = Maps.newHashMap(table.properties());
 
     switch (format) {
@@ -729,7 +729,7 @@ public class IcebergSink
   }
 
   private DataStream<RowData> distributeDataStreamByNoneDistributionMode(
-          DataStream<RowData> input, Schema iSchema) {
+      DataStream<RowData> input, Schema iSchema) {
     if (equalityFieldIds.isEmpty()) {
       return input;
     } else {
@@ -739,12 +739,12 @@ public class IcebergSink
   }
 
   private DataStream<RowData> distributeDataStreamByHashDistributionMode(
-          DataStream<RowData> input, Schema iSchema, PartitionSpec partitionSpec) {
+      DataStream<RowData> input, Schema iSchema, PartitionSpec partitionSpec) {
     if (equalityFieldIds.isEmpty()) {
       if (partitionSpec.isUnpartitioned()) {
         LOG.warn(
-                "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                        + "and table is unpartitioned");
+            "Fallback to use 'none' distribution mode, because there are no equality fields set "
+                + "and table is unpartitioned");
         return input;
       } else {
         return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
@@ -752,34 +752,34 @@ public class IcebergSink
     } else {
       if (partitionSpec.isUnpartitioned()) {
         LOG.info(
-                "Distribute rows by equality fields, because there are equality fields set "
-                        + "and table is unpartitioned");
+            "Distribute rows by equality fields, because there are equality fields set "
+                + "and table is unpartitioned");
         return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
       } else {
-        for (PartitionField partitionField : spec.fields()) {
+        for (PartitionField partitionField : partitionSpec.fields()) {
           Preconditions.checkState(
-                  equalityFieldIds.contains(partitionField.sourceId()),
-                  "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
-                          + "should be included in equality fields: '%s'",
-                  table.schema().findColumnName(partitionField.sourceId()),
-                  partitionField,
-                  equalityFieldColumns);
+              equalityFieldIds.contains(partitionField.sourceId()),
+              "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
+                  + "should be included in equality fields: '%s'",
+              table.schema().findColumnName(partitionField.sourceId()),
+              partitionField,
+              equalityFieldColumns);
         }
-        return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
+        return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
       }
     }
   }
 
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
-          DataStream<RowData> input,
-          Schema iSchema,
-          PartitionSpec partitionSpec,
-          SortOrder sortOrderParam) {
+      DataStream<RowData> input,
+      Schema iSchema,
+      PartitionSpec partitionSpec,
+      SortOrder sortOrderParam) {
 
     int writerParallelism =
-            flinkWriteConf.writeParallelism() == null
-                    ? input.getParallelism()
-                    : flinkWriteConf.writeParallelism();
+        flinkWriteConf.writeParallelism() == null
+            ? input.getParallelism()
+            : flinkWriteConf.writeParallelism();
 
     // needed because of checkStyle not allowing us to change the value of an argument
     SortOrder sortOrder = sortOrderParam;
@@ -789,17 +789,17 @@ public class IcebergSink
     // Keep the current behavior of falling back to keyBy for backward compatibility.
     if (!equalityFieldIds.isEmpty()) {
       LOG.warn(
-              "Hash distribute rows by equality fields, even though {}=range is set. "
-                      + "Range distribution for primary keys are not always safe in "
-                      + "Flink streaming writer.",
-              WRITE_DISTRIBUTION_MODE);
+          "Hash distribute rows by equality fields, even though {}=range is set. "
+              + "Range distribution for primary keys are not always safe in "
+              + "Flink streaming writer.",
+          WRITE_DISTRIBUTION_MODE);
       return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
     }
 
     // range distribute by partition key or sort key if table has an SortOrder
     Preconditions.checkState(
-            sortOrder.isSorted() || partitionSpec.isPartitioned(),
-            "Invalid write distribution mode: range. Need to define sort order or partition spec.");
+        sortOrder.isSorted() || partitionSpec.isPartitioned(),
+        "Invalid write distribution mode: range. Need to define sort order or partition spec.");
     if (sortOrder.isUnsorted()) {
       sortOrder = Partitioning.sortOrderFor(partitionSpec);
       LOG.info("Construct sort order from partition spec");
@@ -807,40 +807,40 @@ public class IcebergSink
 
     LOG.info("Range distribute rows by sort order: {}", sortOrder);
     StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
-            new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
+        new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
     StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
     SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
         input
             .transform(
                 operatorName("range-shuffle"),
-                TypeInformation.of(StatisticsOrRecord.class),
+                statisticsOrRecordTypeInformation,
                 new DataStatisticsOperatorFactory(
-                    schema,
+                    iSchema,
                     sortOrder,
                     writerParallelism,
                     statisticsType,
                     flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
-            // Set slotSharingGroup and same parallelism as input operator to force chaining
-            .slotSharingGroup("input-and-shuffle-chain")
+            // Set the parallelism same as input operator to encourage chaining
             .setParallelism(input.getParallelism());
+
     if (uidSuffix != null) {
       shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
     }
 
     return shuffleStream
-            .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
-            .flatMap(
-                    (FlatMapFunction<StatisticsOrRecord, RowData>)
-                            (statisticsOrRecord, out) -> {
-                              if (statisticsOrRecord.hasRecord()) {
-                                out.collect(statisticsOrRecord.record());
-                              }
-                            })
-            // Set slot sharing group and the parallelism same as writerParallelism to
-            // promote operator chaining with the downstream writer operator
-            .slotSharingGroup("shuffle-partition-custom-group")
-            .setParallelism(writerParallelism)
-            .returns(RowData.class);
+        .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
+        .flatMap(
+            (FlatMapFunction<StatisticsOrRecord, RowData>)
+                (statisticsOrRecord, out) -> {
+                  if (statisticsOrRecord.hasRecord()) {
+                    out.collect(statisticsOrRecord.record());
+                  }
+                })
+        // Set slot sharing group and the parallelism same as writerParallelism to
+        // promote operator chaining with the downstream writer operator
+        .slotSharingGroup("shuffle-partition-custom-group")
+        .setParallelism(writerParallelism)
+        .returns(RowData.class);
   }
 
   /**
@@ -856,7 +856,7 @@ public class IcebergSink
    * @return {@link Builder} to connect the iceberg table.
    */
   public static <T> Builder builderFor(
-          DataStream<T> input, MapFunction<T, RowData> mapper, TypeInformation<RowData> outputType) {
+      DataStream<T> input, MapFunction<T, RowData> mapper, TypeInformation<RowData> outputType) {
     return new Builder().forMapperOutputType(input, mapper, outputType);
   }
 
