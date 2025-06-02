@@ -1,0 +1,234 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.gcp.auth;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.google.auth.oauth2.GoogleCredentials;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.util.Collections;
+import java.util.Map;
+import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+public class TestGoogleAuthManager {
+
+  private static final String MANAGER_NAME = "testManager";
+  @Mock private RESTClient mockRestClient;
+  @Mock private GoogleCredentials mockCredentialsInstance;
+  @Mock private GoogleCredentials mockCredsFromFile;
+
+  private GoogleAuthManager authManager;
+  private MockedStatic<GoogleCredentials> mockedStaticCredentials;
+
+  @TempDir File tempDir;
+  private File fakeCredentialFile;
+
+  @BeforeEach
+  public void beforeEach() throws IOException {
+    authManager = new GoogleAuthManager(MANAGER_NAME);
+    mockedStaticCredentials = Mockito.mockStatic(GoogleCredentials.class);
+    fakeCredentialFile = new File(tempDir, "fake-creds.json");
+    Files.write(fakeCredentialFile.toPath(), "{\"type\": \"service_account\"}".getBytes());
+  }
+
+  @AfterEach
+  public void afterEach() {
+    mockedStaticCredentials.close();
+  }
+
+  @Test
+  public void providesCorrectManagerName() {
+    assertThat(authManager.getName()).isEqualTo(MANAGER_NAME);
+  }
+
+  @Test
+  public void buildsCatalogSessionFromCredentialsFile() throws IOException {
+    String customScopes = "scope1,scope2";
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCP_CREDENTIALS_PATH_PROPERTY,
+            fakeCredentialFile.getAbsolutePath(),
+            GCPProperties.GCP_SCOPES_PROPERTY,
+            customScopes);
+
+    mockedStaticCredentials
+        .when(() -> GoogleCredentials.fromStream(any(FileInputStream.class)))
+        .thenReturn(mockCredsFromFile);
+    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
+
+    AuthSession session = authManager.catalogSession(mockRestClient, properties);
+
+    assertThat(session).isInstanceOf(GoogleAuthSession.class);
+    verify(mockCredsFromFile).createScoped(ImmutableList.of("scope1", "scope2"));
+  }
+
+  @Test
+  public void throwsUncheckedIOExceptionOnCredentialsFileError() throws IOException {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCP_CREDENTIALS_PATH_PROPERTY, fakeCredentialFile.getAbsolutePath());
+
+    mockedStaticCredentials
+        .when(() -> GoogleCredentials.fromStream(any(FileInputStream.class)))
+        .thenThrow(new IOException("Simulated stream loading failure"));
+
+    assertThatThrownBy(() -> authManager.catalogSession(mockRestClient, properties))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to load Google credentials");
+  }
+
+  @Test
+  public void buildsCatalogSessionUsingADC() throws IOException {
+    Map<String, String> properties = Collections.emptyMap();
+
+    mockedStaticCredentials
+        .when(GoogleCredentials::getApplicationDefault)
+        .thenReturn(mockCredsFromFile);
+
+    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
+
+    AuthSession session = authManager.catalogSession(mockRestClient, properties);
+
+    assertThat(session).isInstanceOf(GoogleAuthSession.class);
+    mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
+  }
+
+  @Test
+  public void throwsUncheckedIOExceptionOnADCError() throws IOException {
+    Map<String, String> properties = Collections.emptyMap();
+
+    mockedStaticCredentials
+        .when(GoogleCredentials::getApplicationDefault)
+        .thenThrow(new IOException("ADC unavailable"));
+
+    assertThatThrownBy(() -> authManager.catalogSession(mockRestClient, properties))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to load Google credentials");
+  }
+
+  @Test
+  public void initializationOccursOnlyOnce() throws IOException {
+    Map<String, String> properties = Collections.emptyMap();
+    mockedStaticCredentials
+        .when(GoogleCredentials::getApplicationDefault)
+        .thenReturn(mockCredsFromFile);
+
+    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
+
+    authManager.catalogSession(mockRestClient, properties);
+    authManager.catalogSession(mockRestClient, properties);
+
+    mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
+  }
+
+  @Test
+  public void initSessionDelegatesToCatalogSession() {
+    GoogleAuthManager spyManager = spy(authManager);
+    AuthSession mockSession = mock(GoogleAuthSession.class);
+    Map<String, String> props = Collections.emptyMap();
+
+    doReturn(mockSession).when(spyManager).catalogSession(mockRestClient, props);
+
+    AuthSession resultSession = spyManager.initSession(mockRestClient, props);
+    assertThat(resultSession).isSameAs(mockSession);
+    verify(spyManager).catalogSession(mockRestClient, props);
+  }
+
+  @Test
+  public void contextualSessionReusesGoogleAuthParent() {
+    AuthSession parentSession = mock(GoogleAuthSession.class);
+    AuthSession resultSession =
+        authManager.contextualSession(mock(SessionCatalog.SessionContext.class), parentSession);
+    assertThat(resultSession).isSameAs(parentSession);
+  }
+
+  @Test
+  public void contextualSessionFallsBackToNewSessionWithNonGoogleParent() throws IOException {
+    AuthSession parentSession = mock(AuthSession.class);
+    mockedStaticCredentials
+        .when(GoogleCredentials::getApplicationDefault)
+        .thenReturn(mockCredsFromFile);
+
+    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
+
+    AuthSession resultSession =
+        authManager.contextualSession(mock(SessionCatalog.SessionContext.class), parentSession);
+
+    assertThat(resultSession).isInstanceOf(GoogleAuthSession.class);
+    mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
+  }
+
+  @Test
+  public void tableSessionReusesGoogleAuthParent() {
+    AuthSession parentSession = mock(GoogleAuthSession.class);
+    AuthSession resultSession =
+        authManager.tableSession(
+            mock(TableIdentifier.class), Collections.emptyMap(), parentSession);
+    assertThat(resultSession).isSameAs(parentSession);
+  }
+
+  @Test
+  public void tableSessionCreatesNewSessionWithNonGoogleParent() throws IOException {
+    AuthSession parentSession = mock(AuthSession.class);
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCP_CREDENTIALS_PATH_PROPERTY, fakeCredentialFile.getAbsolutePath());
+
+    mockedStaticCredentials
+        .when(() -> GoogleCredentials.fromStream(any(FileInputStream.class)))
+        .thenReturn(mockCredsFromFile);
+    when(mockCredsFromFile.createScoped(anyList())).thenReturn(mockCredentialsInstance);
+
+    AuthSession resultSession =
+        authManager.tableSession(mock(TableIdentifier.class), properties, parentSession);
+
+    assertThat(resultSession).isInstanceOf(GoogleAuthSession.class);
+    mockedStaticCredentials.verify(
+        () -> GoogleCredentials.fromStream(any(FileInputStream.class)), times(1));
+  }
+}
