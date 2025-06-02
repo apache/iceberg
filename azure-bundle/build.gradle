@@ -20,6 +20,7 @@
 project(":iceberg-azure-bundle") {
 
   apply plugin: 'com.gradleup.shadow'
+  apply from: "${rootDir}/license.gradle"
 
   tasks.jar.dependsOn tasks.shadowJar
 
