@@ -22,6 +22,7 @@ import com.codahale.metrics.SlidingWindowReservoir;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
@@ -88,5 +89,15 @@ public class IcebergStreamWriterMetrics {
 
   public void flushDuration(long flushDurationMs) {
     lastFlushDurationMs.set(flushDurationMs);
+  }
+
+  @VisibleForTesting
+  public Counter getFlushedDataFiles() {
+    return flushedDataFiles;
+  }
+
+  @VisibleForTesting
+  public Counter getFlushedDeleteFiles() {
+    return flushedDeleteFiles;
   }
 }
