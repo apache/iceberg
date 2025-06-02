@@ -454,8 +454,14 @@ class DeleteFileIndex {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
+                      DeleteFile file = entry.file();
+                      boolean dropStats = file.content() == FileContent.POSITION_DELETES;
                       // copy with stats for better filtering against data file stats
-                      files.add(entry.file().copy());
+                      files.add(
+                          dropStats
+                              ? file.copyWithStats(
+                                  Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId()))
+                              : file.copy());
                     }
                   }
                 } catch (IOException e) {
