@@ -76,15 +76,13 @@ public abstract class S3V4RestSignerClient
 
   private static final String SCOPE = "sign";
 
-  @SuppressWarnings("immutables:incompat")
-  private volatile AuthManager authManager;
+  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
+  @VisibleForTesting
+  static volatile AuthManager authManager;
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
   static volatile RESTClient httpClient;
-
-  @SuppressWarnings("immutables:incompat")
-  private volatile AuthSession authSession;
 
   public abstract Map<String, String> properties();
 
@@ -151,34 +149,53 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
-  @VisibleForTesting
-  AuthSession authSession() {
-    if (null == authSession) {
+  private AuthManager authManager() {
+    if (null == authManager) {
       synchronized (S3V4RestSignerClient.class) {
-        if (null == authSession) {
+        if (null == authManager) {
           authManager = AuthManagers.loadAuthManager("s3-signer", properties());
-          ImmutableMap.Builder<String, String> properties =
-              ImmutableMap.<String, String>builder()
-                  .putAll(properties())
-                  .putAll(optionalOAuthParams())
-                  .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
-                  .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
-                  .put(OAuth2Properties.SCOPE, SCOPE);
-          String token = token().get();
-          if (null != token) {
-            properties.put(OAuth2Properties.TOKEN, token);
-          }
-
-          if (credentialProvided()) {
-            properties.put(OAuth2Properties.CREDENTIAL, credential());
-          }
-
-          authSession = authManager.tableSession(httpClient(), properties.buildKeepingLast());
         }
       }
     }
 
-    return authSession;
+    return authManager;
+  }
+
+  @VisibleForTesting
+  AuthSession authSession() {
+    ImmutableMap.Builder<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties())
+            .putAll(optionalOAuthParams())
+            .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+            .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
+            .put(OAuth2Properties.SCOPE, SCOPE);
+    String token = token().get();
+    if (null != token) {
+      properties.put(OAuth2Properties.TOKEN, token);
+    }
+
+    if (credentialProvided()) {
+      properties.put(OAuth2Properties.CREDENTIAL, credential());
+    }
+
+    return authManager().tableSession(httpClient(), properties.buildKeepingLast());
+  }
+
+  static {
+    installShutdownHook();
+  }
+
+  @SuppressWarnings("ShutdownHook")
+  private static void installShutdownHook() {
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(
+                () -> {
+                  IoUtils.closeQuietlyV2(authManager, null);
+                  IoUtils.closeQuietlyV2(httpClient, null);
+                },
+                "S3V4RestSignerClient-shutdown-hook"));
   }
 
   private boolean credentialProvided() {
@@ -283,10 +300,7 @@ public abstract class S3V4RestSignerClient
   }
 
   @Override
-  public void close() throws Exception {
-    IoUtils.closeQuietlyV2(authSession, null);
-    IoUtils.closeQuietlyV2(authManager, null);
-  }
+  public void close() throws Exception {}
 
   /**
    * Only add body for DeleteObjectsRequest. Refer to

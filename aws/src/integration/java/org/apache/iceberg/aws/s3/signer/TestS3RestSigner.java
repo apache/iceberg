@@ -73,6 +73,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.utils.IoUtils;
 
 @Testcontainers
 public class TestS3RestSigner {
@@ -122,8 +123,7 @@ public class TestS3RestSigner {
     // there aren't other token refreshes being scheduled after every sign request and after
     // TestS3RestSigner completes all tests, there should be only this single token in the queue
     // that is scheduled for refresh
-    assertThat(validatingSigner.icebergSigner)
-        .extracting("authManager")
+    assertThat(S3V4RestSignerClient.authManager)
         .extracting("refreshExecutor")
         .asInstanceOf(type(ScheduledThreadPoolExecutor.class))
         .satisfies(
@@ -143,6 +143,11 @@ public class TestS3RestSigner {
     if (null != httpServer) {
       httpServer.stop();
     }
+
+    IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
+    IoUtils.closeQuietlyV2(S3V4RestSignerClient.httpClient, null);
+    S3V4RestSignerClient.authManager = null;
+    S3V4RestSignerClient.httpClient = null;
   }
 
   @BeforeEach
