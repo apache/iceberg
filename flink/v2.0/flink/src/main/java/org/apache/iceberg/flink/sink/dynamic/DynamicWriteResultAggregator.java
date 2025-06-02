@@ -129,7 +129,7 @@ class DynamicWriteResultAggregator
    * Write all the completed data files to a newly created manifest file and return the manifest's
    * avro serialized bytes.
    */
-  private byte[] writeToManifest(
+  byte[] writeToManifest(
       WriteTarget key, Collection<DynamicWriteResult> writeResults, long checkpointId)
       throws IOException {
     if (writeResults.isEmpty()) {
