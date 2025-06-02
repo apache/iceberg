@@ -1,0 +1,363 @@
+import com.github.jk1.license.ProjectData
+import com.github.jk1.license.render.ReportRenderer
+import com.github.jk1.license.ImportedModuleData
+import com.github.jk1.license.License
+import com.github.jk1.license.LicenseReportExtension
+import com.github.jk1.license.ModuleData
+
+apply plugin: "com.github.jk1.dependency-license-report"
+
+// Helper to define file paths once
+// Define file paths as script variables for reliable access
+def generatedLicenseFile = file("${projectDir}/build/reports/dependency-license/LICENSE")
+def rootLicenseFile = file("${projectDir}/LICENSE")
+def generatedNoticeFile = file("${projectDir}/build/reports/dependency-license/NOTICE")
+def rootNoticeFile = file("${projectDir}/NOTICE")
+
+// Simplified file comparison and update tasks
+tasks.register('compareLicenseReport') {
+    doLast {
+        if (generatedLicenseFile.text != rootLicenseFile.text) {
+            throw new RuntimeException("LICENSE file has changed. Run 'gradle updateLicenseReport' to update it.")
+        }
+        if (generatedNoticeFile.text != rootNoticeFile.text) {
+            throw new RuntimeException("NOTICE file has changed. Run 'gradle updateLicenseReport' to update it.")
+        }
+    }
+}
+
+tasks.register('updateLicenseReport') {
+    doLast {
+        rootLicenseFile.text = generatedLicenseFile.text
+        rootNoticeFile.text = generatedNoticeFile.text
+    }
+}
+
+// Task dependencies
+generateLicenseReport.outputs.upToDateWhen { false }
+updateLicenseReport.dependsOn generateLicenseReport
+compareLicenseReport.dependsOn generateLicenseReport
+check.dependsOn compareLicenseReport
+
+// Custom Renderer Configuration
+licenseReport {
+    excludeBoms = true
+    renderers = [new IcebergReportRenderer()]
+}
+
+class IcebergReportRenderer implements ReportRenderer {
+
+    private Project project
+    private LicenseReportExtension config
+    private File licenseFile
+    private File noticeFile
+    private Map<String, List<ModuleData>> notices = new HashMap<>()
+    private static final String SEP = "--------------------------------------------------------------------------------"
+
+    // --- CENTRALIZED LICENSE CATEGORIZATION ---
+    // A single map to define all known license aliases and their ASF category.
+    // This simplifies maintenance. To add a new license, add its variations here.
+    // KEY: Lowercase license alias/variation. VALUE: ASF Category ('A', 'B', 'X').
+    // https://www.apache.org/legal/resolved.html
+    private static final Map<String, String> LICENSE_TO_CATEGORY_MAP = [
+            // Category A (Permissive)
+            'apache 2.0': 'A', 'apache-2.0': 'A', 'asl 2.0': 'A', 'apache license 2.0': 'A',
+            'apache license, version 2.0': 'A', 'the apache software license, version 2.0': 'A',
+            'apache v2': 'A', 'apache 2': 'A', 'apache license v2.0': 'A', 'apache': 'A', 'apache-1.1': 'A',
+            'apache software license 1.1': 'A', 'the apache license, version 2.0': 'A',
+            'apache software license - version 2.0': 'A',
+            'bsd-2-clause': 'A', 'bsd 2-clause': 'A', 'freebsd': 'A', 'simplified bsd': 'A',
+            'bsd 2-clause "simplified" license': 'A', 'bsd 2-clause "freebsd" license': 'A', 'revised bsd': 'A',
+            'bsd-3-clause': 'A', 'new bsd': 'A', 'modified bsd': 'A', 'bsd 3-clause': 'A', 'bsd new license': 'A',
+            'new bsd license': 'A', 'bsd 2-clause license': 'A', 'bsd license': 'A', 'the bsd license': 'A',
+            'bsd licence': 'A', 'the bsd 2-clause license': 'A',
+            'mit': 'A', 'mit license': 'A', 'x11': 'A', 'the mit license': 'A', 'mit-0': 'A', 'the mit license (mit)': 'A',
+            'isc': 'A', 'python-2.0': 'A', 'python software foundation license version 2': 'A',
+            'edl-1.0': 'A', 'eclipse distribution license - v 1.0': 'A', 'eclipse distribution license 1.0': 'A', 'edl 1.0': 'A',
+            'postgresql': 'A', 'postgresql license': 'A', 'public domain': 'A', 'unlicense': 'A', 'cc-pddc': 'A',
+            'w3c': 'A', 'w3c-19980720': 'A', 'w3c-20150513': 'A', 'w3c software license': 'A', 'zlib': 'A',
+            'bsl-1.0': 'A', 'boost software license version 1.0': 'A', 'go license': 'A', 'upl-1.0': 'A',
+            'bouncy castle licence': 'A',
+
+            // Category B (Weak Copyleft)
+            'cddl-1.0': 'B', 'cddl-1.1': 'B', 'cddl 1.1':'B', 'common development and distribution license': 'B', 'cddl': 'B',
+            'cpl-1.0': 'B', 'common public license version 1.0': 'B', 'common development and distribution license (cddl) version 1.0': 'B',
+            'epl-1.0': 'B', 'eclipse public license - v 1.0': 'B', 'eclipse public license 1.0': 'B', 'eclipse public license - version 1.0': 'B',
+            'epl-2.0': 'B', 'eclipse public license - v 2.0': 'B', 'eclipse public license 2.0': 'B', 'eclipse public license v. 2.0': 'B',
+            'ipa': 'B', 'ipa font license': 'B',
+            'mpl-1.0': 'B', 'mpl-1.1': 'B', 'mpl-2.0': 'B', 'mozilla public license 2.0': 'B', 'mozilla public license 1.1': 'B',
+            'gpl-2.0-with-classpath-exception': 'B', 'gpl-2.0 with classpath exception': 'B', 'gplv2 with classpath exception': 'B',
+            'gplv2 with cpe': 'B', 'gpl2 w/ cpe': 'B', 'gnu general public license, version 2 with the gnu classpath exception': 'B',
+            'cddl + gplv2 with classpath exception': 'B', // Special combo case
+
+            // Category X (Strong Copyleft or problematic)
+            'agpl-3.0-only': 'X', 'agpl-3.0-or-later': 'X', 'affero gpl': 'X',
+            'gpl-2.0-only': 'X', 'gpl-2.0-or-later': 'X', 'general public license v2': 'X',
+            'gpl-3.0-only': 'X', 'gpl-3.0-or-later': 'X', 'general public license v3': 'X',
+            'gnu lesser general public license': 'X', 'gnu general public library': 'X',
+            'lgpl-2.0-only': 'X', 'lgpl-2.0-or-later': 'X', 'lgpl v2.0': 'X',
+            'lgpl-2.1-only': 'X', 'lgpl-2.1-or-later': 'X', 'lgpl v2.1': 'X', 'lesser general public license 2.1': 'X',
+            'lgpl-3.0-only': 'X', 'lgpl-3.0-or-later': 'X', 'lgpl v3.0': 'X', 'lesser general public license 3.0': 'X',
+            'sleepycat': 'X', 'sleepycat license': 'X',
+            'bsd-4-clause': 'X', 'original bsd': 'X',
+            'json': 'X',
+            'qpl-1.0': 'X', 'sspl-1.0': 'X'
+    ]
+
+    private String normalizeLicenseName(String licenseIdentifier) {
+        if (!licenseIdentifier) return ""
+        String lower = licenseIdentifier.toLowerCase().trim()
+
+        if (lower.contains('cddl') && (lower.contains('gplv2 with classpath exception') || lower.contains('gplv2 with cpe'))) {
+            return 'cddl + gplv2 with classpath exception'
+        }
+        if (lower.contains('epl-1.0') && lower.contains('edl-1.0')) {
+            return 'edl-1.0'
+        }
+
+        return lower.replaceAll(/;link=.*/, "").replaceAll(/^\"|\"$/, "").trim()
+    }
+
+    private String getLicenseCategory(String licenseIdentifier) {
+        String normalized = normalizeLicenseName(licenseIdentifier)
+        String category = LICENSE_TO_CATEGORY_MAP[normalized]
+        if (!category) {
+            project.logger.warn("LICENSE-DEBUG: Uncategorized license. Normalized: '{}' (Original: '{}'). Please update LICENSE_TO_CATEGORY_MAP.", normalized, licenseIdentifier)
+        }
+        return category ?: "UNKNOWN"
+    }
+
+    private Map<String, String> selectExclusiveLicense(List<Map<String, String>> declaredLicenses, ModuleData moduleData) {
+        if (!declaredLicenses) return null
+        def licensesByCategory = declaredLicenses.groupBy { getLicenseCategory(it.name) }
+        def chosenLicense = licensesByCategory['A']?.first() ?: licensesByCategory['B']?.first() ?: licensesByCategory['X']?.first() ?: licensesByCategory['UNKNOWN']?.first()
+
+        if (chosenLicense) {
+            String category = getLicenseCategory(chosenLicense.name)
+            String module = "${moduleData.group}:${moduleData.name}:${moduleData.version}"
+            switch (category) {
+                case 'X':
+                    project.logger.error("ASF-POLICY-VIOLATION: Dependency {} has Category X license: {}", module, chosenLicense.name)
+                    break
+                case 'B':
+                    project.logger.warn("ASF-POLICY-INFO: Dependency {} uses Category B license '{}'. Review ASF conditions.", module, chosenLicense.name)
+                    break
+                case 'UNKNOWN':
+                    project.logger.warn("ASF-POLICY-REVIEW: Could not categorize license for {}: {}. Review manually.", module, chosenLicense.name)
+                    break
+            }
+        } else {
+            project.logger.warn("ASF-POLICY-REVIEW: No license could be chosen for ${moduleData.group}:${moduleData.name}:${moduleData.version}.")
+        }
+
+        return chosenLicense
+    }
+
+    private void printDependency(ModuleData data, Writer writer) {
+        def pomUrl = (data.poms && !data.poms.isEmpty()) ? data.poms.first().projectUrl : null
+        def pomOrgUrl = (data.poms && !data.poms.isEmpty()) ? data.poms.first()?.organization?.url : null
+        def manifestUrl = (data.manifests && !data.manifests.isEmpty()) ? data.manifests.first().url : null
+        def projectUrl = pomUrl ?: manifestUrl ?: pomOrgUrl
+
+        writer << "  - ${data.group}:${data.name}:${data.version}"
+        if (projectUrl) {
+            writer << " (${projectUrl})"
+        }
+        writer << "\n"
+
+        // Safely find and collect NOTICE files
+        if (data.licenseFiles && !data.licenseFiles.isEmpty()) {
+            data.licenseFiles.first().fileDetails?.find { it.file.toUpperCase().contains("NOTICE") }?.with {
+                File notice = new File("$config.absoluteOutputDir/$it.file")
+                if (notice.exists()) {
+                    notices.computeIfAbsent(notice.text.trim(), { [] }).add(data)
+                }
+            }
+        }
+    }
+
+    void render(ProjectData data) {
+        project = data.project
+        config = project.licenseReport
+
+        File licenseFile = new File(config.absoluteOutputDir, 'LICENSE')
+        File noticeFile = new File(config.absoluteOutputDir, 'NOTICE')
+
+        // **** START: Write the project's own license first ****
+        licenseFile.text = rootPrefix(new File(data.project.rootDir, 'LICENSE'))
+        licenseFile << "\n${SEP}\n\n"
+        licenseFile << "This product bundles the following software packages, each of which is available under its own license terms:\n"
+        licenseFile << "\n${SEP}\n\n"
+
+        noticeFile.text = rootPrefix(new File(data.project.rootDir, 'NOTICE'))
+        noticeFile << "\n${SEP}\n\nThis product bundles the following software packages with NOTICE files:\n\n${SEP}\n\n"
+
+        def dependenciesByLicense = groupDependenciesByLicense(data)
+        StringBuilder licenseReport = new StringBuilder()
+        StringBuilder noticeReport = new StringBuilder()
+
+        dependenciesByLicense.each { license, modules ->
+            licenseReport.append("The following software may be included in this product: ${modules.size()} component(s) licensed under the ${license.name}.\n")
+            if (license.url != 'N/A') {
+                licenseReport.append("License URL: ${license.url}\n")
+            }
+            licenseReport.append("ASF Category: ${license.category}\n\n")
+            licenseReport.append("Component(s):\n")
+            modules.each { module ->
+                def pomUrl = (module.poms && !module.poms.isEmpty()) ? module.poms.first().projectUrl : null
+                def pomOrgUrl = (module.poms && !module.poms.isEmpty()) ? module.poms.first()?.organization?.url : null
+                def manifestUrl = (module.manifests && !module.manifests.isEmpty()) ? module.manifests.first().url : null
+                def projectUrl = pomUrl ?: manifestUrl ?: pomOrgUrl
+
+                licenseReport.append("  - ${module.group}:${module.name}:${module.version}")
+                if (projectUrl) {
+                    licenseReport.append(" (${projectUrl})")
+                }
+                licenseReport.append("\n")
+
+                // Collect NOTICE files
+                if (module.licenseFiles && !module.licenseFiles.isEmpty()) {
+                    module.licenseFiles.first().fileDetails?.find { it.file.toUpperCase().contains("NOTICE") }?.with {
+                        File notice = new File("$config.absoluteOutputDir/$it.file")
+                        if (notice.exists()) {
+                            notices.computeIfAbsent(notice.text.trim(), { [] }).add(module)
+                        }
+                    }
+                }
+            }
+
+            if (license.text) {
+                licenseReport.append("\n-----BEGIN LICENSE TEXT-----\n")
+                licenseReport.append(license.text.trim())
+                licenseReport.append("\n-----END LICENSE TEXT-----\n")
+            }
+            licenseReport.append("\n${SEP}\n\n")
+        }
+
+        notices.each { String noticeText, List<ModuleData> projs ->
+            noticeReport.append("This product bundles software which includes the following notice:\n")
+            projs.each { ModuleData proj ->
+                noticeReport.append("  - ${proj.group}:${proj.name}:${proj.version}\n")
+            }
+            noticeReport.append("\n-----BEGIN NOTICE-----\n")
+            noticeReport.append(noticeText.trim())
+            noticeReport.append("\n-----END NOTICE-----\n")
+            noticeReport.append("\n${SEP}\n\n")
+        }
+
+        licenseFile.append(licenseReport.toString())
+        noticeFile.append(noticeReport.toString())
+    }
+
+    private Map<Map<String, Object>, List<ModuleData>> groupDependenciesByLicense(ProjectData data) {
+        def allDeps = data.allDependencies.sort() + (data.importedModules?.modules?.flatten()?.sort() ?: [])
+        def grouped = new HashMap<Map<String, Object>, List<ModuleData>>()
+
+        allDeps.each { module ->
+            def licensesToConsider = []
+            if (module instanceof ModuleData) {
+                if (module.poms && !module.poms.isEmpty()) {
+                    module.poms.first().licenses?.each { License lic ->
+                        if (lic.name?.trim()) {
+                            licensesToConsider.add([name: lic.name, url: lic.url, source: "POM"])
+                        }
+                    }
+                }
+
+                if (module.manifests && !module.manifests.isEmpty()) {
+                    module.manifests.first().with { manifest ->
+                        if (manifest.license?.trim()) {
+                            licensesToConsider.add([name: manifest.license, url: manifest.licenseUrl, source: "Manifest"])
+                        }
+                    }
+                }
+            } else if (module instanceof ImportedModuleData) {
+                if (module.license?.trim()) {
+                    licensesToConsider.add([name: module.license, url: module.licenseUrl, source: "Imported"])
+                }
+            }
+
+            def uniqueLicenses = licensesToConsider.unique { it.name.toLowerCase().trim() }
+            def selectedLicense = selectExclusiveLicense(uniqueLicenses, module)
+
+            if (selectedLicense) {
+                def licenseKey = [
+                        name: selectedLicense.name,
+                        url: selectedLicense.url ?: 'N/A',
+                        category: getLicenseCategory(selectedLicense.name),
+                        text: getLicenseText(selectedLicense.name)
+                ]
+                grouped.computeIfAbsent(licenseKey, { [] }).add(module)
+            } else {
+                def unknownLicenseKey = [name: "Unknown License", url: "N/A", category: "UNKNOWN", text: null]
+                grouped.computeIfAbsent(unknownLicenseKey, { [] }).add(module)
+            }
+        }
+        return grouped
+    }
+
+    private String getLicenseText(String licenseName) {
+        def normalized = normalizeLicenseName(licenseName)
+        switch (normalized) {
+            case 'mit':
+            case 'the mit license':
+            case 'the mit license (mit)':
+                return """
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+            case 'bsd-3-clause':
+            case 'new bsd license':
+            case 'modified bsd':
+                return """
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+            default:
+                return null
+        }
+    }
+
+
+    private String rootPrefix(File rootFile) {
+        if (!rootFile.exists()) return ""
+        String text = rootFile.text
+        int sepIndex = text.indexOf(SEP)
+        return sepIndex != -1 ? text.substring(0, sepIndex) : text
+    }
+}
