@@ -511,7 +511,8 @@ class TestOAuth2Manager {
   void standaloneTableSessionEmptyProperties() {
     Map<String, String> properties = Map.of();
     try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession tableSession = (OAuth2Util.AuthSession) manager.tableSession(client, properties)) {
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, properties)) {
       assertThat(tableSession.headers()).isEmpty();
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -531,7 +532,8 @@ class TestOAuth2Manager {
   void standaloneTableSessionTokenProvided() {
     Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
     try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession tableSession = (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
       assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer table-token"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -551,7 +553,8 @@ class TestOAuth2Manager {
   void standaloneTableSessionCredentialProvided() {
     Map<String, String> tableProperties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
     try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession tableSession = (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
       assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")

@@ -155,8 +155,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   }
 
   @Override
-  public AuthSession tableSession(
-      RESTClient sharedClient, Map<String, String> properties) {
+  public AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
 
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
