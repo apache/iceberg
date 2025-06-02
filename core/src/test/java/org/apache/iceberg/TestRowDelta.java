@@ -77,7 +77,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testAddDeleteFile() {
+  public void testAddRemoveRows() {
     SnapshotUpdate<?> rowDelta =
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes());
 
@@ -300,7 +300,7 @@ public class TestRowDelta extends TestBase {
             .newRowDelta()
             .addDeletes(fileADeletes())
             .addRows(FILE_A2)
-            .deleteFile(FILE_B)
+            .removeRows(FILE_B)
             .validateFromSnapshot(initialCommit)
             .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
         branch);
@@ -360,7 +360,7 @@ public class TestRowDelta extends TestBase {
                       .newRowDelta()
                       .addDeletes(fileADeletes())
                       .addRows(FILE_A2)
-                      .deleteFile(FILE_B)
+                      .removeRows(FILE_B)
                       .validateFromSnapshot(initialCommit)
                       .validateNoConflictingDeleteFiles()
                       .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
@@ -383,7 +383,7 @@ public class TestRowDelta extends TestBase {
                   table
                       .newRowDelta()
                       .addDeletes(fileADeletes())
-                      .deleteFile(FILE_A)
+                      .removeRows(FILE_A)
                       .validateFromSnapshot(initialCommit)
                       .validateDeletedFiles()
                       .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
@@ -395,7 +395,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testValidateDeleteFile() {
+  public void testValidateRemoveRows() {
     commit(table, table.newAppend().appendFile(FILE_B), branch);
     long initialCommit = latestSnapshot(table, branch).snapshotId();
 
@@ -406,7 +406,7 @@ public class TestRowDelta extends TestBase {
                   table,
                   table
                       .newRowDelta()
-                      .deleteFile(FILE_A)
+                      .removeRows(FILE_A)
                       .validateFromSnapshot(initialCommit)
                       .validateDeletedFiles(),
                   branch);
@@ -417,7 +417,7 @@ public class TestRowDelta extends TestBase {
 
     // Should succeed if validation is ignored
     commit(
-        table, table.newRowDelta().deleteFile(FILE_A).validateFromSnapshot(initialCommit), branch);
+        table, table.newRowDelta().removeRows(FILE_A).validateFromSnapshot(initialCommit), branch);
 
     // Commit should be a no-op
     Snapshot snap = latestSnapshot(table, branch);
@@ -591,7 +591,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testOverwriteWithDeleteFile() {
+  public void testOverwriteWithRemoveRows() {
     commit(
         table,
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
@@ -634,7 +634,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testReplacePartitionsWithDeleteFile() {
+  public void testReplacePartitionsWithRemoveRows() {
     commit(
         table,
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
@@ -681,7 +681,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testDeleteByExpressionWithDeleteFile() {
+  public void testDeleteByExpressionWithRemoveRows() {
     commit(
         table,
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
@@ -718,7 +718,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testDeleteDataFileWithDeleteFile() {
+  public void testDeleteDataFileWithRemoveRows() {
     commit(
         table,
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
@@ -1641,7 +1641,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testConcurrentDeletesRewriteSameDeleteFile() {
+  public void testConcurrentDeletesRewriteSameRemoveRows() {
     assumeThat(formatVersion).isEqualTo(2);
 
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -1706,7 +1706,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testConcurrentManifestRewriteWithDeleteFileRemoval() throws IOException {
+  public void testConcurrentManifestRewriteWithRemoveRowsRemoval() throws IOException {
     assumeThat(formatVersion).isEqualTo(2);
     // Manifest rewrite isn't supported on branches currently
     assumeThat(branch).isEqualTo("main");
@@ -1770,7 +1770,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testConcurrentMergeRewriteSameDeleteFile() {
+  public void testConcurrentMergeRewriteSameRemoveRows() {
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeletes(dataFile);
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
