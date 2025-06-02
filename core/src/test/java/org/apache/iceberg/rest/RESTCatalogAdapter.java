@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -608,7 +607,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
     return execute(
-        request, responseType, errorHandler, responseHeaders, new InjectableValues.Std());
+        request, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
   }
 
   @Override
@@ -617,7 +616,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders,
-      InjectableValues injectableValues) {
+      ParserContext parserContext) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(request.method(), request.path());
     if (routeAndVars != null) {

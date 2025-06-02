@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.databind.InjectableValues;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -104,9 +103,9 @@ public interface RESTClient extends Closeable {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
-      InjectableValues injectableValues) {
-    if (injectableValues != null) {
-      throw new UnsupportedOperationException("InjectableValues is not supported");
+      ParserContext parserContext) {
+    if (parserContext != null) {
+      throw new UnsupportedOperationException("Parser context is not supported");
     }
     return get(path, queryParams, responseType, headers, errorHandler);
   }
@@ -144,9 +143,9 @@ public interface RESTClient extends Closeable {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders,
-      InjectableValues injectableValues) {
-    if (injectableValues != null) {
-      throw new UnsupportedOperationException("InjectableValues is not supported");
+      ParserContext parserContext) {
+    if (parserContext != null) {
+      throw new UnsupportedOperationException("Parser context is not supported");
     }
     return post(path, body, responseType, headers, errorHandler, responseHeaders);
   }
