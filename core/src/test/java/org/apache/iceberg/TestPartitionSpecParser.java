@@ -102,23 +102,17 @@ public class TestPartitionSpecParser extends TestBase {
         "{\n"
             + "  \"spec-id\" : 1,\n"
             + "  \"fields\" : [ {\n"
-            + "    \"name\" : \"id_bucket\",\n"
-            + "    \"transform\" : \"bucket[8]\",\n"
+            + "    \"name\" : \"void\",\n"
+            + "    \"transform\" : \"void\",\n"
             + "    \"source-ids\" : [ 1, 2 ],\n"
             + "    \"field-id\" : 1001\n"
-            + "  }, {\n"
-            + "    \"name\" : \"data_bucket\",\n"
-            + "    \"transform\" : \"bucket[16]\",\n"
-            + "    \"source-ids\" : [ 2, 3 ],\n"
-            + "    \"field-id\" : 1000\n"
-            + "  } ]\n"
+            + "  }]\n"
             + "}";
 
     PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
 
-    assertThat(spec.fields()).hasSize(2);
+    assertThat(spec.fields()).hasSize(1);
     assertThat(spec.fields().get(0).sourceIds()).hasSize(2);
-    assertThat(spec.fields().get(1).sourceIds()).hasSize(2);
   }
 
   @TestTemplate
