@@ -223,7 +223,6 @@ public class TestMetricsModes {
     table
         .updateProperties()
         .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2")
-        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY, "breadth")
         .commit();
 
     MetricsConfig config = MetricsConfig.forTable(table);

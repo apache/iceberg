@@ -319,7 +319,6 @@ public abstract class TestWriterMetrics<T> {
         .set(
             TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
             String.valueOf(maxInferredColumns))
-        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_STRATEGY, "breadth")
         .commit();
 
     OutputFileFactory maxColFactory =

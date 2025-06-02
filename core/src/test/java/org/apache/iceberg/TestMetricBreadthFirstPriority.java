@@ -22,17 +22,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
-import org.apache.iceberg.MetricsConfig.OriginalMetricsMaxInferredColumnDefaultsStrategy;
+import org.apache.iceberg.MetricsConfig.BreadthFirstFieldPriority;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestMetricDefaultStrategies {
+public class TestMetricBreadthFirstPriority {
 
   @Test
-  public void testOrignalStategyNestedStructsNotRespectedInLimit() {
-    OriginalMetricsMaxInferredColumnDefaultsStrategy originalStrategy =
-        new OriginalMetricsMaxInferredColumnDefaultsStrategy();
+  public void testNestedStructsRespectedInLimit() {
+    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
 
     Schema schema =
         new Schema(
@@ -44,35 +43,14 @@ public class TestMetricDefaultStrategies {
                     required(3, "b", Types.IntegerType.get()))),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 1);
-
-    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(1, 2, 3)))).isTrue();
-  }
-
-  @Test
-  public void testBreadthStategyNestedStructsRespectedInLimit() {
-    MetricsConfig.BreadthFirstFieldPriority originalStrategy =
-        new MetricsConfig.BreadthFirstFieldPriority();
-
-    Schema schema =
-        new Schema(
-            required(
-                1,
-                "col_struct",
-                Types.StructType.of(
-                    required(2, "a", Types.IntegerType.get()),
-                    required(3, "b", Types.IntegerType.get()))),
-            required(4, "top", Types.IntegerType.get()));
-
-    Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 1);
+    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 1);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
   }
 
   @Test
-  public void testBreadthFirstStrategyWithNestedMap() {
-    MetricsConfig.BreadthFirstFieldPriority originalStrategy =
-        new MetricsConfig.BreadthFirstFieldPriority();
+  public void testNestedMap() {
+    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
 
     Schema schema =
         new Schema(
@@ -82,15 +60,14 @@ public class TestMetricDefaultStrategies {
                 Types.MapType.ofRequired(2, 3, Types.IntegerType.get(), Types.IntegerType.get())),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 2);
+    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
   }
 
   @Test
-  public void testBreadFirstStrategyWithNestedListOfMaps() {
-    MetricsConfig.BreadthFirstFieldPriority originalStrategy =
-        new MetricsConfig.BreadthFirstFieldPriority();
+  public void testNestedListOfMaps() {
+    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
 
     Schema schema =
         new Schema(
@@ -103,10 +80,8 @@ public class TestMetricDefaultStrategies {
                         3, 4, Types.IntegerType.get(), Types.IntegerType.get()))),
             required(5, "top", Types.IntegerType.get()));
 
-    Schema subSchema = originalStrategy.subSchemaMetricPriority(schema, 2);
+    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
   }
-
-  // TODO test depth strategies if we even decide to include that in the final change.
 }
