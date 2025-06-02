@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +41,7 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -201,13 +201,13 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private static List<Integer> getEqualityFields(Table table, List<Integer> equalityFieldIds) {
     if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
-      return equalityFieldIds;
+      return ImmutableList.copyOf(equalityFieldIds);
     }
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
     if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
-      return Lists.newArrayList(identifierFieldIds);
+      return ImmutableList.copyOf(identifierFieldIds);
     }
-    return Collections.emptyList();
+    return ImmutableList.of();
   }
 
   @VisibleForTesting
