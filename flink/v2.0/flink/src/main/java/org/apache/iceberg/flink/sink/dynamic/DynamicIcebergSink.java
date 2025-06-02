@@ -188,6 +188,7 @@ public class DynamicIcebergSink
     private boolean immediateUpdate = false;
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
+    private int inputSchemaCacheMaximumSize = 1_000;
 
     Builder() {}
 
@@ -315,6 +316,16 @@ public class DynamicIcebergSink
       return this;
     }
 
+    /**
+     * Maximum input schemas to cache across all tables. The cache allows Dynamic Sink to optimise
+     * the performance of converting input {@link RowData} records to match a destination Iceberg
+     * table {@link org.apache.iceberg.Schema}.
+     */
+    public Builder<T> inputSchemaCacheMaxSize(int inputSchemaCacheMaxSize) {
+      this.inputSchemaCacheMaximumSize = inputSchemaCacheMaxSize;
+      return this;
+    }
+
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
@@ -358,7 +369,12 @@ public class DynamicIcebergSink
           input
               .process(
                   new DynamicRecordProcessor<>(
-                      generator, catalogLoader, immediateUpdate, cacheMaximumSize, cacheRefreshMs))
+                      generator,
+                      catalogLoader,
+                      immediateUpdate,
+                      cacheMaximumSize,
+                      cacheRefreshMs,
+                      inputSchemaCacheMaximumSize))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
@@ -370,7 +386,9 @@ public class DynamicIcebergSink
                       DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM,
                       new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)))
               .keyBy((KeySelector<DynamicRecordInternal, String>) DynamicRecordInternal::tableName)
-              .map(new DynamicTableUpdateOperator(catalogLoader, cacheMaximumSize, cacheRefreshMs))
+              .map(
+                  new DynamicTableUpdateOperator(
+                      catalogLoader, cacheMaximumSize, cacheRefreshMs, inputSchemaCacheMaximumSize))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)

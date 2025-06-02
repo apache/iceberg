@@ -51,13 +51,17 @@ class TestDynamicTableUpdateOperator {
   void testDynamicTableUpdateOperatorNewTable() throws Exception {
     int cacheMaximumSize = 10;
     int cacheRefreshMs = 1000;
+    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     assertThat(catalog.tableExists(table)).isFalse();
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, cacheRefreshMs);
+            CATALOG_EXTENSION.catalogLoader(),
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemaCacheMaximumSize);
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -80,12 +84,16 @@ class TestDynamicTableUpdateOperator {
   void testDynamicTableUpdateOperatorSchemaChange() throws Exception {
     int cacheMaximumSize = 10;
     int cacheRefreshMs = 1000;
+    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
-            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, cacheRefreshMs);
+            CATALOG_EXTENSION.catalogLoader(),
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemaCacheMaximumSize);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
