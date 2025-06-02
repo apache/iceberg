@@ -42,7 +42,7 @@ datasketches = "6.2.0"
 delta-standalone = "3.3.1"
 delta-spark = "3.3.1"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.37.0"
+errorprone-annotations = "2.38.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
