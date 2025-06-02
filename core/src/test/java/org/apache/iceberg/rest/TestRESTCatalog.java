@@ -95,7 +95,6 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -2655,19 +2654,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testErrorHandlingForConflicts() {
     Consumer<ErrorResponse> errorResponseConsumer = ErrorHandlers.tableCommitHandler();
+
     // server returning 409 with client without retrying
     ErrorResponse errorResponse409WithoutRetries =
         ErrorResponse.builder().responseCode(409).wasRetried(false).build();
-    Assertions.assertThrows(
-        CommitFailedException.class,
-        () -> errorResponseConsumer.accept(errorResponse409WithoutRetries));
+    assertThatThrownBy(() -> errorResponseConsumer.accept(errorResponse409WithoutRetries))
+        .hasMessageContaining("Commit failed")
+        .isInstanceOf(CommitFailedException.class);
 
     // server returning 409, with retries.
     ErrorResponse errorResponse409WithRetries =
         ErrorResponse.builder().responseCode(409).wasRetried(true).build();
-    Assertions.assertThrows(
-        CommitStateUnknownException.class,
-        () -> errorResponseConsumer.accept(errorResponse409WithRetries));
+    assertThatThrownBy(() -> errorResponseConsumer.accept(errorResponse409WithRetries))
+        .hasMessageContaining("Commit status unknown")
+        .isInstanceOf(CommitStateUnknownException.class);
   }
 
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
