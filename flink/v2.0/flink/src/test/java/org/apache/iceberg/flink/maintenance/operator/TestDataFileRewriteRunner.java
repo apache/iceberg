@@ -281,7 +281,6 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                     0,
                     tableLoader(),
                     11,
-                    10_000_000,
                     ImmutableMap.of(
                         MIN_INPUT_FILES,
                         "2",

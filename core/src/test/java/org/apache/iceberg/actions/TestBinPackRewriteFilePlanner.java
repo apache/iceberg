@@ -292,7 +292,8 @@ class TestBinPackRewriteFilePlanner {
                 BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD,
                 BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
-                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE));
+                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
+                BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE));
   }
 
   @Test
