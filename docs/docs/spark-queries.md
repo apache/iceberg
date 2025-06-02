@@ -306,7 +306,7 @@ Note:
     - `snapshot_id`: The ID of the snapshot in which the file was added or removed
     - `sequence_number`: Used for ordering changes across snapshots
     - `file_sequence_number`: Indicates when the file was added
-    - `data_file`: A struct with metadata, the fields are also defined in the [manifest file schema](../../spec.md#manifests)
+    - `data_file`: A struct with metadata about the data file. The fields of the struct are defined in the [data_file schema](../../spec.md#manifests)
 2. The `readable_metrics` column provides a human-readable map of extended column-level metrics derived from the `data_file` column, making it easier to inspect and debug file-level statistics.
 
 ### Files
