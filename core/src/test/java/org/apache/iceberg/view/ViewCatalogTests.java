@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateLocation;
@@ -44,6 +45,7 @@ import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespaces> {
@@ -75,6 +77,10 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
+  protected boolean supportsNestedNamespaces() {
     return false;
   }
 
@@ -1884,5 +1890,38 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThatThrownBy(() -> view.sqlFor(""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid dialect: (empty string)");
+  }
+
+  @ParameterizedTest
+  @MethodSource("nonExistentViewIdentifiers")
+  public void testLoadMissingView(TableIdentifier identifier) {
+    C catalog = catalog();
+
+    assumeThat(supportsEmptyNamespace() || !identifier.namespace().isEmpty())
+        .as("Only valid for catalogs that support non-empty namespaces")
+        .isTrue();
+
+    assumeThat(supportsNestedNamespaces() || identifier.namespace().levels().length < 2)
+        .as("Only valid for catalogs that support nested namespaces")
+        .isTrue();
+
+    assertThat(catalog.viewExists(identifier)).as("View should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadView(identifier))
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageFindingMatch("(View does not exist|Invalid view identifier): " + identifier);
+  }
+
+  static Stream<TableIdentifier> nonExistentViewIdentifiers() {
+    return Stream.of(
+        TableIdentifier.of("ns"),
+        TableIdentifier.of("ns", "view"),
+        TableIdentifier.of("ns1", "ns2", "view"),
+        // ambiguous metadata table names
+        TableIdentifier.of("snapshots"),
+        TableIdentifier.of("ns1", "snapshots"),
+        TableIdentifier.of("ns1", "ns2", "snapshots"),
+        TableIdentifier.of("files"),
+        TableIdentifier.of("ns1", "files"),
+        TableIdentifier.of("ns1", "ns2", "files"));
   }
 }

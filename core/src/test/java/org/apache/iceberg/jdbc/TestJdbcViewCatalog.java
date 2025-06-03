@@ -91,6 +91,11 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   @Test
   public void testCommitExceptionWithoutMessage() {
     TableIdentifier identifier = TableIdentifier.of("namespace1", "view");

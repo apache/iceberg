@@ -60,4 +60,9 @@ public class TestInMemoryViewCatalog extends ViewCatalogTests<InMemoryCatalog> {
   protected boolean supportsEmptyNamespace() {
     return true;
   }
+
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
 }

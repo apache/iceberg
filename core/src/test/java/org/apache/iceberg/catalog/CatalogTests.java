@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
@@ -81,6 +82,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
@@ -949,14 +951,37 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
   }
 
-  @Test
-  public void testLoadMissingTable() {
+  @ParameterizedTest
+  @MethodSource("nonExistentTableIdentifiers")
+  public void testLoadMissingTable(TableIdentifier identifier) {
     C catalog = catalog();
 
-    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
-    assertThatThrownBy(() -> catalog.loadTable(TBL))
+    assumeThat(supportsEmptyNamespace() || !identifier.namespace().isEmpty())
+        .as("Only valid for catalogs that support non-empty namespaces")
+        .isTrue();
+
+    assumeThat(supportsNestedNamespaces() || identifier.namespace().levels().length < 2)
+        .as("Only valid for catalogs that support nested namespaces")
+        .isTrue();
+
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadTable(identifier))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: ns.tbl");
+        .hasMessageFindingMatch("(Table does not exist|Invalid table identifier|): " + identifier);
+  }
+
+  static Stream<TableIdentifier> nonExistentTableIdentifiers() {
+    return Stream.of(
+        TableIdentifier.of("ns"),
+        TableIdentifier.of("ns", "tbl"),
+        TableIdentifier.of("ns1", "ns2", "tbl"),
+        // ambiguous metadata table names
+        TableIdentifier.of("snapshots"),
+        TableIdentifier.of("ns1", "snapshots"),
+        TableIdentifier.of("ns1", "ns2", "snapshots"),
+        TableIdentifier.of("files"),
+        TableIdentifier.of("ns1", "files"),
+        TableIdentifier.of("ns1", "ns2", "files"));
   }
 
   @Test

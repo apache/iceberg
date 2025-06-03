@@ -103,7 +103,10 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       TableOperations ops = newTableOps(baseTableIdentifier);
       if (ops.current() == null) {
-        throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
+        // We can't know if the identifier is really targeting a metadata table
+        // (e.g. ns1.table1.history) or a regular table (e.g. ns1.ns2.history),
+        // so include the original identifier in the message error.
+        throw new NoSuchTableException("Table does not exist: %s", identifier);
       }
 
       return MetadataTableUtils.createMetadataTableInstance(
@@ -115,6 +118,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
   protected boolean isValidMetadataIdentifier(TableIdentifier identifier) {
     return MetadataTableType.from(identifier.name()) != null
+        && identifier.namespace().levels().length > 1
         && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }
 
