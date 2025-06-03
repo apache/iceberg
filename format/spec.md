@@ -238,6 +238,8 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 For `geometry` and `geography` types, the parameter C refers to the CRS (coordinate reference system), a mapping of how coordinates refer to locations on Earth.
 
+For `geometry` type, the CRS does not affect geometric calculations, which are always Cartesian.
+
 The default CRS value `OGC:CRS84` means that the objects must be stored in longitude, latitude based on the WGS84 datum.
 
 Custom CRS values can be specified by a string of the format `type:identifier`, where `type` is one of the following values:
