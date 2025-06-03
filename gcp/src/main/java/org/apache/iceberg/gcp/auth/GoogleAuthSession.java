@@ -22,6 +22,7 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
@@ -43,6 +44,7 @@ public class GoogleAuthSession implements AuthSession {
    * @param credentials The GoogleCredentials to use for authentication.
    */
   public GoogleAuthSession(GoogleCredentials credentials) {
+    Preconditions.checkArgument(credentials != null, "credentials can not be null");
     this.credentials = credentials;
   }
 

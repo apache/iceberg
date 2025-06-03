@@ -81,7 +81,7 @@ public class TestGoogleAuthManager {
 
   @Test
   public void providesCorrectManagerName() {
-    assertThat(authManager.getName()).isEqualTo(MANAGER_NAME);
+    assertThat(authManager.name()).isEqualTo(MANAGER_NAME);
   }
 
   @Test

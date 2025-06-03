@@ -60,7 +60,7 @@ public class GoogleAuthManager implements AuthManager {
     this.name = managerName;
   }
 
-  public String getName() {
+  public String name() {
     return name;
   }
 
@@ -87,6 +87,7 @@ public class GoogleAuthManager implements AuthManager {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to load Google credentials", e);
     }
+
     this.initialized = true;
   }
 

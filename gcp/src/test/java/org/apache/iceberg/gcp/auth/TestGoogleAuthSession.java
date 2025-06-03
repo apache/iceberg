@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.gcp.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,12 +31,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Set;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,19 +74,14 @@ public class TestGoogleAuthSession {
     verify(credentials).refreshIfExpired();
     verify(credentials).getAccessToken();
 
-    Assertions.assertNotSame(
-        originalRequest, authenticatedRequest, "A new request object should be returned");
+    assertThat(authenticatedRequest).isNotSameAs(originalRequest);
 
     HTTPHeaders headers = authenticatedRequest.headers();
-    Assertions.assertEquals(1, headers.entries().size());
-    Assertions.assertTrue(headers.contains("Authorization"), "Should contain Authorization header");
-
-    Set<HTTPHeaders.HTTPHeader> authHeaderEntries = headers.entries("Authorization");
-    Assertions.assertEquals(1, authHeaderEntries.size(), "Should have one Authorization header");
-    Assertions.assertEquals(
-        "Bearer " + TEST_TOKEN_VALUE,
-        authHeaderEntries.iterator().next().value(),
-        "Authorization header should be set correctly");
+    assertThat(headers.contains("Authorization")).isTrue();
+    assertThat(headers.entries("Authorization"))
+        .hasSize(1)
+        .extracting("value")
+        .containsExactly("Bearer " + TEST_TOKEN_VALUE);
   }
 
   @Test
@@ -108,17 +104,12 @@ public class TestGoogleAuthSession {
 
     verify(credentials).refreshIfExpired();
 
-    Assertions.assertSame(
-        originalRequest,
-        authenticatedRequest,
-        "Original request object should be returned if header exists");
-
-    HTTPHeaders resultingHeaders = authenticatedRequest.headers();
-    Assertions.assertEquals(1, resultingHeaders.entries().size());
-    Assertions.assertEquals(
-        existingAuthHeaderValue,
-        resultingHeaders.entries("Authorization").iterator().next().value(),
-        "Existing Authorization header should be preserved");
+    assertThat(authenticatedRequest).isSameAs(originalRequest);
+    assertThat(authenticatedRequest.headers().entries("Authorization"))
+        .hasSize(1)
+        .extracting("value")
+        .first()
+        .isEqualTo(existingAuthHeaderValue);
   }
 
   @Test
@@ -132,14 +123,13 @@ public class TestGoogleAuthSession {
             .method(HTTPRequest.HTTPMethod.GET)
             .build();
 
-    UncheckedIOException thrown =
-        Assertions.assertThrows(
-            UncheckedIOException.class,
-            () -> session.authenticate(originalRequest),
-            "Should throw UncheckedIOException on refresh failure");
+    assertThatThrownBy(() -> session.authenticate(originalRequest))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessage("Failed to refresh Google access token")
+        .cause()
+        .isInstanceOf(IOException.class)
+        .hasMessage("Failed to refresh token");
 
-    Assertions.assertEquals("Failed to refresh Google access token", thrown.getMessage());
-    Assertions.assertInstanceOf(IOException.class, thrown.getCause());
     verify(credentials).refreshIfExpired();
   }
 
@@ -155,10 +145,8 @@ public class TestGoogleAuthSession {
             .build();
     HTTPRequest authenticatedRequest = session.authenticate(originalRequest);
 
-    Assertions.assertSame(
-        originalRequest, authenticatedRequest, "Request should be unchanged when token is null");
-    Assertions.assertTrue(
-        authenticatedRequest.headers().entries().isEmpty(), "Headers should be empty");
+    assertThat(authenticatedRequest).isSameAs(originalRequest);
+    assertThat(authenticatedRequest.headers().entries()).isEmpty();
   }
 
   @Test
@@ -174,16 +162,12 @@ public class TestGoogleAuthSession {
             .build();
     HTTPRequest authenticatedRequest = session.authenticate(originalRequest);
 
-    Assertions.assertSame(
-        originalRequest,
-        authenticatedRequest,
-        "Request should be unchanged when token value is null");
-    Assertions.assertTrue(
-        authenticatedRequest.headers().entries().isEmpty(), "Headers should be empty");
+    assertThat(authenticatedRequest).isSameAs(originalRequest);
+    assertThat(authenticatedRequest.headers().entries()).isEmpty();
   }
 
   @Test
   public void sessionCloseBehavesAsNoOp() {
-    Assertions.assertDoesNotThrow(session::close);
+    assertThatCode(session::close).doesNotThrowAnyException();
   }
 }
