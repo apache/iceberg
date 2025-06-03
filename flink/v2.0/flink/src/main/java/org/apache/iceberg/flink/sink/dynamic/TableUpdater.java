@@ -35,10 +35,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Creates and maintains a view on Iceberg tables. Updates the Iceberg tables in case of schema,
- * branch, or partition changes.
- */
+/** Updates the Iceberg tables in case of schema, branch, or partition changes. */
 @Internal
 class TableUpdater {
 
@@ -79,6 +76,7 @@ class TableUpdater {
           LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
         }
       }
+
       LOG.info("Table {} not found during table search. Creating table.", identifier);
       try {
         Table table = catalog.createTable(identifier, schema, spec);
