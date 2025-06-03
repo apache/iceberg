@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -46,7 +45,6 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -72,20 +70,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
-
-  /** Flag to indicate that Hadoop Bulk Delete API should be used. */
-  @VisibleForTesting static final AtomicBoolean HADOOP_BULK_DELETE = new AtomicBoolean(true);
-
-  // probe for WrappedIO class existing; if not found: disable bulk deletion.
-  // because this version of hadoop is older than Hadoop 3.4.1
-  static {
-    try {
-      HadoopFileIO.class.getClassLoader().loadClass("org.apache.hadoop.io.wrappedio.WrappedIO");
-    } catch (ClassNotFoundException e) {
-      LOG.debug("Failed to load WrappedIO class; likely older hadoop runtime", e);
-      HADOOP_BULK_DELETE.set(false);
-    }
-  }
 
   /**
    * Constructor used for dynamic FileIO loading.
