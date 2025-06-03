@@ -299,6 +299,16 @@ SELECT * FROM prod.db.table.entries;
 | -- | -- | -- | -- | -- | -- |
 | 2 | 57897183625154 | 0 | 0 | {"content":0,"file_path":"s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet","file_format":"PARQUET","spec_id":0,"record_count":15,"file_size_in_bytes":473,"column_sizes":{1:103},"value_counts":{1:15},"null_value_counts":{1:0},"nan_value_counts":{},"lower_bounds":{1:},"upper_bounds":{1:},"key_metadata":null,"split_offsets":[4],"equality_ids":null,"sort_order_id":0} | {"c1":{"column_size":103,"value_count":15,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3}} |
 
+Note:
+
+1. The columns of the `entries` table correspond to the fields of the `manifest_entry` struct (see the [manifest file schema](../../spec.md#manifests) for the full definition):
+    - `status`: Used to track additions and deletions
+    - `snapshot_id`: The ID of the snapshot in which the file was added or removed
+    - `sequence_number`: Used for ordering changes across snapshots
+    - `file_sequence_number`: Indicates when the file was added
+    - `data_file`: A struct with metadata about the data file. The fields of the struct are defined in the [data_file schema](../../spec.md#manifests)
+2. The `readable_metrics` column provides a human-readable map of extended column-level metrics derived from the `data_file` column, making it easier to inspect and debug file-level statistics.
+
 ### Files
 
 To show a table's current files:
