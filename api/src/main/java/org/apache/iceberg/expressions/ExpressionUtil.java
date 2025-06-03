@@ -39,9 +39,10 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
-import org.apache.iceberg.variants.VariantData;
 import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantValue;
 
 /** Expression utility methods. */
@@ -539,7 +540,7 @@ public class ExpressionUtil {
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
       case VARIANT:
-        return sanitizeVariant((VariantData) value, now, today);
+        return sanitizeVariant((Variant) value, now, today);
       case UNKNOWN:
         return "(unknown)";
       case BOOLEAN:
@@ -654,13 +655,15 @@ public class ExpressionUtil {
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
   }
 
-  private static String sanitizeVariant(VariantData value, long now, int today) {
+  private static String sanitizeVariant(Variant value, long now, int today) {
     return sanitizeVariant(value.value(), now, today);
   }
 
   private static String sanitizeVariant(VariantValue value, long now, int today) {
     if (value instanceof VariantObject) {
       return sanitizeVariantObject(value.asObject(), now, today);
+    } else if (value instanceof VariantPrimitive) {
+      return sanitizeVariantValue(value.asPrimitive(), value.type(), now, today);
     } else {
       return sanitizeVariantArray(value.asArray(), now, today);
     }
@@ -679,7 +682,7 @@ public class ExpressionUtil {
       builder.append(String.format(Locale.ROOT, "(hash-%s)", field)).append(": ");
       VariantValue fieldValue = value.get(field);
       PhysicalType fieldType = fieldValue.type();
-      builder.append(sanitizeVariantField(fieldValue, fieldType, now, today));
+      builder.append(sanitizeVariantValue(fieldValue, fieldType, now, today));
     }
     builder.append("}");
     return builder.toString();
@@ -695,13 +698,13 @@ public class ExpressionUtil {
       } else {
         builder.append(", ");
       }
-      builder.append(sanitizeVariantField(value.get(i), value.get(i).type(), now, today));
+      builder.append(sanitizeVariantValue(value.get(i), value.get(i).type(), now, today));
     }
     builder.append("}");
     return builder.toString();
   }
 
-  private static String sanitizeVariantField(
+  private static String sanitizeVariantValue(
       VariantValue fieldValue, PhysicalType fieldType, long now, int today) {
     StringBuilder builder = new StringBuilder();
     switch (fieldType) {
