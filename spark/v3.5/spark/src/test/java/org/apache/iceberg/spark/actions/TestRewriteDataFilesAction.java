@@ -721,16 +721,30 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
-    assertThat(result)
-        .extracting(
-            Result::addedDataFilesCount,
-            Result::rewrittenDataFilesCount,
-            Result::removedDeleteFilesCount)
-        .as("Should rewrite 2 data files into 1 and remove 1 dangled position delete file")
-        .containsExactly(1, 2, 1);
+    if (formatVersion >= 3) {
+      assertThat(result)
+          .extracting(
+              Result::addedDataFilesCount,
+              Result::rewrittenDataFilesCount,
+              Result::removedDeleteFilesCount)
+          .as("with v3 the dangling DV should have already been removed during normal data rewrite")
+          .containsExactly(1, 2, 0);
+    } else {
+      assertThat(result)
+          .extracting(
+              Result::addedDataFilesCount,
+              Result::rewrittenDataFilesCount,
+              Result::removedDeleteFilesCount)
+          .as("Should rewrite 2 data files into 1 and remove 1 dangled position delete file")
+          .containsExactly(1, 2, 1);
+    }
+
     shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
 
-    shouldHaveSnapshots(table, 5);
+    // with v3 the dangling DV is already removed during normal data rewrite, thus we end up with
+    // one snapshot less
+    int expectedSnapshots = formatVersion >= 3 ? 4 : 5;
+    shouldHaveSnapshots(table, expectedSnapshots);
     assertThat(table.currentSnapshot().summary()).containsEntry("total-position-deletes", "0");
     assertEquals("Rows must match", expectedRecords, currentData());
   }
@@ -780,7 +794,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(table.currentSnapshot().deleteManifests(table.io()).get(0).addedRowsCount())
         .as("Delete manifest added row count should equal total count")
-        .isEqualTo(total);
+        .isEqualTo(formatVersion >= 3 ? 0 : total);
   }
 
   @TestTemplate
