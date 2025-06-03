@@ -236,10 +236,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);
     Map<String, String> options = catalogTable.getOptions();
-    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
-        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
-    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
-        .isEqualTo(srcCatalogProps);
+    assertThat(options)
+        .containsEntry(
+            FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
+            FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
+        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
   }
 
   @TestTemplate

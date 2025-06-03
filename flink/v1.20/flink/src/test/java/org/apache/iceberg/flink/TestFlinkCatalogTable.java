@@ -32,7 +32,6 @@ import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
@@ -222,15 +221,19 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
 
     CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
-    assertThat(catalogTable.getSchema())
-        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
 
     String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
     Map<String, String> options = catalogTable.getOptions();
-    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
-        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
-    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
-        .isEqualTo(srcCatalogProps);
+    assertThat(options)
+        .containsEntry(
+            FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
+            FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
+        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
   }
 
   @TestTemplate

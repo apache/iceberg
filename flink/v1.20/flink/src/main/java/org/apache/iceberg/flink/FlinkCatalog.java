@@ -28,7 +28,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
@@ -468,22 +467,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
-    TableSchema ts1 = ct1.getSchema();
-    TableSchema ts2 = ct2.getSchema();
-    boolean equalsPrimary = false;
-
-    if (ts1.getPrimaryKey().isPresent() && ts2.getPrimaryKey().isPresent()) {
-      equalsPrimary =
-          Objects.equals(ts1.getPrimaryKey().get().getType(), ts2.getPrimaryKey().get().getType())
-              && Objects.equals(
-                  ts1.getPrimaryKey().get().getColumns(), ts2.getPrimaryKey().get().getColumns());
-    } else if (!ts1.getPrimaryKey().isPresent() && !ts2.getPrimaryKey().isPresent()) {
-      equalsPrimary = true;
-    }
-
-    if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns())
-        && Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs())
-        && equalsPrimary)) {
+    if (!Objects.equals(ct1.getUnresolvedSchema(), ct2.getUnresolvedSchema())) {
       throw new UnsupportedOperationException(
           "Altering schema is not supported in the old alterTable API. "
               + "To alter schema, use the other alterTable API and provide a list of TableChange's.");
@@ -633,9 +617,9 @@ public class FlinkCatalog extends AbstractCatalog {
     Preconditions.checkArgument(
         table instanceof CatalogTable, "The Table should be a CatalogTable.");
 
-    TableSchema schema = table.getSchema();
+    org.apache.flink.table.api.Schema schema = table.getUnresolvedSchema();
     schema
-        .getTableColumns()
+        .getColumns()
         .forEach(
             column -> {
               if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
