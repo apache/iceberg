@@ -149,6 +149,18 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
+  private AuthManager authManager() {
+    if (null == authManager) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authManager) {
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
+        }
+      }
+    }
+
+    return authManager;
+  }
+
   private RESTClient httpClient() {
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
@@ -163,18 +175,6 @@ public abstract class S3V4RestSignerClient
     }
 
     return httpClient;
-  }
-
-  private AuthManager authManager() {
-    if (null == authManager) {
-      synchronized (S3V4RestSignerClient.class) {
-        if (null == authManager) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
-        }
-      }
-    }
-
-    return authManager;
   }
 
   @VisibleForTesting
