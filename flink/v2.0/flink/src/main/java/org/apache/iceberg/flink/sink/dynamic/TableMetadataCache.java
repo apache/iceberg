@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 class TableMetadataCache {
 
   private static final Logger LOG = LoggerFactory.getLogger(TableMetadataCache.class);
-  private static final int MAX_SIZE = 10;
+  private static final int MAX_SCHEMA_COMPARISON_RESULTS_TO_CACHE = 10;
   private static final Tuple2<Boolean, Exception> EXISTS = Tuple2.of(true, null);
   private static final Tuple2<Boolean, Exception> NOT_EXISTS = Tuple2.of(false, null);
   static final Tuple2<Schema, CompareSchemasVisitor.Result> NOT_FOUND =
@@ -245,7 +245,7 @@ class TableMetadataCache {
   private static class LimitedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
     @Override
     protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-      boolean remove = size() > MAX_SIZE;
+      boolean remove = size() > MAX_SCHEMA_COMPARISON_RESULTS_TO_CACHE;
       if (remove) {
         LOG.warn(
             "Performance degraded as records with different schema is generated for the same table. "
