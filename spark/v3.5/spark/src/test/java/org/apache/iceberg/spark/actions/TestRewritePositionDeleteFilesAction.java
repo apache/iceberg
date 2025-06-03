@@ -432,7 +432,6 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertThat(result.addedDataFilesCount()).isEqualTo(1);
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(3);
     assertThat(sql("select * from %s.delete_files", tableName)).hasSameSizeAs(deleteFilesAfter);
-    assertThat(result.removedDeleteFilesCount()).isEqualTo(deleteFilesBefore.size());
   }
 
   @TestTemplate

@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -379,12 +380,12 @@ public class TestRewriteFiles extends TestBase {
         pending.allManifests(table.io()).get(2),
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
-        ids(baseSnapshotId, baseSnapshotId),
+        ids(formatVersion >= 3 ? pendingId : baseSnapshotId, baseSnapshotId),
         files(fileADeletes(), fileBDeletes()),
-        statuses(ADDED, ADDED));
+        statuses(formatVersion >= 3 ? DELETED : ADDED, formatVersion >= 3 ? EXISTING : ADDED));
 
-    // We should only get the 4 manifests that this test is expected to add.
-    assertThat(listManifestFiles()).hasSize(4);
+    // We should only get the 4 (5 for v3) manifests that this test is expected to add.
+    assertThat(listManifestFiles()).hasSize(formatVersion >= 3 ? 5 : 4);
   }
 
   @TestTemplate
@@ -776,5 +777,41 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(snapshotAfterDeletes)
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
         branch);
+  }
+
+  @TestTemplate
+  public void deleteDataFileAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThan(2);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_A).addRows(FILE_B).addDeletes(fileADeletes()),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+
+    commit(
+        table,
+        table.newRewrite().validateFromSnapshot(snapshot.snapshotId()).deleteFile(FILE_A),
+        branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    Iterator<Long> ids = formatVersion >= 3 ? ids(2L, 1L) : ids(1L, 1L);
+    Iterator<ManifestEntry.Status> statuses =
+        formatVersion >= 3
+            ? statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING)
+            : statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids,
+        files(fileADeletes()),
+        statuses);
   }
 }

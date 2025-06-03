@@ -82,10 +82,11 @@ public class RewriteDataFilesCommitManager {
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
-    } else {
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
+      rewrite.dataSequenceNumber(sequenceNumber);
     }
+
+    rewrittenDataFiles.forEach(rewrite::deleteFile);
+    addedDataFiles.forEach(rewrite::addFile);
 
     snapshotProperties.forEach(rewrite::set);
 
