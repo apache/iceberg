@@ -92,17 +92,20 @@ class TableUpdater {
   private void findOrCreateBranch(TableIdentifier identifier, String branch) {
     String fromCache = cache.branch(identifier, branch);
     if (fromCache == null) {
+      Table table = catalog.loadTable(identifier);
       try {
-        // TODO: Which snapshot should be used to create the branch?
-        catalog.loadTable(identifier).manageSnapshots().createBranch(branch).commit();
+        table.manageSnapshots().createBranch(branch).commit();
         LOG.info("Branch {} for {} created", branch, identifier);
-      } catch (Exception e) {
-        LOG.info(
-            "Failed to create branch {} for {}. Maybe created concurrently?",
-            branch,
-            identifier,
-            e);
+      } catch (CommitFailedException e) {
+        table.refresh();
+        if (table.refs().containsKey(branch)) {
+          LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
+        } else {
+          LOG.error("Failed to create branch {} for {}.", branch, identifier, e);
+          throw e;
+        }
       }
+      cache.update(identifier, table);
     }
   }
 

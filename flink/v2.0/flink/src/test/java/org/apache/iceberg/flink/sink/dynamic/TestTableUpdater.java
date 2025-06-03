@@ -42,6 +42,23 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
+
+  @Test
+  void testBranchCreationAndCaching() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+
+    catalog.createTable(tableIdentifier, SCHEMA);
+    tableUpdater.update(tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned());
+    TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().getIfPresent(tableIdentifier);
+    assertThat(cacheItem).isNotNull();
+
+    tableUpdater.update(tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned());
+    assertThat(cache.getInternalCache().getIfPresent(tableIdentifier)).isEqualTo(cacheItem);
+  }
+
   @Test
   void testInvalidateOldCacheEntryOnUpdate() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
@@ -103,7 +120,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA);
     // Make sure that the cache is invalidated and the table refreshed without an error
     Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> result =
-        tableUpdater.update(tableIdentifier, null, SCHEMA, PartitionSpec.unpartitioned());
+        tableUpdater.update(tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned());
     assertThat(result.f0.sameSchema(SCHEMA)).isTrue();
     assertThat(result.f1).isEqualTo(CompareSchemasVisitor.Result.SAME);
     assertThat(result.f2).isEqualTo(PartitionSpec.unpartitioned());
