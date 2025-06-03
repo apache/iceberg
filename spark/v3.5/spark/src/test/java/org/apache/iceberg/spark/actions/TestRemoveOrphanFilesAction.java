@@ -18,15 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -97,6 +88,15 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
@@ -119,9 +119,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, usePrefixListing = {1}")
   protected static List<Object> parameters() {
-    return Arrays.stream(TestHelpers.ALL_VERSIONS)
+    return TestHelpers.ALL_VERSIONS.stream()
         .filter(version -> version > 1)
-        .boxed()
         .flatMap(version -> Stream.of(new Object[] {version, true}, new Object[] {version, false}))
         .collect(Collectors.toList());
   }
