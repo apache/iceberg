@@ -144,4 +144,11 @@ public class EncryptionUtil {
         encryptor.encrypt(keyMetadataBytes, keyId.getBytes(StandardCharsets.UTF_8));
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }
+
+    public static Map<String, EncryptedKey> encryptionKeys(EncryptionManager em) {
+        Preconditions.checkState(
+                em instanceof StandardEncryptionManager,
+                "Encryption keys are only available for StandardEncryptionManager");
+        return ((StandardEncryptionManager) em).encryptionKeys();
+    }
 }
