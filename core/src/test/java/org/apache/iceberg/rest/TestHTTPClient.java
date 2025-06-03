@@ -88,6 +88,10 @@ public class TestHTTPClient {
     }
   }
 
+  public static class TLSConfigurerMissingNoArgCtor implements TLSConfigurer {
+    TLSConfigurerMissingNoArgCtor(String str) {}
+  }
+
   @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
@@ -342,13 +346,45 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testTLSConfigurer() {
+  public void testLoadTLSConfigurer() {
     Map<String, String> properties =
         ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, DefaultTLSConfigurer.class.getName());
     HttpClientConnectionManager connectionManager =
         HTTPClient.configureConnectionManager(properties);
     assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
     assertThat(DefaultTLSConfigurer.count).isEqualTo(1);
+  }
+
+  @Test
+  public void testLoadTLSConfigurer_NoArgConstructorNotFound() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_TLS_CONFIGURER, TLSConfigurerMissingNoArgCtor.class.getName());
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer implementation")
+        .hasMessageContaining(
+            "NoSuchMethodException: org.apache.iceberg.rest.TestHTTPClient$TLSConfigurerMissingNoArgCtor.<init>()");
+  }
+
+  @Test
+  public void testLoadTLSConfigurer_ClassNotFound() {
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, "TLSConfigurerDoesNotExist");
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer implementation")
+        .hasMessageContaining("java.lang.ClassNotFoundException: TLSConfigurerDoesNotExist");
+  }
+
+  @Test
+  public void testLoadTLSConfigurer_NotImplementTLSConfigurer() {
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, Object.class.getName());
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer")
+        .hasMessageContaining("does not implement TLSConfigurer");
   }
 
   @Test

@@ -412,7 +412,16 @@ public class HTTPClient extends BaseHTTPClient {
           e);
     }
 
-    TLSConfigurer configurer = ctor.newInstance();
+    TLSConfigurer configurer;
+    try {
+      configurer = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize TLSConfigurer, %s does not implement TLSConfigurer.", impl),
+          e);
+    }
+
     configurer.initialize(properties);
 
     return configurer;
