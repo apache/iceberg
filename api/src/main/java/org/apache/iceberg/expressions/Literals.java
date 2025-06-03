@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
-import org.apache.iceberg.variants.VariantData;
+import org.apache.iceberg.variants.Variant;
 
 class Literals {
   private Literals() {}
@@ -83,8 +83,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
-    } else if (value instanceof VariantData) {
-      return (Literal<T>) new Literals.VariantLiteral((VariantData) value);
+    } else if (value instanceof Variant) {
+      return (Literal<T>) new Literals.VariantLiteral((Variant) value);
     }
 
     throw new IllegalArgumentException(
@@ -508,8 +508,8 @@ class Literals {
     }
   }
 
-  static class VariantLiteral extends BaseLiteral<VariantData> {
-    VariantLiteral(VariantData value) {
+  static class VariantLiteral extends BaseLiteral<Variant> {
+    VariantLiteral(Variant value) {
       super(value);
     }
 
@@ -525,7 +525,7 @@ class Literals {
     }
 
     @Override
-    public Comparator<VariantData> comparator() {
+    public Comparator<Variant> comparator() {
       return null;
     }
 

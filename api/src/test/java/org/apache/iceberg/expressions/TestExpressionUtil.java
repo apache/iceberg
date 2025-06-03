@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
@@ -1058,24 +1059,142 @@ public class TestExpressionUtil {
   }
 
   @Test
-  public void testSanitizeVariant() {
+  public void testSanitizeVariantArray() {
+    Expression bound = Binder.bind(STRUCT, equal("var", Variant.of(VariantMetadata.empty(), VariantTestUtil.createMixedArray())));
+    assertEquals(
+        Expressions.equal(
+            "var",
+            "{(date), (2-digit-INT8), (hash-2024a117), {(hash-7b813b77), (hash-512b3ddf), (hash-36f6eef4)}, (hash-6926fdc4), "
+                + "(hash-06eb5017), (hash-64f79f23), (hash-3682a0b4), (hash-451a5465), (4-digit-INT16)}"),
+        ExpressionUtil.sanitize(bound));
+  }
+
+  @Test
+  public void testSanitizeVariantPrimitive() {
+    Expression int8Bound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 32}))));
+    assertEquals(Expressions.equal("var", "(2-digit-INT8)"), ExpressionUtil.sanitize(int8Bound));
+    Expression int16Bound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(4, new byte[] {(byte) 0xD2, 0x04}))));
+    assertEquals(Expressions.equal("var", "(4-digit-INT16)"), ExpressionUtil.sanitize(int16Bound));
+    Expression doubleBound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(
+                        7,
+                        new byte[] {
+                          (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+                        }))));
+    assertEquals(
+        Expressions.equal("var", "(-224-digit-DOUBLE)"), ExpressionUtil.sanitize(doubleBound));
+
+    Expression timestamp =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(
+                        12,
+                        new byte[] {
+                          0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
+                        }))));
+    assertEquals(Expressions.equal("var", "(timestamp)"), ExpressionUtil.sanitize(timestamp));
+  }
+
+  @Test
+  public void testSanitizeVariantObject() {
     Map<String, VariantValue> data = new HashMap<String, VariantValue>();
-    data.put("event_id_8", VariantTestUtil.createInt(34));
-    data.put("event_id_16", VariantTestUtil.createInt16());
-    data.put("event_id_32", VariantTestUtil.createInt32());
-    data.put("event_id_64", VariantTestUtil.createInt64());
+    data.put("event_id_8", VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 32}));
+    data.put(
+        "event_id_16",
+        VariantTestUtil.createSerializedPrimitive(4, new byte[] {(byte) 0xD2, 0x04}));
+    data.put(
+        "event_id_32",
+        VariantTestUtil.createSerializedPrimitive(
+            5, new byte[] {(byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_id_64",
+        VariantTestUtil.createSerializedPrimitive(
+            6, new byte[] {(byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11}));
     data.put("event_name", VariantTestUtil.createString("test"));
-    data.put("event_float", VariantTestUtil.createFloat());
-    data.put("event_double", VariantTestUtil.createDouble());
-    data.put("event_bool_t", VariantTestUtil.createTrue());
-    data.put("event_bool_f", VariantTestUtil.createFalse());
-    data.put("event_id_dec4", VariantTestUtil.createDecimal4());
-    data.put("event_id_dec8", VariantTestUtil.createDecimal8());
-    data.put("event_id_dec16", VariantTestUtil.createDecimal16());
-    data.put("event_date", VariantTestUtil.createDate());
-    data.put("event_timestamp_tz", VariantTestUtil.createTimestampTZ());
-    data.put("event_timestamp_ntz", VariantTestUtil.createTimestampNTZ());
-    data.put("event_binary", VariantTestUtil.createBinary());
+    data.put(
+        "event_float",
+        VariantTestUtil.createSerializedPrimitive(
+            14, new byte[] {(byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_double",
+        VariantTestUtil.createSerializedPrimitive(
+            7, new byte[] {(byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11}));
+    byte[] empty = new byte[0];
+    data.put("event_bool_t", VariantTestUtil.createSerializedPrimitive(1, empty));
+    data.put("event_bool_f", VariantTestUtil.createSerializedPrimitive(2, empty));
+    data.put(
+        "event_id_dec4",
+        VariantTestUtil.createSerializedPrimitive(
+            8, new byte[] {0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_id_dec8", // scale=9
+        VariantTestUtil.createSerializedPrimitive(
+            9,
+            new byte[] {
+              0x09, (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+            }));
+    data.put(
+        "event_id_dec16", // scale=9
+        VariantTestUtil.createSerializedPrimitive(
+            10,
+            new byte[] {
+              0x09,
+              0x15,
+              0x71,
+              0x34,
+              (byte) 0xB0,
+              (byte) 0xB8,
+              (byte) 0x87,
+              0x10,
+              (byte) 0x89,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00
+            }));
+    data.put(
+        "event_date",
+        VariantTestUtil.createSerializedPrimitive(11, new byte[] {(byte) 0xF4, 0x43, 0x00, 0x00}));
+    data.put(
+        "event_timestamp_tz",
+        VariantTestUtil.createSerializedPrimitive(
+            12, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
+    data.put(
+        "event_timestamp_ntz",
+        VariantTestUtil.createSerializedPrimitive(
+            13, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
+    data.put(
+        "event_binary",
+        VariantTestUtil.createSerializedPrimitive(
+            15, new byte[] {0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'}));
     data.put("event_array", VariantTestUtil.createMixedArray());
     Variant value = VariantTestUtil.variant(data);
     Expression bound = Binder.bind(STRUCT, equal("var", value));
