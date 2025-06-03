@@ -27,10 +27,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
-import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
-import org.apache.flink.streaming.api.operators.ProcessOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
@@ -173,6 +171,7 @@ class TestCommittableToTableChangeConverter {
           createIcebergCommittable(
               dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
       harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+      // Duplicate data should be handled properly to avoid job failure.
       harness.processElement(new StreamRecord<>(icebergCommittable.f0));
       List<TableChange> tableChanges = harness.extractOutputValues();
       assertThat(tableChanges).hasSize(1);
@@ -189,55 +188,6 @@ class TestCommittableToTableChangeConverter {
               .build();
 
       assertThat(tableChange).isEqualTo(expectedTableChange);
-    }
-  }
-
-  @Test
-  public void testConvertRestore() throws Exception {
-    String flinkJobId = newFlinkJobId();
-    String operatorId = newOperatorUniqueId();
-    ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(
-            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
-
-    Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
-        createIcebergCommittable(
-            dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
-
-    OperatorSubtaskState state;
-    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness =
-            ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
-      harness.open();
-      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
-      state = harness.snapshot(2L, 2L);
-    }
-
-    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness =
-            new OneInputStreamOperatorTestHarness(
-                new ProcessOperator(
-                    new CommittableToTableChangeConverter(fileIO, tableName, specs)),
-                1,
-                1,
-                0)) {
-      harness.initializeState(state);
-      harness.open();
-
-      // replay should filter
-      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
-      assertThat(harness.extractOutputValues()).hasSize(0);
-
-      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
-
-      // new committable should not be filtered
-      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable2 =
-          createIcebergCommittable(
-              dataFile2, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 3L);
-
-      harness.processElement(new StreamRecord<>(icebergCommittable2.f0));
-      assertThat(harness.extractOutputValues()).hasSize(1);
     }
   }
 
@@ -255,8 +205,7 @@ class TestCommittableToTableChangeConverter {
           new CommittableWithLineage<>(emptyCommittable, 1L, 0);
       harness.processElement(new StreamRecord<>(message));
       List<TableChange> tableChanges = harness.extractOutputValues();
-      assertThat(tableChanges).hasSize(1);
-      assertThat(tableChanges.get(0)).isEqualTo(TableChange.builder().commitCount(1).build());
+      assertThat(tableChanges).hasSize(0);
     }
   }
 
@@ -271,7 +220,7 @@ class TestCommittableToTableChangeConverter {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
         harness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(fileIO, tableName, specs, 0))) {
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
 
       harness.open();
 
@@ -281,71 +230,9 @@ class TestCommittableToTableChangeConverter {
 
       harness.processElement(new StreamRecord<>(icebergCommittable.f0));
 
-      // mock checkpoint
-      harness.snapshot(1L, 1000L);
-
       // check Manifest files are deleted
       for (ManifestFile manifest : icebergCommittable.f1.manifests()) {
         assertThat(new File(manifest.path())).doesNotExist();
-      }
-    }
-  }
-
-  @Test
-  public void testManifestOldestDeletion() throws Exception {
-    String flinkJobId = newFlinkJobId();
-    String operatorId = newOperatorUniqueId();
-    ManifestOutputFileFactory factory =
-        FlinkManifestUtil.createOutputFileFactory(
-            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
-
-    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
-        harness =
-            ProcessFunctionTestHarnesses.forProcessFunction(
-                new CommittableToTableChangeConverter(fileIO, tableName, specs, 2))) {
-      harness.open();
-
-      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
-          createIcebergCommittable(
-              dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
-      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable1 =
-          createIcebergCommittable(
-              dataFile1, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 2L);
-      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable2 =
-          createIcebergCommittable(
-              dataFile2, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 3L);
-
-      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
-      harness.processElement(new StreamRecord<>(icebergCommittable1.f0));
-      harness.processElement(new StreamRecord<>(icebergCommittable2.f0));
-
-      List<TableChange> tableChanges = harness.extractOutputValues();
-      assertThat(tableChanges).hasSize(3);
-      TableChange tableChange = tableChanges.get(0);
-      TableChange expectedTableChange =
-          TableChange.builder()
-              .dataFileCount(1)
-              .dataFileSizeInBytes(100)
-              .posDeleteFileCount(1)
-              .posDeleteRecordCount(5)
-              .eqDeleteFileCount(1)
-              .eqDeleteRecordCount(3)
-              .commitCount(1)
-              .build();
-
-      assertThat(tableChange).isEqualTo(expectedTableChange);
-
-      // check Manifest files are deleted
-      for (ManifestFile manifest : icebergCommittable.f1.manifests()) {
-        assertThat(new File(manifest.path())).doesNotExist();
-      }
-
-      for (ManifestFile manifest : icebergCommittable1.f1.manifests()) {
-        assertThat(new File(manifest.path())).doesNotExist();
-      }
-
-      for (ManifestFile manifest : icebergCommittable2.f1.manifests()) {
-        assertThat(new File(manifest.path())).exists();
       }
     }
   }

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -151,20 +150,18 @@ class FlinkManifestUtil {
 
   static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    List<String> manifestsPath =
-        manifests.stream().map(ManifestFile::path).collect(Collectors.toList());
-    deleteCommittedManifests(table.name(), table.io(), manifestsPath, newFlinkJobId, checkpointId);
+    deleteCommittedManifests(table.name(), table.io(), manifests, newFlinkJobId, checkpointId);
   }
 
   static void deleteCommittedManifests(
       String tableName,
       FileIO io,
-      List<String> manifestsPath,
+      List<ManifestFile> manifestsPath,
       String newFlinkJobId,
       long checkpointId) {
-    for (String manifest : manifestsPath) {
+    for (ManifestFile manifest : manifestsPath) {
       try {
-        io.deleteFile(manifest);
+        io.deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
