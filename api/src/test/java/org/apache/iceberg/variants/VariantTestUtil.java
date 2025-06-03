@@ -101,10 +101,6 @@ public class VariantTestUtil {
     }
   }
 
-  private static byte primitiveHeader(int primitiveType) {
-    return (byte) (primitiveType << 2);
-  }
-
   private static byte metadataHeader(boolean isSorted, int offsetSize) {
     return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
   }
@@ -139,113 +135,17 @@ public class VariantTestUtil {
     return SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
   }
 
-  public static SerializedPrimitive createInt(int val) {
-    return SerializedPrimitive.from(new byte[] {primitiveHeader(3), (byte) val});
+  static byte primitiveHeader(int primitiveType) {
+    return (byte) (primitiveType << 2);
   }
 
-  public static SerializedPrimitive createInt16() {
-    return SerializedPrimitive.from(new byte[] {primitiveHeader(4), (byte) 0xD2, 0x04});
-  }
-
-  public static SerializedPrimitive createInt32() {
-    return SerializedPrimitive.from(
-        new byte[] {primitiveHeader(5), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
-  }
-
-  public static SerializedPrimitive createInt64() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(6), (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
-        });
-  }
-
-  public static SerializedPrimitive createDecimal4() {
-    return SerializedPrimitive.from(
-        new byte[] {primitiveHeader(8), 0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
-  }
-
-  public static SerializedPrimitive createDecimal8() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(9),
-          0x09, // scale=9
-          (byte) 0xB1,
-          0x1C,
-          0x6C,
-          (byte) 0xB1,
-          (byte) 0xF4,
-          0x10,
-          0x22,
-          0x11
-        });
-  }
-
-  public static SerializedPrimitive createDecimal16() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(10),
-          0x09, // scale=9
-          0x15,
-          0x71,
-          0x34,
-          (byte) 0xB0,
-          (byte) 0xB8,
-          (byte) 0x87,
-          0x10,
-          (byte) 0x89,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00
-        });
-  }
-
-  public static SerializedPrimitive createDouble() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(7), (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
-        });
-  }
-
-  public static SerializedPrimitive createFloat() {
-    return SerializedPrimitive.from(
-        new byte[] {primitiveHeader(14), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
-  }
-
-  public static SerializedPrimitive createTrue() {
-    return SerializedPrimitive.from(new byte[] {primitiveHeader(1)});
-  }
-
-  public static SerializedPrimitive createFalse() {
-    return SerializedPrimitive.from(new byte[] {primitiveHeader(2)});
-  }
-
-  public static SerializedPrimitive createDate() {
-    return SerializedPrimitive.from(
-        new byte[] {primitiveHeader(11), (byte) 0xF4, 0x43, 0x00, 0x00});
-  }
-
-  public static SerializedPrimitive createTimestampTZ() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(12), 0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
-        });
-  }
-
-  public static SerializedPrimitive createTimestampNTZ() {
-    return SerializedPrimitive.from(
-        new byte[] {
-          primitiveHeader(13), 0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
-        });
-  }
-
-  public static SerializedPrimitive createBinary() {
-    return SerializedPrimitive.from(
-        new byte[] {primitiveHeader(15), 0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'});
+  public static SerializedPrimitive createSerializedPrimitive(int primitiveType, byte[] bytes) {
+    byte[] header = new byte[1];
+    header[0] = primitiveHeader(primitiveType);
+    byte[] primitives = new byte[bytes.length + header.length];
+    System.arraycopy(header, 0, primitives, 0, header.length);
+    System.arraycopy(bytes, 0, primitives, header.length, bytes.length);
+    return SerializedPrimitive.from(primitives);
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
