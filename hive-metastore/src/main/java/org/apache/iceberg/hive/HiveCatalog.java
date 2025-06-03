@@ -508,7 +508,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
+    if (!namespace.isEmpty() && (!isValidateNamespace(namespace) || !namespaceExists(namespace))) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     if (!namespace.isEmpty()) {
