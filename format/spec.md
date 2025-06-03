@@ -221,7 +221,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| [v3](#version-3) | **`geometry(C)`**  | Geospatial features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar, and geometric calculations are performed using Cartesian mathematics along straight lines. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
+| [v3](#version-3) | **`geometry(C)`**  | Geospatial features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar, i.e., geometric calculations are performed using Cartesian mathematics along straight lines. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
 | [v3](#version-3) | **`geography(C, A)`**  | Geospatial features from [OGC – Simple feature access][1001]. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C and edge-interpolation algoritm A. If not specified, C is `OGC:CRS84` and A is `spherical`. |
 
 Notes:
