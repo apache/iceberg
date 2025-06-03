@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.sink.DeltaManifests;
-import org.apache.iceberg.flink.sink.IcebergCommittableSerializer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -31,8 +30,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * serialized {@link DeltaManifests} file - which contains the commit data, and the jobId,
  * operatorId, checkpointId triplet to identify the specific commit.
  *
- * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
- * and the Aggregator operator and between the Aggregator and the Committer as well.
+ * <p>{@link DynamicCommittableSerializer} is used to serialize {@link DynamicCommittable} between
+ * the {@link DynamicWriter} and the {@link DynamicWriteResultAggregator}.
  */
 @Internal
 class DynamicCommittable implements Serializable {
