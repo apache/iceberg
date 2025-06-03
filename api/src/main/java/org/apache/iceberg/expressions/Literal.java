@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.variants.VariantData;
+import org.apache.iceberg.variants.Variant;
 
 /**
  * Represents a literal fixed value in an expression predicate
@@ -72,7 +72,7 @@ public interface Literal<T> extends Serializable {
     return new Literals.DecimalLiteral(value);
   }
 
-  static Literal<VariantData> of(VariantData value) {
+  static Literal<Variant> of(Variant value) {
     return new Literals.VariantLiteral(value);
   }
 
