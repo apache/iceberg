@@ -22,13 +22,14 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.IcebergCommittableSerializer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * The aggregated results of a single checkpoint which should be committed. Containing the
- * serialized {@link org.apache.iceberg.flink.sink.DeltaManifests} file - which contains the commit
- * data, and the jobId, operatorId, checkpointId triplet which help identifying the specific commit
+ * serialized {@link DeltaManifests} file - which contains the commit data, and the jobId,
+ * operatorId, checkpointId triplet to identify the specific commit.
  *
  * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
  * and the Aggregator operator and between the Aggregator and the Committer as well.
