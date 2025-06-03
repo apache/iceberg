@@ -32,8 +32,8 @@ import org.apache.iceberg.types.Types;
  *
  * <ul>
  *   <li>SAME: The two schemas are semantically identical
- *   <li>DATA_ADAPTION_NEEDED: We can evolve the data associated with the input schema to match the
- *       table schema.
+ *   <li>DATA_CONVERSION_NEEDED: We can evolve the data associated with the input schema to match
+ *       the table schema.
  *   <li>SCHEMA_UPDATE_NEEDED: We need to migrate the table schema to match the input schema.
  * </ul>
  *

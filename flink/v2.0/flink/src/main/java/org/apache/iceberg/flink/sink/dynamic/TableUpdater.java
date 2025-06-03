@@ -105,6 +105,7 @@ class TableUpdater {
           throw e;
         }
       }
+
       cache.update(identifier, table);
     }
   }
