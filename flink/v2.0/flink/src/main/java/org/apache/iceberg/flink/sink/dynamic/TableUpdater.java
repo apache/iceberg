@@ -131,21 +131,22 @@ class TableUpdater {
 
           try {
             updateApi.commit();
-            cache.invalidate(identifier);
+            cache.update(identifier, table);
             Tuple2<Schema, CompareSchemasVisitor.Result> comparisonAfterMigration =
                 cache.schema(identifier, schema);
             Schema newSchema = comparisonAfterMigration.f0;
             LOG.info("Table {} schema updated from {} to {}", identifier, tableSchema, newSchema);
             return comparisonAfterMigration;
           } catch (CommitFailedException e) {
-            LOG.info(
-                "Schema update failed for {} from {} to {}", identifier, tableSchema, schema, e);
+            cache.invalidate(identifier);
             Tuple2<Schema, CompareSchemasVisitor.Result> newSchema =
                 cache.schema(identifier, schema);
             if (newSchema.f1 != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
-              LOG.info("Table {} schema updated concurrently to {}", identifier, schema);
+              LOG.debug("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;
             } else {
+              LOG.error(
+                  "Schema update failed for {} from {} to {}", identifier, tableSchema, schema, e);
               throw e;
             }
           }
@@ -182,6 +183,7 @@ class TableUpdater {
 
     try {
       updater.commit();
+      cache.update(identifier, table);
     } catch (CommitFailedException e) {
       cache.invalidate(identifier);
       PartitionSpec newSpec = cache.spec(identifier, targetSpec);
@@ -199,8 +201,6 @@ class TableUpdater {
         throw e;
       }
     }
-
-    cache.invalidate(identifier);
     return cache.spec(identifier, targetSpec);
   }
 }
