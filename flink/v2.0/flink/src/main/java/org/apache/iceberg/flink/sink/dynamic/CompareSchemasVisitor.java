@@ -88,7 +88,7 @@ public class CompareSchemasVisitor
     }
 
     if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
-      return Result.DATA_ADAPTION_NEEDED;
+      return Result.DATA_CONVERSION_NEEDED;
     }
 
     for (int i = 0; i < struct.fields().size(); ++i) {
@@ -97,7 +97,7 @@ public class CompareSchemasVisitor
           .get(i)
           .name()
           .equals(tableSchemaType.asStructType().fields().get(i).name())) {
-        return Result.DATA_ADAPTION_NEEDED;
+        return Result.DATA_CONVERSION_NEEDED;
       }
     }
 
@@ -157,19 +157,19 @@ public class CompareSchemasVisitor
       return Result.SAME;
     } else if (primitive.equals(Types.IntegerType.get())
         && tableSchemaPrimitiveType.equals(Types.LongType.get())) {
-      return Result.DATA_ADAPTION_NEEDED;
+      return Result.DATA_CONVERSION_NEEDED;
     } else if (primitive.equals(Types.FloatType.get())
         && tableSchemaPrimitiveType.equals(Types.DoubleType.get())) {
-      return Result.DATA_ADAPTION_NEEDED;
+      return Result.DATA_CONVERSION_NEEDED;
     } else if (primitive.equals(Types.DateType.get())
         && tableSchemaPrimitiveType.equals(Types.TimestampType.withoutZone())) {
-      return Result.DATA_ADAPTION_NEEDED;
+      return Result.DATA_CONVERSION_NEEDED;
     } else if (primitive.typeId() == Type.TypeID.DECIMAL
         && tableSchemaPrimitiveType.typeId() == Type.TypeID.DECIMAL) {
       Types.DecimalType dataType = (Types.DecimalType) primitive;
       Types.DecimalType tableType = (Types.DecimalType) tableSchemaPrimitiveType;
       return dataType.scale() == tableType.scale() && dataType.precision() < tableType.precision()
-          ? Result.DATA_ADAPTION_NEEDED
+          ? Result.DATA_CONVERSION_NEEDED
           : Result.SCHEMA_UPDATE_NEEDED;
     } else {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -240,7 +240,7 @@ public class CompareSchemasVisitor
 
   public enum Result {
     SAME(0),
-    DATA_ADAPTION_NEEDED(1),
+    DATA_CONVERSION_NEEDED(1),
     SCHEMA_UPDATE_NEEDED(2);
 
     private static final Map<Integer, Result> BY_ID = Maps.newHashMap();

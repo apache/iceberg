@@ -127,7 +127,7 @@ class TableMetadataCache {
           cached.schema.update(input, newResult);
           return newResult;
         } else if (compatible == null
-            && result == CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED) {
+            && result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
           compatible = tableSchema.getValue();
         }
       }
@@ -138,7 +138,7 @@ class TableMetadataCache {
       return schema(identifier, input, false);
     } else if (compatible != null) {
       Tuple2<Schema, CompareSchemasVisitor.Result> newResult =
-          Tuple2.of(compatible, CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
+          Tuple2.of(compatible, CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
       cached.schema.update(input, newResult);
       return newResult;
     } else if (cached != null && cached.tableExists) {

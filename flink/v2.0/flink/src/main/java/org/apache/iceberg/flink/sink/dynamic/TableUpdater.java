@@ -119,7 +119,7 @@ class TableUpdater {
       CompareSchemasVisitor.Result result = CompareSchemasVisitor.visit(schema, tableSchema, true);
       switch (result) {
         case SAME:
-        case DATA_ADAPTION_NEEDED:
+        case DATA_CONVERSION_NEEDED:
           cache.update(identifier, table);
           return Tuple2.of(tableSchema, result);
         case SCHEMA_UPDATE_NEEDED:

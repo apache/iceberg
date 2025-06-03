@@ -86,7 +86,7 @@ class TestCompareSchemasVisitor {
                     optional(0, "id", IntegerType.get()),
                     optional(1, "data", StringType.get()),
                     optional(2, "extra", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
   @Test
@@ -108,7 +108,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(1, "id", LongType.get()), optional(2, "extra", StringType.get()))))
-        .isEqualTo(CompareSchemasVisitor.Result.DATA_ADAPTION_NEEDED);
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
   @Test
