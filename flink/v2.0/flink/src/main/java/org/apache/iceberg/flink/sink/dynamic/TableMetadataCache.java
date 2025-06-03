@@ -170,10 +170,7 @@ class TableMetadataCache {
   private Tuple2<Boolean, Exception> refreshTable(TableIdentifier identifier) {
     try {
       Table table = catalog.loadTable(identifier);
-      cache.put(
-          identifier,
-          new CacheItem(
-              true, table.refs().keySet(), new SchemaInfo(table.schemas()), table.specs()));
+      update(identifier, table);
       return EXISTS;
     } catch (NoSuchTableException e) {
       LOG.debug("Table doesn't exist {}", identifier, e);
