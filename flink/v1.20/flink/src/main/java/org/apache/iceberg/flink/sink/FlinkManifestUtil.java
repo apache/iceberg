@@ -34,7 +34,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,18 +64,6 @@ class FlinkManifestUtil {
     try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, specsById)) {
       return Lists.newArrayList(dataFiles);
     }
-  }
-
-  static List<DeleteFile> readDeleteFiles(
-      ManifestFile manifestFile, FileIO io, Map<Integer, PartitionSpec> specsById)
-      throws IOException {
-    List<DeleteFile> deleteFiles = Lists.newArrayList();
-    try (CloseableIterable<DeleteFile> deleteFileIterable =
-        ManifestFiles.readDeleteManifest(manifestFile, io, specsById)) {
-      Iterables.addAll(deleteFiles, deleteFileIterable);
-    }
-
-    return deleteFiles;
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(

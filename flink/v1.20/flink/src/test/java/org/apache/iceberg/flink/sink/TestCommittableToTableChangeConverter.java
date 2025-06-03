@@ -57,8 +57,6 @@ class TestCommittableToTableChangeConverter {
   private String tableName;
   private Map<Integer, PartitionSpec> specs;
   private DataFile dataFile;
-  private DataFile dataFile1;
-  private DataFile dataFile2;
   private DeleteFile posDeleteFile;
   private DeleteFile eqDeleteFile;
 
@@ -76,18 +74,6 @@ class TestCommittableToTableChangeConverter {
     dataFile =
         DataFiles.builder(table.spec())
             .withPath("/path/to/data.parquet")
-            .withFileSizeInBytes(100)
-            .withRecordCount(10)
-            .build();
-    dataFile1 =
-        DataFiles.builder(table.spec())
-            .withPath("/path/to/data1.parquet")
-            .withFileSizeInBytes(100)
-            .withRecordCount(10)
-            .build();
-    dataFile2 =
-        DataFiles.builder(table.spec())
-            .withPath("/path/to/data2.parquet")
             .withFileSizeInBytes(100)
             .withRecordCount(10)
             .build();
@@ -188,6 +174,36 @@ class TestCommittableToTableChangeConverter {
               .build();
 
       assertThat(tableChange).isEqualTo(expectedTableChange);
+    }
+  }
+
+  @Test
+  public void testReadUnExistManifest() throws Exception {
+    String flinkJobId = newFlinkJobId();
+    String operatorId = newOperatorUniqueId();
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(
+            () -> table, table.properties(), flinkJobId, operatorId, 1, 1);
+
+    try (OneInputStreamOperatorTestHarness<CommittableMessage<IcebergCommittable>, TableChange>
+        harness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new CommittableToTableChangeConverter(fileIO, tableName, specs))) {
+      harness.open();
+
+      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
+          createIcebergCommittable(
+              dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+
+      // check Manifest files are deleted
+      for (ManifestFile manifest : icebergCommittable.f1.manifests()) {
+        assertThat(new File(manifest.path())).doesNotExist();
+      }
+
+      // Emit the same committable again to check read no exist manifest
+      // should be handled properly to avoid job failure.
+      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
     }
   }
 

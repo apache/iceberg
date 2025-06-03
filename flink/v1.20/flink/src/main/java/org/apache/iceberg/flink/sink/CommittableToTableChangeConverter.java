@@ -89,7 +89,7 @@ public class CommittableToTableChangeConverter
         writeResult = FlinkManifestUtil.readCompletedFiles(deltaManifests, io, specs);
       } catch (Exception e) {
         LOG.warn(
-            "Miss deltaManifests for table {} at checkpoint {}",
+            "Unable to read delta manifests for table {} at checkpoint {}",
             tableName,
             committable.checkpointId(),
             e);
@@ -102,8 +102,6 @@ public class CommittableToTableChangeConverter
       out.collect(tableChange);
       FlinkManifestUtil.deleteCommittedManifests(
           tableName, io, deltaManifests.manifests(), flinkJobId, committable.checkpointId());
-    } else {
-      LOG.warn("Unsupported type of committable message: {}", value.getClass());
     }
   }
 }
