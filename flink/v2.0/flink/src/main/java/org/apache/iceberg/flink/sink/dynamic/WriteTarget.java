@@ -105,6 +105,7 @@ class WriteTarget implements Serializable {
     for (int i = 0; i < numFields; i++) {
       equalityFields.add(view.readInt());
     }
+
     return equalityFields;
   }
 
