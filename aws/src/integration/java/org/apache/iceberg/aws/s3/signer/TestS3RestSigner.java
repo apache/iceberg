@@ -35,6 +35,7 @@ import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.util.ThreadPools;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -122,9 +123,8 @@ public class TestS3RestSigner {
     // there aren't other token refreshes being scheduled after every sign request and after
     // TestS3RestSigner completes all tests, there should be only this single token in the queue
     // that is scheduled for refresh
-    assertThat(validatingSigner.icebergSigner)
-        .extracting("authManager")
-        .extracting("refreshExecutor")
+    assertThat(ThreadPools.getAuthRefreshPool())
+        .extracting("e") // field declared in DelegatedScheduledExecutorService
         .asInstanceOf(type(ScheduledThreadPoolExecutor.class))
         .satisfies(
             executor -> {
