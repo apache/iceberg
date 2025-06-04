@@ -36,6 +36,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
   private Long addedSnapshotId = null;
   private Integer content = null;
   private Long sequenceNumber = null;
+  private Long firstRowId = null;
 
   public static ManifestFileBean fromManifest(ManifestFile manifest) {
     ManifestFileBean bean = new ManifestFileBean();
@@ -46,6 +47,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
     bean.setAddedSnapshotId(manifest.snapshotId());
     bean.setContent(manifest.content().id());
     bean.setSequenceNumber(manifest.sequenceNumber());
+    bean.setFirstRowId(manifest.firstRowId());
 
     return bean;
   }
@@ -96,6 +98,10 @@ public class ManifestFileBean implements ManifestFile, Serializable {
 
   public void setSequenceNumber(Long sequenceNumber) {
     this.sequenceNumber = sequenceNumber;
+  }
+
+  public void setFirstRowId(Long firstRowId) {
+    this.firstRowId = firstRowId;
   }
 
   @Override
@@ -171,6 +177,11 @@ public class ManifestFileBean implements ManifestFile, Serializable {
   @Override
   public ByteBuffer keyMetadata() {
     return null;
+  }
+
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
   }
 
   @Override
