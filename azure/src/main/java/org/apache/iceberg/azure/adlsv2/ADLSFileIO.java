@@ -26,9 +26,11 @@ import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -36,8 +38,14 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -45,7 +53,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements DelegateFileIO {
+public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
@@ -57,6 +65,7 @@ public class ADLSFileIO implements DelegateFileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
+  private List<StorageCredential> storageCredentials = ImmutableList.of();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -129,8 +138,13 @@ public class ADLSFileIO implements DelegateFileIO {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    this.azureProperties = new AzureProperties(properties);
-    initMetrics(properties);
+    Map<String, String> propertiesWithCredentials =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .putAll(storageCredentialConfig())
+            .buildKeepingLast();
+    this.azureProperties = new AzureProperties(propertiesWithCredentials);
+    initMetrics(propertiesWithCredentials);
     this.azureProperties
         .vendedAdlsCredentialProvider()
         .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
@@ -228,5 +242,30 @@ public class ADLSFileIO implements DelegateFileIO {
     }
 
     DelegateFileIO.super.close();
+  }
+
+  @Override
+  public void setCredentials(List<StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
+  }
+
+  @Override
+  public List<StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
+  }
+
+  private Map<String, String> storageCredentialConfig() {
+    List<StorageCredential> adlsCredentials =
+        storageCredentials.stream()
+            .filter(c -> c.prefix().startsWith("abfs") || c.prefix().startsWith("wasb"))
+            .collect(Collectors.toList());
+
+    Preconditions.checkState(
+        adlsCredentials.size() <= 1,
+        "Invalid ADLS Credentials: only one ADLS credential should exist");
+
+    return adlsCredentials.isEmpty() ? Map.of() : adlsCredentials.get(0).config();
   }
 }
