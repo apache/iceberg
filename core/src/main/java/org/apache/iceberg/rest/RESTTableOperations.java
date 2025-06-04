@@ -121,7 +121,7 @@ class RESTTableOperations implements TableOperations {
     this.endpoints = endpoints;
 
     // N.B. We don't use this.current because for tables-to-be-created, because it would be null,
-    // and ee still want encrypted properties in this case for its TableOperations.
+    // and we still want encrypted properties in this case for its TableOperations.
     encryptionPropsFromMetadata(current);
   }
 
