@@ -28,7 +28,6 @@ import com.azure.storage.file.datalake.models.ListPathsOptions;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.azure.AzureProperties;
@@ -46,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -58,14 +58,16 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String ABFS_PREFIX = "abfs";
+  private static final String WASB_PREFIX = "wasb";
 
   private static final HttpClient HTTP = HttpClient.createDefault();
 
   private AzureProperties azureProperties;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
-  private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
   private List<StorageCredential> storageCredentials = ImmutableList.of();
+  private transient volatile Map<String, PrefixedADLSFileClientBuilder> clientBuilderByPrefix;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -122,12 +124,23 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
-    Optional.ofNullable(vendedAdlsCredentialProvider)
-        .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
-        .ifPresent(clientBuilder::addPolicy);
-    azureProperties.applyClientConfiguration(location.host(), clientBuilder);
+    configureClient(clientBuilder, location.location());
 
     return clientBuilder.buildClient();
+  }
+
+  private void configureClient(DataLakeFileSystemClientBuilder builder, String path) {
+    PrefixedADLSFileClientBuilder prefixedADLSFileClientBuilder;
+    String matchingPrefix = ABFS_PREFIX;
+
+    for (String storagePrefix : clientBuilderByPrefix().keySet()) {
+      if (path.startsWith(storagePrefix) && storagePrefix.length() > matchingPrefix.length()) {
+        matchingPrefix = storagePrefix;
+      }
+    }
+    prefixedADLSFileClientBuilder = clientBuilderByPrefix().getOrDefault(matchingPrefix, null);
+
+    prefixedADLSFileClientBuilder.applyConfig(builder, path);
   }
 
   private DataLakeFileClient fileClient(String path) {
@@ -138,16 +151,8 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    Map<String, String> propertiesWithCredentials =
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(storageCredentialConfig())
-            .buildKeepingLast();
-    this.azureProperties = new AzureProperties(propertiesWithCredentials);
-    initMetrics(propertiesWithCredentials);
-    this.azureProperties
-        .vendedAdlsCredentialProvider()
-        .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
+    this.azureProperties = new AzureProperties(properties);
+    initMetrics(properties);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -237,10 +242,10 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @Override
   public void close() {
-    if (vendedAdlsCredentialProvider != null) {
-      vendedAdlsCredentialProvider.close();
+    if (clientBuilderByPrefix != null) {
+      clientBuilderByPrefix.values().forEach(PrefixedADLSFileClientBuilder::close);
+      this.clientBuilderByPrefix = null;
     }
-
     DelegateFileIO.super.close();
   }
 
@@ -256,16 +261,35 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     return ImmutableList.copyOf(storageCredentials);
   }
 
-  private Map<String, String> storageCredentialConfig() {
-    List<StorageCredential> adlsCredentials =
-        storageCredentials.stream()
-            .filter(c -> c.prefix().startsWith("abfs") || c.prefix().startsWith("wasb"))
-            .collect(Collectors.toList());
+  private Map<String, PrefixedADLSFileClientBuilder> clientBuilderByPrefix() {
+    if (null == clientBuilderByPrefix) {
+      synchronized (this) {
+        if (null == clientBuilderByPrefix) {
+          this.clientBuilderByPrefix = Maps.newHashMap();
 
-    Preconditions.checkState(
-        adlsCredentials.size() <= 1,
-        "Invalid ADLS Credentials: only one ADLS credential should exist");
+          PrefixedADLSFileClientBuilder rootBuilder =
+              new PrefixedADLSFileClientBuilder(ABFS_PREFIX, properties);
+          clientBuilderByPrefix.put(ABFS_PREFIX, rootBuilder);
+          clientBuilderByPrefix.put(WASB_PREFIX, rootBuilder);
 
-    return adlsCredentials.isEmpty() ? Map.of() : adlsCredentials.get(0).config();
+          storageCredentials.stream()
+              .filter(c -> c.prefix().startsWith(ABFS_PREFIX) || c.prefix().startsWith(WASB_PREFIX))
+              .collect(Collectors.toList())
+              .forEach(
+                  storageCredential -> {
+                    Map<String, String> propertiesWithCredentials =
+                        ImmutableMap.<String, String>builder()
+                            .putAll(properties)
+                            .putAll(storageCredential.config())
+                            .buildKeepingLast();
+                    clientBuilderByPrefix.put(
+                        storageCredential.prefix(),
+                        new PrefixedADLSFileClientBuilder(
+                            storageCredential.prefix(), propertiesWithCredentials));
+                  });
+        }
+      }
+    }
+    return clientBuilderByPrefix;
   }
 }
