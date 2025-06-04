@@ -133,6 +133,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                           }
                         }
 
+                        LOG.debug("Creating new writer factory for table '{}'", table.name());
                         return new RowDataTaskWriterFactory(
                             () -> table,
                             FlinkSchemaUtil.convert(element.schema()),
