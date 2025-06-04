@@ -41,10 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
@@ -647,5 +650,90 @@ public class TestPredicateBinding {
     assertThat(expr)
         .as("Should change NOT_IN to alwaysTrue expression")
         .isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testGeospatialPredicateBinding() {
+    StructType struct =
+        StructType.of(
+            required(20, "geom", Types.GeometryType.crs84()),
+            required(21, "geog", Types.GeographyType.crs84()));
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    // Test ST_INTERSECTS with geometry
+    UnboundPredicate<ByteBuffer> stIntersectsGeom =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox);
+    Expression boundStIntersectsGeom = stIntersectsGeom.bind(struct);
+    assertThat(boundStIntersectsGeom).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate boundGeomPred = (BoundGeospatialPredicate) boundStIntersectsGeom;
+    assertThat(boundGeomPred.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(boundGeomPred.term().ref().fieldId()).isEqualTo(20);
+    assertThat(boundGeomPred.literal().value()).isEqualTo(bbox);
+
+    // Test ST_DISJOINT with geometry
+    UnboundPredicate<ByteBuffer> stDisjointGeom =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox);
+    Expression boundStDisjointGeom = stDisjointGeom.bind(struct);
+    assertThat(boundStDisjointGeom).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate boundDisjointGeomPred = (BoundGeospatialPredicate) boundStDisjointGeom;
+    assertThat(boundDisjointGeomPred.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(boundDisjointGeomPred.term().ref().fieldId()).isEqualTo(20);
+    assertThat(boundDisjointGeomPred.literal().value()).isEqualTo(bbox);
+
+    // Test ST_INTERSECTS with geography
+    UnboundPredicate<ByteBuffer> stIntersectsGeog =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox);
+    Expression boundStIntersectsGeog = stIntersectsGeog.bind(struct);
+    assertThat(boundStIntersectsGeog).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate boundGeogPred = (BoundGeospatialPredicate) boundStIntersectsGeog;
+    assertThat(boundGeogPred.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(boundGeogPred.term().ref().fieldId()).isEqualTo(21);
+    assertThat(boundGeogPred.literal().value()).isEqualTo(bbox);
+
+    // Test ST_DISJOINT with geography
+    UnboundPredicate<ByteBuffer> stDisjointGeog =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox);
+    Expression boundStDisjointGeog = stDisjointGeog.bind(struct);
+    assertThat(boundStDisjointGeog).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate boundDisjointGeogPred = (BoundGeospatialPredicate) boundStDisjointGeog;
+    assertThat(boundDisjointGeogPred.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(boundDisjointGeogPred.term().ref().fieldId()).isEqualTo(21);
+    assertThat(boundDisjointGeogPred.literal().value()).isEqualTo(bbox);
+  }
+
+  @Test
+  public void testMissingFieldGeospatialPredicate() {
+    StructType struct = StructType.of(required(22, "x", Types.IntegerType.get()));
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    UnboundPredicate<ByteBuffer> unbound =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "missing", bbox);
+    assertThatThrownBy(() -> unbound.bind(struct))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing' in struct:");
+  }
+
+  @Test
+  public void testInvalidTypeGeospatialPredicate() {
+    StructType struct = StructType.of(required(23, "x", Types.IntegerType.get()));
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    UnboundPredicate<ByteBuffer> unbound =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "x", bbox);
+    assertThatThrownBy(() -> unbound.bind(struct))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot bind geospatial operation to non-geospatial type:");
   }
 }
