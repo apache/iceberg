@@ -127,6 +127,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     Table table = getGlueTable();
     if (table != null) {
+      if (GlueCatalog.ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(
+          table.parameters().get(TABLE_TYPE_PROP))) {
+        disableRefresh();
+        return;
+      }
       checkIfTableIsIceberg(table, tableName());
       metadataLocation = table.parameters().get(METADATA_LOCATION_PROP);
     } else {
@@ -155,11 +160,16 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
+      if (glueTable != null
+          && GlueCatalog.GLUE_VIRTUAL_VIEW_TYPE.equalsIgnoreCase(glueTable.tableType())) {
+        throw new AlreadyExistsException(
+            "View with same name already exists: %s.%s", databaseName, tableName);
+      }
       checkMetadataLocation(glueTable, base);
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
       persistGlueTable(glueTable, properties, metadata, retryDetector);
       commitStatus = CommitStatus.SUCCESS;
-    } catch (CommitFailedException e) {
+    } catch (CommitFailedException | AlreadyExistsException e) {
       throw e;
     } catch (RuntimeException persistFailure) {
       boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
