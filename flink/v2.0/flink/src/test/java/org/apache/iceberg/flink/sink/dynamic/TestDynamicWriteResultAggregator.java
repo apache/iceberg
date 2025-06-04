@@ -40,6 +40,7 @@ public class TestDynamicWriteResultAggregator {
   @Test
   void testAggregator() throws Exception {
     CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), new Schema());
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), new Schema());
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
@@ -53,7 +54,7 @@ public class TestDynamicWriteResultAggregator {
       DynamicWriteResult dynamicWriteResult1 =
           new DynamicWriteResult(writeTarget1, WriteResult.builder().build());
       WriteTarget writeTarget2 =
-          new WriteTarget("table", "branch", 42, 0, true, Lists.newArrayList(1, 2));
+          new WriteTarget("table2", "branch", 42, 0, true, Lists.newArrayList(1, 2));
       DynamicWriteResult dynamicWriteResult2 =
           new DynamicWriteResult(writeTarget2, WriteResult.builder().build());
 
