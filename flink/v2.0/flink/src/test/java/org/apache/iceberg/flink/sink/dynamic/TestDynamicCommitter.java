@@ -217,4 +217,81 @@ class TestDynamicCommitter {
                     .put("total-records", "42")
                     .build());
   }
+
+  @Test
+  void testAlreadyCommitted() throws Exception {
+    Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table1.snapshots()).isEmpty();
+
+    boolean overwriteMode = false;
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter dynamicCommitter =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    WriteTarget writeTarget =
+        new WriteTarget(TABLE1, "branch", 42, 0, false, Lists.newArrayList(1, 2));
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    byte[] deltaManifest =
+        aggregator.writeToManifest(
+            writeTarget,
+            Lists.newArrayList(
+                new DynamicWriteResult(
+                    writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
+            0);
+
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 10;
+
+    CommitRequest<DynamicCommittable> commitRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget, deltaManifest, jobId, operatorId, checkpointId));
+
+    dynamicCommitter.commit(Lists.newArrayList(commitRequest));
+
+    CommitRequest<DynamicCommittable> oldCommitRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(
+                writeTarget, deltaManifest, jobId, operatorId, checkpointId - 1));
+
+    // Old commits requests shouldn't affect the result
+    dynamicCommitter.commit(Lists.newArrayList(oldCommitRequest));
+
+    table1.refresh();
+    assertThat(table1.snapshots()).hasSize(1);
+    Snapshot first = Iterables.getFirst(table1.snapshots(), null);
+    assertThat(first.summary())
+        .containsAllEntriesOf(
+            (Map)
+                ImmutableMap.builder()
+                    .put("added-data-files", "1")
+                    .put("added-records", "42")
+                    .put("changed-partition-count", "1")
+                    .put("flink.job-id", jobId)
+                    .put("flink.max-committed-checkpoint-id", "" + checkpointId)
+                    .put("flink.operator-id", operatorId)
+                    .put("total-data-files", "1")
+                    .put("total-delete-files", "0")
+                    .put("total-equality-deletes", "0")
+                    .put("total-files-size", "0")
+                    .put("total-position-deletes", "0")
+                    .put("total-records", "42")
+                    .build());
+  }
+
 }
