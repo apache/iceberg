@@ -44,13 +44,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class TestGoogleAuthSession {
 
+  private static final String TEST_TOKEN_VALUE = "test-token-12345";
+  private static final String TEST_RELATIVE_PATH = "v1/some/resource";
   @Mock private GoogleCredentials credentials;
   @Mock private AccessToken accessToken;
 
   private AuthSession session;
-  private static final String TEST_TOKEN_VALUE = "test-token-12345";
   private URI testBaseUri;
-  private static final String TEST_RELATIVE_PATH = "v1/some/resource";
 
   @BeforeEach
   public void beforeEach() throws URISyntaxException {
@@ -78,10 +78,8 @@ public class TestGoogleAuthSession {
 
     HTTPHeaders headers = authenticatedRequest.headers();
     assertThat(headers.contains("Authorization")).isTrue();
-    assertThat(headers.entries("Authorization"))
-        .hasSize(1)
-        .extracting("value")
-        .containsExactly("Bearer " + TEST_TOKEN_VALUE);
+    assertThat(authenticatedRequest.headers().entries())
+        .containsExactly(HTTPHeaders.HTTPHeader.of("Authorization", "Bearer " + TEST_TOKEN_VALUE));
   }
 
   @Test
@@ -105,11 +103,8 @@ public class TestGoogleAuthSession {
     verify(credentials).refreshIfExpired();
 
     assertThat(authenticatedRequest).isSameAs(originalRequest);
-    assertThat(authenticatedRequest.headers().entries("Authorization"))
-        .hasSize(1)
-        .extracting("value")
-        .first()
-        .isEqualTo(existingAuthHeaderValue);
+    assertThat(authenticatedRequest.headers().entries())
+        .containsExactly(HTTPHeaders.HTTPHeader.of("Authorization", existingAuthHeaderValue));
   }
 
   @Test
@@ -134,7 +129,7 @@ public class TestGoogleAuthSession {
   }
 
   @Test
-  public void returnsOriginalRequestWhenAccessTokenIsNull() throws IOException {
+  public void returnsOriginalRequestWhenAccessTokenIsNull() {
     when(credentials.getAccessToken()).thenReturn(null);
 
     HTTPRequest originalRequest =
@@ -150,7 +145,7 @@ public class TestGoogleAuthSession {
   }
 
   @Test
-  public void returnsOriginalRequestWhenTokenValueIsNull() throws IOException {
+  public void returnsOriginalRequestWhenTokenValueIsNull() {
     when(credentials.getAccessToken()).thenReturn(accessToken);
     when(accessToken.getTokenValue()).thenReturn(null);
 

@@ -62,9 +62,6 @@ public class GCPProperties implements Serializable {
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
 
-  public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
-  public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
-
   private final Map<String, String> allProperties;
 
   private String projectId;

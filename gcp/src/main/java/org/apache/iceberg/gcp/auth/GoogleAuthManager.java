@@ -26,8 +26,9 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -51,6 +52,8 @@ import org.slf4j.LoggerFactory;
 public class GoogleAuthManager implements AuthManager {
   private static final Logger LOG = LoggerFactory.getLogger(GoogleAuthManager.class);
   public static final String DEFAULT_SCOPES = "https://www.googleapis.com/auth/cloud-platform";
+  public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
+  public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
   private final String name;
 
   private GoogleCredentials credentials;
@@ -69,10 +72,13 @@ public class GoogleAuthManager implements AuthManager {
       return;
     }
 
-    String credentialsPath = properties.get(GCPProperties.GCP_CREDENTIALS_PATH_PROPERTY);
-    String scopesString =
-        properties.getOrDefault(GCPProperties.GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
-    List<String> scopes = ImmutableList.copyOf(scopesString.split(","));
+    String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
+    String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
+    List<String> scopes =
+        Strings.isNullOrEmpty(scopesString)
+            ? ImmutableList.of()
+            : ImmutableList.copyOf(
+                Splitter.on(',').trimResults().omitEmptyStrings().splitToList(scopesString));
 
     try {
       if (credentialsPath != null && !credentialsPath.isEmpty()) {

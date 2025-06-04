@@ -44,7 +44,7 @@ public class GoogleAuthSession implements AuthSession {
    * @param credentials The GoogleCredentials to use for authentication.
    */
   public GoogleAuthSession(GoogleCredentials credentials) {
-    Preconditions.checkArgument(credentials != null, "credentials can not be null");
+    Preconditions.checkArgument(credentials != null, "Invalid credentials: null");
     this.credentials = credentials;
   }
 
