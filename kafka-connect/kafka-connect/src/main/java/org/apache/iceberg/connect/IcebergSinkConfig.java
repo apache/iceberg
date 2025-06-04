@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -52,25 +53,27 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public static final String INTERNAL_TRANSACTIONAL_SUFFIX_PROP =
       "iceberg.coordinator.transactional.suffix";
-  private static final String ROUTE_REGEX = "route-regex";
+  public static final String ROUTE_REGEX = "route-regex";
   private static final String ID_COLUMNS = "id-columns";
   private static final String PARTITION_BY = "partition-by";
   private static final String COMMIT_BRANCH = "commit-branch";
+  private static final String LOCATION = "location";
 
   private static final String CATALOG_PROP_PREFIX = "iceberg.catalog.";
   private static final String HADOOP_PROP_PREFIX = "iceberg.hadoop.";
   private static final String KAFKA_PROP_PREFIX = "iceberg.kafka.";
-  private static final String TABLE_PROP_PREFIX = "iceberg.table.";
+  public static final String TABLE_PROP_PREFIX = "iceberg.table.";
   private static final String AUTO_CREATE_PROP_PREFIX = "iceberg.tables.auto-create-props.";
   private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
-  private static final String TABLES_PROP = "iceberg.tables";
+  public static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
-  private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
+  public static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
+  private static final String TABLES_DEFAULT_LOCATION = "iceberg.tables.default-location";
   private static final String TABLES_AUTO_CREATE_ENABLED_PROP =
       "iceberg.tables.auto-create-enabled";
   private static final String TABLES_EVOLVE_SCHEMA_ENABLED_PROP =
@@ -97,6 +100,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
+
+  private static final String RECORD_ROUTER = "iceberg.record-router";
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
@@ -225,6 +230,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        RECORD_ROUTER,
+        ConfigDef.Type.STRING,
+        "",
+        Importance.MEDIUM,
+        "router to use for routing records to different tables");
     return configDef;
   }
 
@@ -236,6 +247,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
+  private final RecordRouter recordRouter;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
     super(CONFIG_DEF, originalProps);
@@ -258,7 +270,7 @@ public class IcebergSinkConfig extends AbstractConfig {
             false,
             ConverterConfig.TYPE_CONFIG,
             ConverterType.VALUE.getName()));
-
+    recordRouter = loadRecordRouter();
     validate();
   }
 
@@ -287,6 +299,45 @@ public class IcebergSinkConfig extends AbstractConfig {
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
+  }
+
+  public RecordRouter recordRouter() {
+    return recordRouter;
+  }
+
+  private RecordRouter loadRecordRouter() {
+    String recordRouterClass = getString(RECORD_ROUTER);
+    if (recordRouterClass.isBlank()) {
+      if (dynamicTablesEnabled()) {
+        recordRouterClass = "org.apache.iceberg.connect.data.routers.DynamicRecordRouter";
+      } else if (null != tablesRouteField() && !tablesRouteField().isBlank()) {
+        recordRouterClass = "org.apache.iceberg.connect.data.routers.StaticRecordRouter";
+      } else {
+        recordRouterClass = "org.apache.iceberg.connect.data.routers.AllTableRecordRouter";
+      }
+    }
+    DynConstructors.Ctor<RecordRouter> ctor;
+    try {
+      ctor = DynConstructors.builder(RecordRouter.class).impl(recordRouterClass).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize RecordRouter implementation %s: %s",
+              recordRouterClass, e.getMessage()),
+          e);
+    }
+
+    try {
+      RecordRouter router = ctor.newInstance();
+      router.configure(originalProps);
+      return router;
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize RecordRouter, %s does not implement RecordRouter.",
+              recordRouterClass),
+          e);
+    }
   }
 
   public Map<String, String> catalogProps() {
@@ -329,6 +380,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(TABLES_DEFAULT_COMMIT_BRANCH);
   }
 
+  public String tablesDefaultLocation() {
+    return getString(TABLES_DEFAULT_LOCATION);
+  }
+
   public String tablesDefaultIdColumns() {
     return getString(TABLES_DEFAULT_ID_COLUMNS);
   }
@@ -357,7 +412,9 @@ public class IcebergSinkConfig extends AbstractConfig {
           String commitBranch =
               tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
 
-          return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);
+          String location = tableConfig.getOrDefault(LOCATION, tablesDefaultLocation());
+
+          return new TableSinkConfig(location, routeRegex, idColumns, partitionBy, commitBranch);
         });
   }
 
