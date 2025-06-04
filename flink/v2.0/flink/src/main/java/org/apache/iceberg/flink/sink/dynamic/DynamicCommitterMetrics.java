@@ -19,19 +19,17 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.IcebergFilesCommitterMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-@Internal
-public class DynamicCommitterMetrics {
+class DynamicCommitterMetrics {
 
   private final Map<String, IcebergFilesCommitterMetrics> metrics;
   private final MetricGroup mainMetricsGroup;
 
-  public DynamicCommitterMetrics(MetricGroup mainMetricsGroup) {
+  DynamicCommitterMetrics(MetricGroup mainMetricsGroup) {
     this.mainMetricsGroup = mainMetricsGroup;
     this.metrics = Maps.newHashMap();
   }

@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.io.WriteResult;
 
-@Internal
 class DynamicWriteResult {
 
   private final WriteTarget key;

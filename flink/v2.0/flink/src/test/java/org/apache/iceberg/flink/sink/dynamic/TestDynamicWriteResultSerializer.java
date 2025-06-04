@@ -32,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
-public class TestDynamicWriteResultSerializer {
+class TestDynamicWriteResultSerializer {
 
   private static final DataFile DATA_FILE =
       DataFiles.builder(PartitionSpec.unpartitioned())

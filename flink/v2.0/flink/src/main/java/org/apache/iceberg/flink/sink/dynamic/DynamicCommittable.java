@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -33,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * <p>{@link DynamicCommittableSerializer} is used to serialize {@link DynamicCommittable} between
  * the {@link DynamicWriter} and the {@link DynamicWriteResultAggregator}.
  */
-@Internal
 class DynamicCommittable implements Serializable {
 
   private final WriteTarget key;

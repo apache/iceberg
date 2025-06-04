@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.SinkWriter;
@@ -53,7 +52,6 @@ import org.slf4j.LoggerFactory;
  * DynamicIcebergSink. Writes out the data to the final place, and emits {@link DynamicWriteResult}
  * for every unique {@link WriteTarget} at checkpoint time.
  */
-@Internal
 class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, DynamicWriteResult> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriter.class);

@@ -20,14 +20,12 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.iceberg.flink.sink.WriteResultSerializer;
 import org.apache.iceberg.io.WriteResult;
 
-@Internal
 class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicWriteResult> {
 
   private static final int VERSION = 1;

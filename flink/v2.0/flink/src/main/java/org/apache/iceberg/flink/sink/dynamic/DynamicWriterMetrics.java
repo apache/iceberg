@@ -19,19 +19,17 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.flink.sink.IcebergStreamWriterMetrics;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-@Internal
-public class DynamicWriterMetrics {
+class DynamicWriterMetrics {
 
   private final Map<String, IcebergStreamWriterMetrics> metrics;
   private final MetricGroup mainMetricsGroup;
 
-  public DynamicWriterMetrics(MetricGroup mainMetricsGroup) {
+  DynamicWriterMetrics(MetricGroup mainMetricsGroup) {
     this.mainMetricsGroup = mainMetricsGroup;
     this.metrics = Maps.newHashMap();
   }

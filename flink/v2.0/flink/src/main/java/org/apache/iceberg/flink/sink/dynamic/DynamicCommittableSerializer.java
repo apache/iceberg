@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
@@ -30,7 +29,6 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
  * DynamicWriter} and the {@link DynamicWriteResultAggregator} operator and for sending it down to
  * the {@link DynamicCommitter}.
  */
-@Internal
 class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicCommittable> {
 
   private static final int VERSION = 1;
