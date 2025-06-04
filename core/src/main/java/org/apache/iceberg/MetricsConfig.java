@@ -115,23 +115,16 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
-  abstract static class FieldOrderBasedPriority {
-    abstract Iterable<Integer> fieldPriority(Schema schema, int maxInferredDefaultColumns);
+  static class BreadthFirstFieldPriority {
 
     public Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns) {
       Set<Integer> boundedFieldIds =
-          Sets.newHashSet(
-              Iterables.limit(
-                  fieldPriority(schema, maxInferredDefaultColumns), maxInferredDefaultColumns));
+          Sets.newHashSet(Iterables.limit(fieldPriority(schema), maxInferredDefaultColumns));
 
       return TypeUtil.project(schema, boundedFieldIds);
     }
-  }
 
-  static class BreadthFirstFieldPriority extends FieldOrderBasedPriority {
-
-    @Override
-    Iterable<Integer> fieldPriority(Schema schema, int maxInferredDefaultColumns) {
+    Iterable<Integer> fieldPriority(Schema schema) {
 
       return TypeUtil.visit(
           schema,
@@ -224,8 +217,6 @@ public final class MetricsConfig implements Serializable {
     MetricsMode defaultMode;
     String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
 
-    // TODO: Verify this is correct with user supplied default or not, why shouldn't it be bounded.
-    // why was it not before?
     if (configuredDefault != null) {
       // a user-configured default mode is applied for all columns
       defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
@@ -237,7 +228,6 @@ public final class MetricsConfig implements Serializable {
         // everywhere
         defaultMode = DEFAULT_MODE;
       } else {
-        //
         BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
         Schema subSchema =
             breadthFirstFieldPriority.subSchemaMetricPriority(schema, maxInferredDefaultColumns);
