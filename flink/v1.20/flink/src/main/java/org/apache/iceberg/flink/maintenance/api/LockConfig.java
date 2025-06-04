@@ -108,6 +108,7 @@ public class LockConfig {
     return confParser
         .stringConf()
         .option(JdbcLockConfig.JDBC_URI_OPTION.key())
+        .flinkConfig(JdbcLockConfig.JDBC_URI_OPTION)
         .defaultValue(JdbcLockConfig.JDBC_URI_OPTION.defaultValue())
         .parse();
   }
@@ -116,6 +117,7 @@ public class LockConfig {
     return confParser
         .stringConf()
         .option(JdbcLockConfig.JDBC_INIT_LOCK_TABLE_OPTION.key())
+        .flinkConfig(JdbcLockConfig.JDBC_INIT_LOCK_TABLE_OPTION)
         .defaultValue(JdbcLockConfig.JDBC_INIT_LOCK_TABLE_OPTION.defaultValue())
         .parse();
   }
@@ -124,6 +126,7 @@ public class LockConfig {
     return confParser
         .stringConf()
         .option(ZkLockConfig.ZK_URI_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_URI_OPTION)
         .defaultValue(ZkLockConfig.ZK_URI_OPTION.defaultValue())
         .parse();
   }
@@ -132,6 +135,7 @@ public class LockConfig {
     return confParser
         .intConf()
         .option(ZkLockConfig.ZK_SESSION_TIMEOUT_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_SESSION_TIMEOUT_MS_OPTION)
         .defaultValue(ZkLockConfig.ZK_SESSION_TIMEOUT_MS_OPTION.defaultValue())
         .parse();
   }
@@ -140,6 +144,7 @@ public class LockConfig {
     return confParser
         .intConf()
         .option(ZkLockConfig.ZK_CONNECTION_TIMEOUT_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_CONNECTION_TIMEOUT_MS_OPTION)
         .defaultValue(ZkLockConfig.ZK_CONNECTION_TIMEOUT_MS_OPTION.defaultValue())
         .parse();
   }
@@ -148,6 +153,7 @@ public class LockConfig {
     return confParser
         .intConf()
         .option(ZkLockConfig.ZK_BASE_SLEEP_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_BASE_SLEEP_MS_OPTION)
         .defaultValue(ZkLockConfig.ZK_BASE_SLEEP_MS_OPTION.defaultValue())
         .parse();
   }
@@ -156,6 +162,7 @@ public class LockConfig {
     return confParser
         .intConf()
         .option(ZkLockConfig.ZK_MAX_RETRIES_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_MAX_RETRIES_OPTION)
         .defaultValue(ZkLockConfig.ZK_MAX_RETRIES_OPTION.defaultValue())
         .parse();
   }

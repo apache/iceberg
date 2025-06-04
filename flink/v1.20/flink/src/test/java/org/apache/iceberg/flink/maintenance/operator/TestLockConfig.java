@@ -69,10 +69,12 @@ public class TestLockConfig extends OperatorTestBase {
     Configuration configuration = new Configuration();
     configuration.setString("flink-maintenance.lock.type", "zk");
     configuration.setString("flink-maintenance.lock.replace-item", "test-config");
+    configuration.setString("flink-maintenance.lock.jdbc.init-lock-table", "true");
     LockConfig config = new LockConfig(table, input, configuration);
 
     // set config should be ignored
     assertThat(config.lockType()).isEqualTo("jdbc");
+    assertThat(config.jdbcInitTable()).isEqualTo("true");
 
     assertThat(config.properties())
         .doesNotContainKey("other.config")
