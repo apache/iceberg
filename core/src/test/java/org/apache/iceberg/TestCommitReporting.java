@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
@@ -35,8 +34,8 @@ public class TestCommitReporting extends TestBase {
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return TestHelpers.ALL_VERSIONS.stream().filter(v -> v >= 2).collect(Collectors.toList());
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   @TestTemplate

@@ -58,8 +58,7 @@ public class TestRowDelta extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return TestHelpers.ALL_VERSIONS.stream()
-        .filter(version -> version >= 2)
+    return TestHelpers.V2_AND_ABOVE.stream()
         .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "testBranch"}))
         .collect(Collectors.toList());
   }

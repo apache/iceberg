@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
 import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -50,8 +49,8 @@ public abstract class DeleteFileIndexTestBase<
     extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return TestHelpers.ALL_VERSIONS.stream().filter(v -> v >= 2).collect(Collectors.toList());
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   static final DeleteFile FILE_A_EQ_1 =
