@@ -20,8 +20,10 @@ package org.apache.iceberg.expressions;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -47,6 +49,80 @@ class VariantExpressionUtil {
           .put(Types.UnknownType.get(), PhysicalType.NULL)
           .build();
 
+  // return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
+
+  private static final Map<Type, List<PhysicalType>> INT_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.IntegerType.get(),
+              ImmutableList.<PhysicalType>builder()
+                  .add(PhysicalType.INT8)
+                  .add(PhysicalType.INT16)
+                  .build())
+          .build();
+
+  private static final Map<Type, List<PhysicalType>> LONG_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.LongType.get(),
+              ImmutableList.<PhysicalType>builder()
+                  .add(PhysicalType.INT8)
+                  .add(PhysicalType.INT16)
+                  .add(PhysicalType.INT32)
+                  .build())
+          .put(
+              Types.TimeType.get(),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.INT64).build())
+          .put(
+              Types.TimestampType.withZone(),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.INT64).build())
+          .put(
+              Types.TimestampNanoType.withZone(),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.INT64).build())
+          .build();
+
+  private static final Map<Type, List<PhysicalType>> DOUBLE_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.DoubleType.get(),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.FLOAT).build())
+          .build();
+
+  private static final Map<Type, List<PhysicalType>> DECIMAL_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.DecimalType.of(9, 0),
+              ImmutableList.<PhysicalType>builder()
+                  .add(PhysicalType.DECIMAL4)
+                  .add(PhysicalType.DECIMAL8)
+                  .add(PhysicalType.DECIMAL16)
+                  .build())
+          .build();
+
+  private static final Map<Type, List<PhysicalType>> FIXED_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.FixedType.ofLength(1),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.BINARY).build())
+          .build();
+
+  private static final Map<Type, Map<PhysicalType, Boolean>> BOOLEAN_CONVERSION_NEEDED =
+      ImmutableMap.<Type, Map<PhysicalType, Boolean>>builder()
+          .put(
+              Types.BooleanType.get(),
+              ImmutableMap.<PhysicalType, Boolean>builder()
+                  .put(PhysicalType.BOOLEAN_TRUE, Boolean.TRUE)
+                  .put(PhysicalType.BOOLEAN_FALSE, Boolean.FALSE)
+                  .build())
+          .build();
+
+  private static final Map<Type, List<PhysicalType>> UUID_CONVERSION_NEEDED =
+      ImmutableMap.<Type, List<PhysicalType>>builder()
+          .put(
+              Types.UUIDType.get(),
+              ImmutableList.<PhysicalType>builder().add(PhysicalType.STRING).build())
+          .build();
+
   private VariantExpressionUtil() {}
 
   @SuppressWarnings("unchecked")
@@ -56,67 +132,28 @@ class VariantExpressionUtil {
     } else if (NO_CONVERSION_NEEDED.get(type) == value.type()) {
       return (T) value.asPrimitive().get();
     }
-    switch (type.typeId()) {
-      case INTEGER:
-        switch (value.type()) {
-          case INT8:
-          case INT16:
-            return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
-        }
-        break;
-      case LONG:
-        switch (value.type()) {
-          case INT8:
-          case INT16:
-          case INT32:
-            return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
-        }
-        break;
-      case DOUBLE:
-        if (value.type() == PhysicalType.FLOAT) {
-          return (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
-        }
-        break;
-      case FIXED:
-        Types.FixedType fixedType = (Types.FixedType) type;
-        if (value.type() == PhysicalType.BINARY) {
-          ByteBuffer buffer = (ByteBuffer) value.asPrimitive().get();
-          if (buffer.remaining() == fixedType.length()) {
-            return (T) buffer;
-          }
-        }
-        break;
-      case DECIMAL:
-        Types.DecimalType decimalType = (Types.DecimalType) type;
-        switch (value.type()) {
-          case DECIMAL4:
-          case DECIMAL8:
-          case DECIMAL16:
-            BigDecimal decimalValue = (BigDecimal) value.asPrimitive().get();
-            if (decimalValue.scale() == decimalType.scale()) {
-              return (T) decimalValue;
-            }
-        }
-        break;
-      case BOOLEAN:
-        switch (value.type()) {
-          case BOOLEAN_FALSE:
-            return (T) Boolean.FALSE;
-          case BOOLEAN_TRUE:
-            return (T) Boolean.TRUE;
-        }
-        break;
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-      case TIME:
-        if (value.type() == PhysicalType.INT64) {
-          return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
-        }
-        break;
-      case UUID:
-        if (value.type() == PhysicalType.STRING) {
-          return (T) UUID.fromString((String) value.asPrimitive().get());
-        }
+    if (INT_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
+    } else if (LONG_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
+    } else if (DOUBLE_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      return (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
+    } else if (DECIMAL_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      Types.DecimalType decimalType = (Types.DecimalType) type;
+      BigDecimal decimalValue = (BigDecimal) value.asPrimitive().get();
+      if (decimalValue.scale() == decimalType.scale()) {
+        return (T) decimalValue;
+      }
+    } else if (FIXED_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      Types.FixedType fixedType = (Types.FixedType) type;
+      ByteBuffer buffer = (ByteBuffer) value.asPrimitive().get();
+      if (buffer.remaining() == fixedType.length()) {
+        return (T) buffer;
+      }
+    } else if (UUID_CONVERSION_NEEDED.get(type).contains(value.type())) {
+      return (T) UUID.fromString((String) value.asPrimitive().get());
+    } else if (BOOLEAN_CONVERSION_NEEDED.get(type).containsKey(value.type())) {
+      return (T) BOOLEAN_CONVERSION_NEEDED.get(type).get(value.type());
     }
     return null;
   }
