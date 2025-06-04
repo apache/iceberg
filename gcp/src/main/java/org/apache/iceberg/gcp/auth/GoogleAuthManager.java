@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
  */
 public class GoogleAuthManager implements AuthManager {
   private static final Logger LOG = LoggerFactory.getLogger(GoogleAuthManager.class);
+  private static final Splitter SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
   public static final String DEFAULT_SCOPES = "https://www.googleapis.com/auth/cloud-platform";
   public static final String GCP_CREDENTIALS_PATH_PROPERTY = "gcp.auth.credentials-path";
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
@@ -77,8 +78,7 @@ public class GoogleAuthManager implements AuthManager {
     List<String> scopes =
         Strings.isNullOrEmpty(scopesString)
             ? ImmutableList.of()
-            : ImmutableList.copyOf(
-                Splitter.on(',').trimResults().omitEmptyStrings().splitToList(scopesString));
+            : ImmutableList.copyOf(SPLITTER.splitToList(scopesString));
 
     try {
       if (credentialsPath != null && !credentialsPath.isEmpty()) {
