@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -129,6 +130,7 @@ class DynamicWriteResultAggregator
    * Write all the completed data files to a newly created manifest file and return the manifest's
    * avro serialized bytes.
    */
+  @VisibleForTesting
   byte[] writeToManifest(
       WriteTarget key, Collection<DynamicWriteResult> writeResults, long checkpointId)
       throws IOException {
