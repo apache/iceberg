@@ -340,13 +340,13 @@ A MERGE INTO query updates a table, the _target_ table, using a set of updates f
 
 ```scala
 val source: DataFrame = ...                               // e.g., read from a table, "source"
-source.mergeInto("target", $"source.id" === $"target.id") // second argument is the condition for finding updates
+source.mergeInto("target", $"source.id" === $"target.id") // second argument is the ON condition
     .whenMatched($"target.id" === 1)                      // argument is the additional condition
-    .updateAll()
+    .updateAll()                                          // UPDATE SET *
     .whenMatched($"target.id" === 2)
     .delete()
     .whenNotMatched()
-    .insertAll()
+    .insertAll()                                          // INSERT *
     .whenNotMatchedBySource($"target.id" === 3)
     .update(Map("status" -> lit("invalid")))              // set column name(s) to expression(s)
     .merge()
