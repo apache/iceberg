@@ -356,7 +356,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testLoadTLSConfigurer_NoArgConstructorNotFound() {
+  public void testLoadTLSConfigurerNoArgConstructorNotFound() {
     Map<String, String> properties =
         ImmutableMap.of(
             HTTPClient.REST_TLS_CONFIGURER, TLSConfigurerMissingNoArgCtor.class.getName());
@@ -368,7 +368,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testLoadTLSConfigurer_ClassNotFound() {
+  public void testLoadTLSConfigurerClassNotFound() {
     Map<String, String> properties =
         ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, "TLSConfigurerDoesNotExist");
     assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
@@ -378,7 +378,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testLoadTLSConfigurer_NotImplementTLSConfigurer() {
+  public void testLoadTLSConfigurerNotImplementTLSConfigurer() {
     Map<String, String> properties =
         ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, Object.class.getName());
     assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
