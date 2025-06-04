@@ -246,17 +246,17 @@ class TestDynamicCommitter {
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
 
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 10;
+
     byte[] deltaManifest =
         aggregator.writeToManifest(
             writeTarget,
             Lists.newArrayList(
                 new DynamicWriteResult(
                     writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
-            0);
-
-    final String jobId = JobID.generate().toHexString();
-    final String operatorId = new OperatorID().toHexString();
-    final int checkpointId = 10;
+            checkpointId);
 
     CommitRequest<DynamicCommittable> commitRequest =
         new MockCommitRequest<>(
