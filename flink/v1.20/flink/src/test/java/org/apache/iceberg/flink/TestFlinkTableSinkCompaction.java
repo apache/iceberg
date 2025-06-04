@@ -71,7 +71,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
   @Parameter(index = 2)
-  private boolean userSqlHint = true;
+  private boolean userSqlHint;
 
   @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}")
   public static List<Object[]> parameters() {

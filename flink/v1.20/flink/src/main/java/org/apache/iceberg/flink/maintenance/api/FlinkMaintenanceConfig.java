@@ -26,7 +26,6 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfParser;
-import org.apache.iceberg.flink.maintenance.operator.LockConfig;
 
 public class FlinkMaintenanceConfig {
 
@@ -108,6 +107,6 @@ public class FlinkMaintenanceConfig {
   }
 
   public LockConfig createLockConfig() {
-    return new LockConfig(writeProperties, readableConfig);
+    return new LockConfig(table, writeProperties, readableConfig);
   }
 }

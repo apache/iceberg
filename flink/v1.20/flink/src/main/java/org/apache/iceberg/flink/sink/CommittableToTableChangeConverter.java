@@ -65,7 +65,7 @@ public class CommittableToTableChangeConverter
         "CommittableToTableChangeConverter must run with parallelism 1, current parallelism: %s",
         getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks());
 
-    this.flinkJobId = getRuntimeContext().getJobId().toString();
+    this.flinkJobId = getRuntimeContext().getJobInfo().getJobId().toString();
   }
 
   @Override

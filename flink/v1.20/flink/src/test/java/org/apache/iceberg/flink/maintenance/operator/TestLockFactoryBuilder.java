@@ -25,9 +25,11 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.curator.test.TestingServer;
 import org.apache.flink.configuration.Configuration;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.After;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,9 +37,11 @@ class TestLockFactoryBuilder extends OperatorTestBase {
   private static final String TABLE_NAME = "catalog.db.table";
 
   private TestingServer zkTestServer;
+  private Table table;
 
   @BeforeEach
   void before() {
+    this.table = createTable();
     try {
       zkTestServer = new TestingServer();
     } catch (Exception e) {
@@ -45,7 +49,7 @@ class TestLockFactoryBuilder extends OperatorTestBase {
     }
   }
 
-  @After
+  @AfterEach
   public void after() throws IOException {
     if (zkTestServer != null) {
       zkTestServer.close();
@@ -55,25 +59,24 @@ class TestLockFactoryBuilder extends OperatorTestBase {
   @Test
   void testJdbcBuildWithMissingJdbcUri() {
     Map<String, String> config = Maps.newHashMap();
-    config.put(LockConfig.LOCK_TYPE, LockConfig.JdbcLockConfig.JDBC);
-    LockConfig lockConfig = new LockConfig(config, new Configuration());
+    config.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
+    LockConfig lockConfig = new LockConfig(table, config, new Configuration());
 
     assertThatThrownBy(() -> LockFactoryBuilder.build(lockConfig, TABLE_NAME))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             String.format(
                 "JDBC lock requires %s parameter",
-                LockConfig.PREFIX + LockConfig.JdbcLockConfig.JDBC_URI));
+                LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key()));
   }
 
   @Test
   void testJdbcBuildSuccessfully() {
     Map<String, String> config = Maps.newHashMap();
-    config.put(LockConfig.LOCK_TYPE, LockConfig.JdbcLockConfig.JDBC);
-    config.put(
-        LockConfig.PREFIX + LockConfig.JdbcLockConfig.JDBC_URI, "jdbc:sqlite:file::memory:?ic");
-    config.put(LockConfig.LOCK_ID, "test-lock-id");
-    LockConfig lockConfig = new LockConfig(config, new Configuration());
+    config.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
+    config.put(LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(), "jdbc:sqlite:file::memory:?ic");
+    config.put(LockConfig.LOCK_ID_OPTION.key(), "test-lock-id");
+    LockConfig lockConfig = new LockConfig(table, config, new Configuration());
 
     TriggerLockFactory factory = LockFactoryBuilder.build(lockConfig, TABLE_NAME);
     assertThat(factory).isNotNull();
@@ -82,24 +85,23 @@ class TestLockFactoryBuilder extends OperatorTestBase {
   @Test
   void testZkBuildWithMissingUri() {
     Map<String, String> config = Maps.newHashMap();
-    config.put(LockConfig.LOCK_TYPE, LockConfig.ZkLockConfig.ZK);
-    LockConfig lockConfig = new LockConfig(config, new Configuration());
+    config.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.ZkLockConfig.ZK);
+    LockConfig lockConfig = new LockConfig(table, config, new Configuration());
 
     assertThatThrownBy(() -> LockFactoryBuilder.build(lockConfig, TABLE_NAME))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             String.format(
-                "Zk lock requires %s parameter",
-                LockConfig.PREFIX + LockConfig.ZkLockConfig.ZK_URI));
+                "Zk lock requires %s parameter", LockConfig.ZkLockConfig.ZK_URI_OPTION.key()));
   }
 
   @Test
   void testZkBuildSuccessfully() {
     Map<String, String> config = Maps.newHashMap();
-    config.put(LockConfig.LOCK_TYPE, LockConfig.ZkLockConfig.ZK);
-    config.put(LockConfig.PREFIX + LockConfig.ZkLockConfig.ZK_URI, zkTestServer.getConnectString());
-    config.put(LockConfig.PREFIX + LockConfig.LOCK_ID, "test-lock-id");
-    LockConfig lockConfig = new LockConfig(config, new Configuration());
+    config.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.ZkLockConfig.ZK);
+    config.put(LockConfig.ZkLockConfig.ZK_URI_OPTION.key(), zkTestServer.getConnectString());
+    config.put(LockConfig.LOCK_ID_OPTION.key(), "test-lock-id");
+    LockConfig lockConfig = new LockConfig(table, config, new Configuration());
 
     TriggerLockFactory factory = LockFactoryBuilder.build(lockConfig, TABLE_NAME);
     assertThat(factory).isNotNull();

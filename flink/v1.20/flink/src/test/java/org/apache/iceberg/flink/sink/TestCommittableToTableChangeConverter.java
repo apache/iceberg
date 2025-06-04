@@ -40,7 +40,6 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
@@ -52,11 +51,11 @@ import org.junit.jupiter.api.io.TempDir;
 class TestCommittableToTableChangeConverter {
   @TempDir private File tempDir;
   private Table table;
-  private TableLoader tableLoader;
   private FileIO fileIO;
   private String tableName;
   private Map<Integer, PartitionSpec> specs;
   private DataFile dataFile;
+  private DataFile dataFile1;
   private DeleteFile posDeleteFile;
   private DeleteFile eqDeleteFile;
 
@@ -67,7 +66,6 @@ class TestCommittableToTableChangeConverter {
     String tablePath = warehouse.concat("/test");
     assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
     table = SimpleDataUtil.createTable(tablePath, Maps.newHashMap(), false);
-    tableLoader = TableLoader.fromHadoopTable(tablePath);
     fileIO = table.io();
     tableName = table.name();
     specs = table.specs();
@@ -76,6 +74,12 @@ class TestCommittableToTableChangeConverter {
             .withPath("/path/to/data.parquet")
             .withFileSizeInBytes(100)
             .withRecordCount(10)
+            .build();
+    dataFile1 =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data1.parquet")
+            .withFileSizeInBytes(101)
+            .withRecordCount(11)
             .build();
     posDeleteFile =
         FileMetadata.deleteFileBuilder(table.spec())
@@ -194,16 +198,38 @@ class TestCommittableToTableChangeConverter {
       Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable =
           createIcebergCommittable(
               dataFile, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
-      harness.processElement(new StreamRecord<>(icebergCommittable.f0));
 
-      // check Manifest files are deleted
       for (ManifestFile manifest : icebergCommittable.f1.manifests()) {
+        fileIO.deleteFile(manifest.path());
+        // check Manifest files are deleted
         assertThat(new File(manifest.path())).doesNotExist();
       }
 
-      // Emit the same committable again to check read no exist manifest
+      // Emit the same committable to check read no exist manifest
       // should be handled properly to avoid job failure.
       harness.processElement(new StreamRecord<>(icebergCommittable.f0));
+
+      Tuple2<CommittableWithLineage<IcebergCommittable>, DeltaManifests> icebergCommittable1 =
+          createIcebergCommittable(
+              dataFile1, posDeleteFile, eqDeleteFile, factory, table, flinkJobId, operatorId, 1L);
+
+      harness.processElement(new StreamRecord<>(icebergCommittable1.f0));
+
+      List<TableChange> tableChanges = harness.extractOutputValues();
+      assertThat(tableChanges).hasSize(1);
+      TableChange tableChange = tableChanges.get(0);
+      TableChange expectedTableChange =
+          TableChange.builder()
+              .dataFileCount(1)
+              .dataFileSizeInBytes(101)
+              .posDeleteFileCount(1)
+              .posDeleteRecordCount(5)
+              .eqDeleteFileCount(1)
+              .eqDeleteRecordCount(3)
+              .commitCount(1)
+              .build();
+
+      assertThat(tableChange).isEqualTo(expectedTableChange);
     }
   }
 

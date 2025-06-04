@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,12 +33,14 @@ public class TestLockConfig extends OperatorTestBase {
   private static final String TABLE_NAME = "catalog.db.table";
   private static final String LOCK_ID = "test-lock-id";
   private Map<String, String> input = Maps.newHashMap();
+  private Table table;
 
   @BeforeEach
   public void before() {
     input.put("flink-maintenance.lock.type", "jdbc");
     input.put("flink-maintenance.lock.lock-id", LOCK_ID);
     input.put("other.config", "should-be-ignored");
+    this.table = createTable();
   }
 
   @AfterEach
@@ -46,7 +50,7 @@ public class TestLockConfig extends OperatorTestBase {
 
   @Test
   void testConfigParsing() {
-    LockConfig config = new LockConfig(input, new Configuration());
+    LockConfig config = new LockConfig(table, input, new Configuration());
 
     assertThat(config.lockType()).isEqualTo("jdbc");
     assertThat(config.lockId(LOCK_ID)).isEqualTo(LOCK_ID);
@@ -54,9 +58,9 @@ public class TestLockConfig extends OperatorTestBase {
 
   @Test
   void testEmptyConfig() {
-    LockConfig config = new LockConfig(Maps.newHashMap(), new Configuration());
+    LockConfig config = new LockConfig(table, Maps.newHashMap(), new Configuration());
 
-    assertThat(config.lockType()).isNull();
+    assertThat(config.lockType()).isEmpty();
     assertThat(config.lockId(TABLE_NAME)).isEqualTo(TABLE_NAME);
   }
 
@@ -65,12 +69,10 @@ public class TestLockConfig extends OperatorTestBase {
     Configuration configuration = new Configuration();
     configuration.setString("flink-maintenance.lock.type", "zk");
     configuration.setString("flink-maintenance.lock.replace-item", "test-config");
-    LockConfig config = new LockConfig(input, configuration);
+    LockConfig config = new LockConfig(table, input, configuration);
 
     // set config should be ignored
     assertThat(config.lockType()).isEqualTo("jdbc");
-    assertThat(config.stringValue("flink-maintenance.lock.replace-item", ""))
-        .isEqualTo("test-config");
 
     assertThat(config.properties())
         .doesNotContainKey("other.config")
