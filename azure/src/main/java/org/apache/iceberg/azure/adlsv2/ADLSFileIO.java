@@ -140,6 +140,10 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     }
     prefixedADLSFileClientBuilder = clientBuilderByPrefix().getOrDefault(matchingPrefix, null);
 
+    Preconditions.checkState(
+        null != prefixedADLSFileClientBuilder,
+        "[BUG] ADLS client-builder for storage path not available: %s",
+        path);
     prefixedADLSFileClientBuilder.applyConfig(builder, path);
   }
 
