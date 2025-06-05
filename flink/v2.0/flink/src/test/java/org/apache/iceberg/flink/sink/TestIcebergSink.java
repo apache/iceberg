@@ -388,6 +388,28 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     assertThatThrownBy(() -> env.execute()).hasRootCauseInstanceOf(NullPointerException.class);
   }
 
+  @TestTemplate
+  void testDefaultWriteParallelism() throws Exception {
+    // since source dataStream parallelism used in the test is 1, we focus on parallelism > 1 so the
+    // assertion makes sense
+    assumeThat(parallelism).isGreaterThan(1);
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
+
+    var sink =
+        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .table(table)
+            .tableLoader(tableLoader)
+            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .distributionMode(DistributionMode.NONE)
+            .append();
+
+    // since the sink write parallelism was null, it asserts that the default parallelism used was
+    // the input source parallelism
+    assertThat(sink.getTransformation().getParallelism()).isEqualTo(dataStream.getParallelism());
+  }
+
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");

@@ -677,9 +677,7 @@ public class IcebergSink
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
       // The following parallelism will be propagated to all of the above operators.
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
-      }
+      rowDataDataStreamSink.setParallelism(sink.resolveParallelismFor(rowDataInput));
       return rowDataDataStreamSink;
     }
   }
@@ -831,16 +829,23 @@ public class IcebergSink
     }
   }
 
+  private int resolveParallelismFor(DataStream<RowData> input) {
+    // if the writeParallelism is not specified, we set the default to the input parallelism to
+    // encourage chaining.
+    if (flinkWriteConf.writeParallelism() == null) {
+      return input.getParallelism();
+    } else {
+      return flinkWriteConf.writeParallelism();
+    }
+  }
+
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
       DataStream<RowData> input,
       Schema iSchema,
       PartitionSpec partitionSpec,
       SortOrder sortOrderParam) {
 
-    int writerParallelism =
-        flinkWriteConf.writeParallelism() == null
-            ? input.getParallelism()
-            : flinkWriteConf.writeParallelism();
+    int writerParallelism = resolveParallelismFor(input);
 
     // needed because of checkStyle not allowing us to change the value of an argument
     SortOrder sortOrder = sortOrderParam;
