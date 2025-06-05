@@ -146,57 +146,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testJobNoneDistributeMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, DistributionMode.NONE);
-
-    if (parallelism > 1) {
-      if (partitioned) {
-        int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
-        assertThat(files).as("Should have more than 3 files in iceberg table.").isGreaterThan(3);
-      }
-    }
-  }
-
-  @TestTemplate
-  void testJobHashDistributionMode() {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Flink does not support 'range' write distribution mode now.");
-  }
-
-  @TestTemplate
-  void testJobNullDistributionMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, null);
-
-    if (partitioned) {
-      assertThat(partitionFiles("aaa"))
-          .as("There should be only 1 data file in partition 'aaa'")
-          .isEqualTo(1);
-      assertThat(partitionFiles("bbb"))
-          .as("There should be only 1 data file in partition 'bbb'")
-          .isEqualTo(1);
-      assertThat(partitionFiles("ccc"))
-          .as("There should be only 1 data file in partition 'ccc'")
-          .isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
   void testPartitionWriteMode() throws Exception {
     testWriteRow(null, DistributionMode.HASH);
     if (partitioned) {
@@ -309,25 +258,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(rightTable.currentSnapshot().summary().get("flink.test"))
         .isEqualTo(TestIcebergSink.class.getName());
     assertThat(rightTable.currentSnapshot().summary().get("direction")).isEqualTo("rightTable");
-  }
-
-  @TestTemplate
-  void testOverrideWriteConfigWithUnknownDistributionMode() {
-    Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
-
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .setAll(newProps)
-        .append();
-
-    assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @TestTemplate

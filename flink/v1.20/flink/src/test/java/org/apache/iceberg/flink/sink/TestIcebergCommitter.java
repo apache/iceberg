@@ -1314,7 +1314,8 @@ class TestIcebergCommitter extends TestBase {
         false,
         10,
         "sinkId",
-        metric);
+        metric,
+        false);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
