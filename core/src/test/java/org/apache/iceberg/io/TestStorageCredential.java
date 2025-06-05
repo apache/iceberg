@@ -47,7 +47,7 @@ public class TestStorageCredential {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serDe(TestHelpers.RoundTripSerializer<DeleteFileSet> roundTripSerializer)
+  public void serDe(TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     // using a single element in the map will create a singleton map, which will work with Kryo.
     // However, creating two config elements will fail if the config in StorageCredential isn't a
@@ -55,6 +55,6 @@ public class TestStorageCredential {
     StorageCredential credential =
         StorageCredential.create(
             "randomPrefix", ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"));
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(credential)).isEqualTo(credential);
+    assertThat(roundTripSerializer.apply(credential)).isEqualTo(credential);
   }
 }
