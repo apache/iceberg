@@ -30,6 +30,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -43,8 +44,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class HadoopFileIOTest {
   private final Random random = new Random(1);
@@ -53,6 +58,16 @@ public class HadoopFileIOTest {
   private HadoopFileIO hadoopFileIO;
 
   @TempDir private File tempDir;
+
+  private static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
 
   @BeforeEach
   public void before() throws Exception {
@@ -143,24 +158,17 @@ public class HadoopFileIOTest {
         .hasMessage("Failed to delete 2 files");
   }
 
-  @Test
-  public void testHadoopFileIOKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testHadoopFileIOSerialization(
+      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+
     FileIO testHadoopFileIO = new HadoopFileIO();
 
     // hadoop fileIO should be serializable when properties are passed as immutable map
     testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testHadoopFileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testHadoopFileIO.properties());
-  }
-
-  @Test
-  public void testHadoopFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testHadoopFileIO = new HadoopFileIO();
-
-    // hadoop fileIO should be serializable when properties are passed as immutable map
-    testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testHadoopFileIO);
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testHadoopFileIO);
 
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testHadoopFileIO.properties());
   }

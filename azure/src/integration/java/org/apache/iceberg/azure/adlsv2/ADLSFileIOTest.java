@@ -40,6 +40,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
+import java.util.stream.Stream;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.FileIO;
@@ -48,9 +49,23 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class ADLSFileIOTest extends BaseAzuriteTest {
+
+  private static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
 
   @Test
   public void testFileOperations() throws IOException {
@@ -176,24 +191,16 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
     verify(client).deleteDirectoryWithResponse(eq("dir"), eq(true), any(), any(), any());
   }
 
-  @Test
-  public void testKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
     FileIO testFileIO = new ADLSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
     testFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testFileIO);
-
-    assertThat(testFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
-  }
-
-  @Test
-  public void testJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testFileIO = new ADLSFileIO();
-
-    // gcs fileIO should be serializable when properties are passed as immutable map
-    testFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testFileIO);
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testFileIO);
 
     assertThat(testFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }

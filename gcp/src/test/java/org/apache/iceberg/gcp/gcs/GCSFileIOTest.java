@@ -45,6 +45,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
@@ -61,7 +62,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class GCSFileIOTest {
   private static final String TEST_BUCKET = "TEST_BUCKET";
@@ -69,6 +74,16 @@ public class GCSFileIOTest {
 
   private final Storage storage = spy(LocalStorageHelper.getOptions().getService());
   private GCSFileIO io;
+
+  private static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
 
   @SuppressWarnings("unchecked")
   @BeforeEach
@@ -202,24 +217,17 @@ public class GCSFileIOTest {
         .isEqualTo(1);
   }
 
-  @Test
-  public void testGCSFileIOKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testGCSFileIOSerialization(
+      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+
     FileIO testGCSFileIO = new GCSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
     testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testGCSFileIO);
-
-    assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
-  }
-
-  @Test
-  public void testGCSFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testGCSFileIO = new GCSFileIO();
-
-    // gcs fileIO should be serializable when properties are passed as immutable map
-    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testGCSFileIO);
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }
@@ -410,20 +418,26 @@ public class GCSFileIOTest {
     }
   }
 
-  @Test
-  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithStorageCredentialsSerialization(
+      TestHelpers.RoundTripSerializerFunction<GCSFileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
         ImmutableList.of(
             StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
     fileIO.initialize(Map.of());
 
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
+    assertThat(roundTripSerializerFunction.apply(fileIO).credentials())
         .isEqualTo(fileIO.credentials());
   }
 
-  @Test
-  public void fileIOWithPrefixedStorageClientKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithPrefixedStorageClientSerialization(
+      TestHelpers.RoundTripSerializerFunction<GCSFileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
         ImmutableList.of(
@@ -445,7 +459,7 @@ public class GCSFileIOTest {
         .extracting("temporaryAccess")
         .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
 
-    GCSFileIO roundTripIO = TestHelpers.KryoHelpers.roundTripSerialize(fileIO);
+    GCSFileIO roundTripIO = roundTripSerializerFunction.apply(fileIO);
     assertThat(roundTripIO).isNotNull();
     assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
 
@@ -458,57 +472,10 @@ public class GCSFileIOTest {
         .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
   }
 
-  @Test
-  public void fileIOWithStorageCredentialsJavaSerialization()
-      throws IOException, ClassNotFoundException {
-    GCSFileIO fileIO = new GCSFileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
-    fileIO.initialize(Map.of());
-
-    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
-  }
-
-  @Test
-  public void fileIOWithPrefixedStorageClientJavaSerialization()
-      throws IOException, ClassNotFoundException {
-    GCSFileIO fileIO = new GCSFileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create(
-                "gs://bucket1",
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))));
-    fileIO.initialize(
-        Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
-
-    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
-    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
-    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
-        .isInstanceOf(OAuth2Credentials.class)
-        .extracting("value")
-        .extracting("temporaryAccess")
-        .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
-
-    GCSFileIO roundTripIO = TestHelpers.roundTripSerialize(fileIO);
-    assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
-
-    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
-    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
-    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
-        .isInstanceOf(OAuth2Credentials.class)
-        .extracting("value")
-        .extracting("temporaryAccess")
-        .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
-  }
-
-  @Test
-  public void resolvingFileIOLoadWithStorageCredentials()
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void resolvingFileIOLoadWithStorageCredentials(
+      TestHelpers.RoundTripSerializerFunction<ResolvingFileIO> roundTripSerializerFunction)
       throws IOException, ClassNotFoundException {
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
@@ -527,22 +494,8 @@ public class GCSFileIOTest {
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
 
-    // make sure credentials are still present after kryo serde
-    ResolvingFileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
-    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
-    result =
-        DynMethods.builder("io")
-            .hiddenImpl(ResolvingFileIO.class, String.class)
-            .build(fileIO)
-            .invoke("gs://foo/bar");
-    assertThat(result)
-        .isInstanceOf(GCSFileIO.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
-        .extracting(GCSFileIO::credentials)
-        .isEqualTo(storageCredentials);
-
-    // make sure credentials are still present after java serde
-    fileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    // make sure credentials are still present after serde
+    ResolvingFileIO fileIO = roundTripSerializerFunction.apply(resolvingFileIO);
     assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
     result =
         DynMethods.builder("io")

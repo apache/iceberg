@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -41,10 +42,24 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestResolvingIO {
+
+  private static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
 
   @TempDir private java.nio.file.Path temp;
 
@@ -186,26 +201,12 @@ public class TestResolvingIO {
     assertThat(resolvingFileIO.newInputFile("/file")).isNull();
   }
 
-  @Test
-  public void resolvingFileIOWithStorageCredentialsKryoSerialization() throws IOException {
-    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
-    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
-    ResolvingFileIO resolvingFileIO =
-        (ResolvingFileIO)
-            CatalogUtil.loadFileIO(
-                ResolvingFileIO.class.getName(),
-                ImmutableMap.of(),
-                new Configuration(),
-                storageCredentials);
-
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO).credentials())
-        .isEqualTo(storageCredentials)
-        .isEqualTo(resolvingFileIO.credentials());
-  }
-
-  @Test
-  public void resolvingFileIOWithStorageCredentialsJavaSerialization()
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void resolvingFileIOWithStorageCredentialsSerialization(
+      TestHelpers.RoundTripSerializerFunction<ResolvingFileIO> roundTripSerializerFunction)
       throws IOException, ClassNotFoundException {
+
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
     ResolvingFileIO resolvingFileIO =
@@ -216,7 +217,7 @@ public class TestResolvingIO {
                 new Configuration(),
                 storageCredentials);
 
-    assertThat(TestHelpers.roundTripSerialize(resolvingFileIO).credentials())
+    assertThat(roundTripSerializerFunction.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
   }

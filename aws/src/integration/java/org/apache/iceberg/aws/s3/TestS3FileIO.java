@@ -633,7 +633,7 @@ public class TestS3FileIO {
               .isInstanceOf(S3AsyncClient.class);
         });
 
-    // make sure credentials are still present after kryo serde
+    // make sure credentials are still present after serde
     ResolvingFileIO resolvingIO = roundTripSerializerFunction.apply(resolvingFileIO);
     assertThat(resolvingIO.credentials()).isEqualTo(storageCredentials);
     result =
