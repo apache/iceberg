@@ -557,6 +557,15 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * @deprecated Use {@link #setAll} instead.
+     */
+    @Deprecated
+    public Builder<T> properties(Map<String, String> properties) {
+      readOptions.putAll(properties);
+      return this;
+    }
+
     public IcebergSource<T> build() {
       if (table == null) {
         try (TableLoader loader = tableLoader) {

@@ -133,6 +133,15 @@ public class FlinkSource {
       return this;
     }
 
+    /**
+     * @deprecated Use {@link #setAll} instead.
+     */
+    @Deprecated
+    public Builder properties(Map<String, String> properties) {
+      readOptions.putAll(properties);
+      return this;
+    }
+
     public Builder caseSensitive(boolean caseSensitive) {
       readOptions.put(FlinkReadOptions.CASE_SENSITIVE, Boolean.toString(caseSensitive));
       return this;
