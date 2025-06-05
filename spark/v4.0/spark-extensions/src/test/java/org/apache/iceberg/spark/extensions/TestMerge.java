@@ -97,7 +97,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
-  private void mergeWithAllClauses(boolean useSql) {
+  private void setupMergeWithAllClauses() {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n"
@@ -111,42 +111,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 5, \"dep\": \"emp-id-5\" }");
+  }
 
-    if (useSql) {
-      sql(
-          "MERGE INTO %s AS t USING source AS s "
-              + "ON t.id == s.id "
-              + "WHEN MATCHED AND t.id = 1 THEN "
-              + "  UPDATE SET * "
-              + "WHEN MATCHED AND t.id = 2 THEN "
-              + "  DELETE "
-              + "WHEN NOT MATCHED THEN "
-              + "  INSERT * "
-              + "WHEN NOT MATCHED BY SOURCE AND t.id = 3 THEN "
-              + "  UPDATE SET dep = 'invalid' "
-              + "WHEN NOT MATCHED BY SOURCE AND t.id = 4 THEN "
-              + "  DELETE ",
-          commitTarget());
-
-    } else {
-      spark
-          .table("source")
-          .mergeInto(commitTarget(), col(commitTarget() + ".id").equalTo(col("source.id")))
-          .whenMatched(col(commitTarget() + ".id").equalTo(lit(1)))
-          .updateAll()
-          .whenMatched(col(commitTarget() + ".id").equalTo(lit(2)))
-          .delete()
-          .whenNotMatched()
-          .insertAll()
-          .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(3)))
-          .update(
-              scala.collection.immutable.Map.from(
-                  mapAsScalaMapConverter(ImmutableMap.of("dep", lit("invalid"))).asScala()))
-          .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(4)))
-          .delete()
-          .merge();
-    }
-
+  private void verifyMergeWithAllClauses() {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -160,12 +127,44 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testMergeWithAllClauses() {
-    mergeWithAllClauses(true);
+    setupMergeWithAllClauses();
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED AND t.id = 1 THEN "
+            + "  UPDATE SET * "
+            + "WHEN MATCHED AND t.id = 2 THEN "
+            + "  DELETE "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT * "
+            + "WHEN NOT MATCHED BY SOURCE AND t.id = 3 THEN "
+            + "  UPDATE SET dep = 'invalid' "
+            + "WHEN NOT MATCHED BY SOURCE AND t.id = 4 THEN "
+            + "  DELETE ",
+        commitTarget());
+    verifyMergeWithAllClauses();
   }
 
   @TestTemplate
   public void testMergeWithAllClausesUsingDataFrameAPI() {
-    mergeWithAllClauses(false);
+    setupMergeWithAllClauses();
+    spark
+        .table("source")
+        .mergeInto(commitTarget(), col(commitTarget() + ".id").equalTo(col("source.id")))
+        .whenMatched(col(commitTarget() + ".id").equalTo(lit(1)))
+        .updateAll()
+        .whenMatched(col(commitTarget() + ".id").equalTo(lit(2)))
+        .delete()
+        .whenNotMatched()
+        .insertAll()
+        .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(3)))
+        .update(
+            scala.collection.immutable.Map.from(
+                mapAsScalaMapConverter(ImmutableMap.of("dep", lit("invalid"))).asScala()))
+        .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(4)))
+        .delete()
+        .merge();
+    verifyMergeWithAllClauses();
   }
 
   @TestTemplate
