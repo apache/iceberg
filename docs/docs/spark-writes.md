@@ -336,7 +336,7 @@ data.writeTo("prod.db.table")
 
 Spark 4.0 added support for performing a MERGE INTO query using the `DataFrameWriterV2` API.
 
-A MERGE INTO query updates a table, the _target_ table, using a set of updates from the _source_, which in this case, is a `DataFrame`:
+A MERGE INTO query updates a _target_ table using a set of updates from the _source_, which in this case, is a `DataFrame`:
 
 ```scala
 val source: DataFrame = ...                               // e.g., read from a table, "source"
