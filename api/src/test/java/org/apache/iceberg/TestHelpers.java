@@ -72,9 +72,13 @@ public class TestHelpers {
 
   private TestHelpers() {}
 
-  public static final int MAX_FORMAT_VERSION = 3;
+  public static final int MAX_FORMAT_VERSION = 4;
   public static final List<Integer> ALL_VERSIONS =
       IntStream.rangeClosed(1, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+  public static final List<Integer> V2_AND_ABOVE =
+      IntStream.rangeClosed(2, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+  public static final List<Integer> V3_AND_ABOVE =
+      IntStream.rangeClosed(3, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
 
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {

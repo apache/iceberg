@@ -55,6 +55,7 @@ nav:
   - Daft: daft.md
   - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
   - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
+  - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
   - RisingWave: risingwave.md
   - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
   - Presto: https://prestodb.io/docs/current/connector/iceberg.html

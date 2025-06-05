@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [What Are Apache Iceberg Tables? Benefits and challenges](https://www.redpanda.com/blog/apache-iceberg-tables-benefits-challenges)
+**Date:** May 21, 2025, **Company**: Redpanda
+**Author**: [Redpanda](https://redpanda.com)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Real-Time Analytics on Apache Iceberg with Tinybird](https://www.tinybird.co/blog-posts/real-time-analytics-on-apache-iceberg-with-tinybird)
 **Date:** May 20, 2025, **Company**: Tinybird
 **Author**: [Alberto Romeu](https://www.linkedin.com/in/alrocar/)

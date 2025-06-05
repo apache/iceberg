@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.List;
@@ -37,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRowLineageMetadata {
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
-    return TestHelpers.ALL_VERSIONS;
+    return TestHelpers.V3_AND_ABOVE;
   }
 
   @Parameter private int formatVersion;
@@ -111,8 +110,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     long newRows = 30L;
 
     TableMetadata base = baseMetadata();
@@ -147,8 +144,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testInvalidSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     Long newRows = 30L;
 
     TableMetadata base = baseMetadata();
@@ -178,8 +173,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testFastAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -199,8 +192,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -220,7 +211,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppendBranch() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
     // should also affect commits to main
 
@@ -253,8 +243,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -279,8 +267,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testPositionDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -317,8 +303,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testEqualityDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -352,8 +336,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testReplace() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -382,8 +364,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testMetadataRewrite() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
