@@ -33,51 +33,51 @@ NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
 
 |                           The Netty Project
 |                           =================
-|
+| 
 | Please visit the Netty web site for more information:
-|
+| 
 |   * http://netty.io/
-|
+| 
 | Copyright 2016 The Netty Project
-|
+| 
 | The Netty Project licenses this file to you under the Apache License,
 | version 2.0 (the "License"); you may not use this file except in compliance
 | with the License. You may obtain a copy of the License at:
-|
+| 
 |   http://www.apache.org/licenses/LICENSE-2.0
-|
+| 
 | Unless required by applicable law or agreed to in writing, software
 | distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 | WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 | License for the specific language governing permissions and limitations
 | under the License.
-|
+| 
 | -------------------------------------------------------------------------------
 | This product contains a forked and modified version of Tomcat Native
-|
+| 
 |   * LICENSE:
 |     * license/LICENSE.tomcat-native.txt (Apache License 2.0)
 |   * HOMEPAGE:
 |     * http://tomcat.apache.org/native-doc/
 |     * https://svn.apache.org/repos/asf/tomcat/native/
-|
+| 
 | This product contains the Maven wrapper scripts from 'Maven Wrapper', that provides an easy way to ensure a user has everything necessary to run the Maven build.
-|
+| 
 |   * LICENSE:
 |     * license/LICENSE.mvn-wrapper.txt (Apache License 2.0)
 |   * HOMEPAGE:
 |     * https://github.com/takari/maven-wrapper
-|
+| 
 | This product contains small piece of code to support AIX, taken from netbsd.
-|
+| 
 |   * LICENSE:
 |     * license/LICENSE.aix-netbsd.txt (OpenSSL License)
 |   * HOMEPAGE:
 |     * https://ftp.netbsd.org/pub/NetBSD/NetBSD-current/src/crypto/external/bsd/openssl/dist
-|
-|
+| 
+| 
 | This product contains code from boringssl.
-|
+| 
 |   * LICENSE (Combination ISC and OpenSSL license)
 |     * license/LICENSE.boringssl.txt (Combination ISC and OpenSSL license)
 |   * HOMEPAGE:
@@ -100,36 +100,36 @@ NOTICE for Group: io.grpc  Name: grpc-stub  Version: 1.70.0
 NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.70.0
 
 | Copyright 2014 The gRPC Authors
-|
+| 
 | Licensed under the Apache License, Version 2.0 (the "License");
 | you may not use this file except in compliance with the License.
 | You may obtain a copy of the License at
-|
+| 
 |     http://www.apache.org/licenses/LICENSE-2.0
-|
+| 
 | Unless required by applicable law or agreed to in writing, software
 | distributed under the License is distributed on an "AS IS" BASIS,
 | WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 | See the License for the specific language governing permissions and
 | limitations under the License.
-|
+| 
 | -----------------------------------------------------------------------
-|
+| 
 | This product contains a modified portion of 'OkHttp', an open source
 | HTTP & SPDY client for Android and Java applications, which can be obtained
 | at:
-|
+| 
 |   * LICENSE:
 |     * okhttp/third_party/okhttp/LICENSE (Apache License 2.0)
 |   * HOMEPAGE:
 |     * https://github.com/square/okhttp
 |   * LOCATION_IN_GRPC:
 |     * okhttp/third_party/okhttp
-|
+| 
 | This product contains a modified portion of 'Envoy', an open source
 | cloud-native high-performance edge/middle/service proxy, which can be
 | obtained at:
-|
+| 
 |   * LICENSE:
 |     * xds/third_party/envoy/LICENSE (Apache License 2.0)
 |   * NOTICE:
@@ -138,11 +138,11 @@ NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.70.0
 |     * https://www.envoyproxy.io
 |   * LOCATION_IN_GRPC:
 |     * xds/third_party/envoy
-|
+| 
 | This product contains a modified portion of 'protoc-gen-validate (PGV)',
 | an open source protoc plugin to generate polyglot message validators,
 | which can be obtained at:
-|
+| 
 |   * LICENSE:
 |     * xds/third_party/protoc-gen-validate/LICENSE (Apache License 2.0)
 |   * NOTICE:
@@ -151,10 +151,10 @@ NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.70.0
 |     * https://github.com/envoyproxy/protoc-gen-validate
 |   * LOCATION_IN_GRPC:
 |     * xds/third_party/protoc-gen-validate
-|
+| 
 | This product contains a modified portion of 'udpa',
 | an open source universal data plane API, which can be obtained at:
-|
+| 
 |   * LICENSE:
 |     * xds/third_party/udpa/LICENSE (Apache License 2.0)
 |   * HOMEPAGE:
@@ -167,41 +167,41 @@ NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.70.0
 NOTICE for Group: io.perfmark  Name: perfmark-api  Version: 0.27.0
 
 | Copyright 2019 Google LLC
-|
+| 
 | Licensed under the Apache License, Version 2.0 (the "License");
 | you may not use this file except in compliance with the License.
 | You may obtain a copy of the License at
-|
+| 
 |     http://www.apache.org/licenses/LICENSE-2.0
-|
+| 
 | Unless required by applicable law or agreed to in writing, software
 | distributed under the License is distributed on an "AS IS" BASIS,
 | WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 | See the License for the specific language governing permissions and
 | limitations under the License.
-|
+| 
 | -----------------------------------------------------------------------
-|
+| 
 | This product contains a modified portion of 'Catapult', an open source
-| Trace Event viewer for Chome, Linux, and Android applications, which can
+| Trace Event viewer for Chome, Linux, and Android applications, which can 
 | be obtained at:
-|
+| 
 |   * LICENSE:
 |     * traceviewer/src/main/resources/io/perfmark/traceviewer/third_party/catapult/LICENSE (New BSD License)
 |   * HOMEPAGE:
 |     * https://github.com/catapult-project/catapult
-|
+| 
 | This product contains a modified portion of 'Polymer', a library for Web
 | Components, which can be obtained at:
 |   * LICENSE:
 |     * traceviewer/src/main/resources/io/perfmark/traceviewer/third_party/polymer/LICENSE (New BSD License)
 |   * HOMEPAGE:
 |     * https://github.com/Polymer/polymer
-|
-|
+| 
+| 
 | This product contains a modified portion of 'ASM', an open source
 | Java Bytecode library, which can be obtained at:
-|
+| 
 |   * LICENSE:
 |     * agent/src/main/resources/io/perfmark/agent/third_party/asm/LICENSE (BSD style License)
 |   * HOMEPAGE:
@@ -212,31 +212,31 @@ NOTICE for Group: io.perfmark  Name: perfmark-api  Version: 0.27.0
 NOTICE for Group: org.conscrypt  Name: conscrypt-openjdk-uber  Version: 2.5.2
 
 | Copyright 2016 The Android Open Source Project
-|
+| 
 | Licensed under the Apache License, Version 2.0 (the "License");
 | you may not use this file except in compliance with the License.
 | You may obtain a copy of the License at
-|
+| 
 |      http://www.apache.org/licenses/LICENSE-2.0
-|
+| 
 | Unless required by applicable law or agreed to in writing, software
 | distributed under the License is distributed on an "AS IS" BASIS,
 | WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 | See the License for the specific language governing permissions and
 | limitations under the License.
-|
+| 
 | -----------------------------------------------------------------------
 | This product contains a modified portion of `Netty`, a configurable network
 | stack in Java, which can be obtained at:
-|
+| 
 |   * LICENSE:
 |     * licenses/LICENSE.netty.txt (Apache License 2.0)
 |   * HOMEPAGE:
 |     * http://netty.io/
-|
+| 
 | This product contains a modified portion of `Apache Harmony`, modular Java runtime,
 | which can be obtained at:
-|
+| 
 |   * LICENSE:
 |     * licenses/LICENSE.harmony.txt (Apache License 2.0)
 |   * HOMEPAGE:
