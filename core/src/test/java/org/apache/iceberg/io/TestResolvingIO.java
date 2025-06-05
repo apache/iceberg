@@ -50,48 +50,23 @@ public class TestResolvingIO {
 
   @TempDir private java.nio.file.Path temp;
 
-  @Test
-  public void testResolvingFileIOKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testResolvingFileIOSerialization(
+      TestHelpers.RoundTripSerializer<FileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     FileIO testResolvingFileIO = new ResolvingFileIO();
 
     // resolving fileIO should be serializable when properties are passed as immutable map
     testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO =
-        TestHelpers.KryoHelpers.roundTripSerialize(testResolvingFileIO);
+    FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testResolvingFileIO);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
   }
 
-  @Test
-  public void testResolvingFileIOWithHadoopFileIOKryoSerialization() throws IOException {
-    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
-    Configuration conf = new Configuration();
-    resolvingFileIO.setConf(conf);
-    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-
-    assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
-    assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
-
-    ResolvingFileIO roundTripSerializedFileIO =
-        TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
-    roundTripSerializedFileIO.setConf(conf);
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
-
-    assertThat(roundTripSerializedFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
-    assertThat(roundTripSerializedFileIO.newInputFile(temp.toString())).isNotNull();
-  }
-
-  @Test
-  public void testResolvingFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testResolvingFileIO = new ResolvingFileIO();
-
-    // resolving fileIO should be serializable when properties are passed as immutable map
-    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testResolvingFileIO);
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
-  }
-
-  @Test
-  public void testResolvingFileIOWithHadoopFileIOJavaSerialization()
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testResolvingFileIOWithHadoopFileIOSerialization(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     Configuration conf = new Configuration();
@@ -101,7 +76,7 @@ public class TestResolvingIO {
     assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
     assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
 
-    ResolvingFileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    ResolvingFileIO roundTripSerializedFileIO = roundTripSerializer.apply(resolvingFileIO);
     roundTripSerializedFileIO.setConf(conf);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
 
