@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import java.time.Duration;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -49,8 +50,10 @@ public class RewriteDataFiles {
   }
 
   public static class Builder extends MaintenanceTaskBuilder<RewriteDataFiles.Builder> {
-    private boolean partialProgressEnabled = false;
-    private int partialProgressMaxCommits = 10;
+    private boolean partialProgressEnabled =
+        org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_ENABLED_DEFAULT;
+    private int partialProgressMaxCommits =
+        org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
 
@@ -179,6 +182,30 @@ public class RewriteDataFiles {
     public Builder maxFilesToRewrite(int maxFilesToRewrite) {
       this.rewriteOptions.put(
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, String.valueOf(maxFilesToRewrite));
+      return this;
+    }
+
+    /**
+     * Configures the properties for the rewriter.
+     *
+     * @param rewriteDataFilesConfig properties for the rewriter
+     */
+    public Builder config(RewriteDataFilesConfig rewriteDataFilesConfig) {
+
+      // Config about the rewriter
+      this.partialProgressEnabled(rewriteDataFilesConfig.partialProgressEnable())
+          .partialProgressMaxCommits(rewriteDataFilesConfig.partialProgressMaxCommits())
+          .maxRewriteBytes(rewriteDataFilesConfig.maxRewriteBytes())
+          // Config about the schedule
+          .scheduleOnCommitCount(rewriteDataFilesConfig.scheduleOnCommitCount())
+          .scheduleOnDataFileCount(rewriteDataFilesConfig.scheduleOnDataFileCount())
+          .scheduleOnDataFileSize(rewriteDataFilesConfig.scheduleOnDataFileSize())
+          .scheduleOnInterval(
+              Duration.ofSeconds(rewriteDataFilesConfig.scheduleOnIntervalSecond()));
+
+      // override the rewrite options
+      this.rewriteOptions.putAll(rewriteDataFilesConfig.properties());
+
       return this;
     }
 

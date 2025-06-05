@@ -73,7 +73,8 @@ public class ResolvingFileIO
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
-  private List<StorageCredential> storageCredentials = List.of();
+  // use modifiable collection for Kryo serde
+  private List<StorageCredential> storageCredentials = Lists.newArrayList();
 
   /**
    * No-arg constructor to load the FileIO dynamically.

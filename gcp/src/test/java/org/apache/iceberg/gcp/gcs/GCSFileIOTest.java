@@ -423,6 +423,34 @@ public class GCSFileIOTest {
   }
 
   @Test
+  public void fileIOWithPrefixedStorageClientWithoutCredentialsKryoSerialization()
+      throws IOException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.initialize(
+        Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+    GCSFileIO roundTripIO = TestHelpers.KryoHelpers.roundTripSerialize(fileIO);
+    assertThat(roundTripIO).isNotNull();
+    assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials()).isEmpty();
+
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+  }
+
+  @Test
   public void fileIOWithPrefixedStorageClientKryoSerialization() throws IOException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
@@ -472,6 +500,33 @@ public class GCSFileIOTest {
   }
 
   @Test
+  public void fileIOWithPrefixedStorageClientWithoutCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.initialize(
+        Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+    GCSFileIO roundTripIO = TestHelpers.roundTripSerialize(fileIO);
+    assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials()).isEmpty();
+
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+  }
+
+  @Test
   public void fileIOWithPrefixedStorageClientJavaSerialization()
       throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
@@ -505,6 +560,19 @@ public class GCSFileIOTest {
         .extracting("value")
         .extracting("temporaryAccess")
         .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
+  }
+
+  @Test
+  public void resolvingFileIOLoadWithoutStorageCredentials()
+      throws IOException, ClassNotFoundException {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    ResolvingFileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEmpty();
+
+    fileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEmpty();
   }
 
   @Test

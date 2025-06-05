@@ -70,7 +70,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
-  private List<StorageCredential> storageCredentials = ImmutableList.of();
+  // use modifiable collection for Kryo serde
+  private List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
 
   /**

@@ -92,6 +92,10 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
 
+### [Redpanda](https://redpanda.com)
+
+Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceberg topics](https://www.redpanda.com/use-case/streaming-iceberg-tables) automatically transform Kafka messages into Iceberg tables in real-time. This allows users to query their Kafka data as part of an established Iceberg deployment, no connectors or additional technology required. Redpanda Iceberg integrates with an expanding list of Iceberg catalogs and query engines, including many listed here.
+
 ### [RisingWave](https://risingwave.com/)
 
 [RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
