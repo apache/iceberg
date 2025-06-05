@@ -22,17 +22,14 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
-import org.apache.iceberg.MetricsConfig.BreadthFirstFieldPriority;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestMetricBreadthFirstPriority {
+public class TestMetricsConfig {
 
   @Test
   public void testNestedStructsRespectedInLimit() {
-    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
-
     Schema schema =
         new Schema(
             required(
@@ -43,15 +40,13 @@ public class TestMetricBreadthFirstPriority {
                     required(3, "b", Types.IntegerType.get()))),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 1);
+    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 1);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
   }
 
   @Test
   public void testNestedMap() {
-    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
-
     Schema schema =
         new Schema(
             required(
@@ -60,15 +55,13 @@ public class TestMetricBreadthFirstPriority {
                 Types.MapType.ofRequired(2, 3, Types.IntegerType.get(), Types.IntegerType.get())),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 2);
+    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
   }
 
   @Test
   public void testNestedListOfMaps() {
-    BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
-
     Schema schema =
         new Schema(
             required(
@@ -80,7 +73,7 @@ public class TestMetricBreadthFirstPriority {
                         3, 4, Types.IntegerType.get(), Types.IntegerType.get()))),
             required(5, "top", Types.IntegerType.get()));
 
-    Schema subSchema = breadthFirstFieldPriority.subSchemaMetricPriority(schema, 2);
+    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
   }

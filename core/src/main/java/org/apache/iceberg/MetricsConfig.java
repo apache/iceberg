@@ -115,89 +115,85 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
-  static class BreadthFirstFieldPriority {
+  static Iterable<Integer> breadthFirstFieldPriority(Schema schema) {
+    return TypeUtil.visit(
+        schema,
+        new TypeUtil.CustomOrderSchemaVisitor<>() {
 
-    public Schema subSchemaMetricPriority(Schema schema, int maxInferredDefaultColumns) {
-      Set<Integer> boundedFieldIds =
-          Sets.newHashSet(Iterables.limit(fieldPriority(schema), maxInferredDefaultColumns));
+          @Override
+          public Iterable<Integer> schema(Schema schema, Supplier<Iterable<Integer>> structResult) {
+            return structResult.get();
+          }
 
-      return TypeUtil.project(schema, boundedFieldIds);
-    }
+          @Override
+          public Iterable<Integer> struct(
+              Types.StructType struct, Iterable<Iterable<Integer>> fieldResults) {
 
-    Iterable<Integer> fieldPriority(Schema schema) {
-
-      return TypeUtil.visit(
-          schema,
-          new TypeUtil.CustomOrderSchemaVisitor<Iterable<Integer>>() {
-
-            @Override
-            public Iterable<Integer> schema(
-                Schema schema, Supplier<Iterable<Integer>> structResult) {
-              return structResult.get();
-            }
-
-            @Override
-            public Iterable<Integer> struct(
-                Types.StructType struct, Iterable<Iterable<Integer>> fieldResults) {
-
-              List<Integer> orderedFieldIds =
-                  Lists.newArrayListWithExpectedSize(struct.fields().size());
-              for (Types.NestedField field : struct.fields()) {
-                if (field.type().isPrimitiveType()) {
-                  orderedFieldIds.add(field.fieldId());
-                }
+            List<Integer> orderedFieldIds =
+                Lists.newArrayListWithExpectedSize(struct.fields().size());
+            for (Types.NestedField field : struct.fields()) {
+              if (field.type().isPrimitiveType()) {
+                orderedFieldIds.add(field.fieldId());
               }
-
-              Iterable<Integer> returnValue = orderedFieldIds;
-              for (Iterable<Integer> otherFieldIds : fieldResults) {
-                returnValue = Iterables.concat(returnValue, otherFieldIds);
-              }
-
-              return returnValue;
             }
 
-            @Override
-            public Iterable<Integer> field(
-                Types.NestedField field, Supplier<Iterable<Integer>> future) {
-              return future.get();
+            Iterable<Integer> returnValue = orderedFieldIds;
+            for (Iterable<Integer> otherFieldIds : fieldResults) {
+              returnValue = Iterables.concat(returnValue, otherFieldIds);
             }
 
-            @Override
-            public Iterable<Integer> list(Types.ListType list, Supplier<Iterable<Integer>> future) {
-              List<Integer> returnValue = Lists.newArrayListWithCapacity(1);
-              if (list.elementType().isPrimitiveType()) {
-                returnValue.add(list.elementId());
-              }
-              return Iterables.concat(returnValue, future.get());
+            return returnValue;
+          }
+
+          @Override
+          public Iterable<Integer> field(
+              Types.NestedField field, Supplier<Iterable<Integer>> future) {
+            return future.get();
+          }
+
+          @Override
+          public Iterable<Integer> list(Types.ListType list, Supplier<Iterable<Integer>> future) {
+            List<Integer> returnValue = Lists.newArrayListWithCapacity(1);
+            if (list.elementType().isPrimitiveType()) {
+              returnValue.add(list.elementId());
+            }
+            return Iterables.concat(returnValue, future.get());
+          }
+
+          @Override
+          public Iterable<Integer> map(
+              Types.MapType map,
+              Supplier<Iterable<Integer>> keyFuture,
+              Supplier<Iterable<Integer>> valueFuture) {
+            List<Integer> returnValue = Lists.newArrayListWithCapacity(2);
+            if (map.keyType().isPrimitiveType()) {
+              returnValue.add(map.keyId());
+            }
+            if (map.valueType().isPrimitiveType()) {
+              returnValue.add(map.valueId());
             }
 
-            @Override
-            public Iterable<Integer> map(
-                Types.MapType map,
-                Supplier<Iterable<Integer>> keyFuture,
-                Supplier<Iterable<Integer>> valueFuture) {
-              List<Integer> returnValue = Lists.newArrayListWithCapacity(2);
-              if (map.keyType().isPrimitiveType()) {
-                returnValue.add(map.keyId());
-              }
-              if (map.valueType().isPrimitiveType()) {
-                returnValue.add(map.valueId());
-              }
+            return Iterables.concat(returnValue, keyFuture.get(), valueFuture.get());
+          }
 
-              return Iterables.concat(returnValue, keyFuture.get(), valueFuture.get());
-            }
+          @Override
+          public Iterable<Integer> variant(Types.VariantType variant) {
+            return Collections.emptyList();
+          }
 
-            @Override
-            public Iterable<Integer> variant(Types.VariantType variant) {
-              return Collections.emptyList();
-            }
+          @Override
+          public Iterable<Integer> primitive(Type.PrimitiveType primitive) {
+            return Collections.emptyList();
+          }
+        });
+  }
 
-            @Override
-            public Iterable<Integer> primitive(Type.PrimitiveType primitive) {
-              return Collections.emptyList();
-            }
-          });
-    }
+  static Schema boundedBreadthFirstSubSchema(Schema schema, int maxInferredDefaultColumns) {
+    Set<Integer> boundedFieldIds =
+        Sets.newHashSet(
+            Iterables.limit(breadthFirstFieldPriority(schema), maxInferredDefaultColumns));
+
+    return TypeUtil.project(schema, boundedFieldIds);
   }
 
   /**
@@ -228,9 +224,7 @@ public final class MetricsConfig implements Serializable {
         // everywhere
         defaultMode = DEFAULT_MODE;
       } else {
-        BreadthFirstFieldPriority breadthFirstFieldPriority = new BreadthFirstFieldPriority();
-        Schema subSchema =
-            breadthFirstFieldPriority.subSchemaMetricPriority(schema, maxInferredDefaultColumns);
+        Schema subSchema = boundedBreadthFirstSubSchema(schema, maxInferredDefaultColumns);
         for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
           columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
         }
