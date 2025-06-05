@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -42,24 +41,12 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestResolvingIO {
-
-  private static <T> Stream<Arguments> serializers() {
-    return Stream.of(
-        Arguments.of(
-            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
-                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
-        Arguments.of(
-            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
-                "JavaSerialization", TestHelpers::roundTripSerialize)));
-  }
 
   @TempDir private java.nio.file.Path temp;
 
@@ -202,9 +189,9 @@ public class TestResolvingIO {
   }
 
   @ParameterizedTest
-  @MethodSource("serializers")
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void resolvingFileIOWithStorageCredentialsSerialization(
-      TestHelpers.RoundTripSerializerFunction<ResolvingFileIO> roundTripSerializerFunction)
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
 
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
@@ -217,7 +204,7 @@ public class TestResolvingIO {
                 new Configuration(),
                 storageCredentials);
 
-    assertThat(roundTripSerializerFunction.apply(resolvingFileIO).credentials())
+    assertThat(roundTripSerializer.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
   }

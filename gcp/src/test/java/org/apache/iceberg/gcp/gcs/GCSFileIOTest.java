@@ -45,7 +45,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
@@ -62,10 +61,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class GCSFileIOTest {
@@ -74,16 +71,6 @@ public class GCSFileIOTest {
 
   private final Storage storage = spy(LocalStorageHelper.getOptions().getService());
   private GCSFileIO io;
-
-  private static <T> Stream<Arguments> serializers() {
-    return Stream.of(
-        Arguments.of(
-            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
-                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
-        Arguments.of(
-            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
-                "JavaSerialization", TestHelpers::roundTripSerialize)));
-  }
 
   @SuppressWarnings("unchecked")
   @BeforeEach
@@ -218,16 +205,16 @@ public class GCSFileIOTest {
   }
 
   @ParameterizedTest
-  @MethodSource("serializers")
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void testGCSFileIOSerialization(
-      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      TestHelpers.RoundTripSerializer<FileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
 
     FileIO testGCSFileIO = new GCSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
     testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testGCSFileIO);
+    FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }
@@ -419,9 +406,9 @@ public class GCSFileIOTest {
   }
 
   @ParameterizedTest
-  @MethodSource("serializers")
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void fileIOWithStorageCredentialsSerialization(
-      TestHelpers.RoundTripSerializerFunction<GCSFileIO> roundTripSerializerFunction)
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
@@ -429,14 +416,13 @@ public class GCSFileIOTest {
             StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
     fileIO.initialize(Map.of());
 
-    assertThat(roundTripSerializerFunction.apply(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
+    assertThat(roundTripSerializer.apply(fileIO).credentials()).isEqualTo(fileIO.credentials());
   }
 
   @ParameterizedTest
-  @MethodSource("serializers")
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void fileIOWithPrefixedStorageClientSerialization(
-      TestHelpers.RoundTripSerializerFunction<GCSFileIO> roundTripSerializerFunction)
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
@@ -459,7 +445,7 @@ public class GCSFileIOTest {
         .extracting("temporaryAccess")
         .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
 
-    GCSFileIO roundTripIO = roundTripSerializerFunction.apply(fileIO);
+    GCSFileIO roundTripIO = roundTripSerializer.apply(fileIO);
     assertThat(roundTripIO).isNotNull();
     assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
 
@@ -473,9 +459,9 @@ public class GCSFileIOTest {
   }
 
   @ParameterizedTest
-  @MethodSource("serializers")
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void resolvingFileIOLoadWithStorageCredentials(
-      TestHelpers.RoundTripSerializerFunction<ResolvingFileIO> roundTripSerializerFunction)
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
@@ -495,7 +481,7 @@ public class GCSFileIOTest {
         .isEqualTo(storageCredentials);
 
     // make sure credentials are still present after serde
-    ResolvingFileIO fileIO = roundTripSerializerFunction.apply(resolvingFileIO);
+    ResolvingFileIO fileIO = roundTripSerializer.apply(resolvingFileIO);
     assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
     result =
         DynMethods.builder("io")
