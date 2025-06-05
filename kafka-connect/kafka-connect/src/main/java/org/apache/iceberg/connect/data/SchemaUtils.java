@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
@@ -62,6 +64,7 @@ import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,6 +99,14 @@ class SchemaUtils {
     // get the latest schema in case another process updated it
     table.refresh();
 
+    // filter out columns that have already been deleted
+    List<SchemaUpdate.DeleteColumn> deleteColumns =
+        updates.deleteColumns().stream()
+            .filter(deleteCol -> columnExists(table.schema(), deleteCol))
+            .collect(Collectors.toList());
+
+    LOG.info("Delete columns = {}", deleteColumns);
+
     // filter out columns that have already been added
     List<AddColumn> addColumns =
         updates.addColumns().stream()
@@ -114,24 +125,47 @@ class SchemaUtils {
             .filter(makeOptional -> !isOptional(table.schema(), makeOptional))
             .collect(Collectors.toList());
 
-    if (addColumns.isEmpty() && updateTypes.isEmpty() && makeOptionals.isEmpty()) {
+    if (addColumns.isEmpty()
+        && updateTypes.isEmpty()
+        && makeOptionals.isEmpty()
+        && deleteColumns.isEmpty()) {
       // no updates to apply
       LOG.info("Schema for table {} already up-to-date", table.name());
       return;
     }
 
     // apply the updates
-    UpdateSchema updateSchema = table.updateSchema();
+    Transaction tableTransaction = table.newTransaction();
+    UpdateSchema updateSchema = tableTransaction.updateSchema();
+    deleteColumns.forEach(update -> updateSchema.deleteColumn(update.name()));
     addColumns.forEach(
         update -> updateSchema.addColumn(update.parentName(), update.name(), update.type()));
     updateTypes.forEach(update -> updateSchema.updateColumn(update.name(), update.type()));
     makeOptionals.forEach(update -> updateSchema.makeColumnOptional(update.name()));
     updateSchema.commit();
+    UpdateProperties updateProperties = tableTransaction.updateProperties();
+    updateProperties.set(
+        IcebergSinkConfig.CONNECT_SCHEMA_VERSION, String.valueOf(updates.version()));
+    updateProperties.commit();
+    tableTransaction.commitTransaction();
     LOG.info("Schema for table {} updated with new columns", table.name());
   }
 
-  private static boolean columnExists(org.apache.iceberg.Schema schema, AddColumn update) {
-    return schema.findType(update.key()) != null;
+  private static boolean columnExists(org.apache.iceberg.Schema schema, SchemaUpdate update) {
+    if (update instanceof AddColumn) {
+      return schema.findType(((AddColumn) update).key()) != null;
+    }
+    if (update instanceof SchemaUpdate.DeleteColumn) {
+      LOG.info("Update type of delete");
+      SchemaUpdate.DeleteColumn deleteColumn = (SchemaUpdate.DeleteColumn) update;
+      LOG.info("Column name to be deleted = {}, checking for it's existence", deleteColumn.name());
+      return schema.findType(deleteColumn.name()) != null;
+    } else {
+      throw new ConnectException(
+          String.format(
+              "Expected update type of either add / delete but found {%s}",
+              update.getClass().getName()));
+    }
   }
 
   private static boolean typeMatches(org.apache.iceberg.Schema schema, UpdateType update) {
