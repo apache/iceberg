@@ -94,7 +94,7 @@ PuppyGraph is a cloud-native graph analytics engine that enables users to query 
 
 ### [Redpanda](https://redpanda.com)
 
-Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceberg topics](https://www.redpanda.com/use-case/streaming-iceberg-tables) automatically transform Kafka messages into Iceberg tables in real-time.  This allows users to query their Kafka data as part of an established Iceberg deployment, no connectors or additional technology required.  Redpanda Iceberg integrates with an expanding list of Iceberg catalogs and query engines, including many listed here.
+Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceberg topics](https://www.redpanda.com/use-case/streaming-iceberg-tables) automatically transform Kafka messages into Iceberg tables in real-time. This allows users to query their Kafka data as part of an established Iceberg deployment, no connectors or additional technology required. Redpanda Iceberg integrates with an expanding list of Iceberg catalogs and query engines, including many listed here.
 
 ### [RisingWave](https://risingwave.com/)
 
