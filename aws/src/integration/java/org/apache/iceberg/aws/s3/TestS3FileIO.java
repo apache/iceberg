@@ -84,7 +84,11 @@ import org.assertj.core.api.ObjectAssert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -149,6 +153,91 @@ public class TestS3FileIO {
     if (null != s3FileIO) {
       s3FileIO.close();
     }
+  }
+
+  @FunctionalInterface
+  private interface RoundTripSerializerFunction<T> {
+    T apply(T t) throws IOException, ClassNotFoundException;
+  }
+
+  private static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<RoundTripSerializerFunction<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<RoundTripSerializerFunction<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testS3FileIOSerialization(
+      RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties are passed as immutable map
+    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
+
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testS3FileIOWithEmptyPropsSerialization(
+      RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties passed as empty immutable map
+    testS3FileIO.initialize(ImmutableMap.of());
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
+
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithStorageCredentialsSerialization(
+      RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(roundTripSerializerFunction.apply(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithPrefixedS3ClientSerialization(
+      RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    S3FileIO io = new S3FileIO();
+    io.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("s3://my-bucket/my-path/table1", Map.of("key1", "val1"))));
+    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
+
+    // there should be a client for the generic and specific storage prefix available
+    assertThat(io.client()).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
+
+    S3FileIO fileIO = roundTripSerializerFunction.apply(io);
+    assertThat(fileIO.credentials()).isEqualTo(io.credentials());
+
+    // make sure there's a client for the generic and specific storage prefix available after ser/de
+    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @Test
@@ -441,113 +530,6 @@ public class TestS3FileIO {
       assertThat(deserialized).isInstanceOf(S3FileIO.class);
       assertThat(deserialized.properties()).isEqualTo(s3FileIO.properties());
     }
-  }
-
-  @Test
-  public void testS3FileIOKryoSerialization() throws IOException {
-    FileIO testS3FileIO = new S3FileIO();
-
-    // s3 fileIO should be serializable when properties are passed as immutable map
-    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
-  }
-
-  @Test
-  public void testS3FileIOWithEmptyPropsKryoSerialization() throws IOException {
-    FileIO testS3FileIO = new S3FileIO();
-
-    // s3 fileIO should be serializable when properties passed as empty immutable map
-    testS3FileIO.initialize(ImmutableMap.of());
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
-  }
-
-  @Test
-  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
-    fileIO.initialize(Map.of());
-
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
-  }
-
-  @Test
-  public void fileIOWithStorageCredentialsJavaSerialization()
-      throws IOException, ClassNotFoundException {
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
-    fileIO.initialize(Map.of());
-
-    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
-  }
-
-  @Test
-  public void fileIOWithPrefixedS3ClientKryoSerialization() throws IOException {
-    S3FileIO io = new S3FileIO();
-    io.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("s3://my-bucket/my-path/table1", Map.of("key1", "val1"))));
-    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
-
-    // there should be a client for the generic and specific storage prefix available
-    assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-
-    S3FileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(io);
-    assertThat(fileIO.credentials()).isEqualTo(io.credentials());
-
-    // make sure there's a client for the generic and specific storage prefix available after ser/de
-    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-  }
-
-  @Test
-  public void fileIOWithPrefixedS3ClientJavaSerialization()
-      throws IOException, ClassNotFoundException {
-    S3FileIO io = new S3FileIO();
-    io.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("s3://my-bucket/my-path/table1", Map.of("key1", "val1"))));
-    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
-
-    // there should be a client for the generic and specific storage prefix available
-    assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-
-    S3FileIO fileIO = TestHelpers.roundTripSerialize(io);
-    assertThat(fileIO.credentials()).isEqualTo(io.credentials());
-
-    // make sure there's a client for the generic and specific storage prefix available after ser/de
-    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-  }
-
-  @Test
-  public void testS3FileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testS3FileIO = new S3FileIO();
-
-    // s3 fileIO should be serializable when properties are passed as immutable map
-    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testS3FileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
   }
 
   @Test
