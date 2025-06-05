@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.util.DeleteFileSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -47,7 +46,7 @@ public class TestStorageCredential {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serDe(TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
+  public void serialization(TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     // using a single element in the map will create a singleton map, which will work with Kryo.
     // However, creating two config elements will fail if the config in StorageCredential isn't a
