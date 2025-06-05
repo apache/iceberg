@@ -486,8 +486,12 @@ public class TestS3FileIO {
     assertThat(roundTripSerializer.apply(fileIO).credentials()).isEqualTo(fileIO.credentials());
   }
 
-  @Test
-  public void fileIOWithPrefixedS3ClientWithoutCredentialsKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void fileIOWithPrefixedS3ClientWithoutCredentialsSerialization(
+      TestHelpers.RoundTripSerializer<S3FileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+
     S3FileIO io = new S3FileIO();
     io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
 
@@ -496,27 +500,7 @@ public class TestS3FileIO {
     assertThat(io.client("s3a://my-bucket/my-path")).isInstanceOf(S3Client.class);
     assertThat(io.asyncClient("s3a://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
 
-    S3FileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(io);
-    assertThat(fileIO.credentials()).isEqualTo(io.credentials()).isEmpty();
-
-    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.client("s3a://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3a://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-  }
-
-  @Test
-  public void fileIOWithPrefixedS3ClientWithoutCredentialsJavaSerialization()
-          throws IOException, ClassNotFoundException {
-    S3FileIO io = new S3FileIO();
-    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
-
-    assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.client("s3a://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3a://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-
-    S3FileIO fileIO = TestHelpers.roundTripSerialize(io);
+    S3FileIO fileIO = roundTripSerializer.apply(io);
     assertThat(fileIO.credentials()).isEqualTo(io.credentials()).isEmpty();
 
     assertThat(fileIO.client()).isInstanceOf(S3Client.class);
@@ -625,72 +609,52 @@ public class TestS3FileIO {
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
   }
 
-
-  @Test
-  public void resolvingFileIOLoadWithoutStorageCredentials()
-          throws IOException, ClassNotFoundException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void resolvingFileIOLoadWithoutStorageCredentials(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     resolvingFileIO.initialize(ImmutableMap.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
 
     FileIO result =
-            DynMethods.builder("io")
-                    .hiddenImpl(ResolvingFileIO.class, String.class)
-                    .build(resolvingFileIO)
-                    .invoke("s3://foo/bar");
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
     assertThat(result)
-            .isInstanceOf(S3FileIO.class)
-            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
-            .satisfies(
-                    fileIO -> {
-                      assertThat(fileIO.client("s3://foo/bar"))
-                              .isSameAs(fileIO.client())
-                              .isInstanceOf(S3Client.class);
-                      assertThat(fileIO.asyncClient("s3://foo/bar"))
-                              .isSameAs(fileIO.asyncClient())
-                              .isInstanceOf(S3AsyncClient.class);
-                    });
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .satisfies(
+            fileIO -> {
+              assertThat(fileIO.client("s3://foo/bar"))
+                  .isSameAs(fileIO.client())
+                  .isInstanceOf(S3Client.class);
+              assertThat(fileIO.asyncClient("s3://foo/bar"))
+                  .isSameAs(fileIO.asyncClient())
+                  .isInstanceOf(S3AsyncClient.class);
+            });
 
-    // make sure credentials can be accessed after kryo serde
-    ResolvingFileIO resolvingIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    // make sure credentials can be accessed after serde
+    ResolvingFileIO resolvingIO = roundTripSerializer.apply(resolvingFileIO);
     assertThat(resolvingIO.credentials()).isEmpty();
     result =
-            DynMethods.builder("io")
-                    .hiddenImpl(ResolvingFileIO.class, String.class)
-                    .build(resolvingIO)
-                    .invoke("s3a://foo/bar");
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingIO)
+            .invoke("s3a://foo/bar");
     assertThat(result)
-            .isInstanceOf(S3FileIO.class)
-            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
-            .satisfies(
-                    fileIO -> {
-                      assertThat(fileIO.client("s3://foo/bar"))
-                              .isSameAs(fileIO.client())
-                              .isInstanceOf(S3Client.class);
-                      assertThat(fileIO.asyncClient("s3://foo/bar"))
-                              .isSameAs(fileIO.asyncClient())
-                              .isInstanceOf(S3AsyncClient.class);
-                    });
-
-    // make sure credentials can be accessed after java serde
-    resolvingIO = TestHelpers.roundTripSerialize(resolvingFileIO);
-    assertThat(resolvingIO.credentials()).isEmpty();
-    result =
-            DynMethods.builder("io")
-                    .hiddenImpl(ResolvingFileIO.class, String.class)
-                    .build(resolvingIO)
-                    .invoke("s3://foo/bar");
-    assertThat(result)
-            .isInstanceOf(S3FileIO.class)
-            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
-            .satisfies(
-                    fileIO -> {
-                      assertThat(fileIO.client("s3://foo/bar"))
-                              .isSameAs(fileIO.client())
-                              .isInstanceOf(S3Client.class);
-                      assertThat(fileIO.asyncClient("s3://foo/bar"))
-                              .isSameAs(fileIO.asyncClient())
-                              .isInstanceOf(S3AsyncClient.class);
-                    });
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .satisfies(
+            fileIO -> {
+              assertThat(fileIO.client("s3://foo/bar"))
+                  .isSameAs(fileIO.client())
+                  .isInstanceOf(S3Client.class);
+              assertThat(fileIO.asyncClient("s3://foo/bar"))
+                  .isSameAs(fileIO.asyncClient())
+                  .isInstanceOf(S3AsyncClient.class);
+            });
   }
 
   @ParameterizedTest
