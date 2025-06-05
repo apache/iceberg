@@ -259,13 +259,13 @@ License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICEN
 --------------------------------------------------------------------------------
 
 Group: com.google.api  Name: gax-httpjson  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api-client  Name: google-api-client  Version: 2.7.2
-Project URL: https://developers.google.com/api-client-library/java/ 
+Project URL: https://developers.google.com/api-client-library/java/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -372,7 +372,7 @@ License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
 --------------------------------------------------------------------------------
 
 Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.33.1
-License: BSD New license - http://opensource.org/licenses/BSD-3-Clause 
+License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
 
@@ -470,13 +470,13 @@ License: Apache License V2.0 - https://raw.githubusercontent.com/google/flatbuff
 
 Group: com.google.guava  Name: failureaccess  Version: 1.0.2
 Project URL: https://github.com/google/guava/
-License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.guava  Name: guava  Version: 33.4.0-jre
 Project URL: https://github.com/google/guava/
-License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -498,7 +498,7 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 --------------------------------------------------------------------------------
 
 Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.46.3
-License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -508,7 +508,7 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 --------------------------------------------------------------------------------
 
 Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.46.3
-License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -520,7 +520,7 @@ License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.
 
 Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.37.0
 Project URL: https://www.google.com/
-License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -550,12 +550,12 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 Group: io.grpc  Name: grpc-alts  Version: 1.70.0
 Project URL: https://github.com/grpc/grpc-java
-License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0 
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
 Group: io.grpc  Name: grpc-api  Version: 1.70.0
-Project URL: https://github.com/grpc/grpc-java 
+Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
@@ -597,7 +597,7 @@ License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 --------------------------------------------------------------------------------
 
 Group: io.grpc  Name: grpc-protobuf  Version: 1.70.0
-Project URL: https://github.com/grpc/grpc-java 
+Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
@@ -615,7 +615,7 @@ License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 --------------------------------------------------------------------------------
 
 Group: io.grpc  Name: grpc-services  Version: 1.70.0
-Project URL: https://github.com/grpc/grpc-java 
+Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
@@ -670,7 +670,7 @@ License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENS
 
 Group: io.opencensus  Name: opencensus-contrib-http-util  Version: 0.31.1
 Project URL: https://github.com/census-instrumentation/opencensus-java
-License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -712,9 +712,9 @@ License: BSD-3-Clause - https://raw.githubusercontent.com/ThreeTen/threetenbp/ma
 
 --------------------------------------------------------------------------------
 
-Group: io.opentelemetry Name: opentelemetry-api  Version: 1.47.0
+Group: io.opentelemetry Name: opentelemetry-api   Version: 1.47.0
 Project URL: https://opentelemetry.io/
-License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -750,7 +750,7 @@ License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENS
 
 Group: io.opentelemetry Name: opentelemetry-sdk-trace   Version: 1.47.0
 Project URL: https://opentelemetry.io/
-License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
