@@ -136,13 +136,7 @@ public final class MetricsConfig implements Serializable {
                 orderedFieldIds.add(field.fieldId());
               }
             }
-
-            Iterable<Integer> returnValue = orderedFieldIds;
-            for (Iterable<Integer> otherFieldIds : fieldResults) {
-              returnValue = Iterables.concat(returnValue, otherFieldIds);
-            }
-
-            return returnValue;
+            return Iterables.concat(orderedFieldIds, Iterables.concat(fieldResults));
           }
 
           @Override
