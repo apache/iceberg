@@ -16,22 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
+import org.apache.iceberg.flink.sink.WriteResultSerializer;
+import org.apache.iceberg.io.WriteResult;
 
-/**
- * This serializer is used for serializing the {@link IcebergCommittable} objects between the Writer
- * and the Aggregator operator and between the Aggregator and the Committer as well.
- *
- * <p>In both cases only the respective part is serialized.
- */
-public class IcebergCommittableSerializer implements SimpleVersionedSerializer<IcebergCommittable> {
+class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicWriteResult> {
+
   private static final int VERSION = 1;
+  private static final WriteResultSerializer WRITE_RESULT_SERIALIZER = new WriteResultSerializer();
 
   @Override
   public int getVersion() {
@@ -39,30 +37,26 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
   }
 
   @Override
-  public byte[] serialize(IcebergCommittable committable) throws IOException {
+  public byte[] serialize(DynamicWriteResult writeResult) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
-    view.writeUTF(committable.jobId());
-    view.writeUTF(committable.operatorId());
-    view.writeLong(committable.checkpointId());
-    view.writeInt(committable.manifest().length);
-    view.write(committable.manifest());
+    writeResult.key().serializeTo(view);
+    byte[] result = WRITE_RESULT_SERIALIZER.serialize(writeResult.writeResult());
+    view.write(result);
     return out.toByteArray();
   }
 
   @Override
-  public IcebergCommittable deserialize(int version, byte[] serialized) throws IOException {
+  public DynamicWriteResult deserialize(int version, byte[] serialized) throws IOException {
     if (version == 1) {
       DataInputDeserializer view = new DataInputDeserializer(serialized);
-      String jobId = view.readUTF();
-      String operatorId = view.readUTF();
-      long checkpointId = view.readLong();
-      int manifestLen = view.readInt();
-      byte[] manifestBuf;
-      manifestBuf = new byte[manifestLen];
-      view.read(manifestBuf);
-      return new IcebergCommittable(manifestBuf, jobId, operatorId, checkpointId);
+      WriteTarget key = WriteTarget.deserializeFrom(view);
+      byte[] resultBuf = new byte[view.available()];
+      view.read(resultBuf);
+      WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(version, resultBuf);
+      return new DynamicWriteResult(key, writeResult);
     }
+
     throw new IOException("Unrecognized version or corrupt state: " + version);
   }
 }
