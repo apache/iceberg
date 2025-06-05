@@ -155,89 +155,14 @@ public class TestS3FileIO {
     }
   }
 
-  @FunctionalInterface
-  private interface RoundTripSerializerFunction<T> {
-    T apply(T t) throws IOException, ClassNotFoundException;
-  }
-
   private static <T> Stream<Arguments> serializers() {
     return Stream.of(
         Arguments.of(
-            Named.<RoundTripSerializerFunction<T>>of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
                 "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
         Arguments.of(
-            Named.<RoundTripSerializerFunction<T>>of(
+            Named.<TestHelpers.RoundTripSerializerFunction<T>>of(
                 "JavaSerialization", TestHelpers::roundTripSerialize)));
-  }
-
-  @ParameterizedTest
-  @MethodSource("serializers")
-  public void testS3FileIOSerialization(
-      RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
-      throws IOException, ClassNotFoundException {
-    FileIO testS3FileIO = new S3FileIO();
-
-    // s3 fileIO should be serializable when properties are passed as immutable map
-    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
-  }
-
-  @ParameterizedTest
-  @MethodSource("serializers")
-  public void testS3FileIOWithEmptyPropsSerialization(
-      RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
-      throws IOException, ClassNotFoundException {
-    FileIO testS3FileIO = new S3FileIO();
-
-    // s3 fileIO should be serializable when properties passed as empty immutable map
-    testS3FileIO.initialize(ImmutableMap.of());
-    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
-
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
-  }
-
-  @ParameterizedTest
-  @MethodSource("serializers")
-  public void fileIOWithStorageCredentialsSerialization(
-      RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
-      throws IOException, ClassNotFoundException {
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
-    fileIO.initialize(Map.of());
-
-    assertThat(roundTripSerializerFunction.apply(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
-  }
-
-  @ParameterizedTest
-  @MethodSource("serializers")
-  public void fileIOWithPrefixedS3ClientSerialization(
-      RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
-      throws IOException, ClassNotFoundException {
-    S3FileIO io = new S3FileIO();
-    io.setCredentials(
-        ImmutableList.of(
-            StorageCredential.create("s3://my-bucket/my-path/table1", Map.of("key1", "val1"))));
-    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
-
-    // there should be a client for the generic and specific storage prefix available
-    assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
-
-    S3FileIO fileIO = roundTripSerializerFunction.apply(io);
-    assertThat(fileIO.credentials()).isEqualTo(io.credentials());
-
-    // make sure there's a client for the generic and specific storage prefix available after ser/de
-    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
-    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @Test
@@ -532,6 +457,76 @@ public class TestS3FileIO {
     }
   }
 
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testS3FileIOSerialization(
+      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties are passed as immutable map
+    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
+
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void testS3FileIOWithEmptyPropsSerialization(
+      TestHelpers.RoundTripSerializerFunction<FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties passed as empty immutable map
+    testS3FileIO.initialize(ImmutableMap.of());
+    FileIO roundTripSerializedFileIO = roundTripSerializerFunction.apply(testS3FileIO);
+
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithStorageCredentialsSerialization(
+      TestHelpers.RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(roundTripSerializerFunction.apply(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void fileIOWithPrefixedS3ClientSerialization(
+      TestHelpers.RoundTripSerializerFunction<S3FileIO> roundTripSerializerFunction)
+      throws IOException, ClassNotFoundException {
+    S3FileIO io = new S3FileIO();
+    io.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create("s3://my-bucket/my-path/table1", Map.of("key1", "val1"))));
+    io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
+
+    // there should be a client for the generic and specific storage prefix available
+    assertThat(io.client()).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
+
+    S3FileIO fileIO = roundTripSerializerFunction.apply(io);
+    assertThat(fileIO.credentials()).isEqualTo(io.credentials());
+
+    // make sure there's a client for the generic and specific storage prefix available after ser/de
+    assertThat(fileIO.client()).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
+    assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
+    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
+  }
+
   @Test
   public void testResolvingFileIOLoad() {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
@@ -605,8 +600,10 @@ public class TestS3FileIO {
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
   }
 
-  @Test
-  public void resolvingFileIOLoadWithStorageCredentials()
+  @ParameterizedTest
+  @MethodSource("serializers")
+  public void resolvingFileIOLoadWithStorageCredentials(
+      TestHelpers.RoundTripSerializerFunction<ResolvingFileIO> roundTripSerializerFunction)
       throws IOException, ClassNotFoundException {
     StorageCredential credential = StorageCredential.create("s3://foo/bar", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
@@ -637,32 +634,7 @@ public class TestS3FileIO {
         });
 
     // make sure credentials are still present after kryo serde
-    ResolvingFileIO resolvingIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
-    assertThat(resolvingIO.credentials()).isEqualTo(storageCredentials);
-    result =
-        DynMethods.builder("io")
-            .hiddenImpl(ResolvingFileIO.class, String.class)
-            .build(resolvingIO)
-            .invoke("s3://foo/bar");
-    io =
-        assertThat(result)
-            .isInstanceOf(S3FileIO.class)
-            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class));
-    io.extracting(S3FileIO::credentials).isEqualTo(storageCredentials);
-    io.satisfies(
-        fileIO -> {
-          // make sure there are two separate S3 clients for different prefixes and that the
-          // underlying sync/async client is set
-          assertThat(fileIO.client("s3://foo/bar"))
-              .isNotSameAs(fileIO.client())
-              .isInstanceOf(S3Client.class);
-          assertThat(fileIO.asyncClient("s3://foo/bar"))
-              .isNotSameAs(fileIO.asyncClient())
-              .isInstanceOf(S3AsyncClient.class);
-        });
-
-    // make sure credentials are still present after java serde
-    resolvingIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    ResolvingFileIO resolvingIO = roundTripSerializerFunction.apply(resolvingFileIO);
     assertThat(resolvingIO.credentials()).isEqualTo(storageCredentials);
     result =
         DynMethods.builder("io")

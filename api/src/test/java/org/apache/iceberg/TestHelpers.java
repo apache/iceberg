@@ -52,6 +52,11 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 
 public class TestHelpers {
 
+  @FunctionalInterface
+  public interface RoundTripSerializerFunction<T> {
+    T apply(T obj) throws IOException, ClassNotFoundException;
+  }
+
   private TestHelpers() {}
 
   public static final int MAX_FORMAT_VERSION = 3;
