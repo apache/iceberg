@@ -154,7 +154,7 @@ public class HadoopFileIOTest {
     FileIO testHadoopFileIO = new HadoopFileIO();
 
     // hadoop fileIO should be serializable when properties are passed as immutable map
-    testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testHadoopFileIO);
 
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testHadoopFileIO.properties());

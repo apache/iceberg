@@ -185,7 +185,7 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
     FileIO testFileIO = new ADLSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
-    testFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    testFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testFileIO);
 
     assertThat(testFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());

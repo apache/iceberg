@@ -58,7 +58,7 @@ public class TestResolvingIO {
     FileIO testResolvingFileIO = new ResolvingFileIO();
 
     // resolving fileIO should be serializable when properties are passed as immutable map
-    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testResolvingFileIO);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
   }
@@ -71,7 +71,7 @@ public class TestResolvingIO {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     Configuration conf = new Configuration();
     resolvingFileIO.setConf(conf);
-    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
 
     assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
     assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
@@ -168,7 +168,6 @@ public class TestResolvingIO {
   public void resolvingFileIOWithStorageCredentialsSerialization(
       TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
-
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
     ResolvingFileIO resolvingFileIO =

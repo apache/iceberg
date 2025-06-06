@@ -213,7 +213,7 @@ public class GCSFileIOTest {
     FileIO testGCSFileIO = new GCSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
-    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
