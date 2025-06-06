@@ -143,13 +143,9 @@ The properties can be manually constructed or passed in from a compute engine li
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](spark-configuration.md#catalog-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](flink.md#adding-catalogs) section.
 
-<!-- 
-\bOAuth2Properties\b
-\.token\b
-\boauth2-server-uri\b
--->
-
 ### Catalog REST auth properties
+
+Below are the properties used to configure authentication for the REST catalog. These properties allow you to set up basic or OAuth2 authentication for accessing the REST catalog.
 
 | Property                          | Default            | Description                                            |
 | --------------------------------- | ------------------ | ------------------------------------------------------ |
@@ -161,7 +157,6 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 | rest.auth.token-expires-in-ms     | 3600000 (1 hour)   | The time in milliseconds after which the OAuth2 token expires. Used to determine when to refresh the token. Defaults to 1 hour. |
 | rest.auth.token-refresh-enabled   | true               | Controls whether a token should be refreshed if information about its expiration time is available. Defaults to `true`. |
 | rest.auth.scope                   | catalog            | Additional scope for OAuth2.                           |
-
 
 ### Lock catalog properties
 
