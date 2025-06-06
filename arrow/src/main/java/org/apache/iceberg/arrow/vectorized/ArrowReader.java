@@ -37,7 +37,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
+import org.apache.iceberg.data.FileAccessor;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -123,18 +123,16 @@ public class ArrowReader extends CloseableGroup {
   private final EncryptionManager encryption;
   private final int batchSize;
   private final boolean reuseContainers;
-  private static final String ARROW_OBJECT_MODEL = "arrow";
-
-  public static void register() {
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ParquetFileAccessFactory<>(
-            ARROW_OBJECT_MODEL,
-            (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
-                VectorizedCombinedScanIterator.buildReader(
-                    schema,
-                    messageType, /* setArrowValidityVector */
-                    NullCheckingForGet.NULL_CHECKING_ENABLED)));
-  }
+  private static final FileAccessor<Object, Object, ColumnarBatch> ARROW_OBJECT_MODEL =
+      new FileAccessor<>(
+          ImmutableMap.of(
+              FileFormat.PARQUET,
+              new ParquetFileAccessFactory<>(
+                  (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
+                      VectorizedCombinedScanIterator.buildReader(
+                          schema,
+                          messageType, /* setArrowValidityVector */
+                          NullCheckingForGet.NULL_CHECKING_ENABLED))));
 
   /**
    * Create a new instance of the reader.
@@ -337,7 +335,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<?, ColumnarBatch> builder =
-            FileAccessFactoryRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location);
+            ARROW_OBJECT_MODEL.vectorizedReadBuilder(FileFormat.PARQUET, location);
 
         if (reuseContainers) {
           builder.reuseContainers();

@@ -41,7 +41,7 @@ import org.apache.iceberg.parquet.Parquet;
 /**
  * A base writer factory to be extended by query engine integrations.
  *
- * @deprecated use {@link RegistryBasedFileWriterFactory}
+ * @deprecated use {@link FileAccessorBasedFileWriterFactory}
  */
 @Deprecated
 public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {

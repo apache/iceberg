@@ -30,14 +30,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
+import org.apache.iceberg.data.FileAccessorBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.data.FlinkObjectModels;
+import org.apache.iceberg.flink.data.FlinkFileAccessor;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, RowType>
+class FlinkFileWriterFactory extends FileAccessorBasedFileWriterFactory<RowType, RowData, Object>
     implements Serializable {
 
   FlinkFileWriterFactory(
@@ -55,9 +55,9 @@ class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, Row
       RowType positionDeleteFlinkType) {
 
     super(
+        FlinkFileAccessor.INSTANCE,
         table,
         dataFileFormat,
-        FlinkObjectModels.FLINK_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

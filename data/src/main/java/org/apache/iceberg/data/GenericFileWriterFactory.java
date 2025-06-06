@@ -33,7 +33,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
+class GenericFileWriterFactory extends FileAccessorBasedFileWriterFactory<Schema, Record, Object> {
 
   GenericFileWriterFactory(
       Table table,
@@ -46,9 +46,9 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema) {
     super(
+        GenericFileAccessor.INSTANCE,
         table,
         dataFileFormat,
-        GenericObjectModels.GENERIC_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
@@ -68,7 +68,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
@@ -77,7 +77,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
@@ -86,7 +86,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
@@ -95,7 +95,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
@@ -104,7 +104,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
@@ -113,7 +113,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
@@ -122,7 +122,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
@@ -131,7 +131,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
@@ -140,7 +140,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
-   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   *     configuration is done by the {@link FileAccessor}.
    */
   @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {

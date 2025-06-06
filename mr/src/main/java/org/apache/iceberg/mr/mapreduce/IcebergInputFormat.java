@@ -44,9 +44,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.data.GenericDeleteFilter;
-import org.apache.iceberg.data.GenericObjectModels;
+import org.apache.iceberg.data.GenericFileAccessor;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -313,8 +312,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
       ReadBuilder<?, T> readBuilder =
-          FileAccessFactoryRegistry.readBuilder(
-              file.format(), GenericObjectModels.GENERIC_OBJECT_MODEL, inputFile);
+          (ReadBuilder<?, T>) GenericFileAccessor.INSTANCE.readBuilder(file.format(), inputFile);
 
       if (reuseContainers) {
         readBuilder = readBuilder.reuseContainers();

@@ -27,14 +27,16 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
+import org.apache.iceberg.data.FileAccessorBasedFileWriterFactory;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
+class SparkFileWriterFactory
+    extends FileAccessorBasedFileWriterFactory<StructType, InternalRow, ColumnarBatch> {
 
   SparkFileWriterFactory(
       Table table,
@@ -52,9 +54,9 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       Map<String, String> writeProperties) {
 
     super(
+        SparkFileAccessor.INSTANCE,
         table,
         dataFileFormat,
-        SparkObjectModels.SPARK_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

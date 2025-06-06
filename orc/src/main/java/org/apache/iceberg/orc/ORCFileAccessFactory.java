@@ -21,27 +21,24 @@ package org.apache.iceberg.orc;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.TypeDescription;
 
-public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAccessFactory<E, D> {
-  private final String objectModelName;
+public class ORCFileAccessFactory<E, D, V>
+    implements org.apache.iceberg.io.FileAccessFactory<E, D, V> {
   private final ReaderFunction<D> readerFunction;
-  private final BatchReaderFunction<D> batchReaderFunction;
+  private final BatchReaderFunction<V> batchReaderFunction;
   private final WriterFunction<E> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
-  private ORCFileAccessFactory(
-      String objectModelName,
+  public ORCFileAccessFactory(
       ReaderFunction<D> readerFunction,
-      BatchReaderFunction<D> batchReaderFunction,
+      BatchReaderFunction<V> batchReaderFunction,
       WriterFunction<E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
@@ -49,25 +46,10 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
   }
 
   public ORCFileAccessFactory(
-      String objectModelName,
       ReaderFunction<D> readerFunction,
       WriterFunction<E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
-  }
-
-  public ORCFileAccessFactory(String objectModelName, BatchReaderFunction<D> batchReaderFunction) {
-    this(objectModelName, null, batchReaderFunction, null, null);
-  }
-
-  @Override
-  public FileFormat format() {
-    return FileFormat.ORC;
-  }
-
-  @Override
-  public String objectModelName() {
-    return objectModelName;
+    this(readerFunction, null, writerFunction, pathTransformFunc);
   }
 
   @Override
@@ -96,11 +78,13 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
 
   @Override
   public <B extends org.apache.iceberg.io.ReadBuilder<B, D>> B readBuilder(InputFile inputFile) {
-    if (batchReaderFunction != null) {
-      return (B) new ORC.ReadBuilderImpl<D>(inputFile).batchReaderFunction(batchReaderFunction);
-    } else {
-      return (B) new ORC.ReadBuilderImpl<D>(inputFile).readerFunction(readerFunction);
-    }
+    return (B) new ORC.ReadBuilderImpl<D>(inputFile).readerFunction(readerFunction);
+  }
+
+  @Override
+  public <B extends org.apache.iceberg.io.ReadBuilder<B, V>> B vectorizedReadBuilder(
+      InputFile inputFile) {
+    return (B) new ORC.ReadBuilderImpl<V>(inputFile).batchReaderFunction(batchReaderFunction);
   }
 
   public interface WriterFunction<E> {

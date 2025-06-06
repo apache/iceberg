@@ -89,8 +89,7 @@ class GenericReader implements Serializable {
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
     ReadBuilder<?, Record> builder =
-        FileAccessFactoryRegistry.readBuilder(
-            task.file().format(), GenericObjectModels.GENERIC_OBJECT_MODEL, input);
+        GenericFileAccessor.INSTANCE.readBuilder(task.file().format(), input);
     if (reuseContainers) {
       builder = builder.reuseContainers();
     }

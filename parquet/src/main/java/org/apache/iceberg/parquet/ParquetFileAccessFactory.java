@@ -21,28 +21,24 @@ package org.apache.iceberg.parquet;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 
-public class ParquetFileAccessFactory<D, F, E>
-    implements org.apache.iceberg.io.FileAccessFactory<E, D> {
-  private final String objectModelName;
+public class ParquetFileAccessFactory<E, D, V, F>
+    implements org.apache.iceberg.io.FileAccessFactory<E, D, V> {
   private final ReaderFunction<D> readerFunction;
-  private final BatchReaderFunction<D, F> batchReaderFunction;
+  private final BatchReaderFunction<V, F> batchReaderFunction;
   private final WriterFunction<D, E> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
-  private ParquetFileAccessFactory(
-      String objectModelName,
+  public ParquetFileAccessFactory(
       ReaderFunction<D> readerFunction,
-      BatchReaderFunction<D, F> batchReaderFunction,
+      BatchReaderFunction<V, F> batchReaderFunction,
       WriterFunction<D, E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
@@ -50,26 +46,14 @@ public class ParquetFileAccessFactory<D, F, E>
   }
 
   public ParquetFileAccessFactory(
-      String objectModelName,
       ReaderFunction<D> readerFunction,
       WriterFunction<D, E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
+    this(readerFunction, null, writerFunction, pathTransformFunc);
   }
 
-  public ParquetFileAccessFactory(
-      String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
-    this(objectModelName, null, batchReaderFunction, null, null);
-  }
-
-  @Override
-  public FileFormat format() {
-    return FileFormat.PARQUET;
-  }
-
-  @Override
-  public String objectModelName() {
-    return objectModelName;
+  public ParquetFileAccessFactory(BatchReaderFunction<V, F> batchReaderFunction) {
+    this(null, batchReaderFunction, null, null);
   }
 
   @Override
@@ -99,12 +83,14 @@ public class ParquetFileAccessFactory<D, F, E>
 
   @Override
   public <B extends org.apache.iceberg.io.ReadBuilder<B, D>> B readBuilder(InputFile inputFile) {
-    if (batchReaderFunction != null) {
-      return (B)
-          new Parquet.ReadBuilderImpl<D, F>(inputFile).batchReaderFunction(batchReaderFunction);
-    } else {
-      return (B) new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
-    }
+    return (B) new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
+  }
+
+  @Override
+  public <B extends org.apache.iceberg.io.ReadBuilder<B, V>> B vectorizedReadBuilder(
+      InputFile inputFile) {
+    return (B)
+        new Parquet.ReadBuilderImpl<V, F>(inputFile).batchReaderFunction(batchReaderFunction);
   }
 
   public interface ReaderFunction<D> {

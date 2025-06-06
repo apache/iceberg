@@ -42,10 +42,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * @param <T> type of the engine specific records
  * @param <S> type of the engine specific schema
  */
-public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
+public abstract class FileAccessorBasedFileWriterFactory<S, T, V> implements FileWriterFactory<T> {
+  private final FileAccessor<S, T, V> fileAccessor;
   private final Table table;
   private final FileFormat dataFileFormat;
-  private final String inputType;
   private final Schema dataSchema;
   private final SortOrder dataSortOrder;
   private final FileFormat deleteFileFormat;
@@ -58,10 +58,10 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   private final S equalityDeleteSchemaType;
   private final S positionalDeleteSchemaType;
 
-  protected RegistryBasedFileWriterFactory(
+  protected FileAccessorBasedFileWriterFactory(
+      FileAccessor<S, T, V> fileAccessor,
       Table table,
       FileFormat dataFileFormat,
-      String inputType,
       Schema dataSchema,
       SortOrder dataSortOrder,
       FileFormat deleteFileFormat,
@@ -73,9 +73,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
       S rowSchemaType,
       S equalityDeleteSchemaType,
       S positionalDeleteSchemaType) {
+    this.fileAccessor = fileAccessor;
     this.table = table;
     this.dataFileFormat = dataFileFormat;
-    this.inputType = inputType;
     this.dataSchema = dataSchema;
     this.dataSortOrder = dataSortOrder;
     this.deleteFileFormat = deleteFileFormat;
@@ -109,8 +109,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      DataWriteBuilder<?, S, T> builder =
-          FileAccessFactoryRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
+      DataWriteBuilder<?, S, T> builder = fileAccessor.dataWriteBuilder(dataFileFormat, file);
       return builder
           .fileSchema(dataSchema)
           .set(properties)
@@ -137,7 +136,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
     try {
       EqualityDeleteWriteBuilder<?, S, T> builder =
-          FileAccessFactoryRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
+          fileAccessor.equalityDeleteWriteBuilder(deleteFileFormat, file);
       return builder
           .set(properties)
           .set(writeProperties)
@@ -165,7 +164,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
     try {
       PositionDeleteWriteBuilder<?, S, T> builder =
-          FileAccessFactoryRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
+          fileAccessor.positionDeleteWriteBuilder(deleteFileFormat, file);
       return builder
           .set(properties)
           .set(writeProperties)

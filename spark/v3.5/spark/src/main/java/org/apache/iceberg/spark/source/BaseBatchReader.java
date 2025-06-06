@@ -24,7 +24,6 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -63,8 +62,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<?, ColumnarBatch> readBuilder =
-        FileAccessFactoryRegistry.readBuilder(
-            format, SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL, inputFile);
+        SparkFileAccessor.INSTANCE.vectorizedReadBuilder(format, inputFile);
     if (parquetConf != null) {
       readBuilder =
           readBuilder

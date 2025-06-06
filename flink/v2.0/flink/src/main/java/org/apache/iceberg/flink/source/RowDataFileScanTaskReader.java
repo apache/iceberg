@@ -27,14 +27,13 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkObjectModels;
+import org.apache.iceberg.flink.data.FlinkFileAccessor;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -115,10 +114,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       ReadBuilder<?, RowData> builder =
-          FileAccessFactoryRegistry.readBuilder(
-              task.file().format(),
-              FlinkObjectModels.FLINK_OBJECT_MODEL,
-              inputFilesDecryptor.getInputFile(task));
+          FlinkFileAccessor.INSTANCE.readBuilder(
+              task.file().format(), inputFilesDecryptor.getInputFile(task));
 
       if (nameMapping != null) {
         builder.nameMapping(NameMappingParser.fromJson(nameMapping));
