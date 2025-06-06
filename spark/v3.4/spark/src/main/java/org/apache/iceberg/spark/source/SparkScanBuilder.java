@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -166,7 +167,7 @@ public class SparkScanBuilder
 
         if (expr != null) {
           // try binding the expression to ensure it can be pushed down
-          Binder.bind(schema.asStruct(), expr, caseSensitive);
+          Binder.bind(ChangelogUtil.dropChangelogMetadata(schema).asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushableFilters.add(predicate);
         }
