@@ -400,7 +400,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     } catch (NoSuchTableException original) {
       metadataType = MetadataTableType.from(identifier.name());
-      if (metadataType != null) {
+      if (metadataType != null && identifier.namespace().levels().length > 1) {
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
