@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.vortex;
 
 import dev.vortex.api.Array;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,6 +41,10 @@ public class GenericVortexReaders {
 
   public static VortexValueReader<Integer> ints() {
     return IntegerReader.INSTANCE;
+  }
+
+  public static VortexValueReader<BigDecimal> decimals() {
+    return DecimalReader.INSTANCE;
   }
 
   public static VortexValueReader<Long> longs() {
@@ -151,6 +156,17 @@ public class GenericVortexReaders {
     @Override
     public Long readNonNull(Array array, int row) {
       return array.getLong(row);
+    }
+  }
+
+  private static class DecimalReader implements VortexValueReader<BigDecimal> {
+    static final DecimalReader INSTANCE = new DecimalReader();
+
+    private DecimalReader() {}
+
+    @Override
+    public BigDecimal readNonNull(Array array, int row) {
+      return array.getBigDecimal(row);
     }
   }
 

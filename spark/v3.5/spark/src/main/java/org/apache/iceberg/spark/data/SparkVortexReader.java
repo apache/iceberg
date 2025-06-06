@@ -84,6 +84,8 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
         case BINARY:
           // Spark expects binary to be in another format, no?
           return GenericVortexReaders.bytes();
+        case DECIMAL:
+          return GenericVortexReaders.decimals();
         case TIMESTAMP:
         case TIMESTAMP_NANO:
           // TODO(aduffy): timestamp and date types

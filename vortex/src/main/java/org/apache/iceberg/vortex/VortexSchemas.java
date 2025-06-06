@@ -79,6 +79,8 @@ public final class VortexSchemas {
         return Types.FloatType.get();
       case PRIMITIVE_F64:
         return Types.DoubleType.get();
+      case DECIMAL:
+        return Types.DecimalType.of(data_type.getPrecision(), data_type.getScale());
       case UTF8:
         return Types.StringType.get();
       case BINARY:

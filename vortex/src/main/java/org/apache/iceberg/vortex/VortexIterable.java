@@ -169,7 +169,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     return properties.asProperties();
   }
 
-  static final String ACCESS_KEY_PREFIX = "fs.azure.account.key.";
+  static final String ACCESS_KEY_PREFIX = "fs.azure.account.key";
   static final String FIXED_TOKEN_PREFIX = "fs.azure.sas.fixed.token.";
 
   private static Map<String, String> azurePropertiesFromHadoopConf(Configuration hadoopConf) {
