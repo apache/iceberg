@@ -452,7 +452,7 @@ public class TestS3FileIO {
     FileIO testS3FileIO = new S3FileIO();
 
     // s3 fileIO should be serializable when properties are passed as immutable map
-    testS3FileIO.initialize(ImmutableMap.of("k1", "v1","k2", "v2"));
+    testS3FileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testS3FileIO);
 
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
