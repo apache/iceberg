@@ -42,6 +42,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
+import org.apache.spark.sql.types.VariantType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
@@ -114,6 +115,11 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     } else {
       return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
     }
+  }
+
+  @Override
+  public Type variant(VariantType variant) {
+    return Types.VariantType.get();
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
