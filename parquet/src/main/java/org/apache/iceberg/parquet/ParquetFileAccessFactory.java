@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -35,18 +36,41 @@ public class ParquetFileAccessFactory<D, F, E>
   private final BatchReaderFunction<D, F> batchReaderFunction;
   private final WriterFunction<D, E> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
+  private final BiFunction<Schema, Integer[][], Combiner<D>> combinerFunction;
+  private final BiFunction<Schema, Integer[], Narrower<D>> narrowerFunction;
 
   private ParquetFileAccessFactory(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
       WriterFunction<D, E> writerFunction,
-      Function<CharSequence, ?> pathTransformFunc) {
+      Function<CharSequence, ?> pathTransformFunc,
+      BiFunction<Schema, Integer[][], Combiner<D>> combinerFunction,
+      BiFunction<Schema, Integer[], Narrower<D>> narrowerFunction) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
     this.pathTransformFunc = pathTransformFunc;
+    this.combinerFunction = combinerFunction;
+    this.narrowerFunction = narrowerFunction;
+  }
+
+  public ParquetFileAccessFactory(
+      String objectModelName,
+      ReaderFunction<D> readerFunction,
+      WriterFunction<D, E> writerFunction,
+      Function<CharSequence, ?> pathTransformFunc,
+      BiFunction<Schema, Integer[][], Combiner<D>> combinerFunction,
+      BiFunction<Schema, Integer[], Narrower<D>> narrowerFunction) {
+    this(
+        objectModelName,
+        readerFunction,
+        null,
+        writerFunction,
+        pathTransformFunc,
+        combinerFunction,
+        narrowerFunction);
   }
 
   public ParquetFileAccessFactory(
@@ -54,12 +78,12 @@ public class ParquetFileAccessFactory<D, F, E>
       ReaderFunction<D> readerFunction,
       WriterFunction<D, E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
+    this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc, null, null);
   }
 
   public ParquetFileAccessFactory(
       String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
-    this(objectModelName, null, batchReaderFunction, null, null);
+    this(objectModelName, null, batchReaderFunction, null, null, null, null);
   }
 
   @Override
@@ -105,6 +129,16 @@ public class ParquetFileAccessFactory<D, F, E>
     } else {
       return (B) new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
     }
+  }
+
+  @Override
+  public BiFunction<Schema, Integer[][], Combiner<D>> combiner() {
+    return combinerFunction;
+  }
+
+  @Override
+  public BiFunction<Schema, Integer[], Narrower<D>> narrower() {
+    return narrowerFunction;
   }
 
   public interface ReaderFunction<D> {

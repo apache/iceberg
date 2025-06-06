@@ -18,9 +18,24 @@
  */
 package org.apache.iceberg.io;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import org.apache.hadoop.util.Lists;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 
 /**
  * Interface that provides a unified abstraction for converting between data file formats and
@@ -136,4 +151,170 @@ public interface FileAccessFactory<E, D> {
    * @param <B> the concrete builder type for method chaining
    */
   <B extends ReadBuilder<B, D>> B readBuilder(InputFile inputFile);
+
+  default BiFunction<Schema, Integer[][], Combiner<D>> combiner() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  default BiFunction<Schema, Integer[], Narrower<D>> narrower() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  interface Combiner<E> {
+    E combine(List<E> elements);
+  }
+
+  interface Narrower<E> {
+    E narrow(E elements);
+  }
+
+  static <E> CloseableIterable<E> combiner(
+      Collection<CloseableIterable<E>> iterable, Combiner<E> combiner, boolean multiThreaded) {
+    return CloseableIterable.combine(
+        () ->
+            multiThreaded
+                ? new MultiThreadedCombiningReadIterator<>(
+                    iterable.stream().map(Iterable::iterator).collect(Collectors.toList()),
+                    combiner)
+                : new SingleThreadedCombiningReadIterator<>(
+                    iterable.stream().map(Iterable::iterator).collect(Collectors.toList()),
+                    combiner),
+        () -> {
+          for (CloseableIterable<E> inner : iterable) {
+            inner.close();
+          }
+        });
+  }
+
+  class SingleThreadedCombiningReadIterator<E> implements Iterator<E>, Closeable {
+    private final Collection<Iterator<E>> iterators;
+    private final Combiner<E> combiner;
+    private boolean closed = false;
+
+    private SingleThreadedCombiningReadIterator(
+        Collection<Iterator<E>> iterators, Combiner<E> combiner) {
+      this.iterators = iterators;
+      this.combiner = combiner;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (closed) {
+        return false;
+      }
+
+      // If any iterator doesn't have next, return false
+      for (Iterator<E> iterator : iterators) {
+        if (!iterator.hasNext()) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    @Override
+    public E next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      return combiner.combine(iterators.stream().map(Iterator::next).collect(Collectors.toList()));
+    }
+
+    @Override
+    public void close() throws IOException {
+      closed = true;
+    }
+  }
+
+  class MultiThreadedCombiningReadIterator<E> implements Iterator<E>, Closeable {
+    private final List<Iterator<E>> iterators;
+    private final Combiner<E> combiner;
+    private final ExecutorService executorService;
+    private final List<BlockingQueue<E>> queues;
+    private boolean closed = false;
+    private boolean fetching = false;
+
+    private MultiThreadedCombiningReadIterator(
+        Collection<Iterator<E>> iterators, Combiner<E> combiner) {
+      this.iterators = Lists.newArrayList(iterators);
+      this.combiner = combiner;
+      this.executorService = Executors.newFixedThreadPool(iterators.size());
+      this.queues =
+          iterators.stream()
+              .map(i -> Queues.<E>newLinkedBlockingDeque(100))
+              .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (closed) {
+        return false;
+      }
+
+      if (!fetching) {
+        fetching = true;
+
+        // Start fetching elements from each iterator in parallel
+        for (int i = 0; i < iterators.size(); i++) {
+          final Iterator<E> iterator = iterators.get(i);
+          final BlockingQueue<E> queue = queues.get(i);
+          executorService.execute(
+              () -> {
+                try {
+                  while (iterator.hasNext()) {
+                    synchronized (iterator) {
+                      queue.put(iterator.next());
+                    }
+                  }
+                } catch (Exception e) {
+                  throw new RuntimeIOException("Alma %s", e.getMessage());
+                }
+              });
+        }
+      }
+
+      // If any iterator doesn't have next, return false
+      for (int i = 0; i < iterators.size(); i++) {
+        final Iterator<E> iterator = iterators.get(i);
+        final BlockingQueue<E> queue = queues.get(i);
+        if (!iterator.hasNext() && queue.isEmpty()) {
+          synchronized (iterator) {
+            if (!iterator.hasNext() && queue.isEmpty()) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    }
+
+    @Override
+    public E next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      return combiner.combine(
+          queues.stream()
+              .map(
+                  q -> {
+                    try {
+                      return q.take();
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      throw new RuntimeIOException("Alma %s", e.getMessage());
+                    }
+                  })
+              .collect(Collectors.toList()));
+    }
+
+    @Override
+    public void close() throws IOException {
+      closed = true;
+      executorService.shutdown();
+    }
+  }
 }

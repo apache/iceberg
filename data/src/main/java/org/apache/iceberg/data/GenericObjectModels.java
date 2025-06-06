@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.avro.AvroFileAccessFactory;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -26,6 +27,8 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.io.FileAccessFactory;
+import org.apache.iceberg.io.FileAccessFactory.Combiner;
 import org.apache.iceberg.orc.ORCFileAccessFactory;
 import org.apache.iceberg.parquet.ParquetFileAccessFactory;
 import org.slf4j.Logger;
@@ -53,7 +56,48 @@ public class GenericObjectModels {
                     GenericParquetReaders::buildReader,
                     (nativeSchema, icebergSchema, messageType) ->
                         GenericParquetWriter.create(icebergSchema, messageType),
-                    Function.identity())));
+                    Function.identity(),
+                    (icebergSchema, families) -> {
+                      CombinedRecord record = CombinedRecord.create(icebergSchema, families);
+                      return new MyCombiner(record);
+                    },
+                    (icebergSchema, family) -> {
+                      NarrowedRecord record = NarrowedRecord.create(icebergSchema, family);
+                      return new MyNarrower(record);
+                    })));
+  }
+
+  private static class MyNarrower implements FileAccessFactory.Narrower<Record> {
+    private final NarrowedRecord record;
+
+    MyNarrower(NarrowedRecord record) {
+      this.record = record;
+    }
+
+    @Override
+    public Record narrow(Record wrappedRecord) {
+      record.set(wrappedRecord);
+
+      return record;
+    }
+  }
+
+  private static class MyCombiner implements Combiner<Record> {
+    private final CombinedRecord template;
+
+    MyCombiner(CombinedRecord template) {
+      this.template = template;
+    }
+
+    @Override
+    public Record combine(List<Record> records) {
+      CombinedRecord clonedRecord = CombinedRecord.clone(template);
+      for (int i = 0; i < records.size(); i++) {
+        clonedRecord.setFamily(i, records.get(i));
+      }
+
+      return clonedRecord;
+    }
   }
 
   private static void registerAvro() {
