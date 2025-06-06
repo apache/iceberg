@@ -214,6 +214,26 @@ License: The Apache Software License, Version 2.0 - https://www.apache.org/licen
 
 --------------------------------------------------------------------------------
 
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson
+License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310 
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: com.google.android  Name: annotations  Version: 4.1.1.4
 Project URL: http://source.android.com/
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
@@ -277,7 +297,71 @@ License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1  Version: 3.14.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1beta1
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1beta2
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1  Version: 3.14.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1 
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1alpha  Version: 3.14.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1alpha
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta  Version: 3.14.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta1
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
+Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta2
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.63.0
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.52.2
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
 Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20250224-2.0.0
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.apis  Name: google-api-services-bigquery  Version: v2-rev20250427-2.0.0
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -294,6 +378,12 @@ License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
 Group: com.google.auto.value  Name: auto-value-annotations  Version: 1.11.0
 Project URL: https://github.com/google/auto/tree/master/value
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.auto.value  Name: auto-value  Version: 1.11.0
+Project URL: https://github.com/google/auto/tree/main/value
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -319,14 +409,62 @@ License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: com.google.cloud  Name: google-cloud-bigquery  Version: 2.50.0
+Project URL: https://github.com/googleapis/java-bigquery
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-bigquerystorage  Version: 3.14.0
+Project URL: https://github.com/googleapis/java-bigquerystorage
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.63.0
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: detector-resources-support  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: exporter-metrics  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: shared-resourcemapping  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
 Group: com.google.code.gson  Name: gson  Version: 2.12.1
 Project URL: https://github.com/google/gson/gson
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: com.google.code.findbugs  Name: jsr305  Version: 3.0.2
+Project URL: http://findbugs.sourceforge.net/
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.flatbuffers  Name: flatbuffers-java  Version: 23.5.26
+Project URL: https://github.com/google/flatbuffers
+License: Apache License V2.0 - https://raw.githubusercontent.com/google/flatbuffers/master/LICENSE
 
 --------------------------------------------------------------------------------
 
@@ -494,6 +632,36 @@ License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
+Group: io.grpc  Name: grpc-inprocess  Version: 1.70.0
+Project URL: https://github.com/grpc/grpc-java 
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-opentelemetry  Version: 1.70.0
+Project URL: https://github.com/grpc/grpc-java
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-util  Version: 1.70.0
+Project URL: https://github.com/grpc/grpc-java
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.netty  Name: netty-buffer  Version: 4.2.0.Final
+Project URL: https://netty.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.netty  Name: netty-common  Version: 4.2.0.Final
+Project URL: https://netty.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0 
+
+--------------------------------------------------------------------------------
+
 Group: io.opencensus  Name: opencensus-api  Version: 0.31.1
 Project URL: https://github.com/census-instrumentation/opencensus-java
 License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -601,3 +769,79 @@ License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENS
 Group: io.opentelemetry.semconv Name: opentelemetry-semconv Version: 1.27.0-alpha
 Project URL: https://opentelemetry.io/
 License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-format  Version: 15.0.2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-memory-core  Version: 15.0.2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-memory-netty  Version: 15.0.2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-vector  Version: 15.0.2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpclient  Version: 4.5.14
+Project URL: http://hc.apache.org/httpcomponents-client-ga
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpcore  Version: 4.4.16
+Project URL: http://hc.apache.org/httpcomponents-core-ga
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.checkerframework  Name: checker-compat-qual  Version: 2.5.6
+Project URL: https://checkerframework.org
+License: The MIT License - http://opensource.org/licenses/MIT
+
+--------------------------------------------------------------------------------
+
+Group: org.checkerframework  Name: checker-qual  Version: 3.49.0
+Project URL: https://checkerframework.org/
+License: The MIT License - http://opensource.org/licenses/MIT 
+
+--------------------------------------------------------------------------------
+
+Group: org.eclipse.collections  Name: eclipse-collections  Version: 11.1.0
+Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections
+License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
+License: Eclipse Public License - v 1.0 - https://www.eclipse.org/legal/epl-v10.html 
+
+--------------------------------------------------------------------------------
+
+Group: org.eclipse.collections  Name: eclipse-collections-api  Version: 11.1.0
+Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections-api
+License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
+License: Eclipse Public License - v 1.0 - https://www.eclipse.org/legal/epl-v10.html
+
+--------------------------------------------------------------------------------
+
+Group: org.json  Name: json  Version: 20250107
+Project URL: https://github.com/douglascrockford/JSON-java
+License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
+Project URL: http://www.slf4j.org
+License: MIT - https://opensource.org/license/mit
+
+--------------------------------------------------------------------------------
+
+Group: org.threeten  Name: threeten-extra  Version: 1.8.0
+Project URL: https://www.threeten.org/threeten-extra 
+License: BSD 3-clause - https://raw.githubusercontent.com/ThreeTen/threeten-extra/main/LICENSE.txt
