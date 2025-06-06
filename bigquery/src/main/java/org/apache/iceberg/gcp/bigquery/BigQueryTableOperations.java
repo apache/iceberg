@@ -23,6 +23,7 @@ import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
@@ -110,7 +111,10 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       try {
         if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
           LOG.warn("Failed to commit updates to table {}", tableName());
-          io().deleteFile(newMetadataLocation);
+          if (!Objects.equals(newMetadataLocation, metadata.metadataFileLocation())) {
+            // Only clean up newly created metadata files.
+            io().deleteFile(newMetadataLocation);
+          }
         }
       } catch (RuntimeException e) {
         LOG.error(
