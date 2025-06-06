@@ -22,14 +22,17 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructProjection;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
@@ -165,21 +168,26 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap partitions = new PartitionMap(partitionType);
+
+    StructLikeMap<Partition> partitions =
+        StructLikeMap.create(partitionType, new PartitionComparator(partitionType));
+
     try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
       for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         ContentFile<?> file = entry.file();
-        StructLike partition =
+        StructLike key =
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
-        partitions.get(partition).update(file, snapshot);
+        partitions
+            .computeIfAbsent(key, () -> new Partition(key, partitionType))
+            .update(file, snapshot);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
 
-    return partitions.all();
+    return partitions.values();
   }
 
   @VisibleForTesting
@@ -238,26 +246,26 @@ public class PartitionsTable extends BaseMetadataTable {
     }
   }
 
-  static class PartitionMap {
-    private final StructLikeMap<Partition> partitions;
-    private final Types.StructType keyType;
+  private static class PartitionComparator implements Comparator<StructLike> {
+    private Comparator<StructLike> comparator;
 
-    PartitionMap(Types.StructType type) {
-      this.partitions = StructLikeMap.create(type);
-      this.keyType = type;
+    private PartitionComparator(Types.StructType struct) {
+      this.comparator = Comparators.forType(struct);
     }
 
-    Partition get(StructLike key) {
-      Partition partition = partitions.get(key);
-      if (partition == null) {
-        partition = new Partition(key, keyType);
-        partitions.put(key, partition);
+    @Override
+    public int compare(StructLike o1, StructLike o2) {
+      if (o1 instanceof StructProjection && o2 instanceof StructProjection) {
+        int cmp =
+            Integer.compare(
+                ((StructProjection) o1).projectedFields(),
+                ((StructProjection) o2).projectedFields());
+        if (cmp != 0) {
+          return cmp;
+        }
       }
-      return partition;
-    }
 
-    Iterable<Partition> all() {
-      return partitions.values();
+      return comparator.compare(o1, o2);
     }
   }
 
@@ -290,6 +298,8 @@ public class PartitionsTable extends BaseMetadataTable {
       if (snapshot != null) {
         long snapshotCommitTime = snapshot.timestampMillis() * 1000;
         if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
+          this.specId = file.specId();
+
           this.lastUpdatedAt = snapshotCommitTime;
           this.lastUpdatedSnapshotId = snapshot.snapshotId();
         }
@@ -299,18 +309,15 @@ public class PartitionsTable extends BaseMetadataTable {
         case DATA:
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
-          this.specId = file.specId();
           this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
-          this.specId = file.specId();
           break;
         case EQUALITY_DELETES:
           this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
-          this.specId = file.specId();
           break;
         default:
           throw new UnsupportedOperationException(
@@ -319,15 +326,9 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     /** Needed because StructProjection is not serializable */
-    private PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData data = new PartitionData(keyType);
-      for (int i = 0; i < keyType.fields().size(); i++) {
-        Object val = key.get(i, keyType.fields().get(i).type().typeId().javaClass());
-        if (val != null) {
-          data.set(i, val);
-        }
-      }
-      return data;
+    private static PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
+      PartitionData keyTemplate = new PartitionData(keyType);
+      return keyTemplate.copyFor(key);
     }
   }
 }
