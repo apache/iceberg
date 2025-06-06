@@ -172,7 +172,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         return Collections.emptyList();
       }
     }
-    List<Integer> equalityFieldIds = Lists.newArrayList(equalityFields.size());
+    List<Integer> equalityFieldIds = Lists.newArrayListWithCapacity(equalityFields.size());
     for (String equalityField : equalityFields) {
       Types.NestedField field = schema.findField(equalityField);
       Preconditions.checkNotNull(
