@@ -264,6 +264,7 @@ public class PartitionsTable extends BaseMetadataTable {
           return cmp;
         }
       }
+
       return comparator.compare(o1, o2);
     }
   }
@@ -303,6 +304,7 @@ public class PartitionsTable extends BaseMetadataTable {
           this.lastUpdatedSnapshotId = snapshot.snapshotId();
         }
       }
+
       switch (file.content()) {
         case DATA:
           this.dataRecordCount += file.recordCount();

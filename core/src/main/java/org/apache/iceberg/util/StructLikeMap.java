@@ -33,11 +33,24 @@ import org.apache.iceberg.types.Types;
 
 public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<StructLike, T> {
 
+  /**
+   * Creates a new StructLikeMap with the specified type and comparator.
+   *
+   * @param type the struct type for the keys
+   * @param comparator the comparator for comparing struct keys
+   * @return a new StructLikeMap instance
+   */
   public static <T> StructLikeMap<T> create(
       Types.StructType type, Comparator<StructLike> comparator) {
     return new StructLikeMap<>(type, comparator);
   }
 
+  /**
+   * Creates a new StructLikeMap with the specified type using the default comparator for the type.
+   *
+   * @param type the struct type for the keys
+   * @return a new StructLikeMap instance
+   */
   public static <T> StructLikeMap<T> create(Types.StructType type) {
     return create(type, Comparators.forType(type));
   }

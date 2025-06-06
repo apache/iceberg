@@ -59,7 +59,6 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion) {
-
     return create(temp, null, name, schema, spec, sortOrder, formatVersion);
   }
 
@@ -141,6 +140,7 @@ public class TestTables {
               .withMetadataLocation(metaTemp.toString())
               .build();
     }
+
     ops.commit(null, metadata);
 
     if (reporter != null) {
