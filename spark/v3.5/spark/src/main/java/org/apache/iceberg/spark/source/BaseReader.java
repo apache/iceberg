@@ -229,7 +229,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
       CachingDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
         super(loadInputFile);
-        this.cache = SparkExecutorCache.getOrCreate();
+        this.cache = SparkExecutorCache.getOrCreate(true);
       }
 
       @Override
