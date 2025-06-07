@@ -327,9 +327,10 @@ SELECT * FROM prod.db.table.files;
 
 !!! info
     Content refers to type of content stored by the data file:
-      * 0  Data
-      * 1  Position Deletes
-      * 2  Equality Deletes
+
+      - 0 - Data
+      - 1 - Position Deletes
+      - 2 - Equality Deletes
 
 To show only data files or delete files, query `prod.db.table.data_files` and `prod.db.table.delete_files` respectively.
 To show all files, data files and delete files across all tracked snapshots, query `prod.db.table.all_files`, `prod.db.table.all_data_files` and `prod.db.table.all_delete_files` respectively.

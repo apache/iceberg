@@ -115,7 +115,7 @@ make clean
 
 #### Testing local changes on versioned docs
 
-When you build the docs as described above, by default the versioned docs are mounted from the upstream remote repositiory called `iceberg_docs`. One exception is the `nightly` version that is a soft link to the local `docs/` folder.
+When you build the docs as described above, by default the versioned docs are mounted from the upstream remote repository called `iceberg_docs`. One exception is the `nightly` version that is a soft link to the local `docs/` folder.
 
 When you make changes to some of the historical versioned docs in a local git branch you can mount this git branch instead of the remote one by setting the following environment variables:
 
@@ -125,7 +125,7 @@ When you make changes to some of the historical versioned docs in a local git br
 
 #### Offline mode
 
-One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add theOFFLINE environment variable to either `build` or `serve` recipes.
+One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add the OFFLINE environment variable to either `build` or `serve` recipes.
 
 ```sh
 make build OFFLINE=true
@@ -136,7 +136,7 @@ make build OFFLINE=true
 
 ## Release process
 
-Deploying the docs is a two step process:
+Deploying the docs is a two-step process:
 
 > [!WARNING]  
 > The `make release` directive is currently unavailable as we wanted to discuss the best way forward on how or if we should automate the release. It involves taking an existing snapshot of the versioned documentation, and potentially automerging the [`docs` branch](https://github.com/apache/iceberg/tree/docs) and the [`javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) which are independent from the `main` branch. Once this is complete, we can create a pull request with an offline build of the documentation to verify everything renders correctly, and then have the release manager merge that PR to finalize the docs release. So the real process would be manually invoking a docs release action, then merging a pull request.
