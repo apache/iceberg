@@ -30,6 +30,14 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class ADLSOutputFile extends BaseADLSFile implements OutputFile {
 
+  ADLSOutputFile(String location, PrefixedADLSClient prefixedADLSClient, MetricsContext metrics) {
+    super(
+        location,
+        prefixedADLSClient.fileClient(location),
+        prefixedADLSClient.azureProperties(),
+        metrics);
+  }
+
   ADLSOutputFile(
       String location,
       DataLakeFileClient fileClient,

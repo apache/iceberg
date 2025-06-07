@@ -18,19 +18,28 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import com.azure.core.http.HttpClient;
+import com.azure.storage.file.datalake.DataLakeFileClient;
+import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-class PrefixedADLSFileClientBuilder implements AutoCloseable {
+class PrefixedADLSClient implements AutoCloseable {
 
+  private static final HttpClient HTTP = HttpClient.createDefault();
   private final String storagePrefix;
   private final AzureProperties azureProperties;
 
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
 
-  PrefixedADLSFileClientBuilder(String storagePrefix, Map<String, String> properties) {
+  PrefixedADLSClient(String storagePrefix, Map<String, String> properties) {
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
+    Preconditions.checkArgument(null != properties, "Invalid properties: null");
     this.storagePrefix = storagePrefix;
     this.azureProperties = new AzureProperties(properties);
     this.azureProperties
@@ -38,13 +47,27 @@ class PrefixedADLSFileClientBuilder implements AutoCloseable {
         .ifPresent(provider -> this.vendedAdlsCredentialProvider = provider);
   }
 
-  void applyConfig(DataLakeFileSystemClientBuilder builder, String storagePath) {
+  DataLakeFileClient fileClient(String storagePath) {
     ADLSLocation location = new ADLSLocation(storagePath);
+    return client(storagePath).getFileClient(location.path());
+  }
 
+  DataLakeFileSystemClient client(String storagePath) {
+    ADLSLocation location = new ADLSLocation(storagePath);
+    DataLakeFileSystemClientBuilder clientBuilder =
+        new DataLakeFileSystemClientBuilder().httpClient(HTTP);
+
+    location.container().ifPresent(clientBuilder::fileSystemName);
     Optional.ofNullable(vendedAdlsCredentialProvider)
         .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
-        .ifPresent(builder::addPolicy);
-    azureProperties.applyClientConfiguration(location.host(), builder);
+        .ifPresent(clientBuilder::addPolicy);
+    azureProperties.applyClientConfiguration(location.host(), clientBuilder);
+
+    return clientBuilder.buildClient();
+  }
+
+  AzureProperties azureProperties() {
+    return azureProperties;
   }
 
   public String storagePrefix() {

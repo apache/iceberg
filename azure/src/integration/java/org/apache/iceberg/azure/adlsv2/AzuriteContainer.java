@@ -40,6 +40,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
   public static final String ACCOUNT = "account";
   public static final String KEY = "key";
   public static final String STORAGE_CONTAINER = "container";
+  public static final String ACCOUNT_HOST = ACCOUNT + ".dfs.core.windows.net";
 
   public AzuriteContainer() {
     this(DEFAULT_IMAGE + ":" + DEFAULT_TAG);
@@ -85,7 +86,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
   }
 
   public String location(String path) {
-    return String.format("abfs://%s@%s.dfs.core.windows.net/%s", STORAGE_CONTAINER, ACCOUNT, path);
+    return String.format("abfs://%s@%s/%s", STORAGE_CONTAINER, ACCOUNT_HOST, path);
   }
 
   public String endpoint() {
