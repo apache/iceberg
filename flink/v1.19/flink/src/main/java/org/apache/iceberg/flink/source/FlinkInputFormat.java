@@ -93,7 +93,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     // Called in Job manager, so it is OK to load table from catalog.
     tableLoader.open();
     final ExecutorService workerPool =
-        ThreadPools.newWorkerPool("iceberg-plan-worker-pool", context.planParallelism());
+        ThreadPools.newFixedThreadPool("iceberg-plan-worker-pool", context.planParallelism());
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
       return FlinkSplitPlanner.planInputSplits(table, context, workerPool);
