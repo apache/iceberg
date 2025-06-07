@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -34,7 +35,9 @@ import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -47,16 +50,18 @@ import org.apache.spark.sql.types.StructType;
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
+  public static final String NAME = "rewrite_data_files";
+
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      ProcedureParameter.in("table", DataTypes.StringType).build();
   private static final ProcedureParameter STRATEGY_PARAM =
-      ProcedureParameter.optional("strategy", DataTypes.StringType);
+      ProcedureParameter.in("strategy", DataTypes.StringType).defaultValue("NULL").build();
   private static final ProcedureParameter SORT_ORDER_PARAM =
-      ProcedureParameter.optional("sort_order", DataTypes.StringType);
+      ProcedureParameter.in("sort_order", DataTypes.StringType).defaultValue("NULL").build();
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.optional("options", STRING_MAP);
+      ProcedureParameter.in("options", STRING_MAP).defaultValue("NULL").build();
   private static final ProcedureParameter WHERE_PARAM =
-      ProcedureParameter.optional("where", DataTypes.StringType);
+      ProcedureParameter.in("where", DataTypes.StringType).defaultValue("NULL").build();
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -90,17 +95,22 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
+  public boolean isDeterministic() {
+    return false;
   }
 
   @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     String strategy = input.asString(STRATEGY_PARAM, null);
@@ -121,7 +131,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           RewriteDataFiles.Result result = action.execute();
 
-          return toOutputRows(result);
+          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 
@@ -206,6 +216,11 @@ class RewriteDataFilesProcedure extends BaseProcedure {
             rewrittenBytesCount,
             failedDataFilesCount);
     return new InternalRow[] {row};
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override
