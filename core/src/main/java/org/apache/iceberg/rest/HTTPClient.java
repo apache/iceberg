@@ -39,6 +39,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -51,7 +52,9 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -59,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.TLSConfigurer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -87,6 +91,8 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
 
   @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
+
+  static final String REST_TLS_CONFIGURER = "rest.client.tls.configurer-impl";
 
   private final URI baseUri;
   private final CloseableHttpClient httpClient;
@@ -359,7 +365,7 @@ public class HTTPClient extends BaseHTTPClient {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
 
-    return connectionManagerBuilder
+    connectionManagerBuilder
         .useSystemProperties()
         .setMaxConnTotal(
             Integer.getInteger(
@@ -368,8 +374,57 @@ public class HTTPClient extends BaseHTTPClient {
                     properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT)))
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
-                properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
-        .build();
+                properties,
+                REST_MAX_CONNECTIONS_PER_ROUTE,
+                REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT));
+
+    TLSConfigurer tlsConfigurer = loadTlsConfigurer(properties);
+    if (tlsConfigurer != null) {
+      connectionManagerBuilder.setTlsSocketStrategy(
+          new DefaultClientTlsStrategy(
+              tlsConfigurer.sslContext(),
+              tlsConfigurer.supportedProtocols(),
+              tlsConfigurer.supportedCipherSuites(),
+              SSLBufferMode.STATIC,
+              tlsConfigurer.hostnameVerifier()));
+    }
+
+    return connectionManagerBuilder.build();
+  }
+
+  private static TLSConfigurer loadTlsConfigurer(Map<String, String> properties) {
+    String impl = properties.get(REST_TLS_CONFIGURER);
+    if (impl == null) {
+      return null;
+    }
+
+    DynConstructors.Ctor<TLSConfigurer> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(TLSConfigurer.class)
+              .loader(HTTPClient.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize TLSConfigurer implementation %s: %s", impl, e.getMessage()),
+          e);
+    }
+
+    TLSConfigurer configurer;
+    try {
+      configurer = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize TLSConfigurer, %s does not implement TLSConfigurer.", impl),
+          e);
+    }
+
+    configurer.initialize(properties);
+
+    return configurer;
   }
 
   @VisibleForTesting

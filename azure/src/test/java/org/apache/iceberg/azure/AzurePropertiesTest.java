@@ -39,17 +39,22 @@ import com.azure.core.credential.TokenCredential;
 import com.azure.identity.DefaultAzureCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
+import java.io.IOException;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class AzurePropertiesTest {
 
-  @Test
-  public void testSerializable() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerializable(TestHelpers.RoundTripSerializer<AzureProperties> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     AzureProperties props =
         new AzureProperties(
             ImmutableMap.<String, String>builder()
@@ -61,7 +66,7 @@ public class AzurePropertiesTest {
                 .put(ADLS_SHARED_KEY_ACCOUNT_KEY, "secret")
                 .build());
 
-    AzureProperties serdedProps = TestHelpers.roundTripSerialize(props);
+    AzureProperties serdedProps = roundTripSerializer.apply(props);
     assertThat(serdedProps.adlsReadBlockSize()).isEqualTo(props.adlsReadBlockSize());
     assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
   }

@@ -36,6 +36,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [DataFrame append](#appending-data)              | ✔️        |                                                                             |
 | [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
+| [DataFrame merge into](#merging-data)            | ✔️        | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
 
 ## Writing with SQL
@@ -329,6 +330,26 @@ The Iceberg table location can also be specified by the `location` table propert
 data.writeTo("prod.db.table")
     .tableProperty("location", "/path/to/location")
     .createOrReplace()
+```
+
+### Merging data
+
+Spark 4.0 added support for performing a MERGE INTO query using the `DataFrameWriterV2` API.
+
+A MERGE INTO query updates a _target_ table using a set of updates from the _source_, which in this case, is a `DataFrame`:
+
+```scala
+val source: DataFrame = ...                               // e.g., read from a table, "source"
+source.mergeInto("target", $"source.id" === $"target.id") // second argument is the ON condition
+    .whenMatched($"target.id" === 1)                      // argument is the additional condition
+    .updateAll()                                          // UPDATE SET *
+    .whenMatched($"target.id" === 2)
+    .delete()
+    .whenNotMatched()
+    .insertAll()                                          // INSERT *
+    .whenNotMatchedBySource($"target.id" === 3)
+    .update(Map("status" -> lit("invalid")))              // set column name(s) to expression(s)
+    .merge()
 ```
 
 ### Schema Merge

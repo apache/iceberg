@@ -208,6 +208,15 @@ public class FlinkWriteConf {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
   }
 
+  public boolean compactMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.COMPACTION_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.COMPACTION_ENABLE)
+        .defaultValue(FlinkWriteOptions.COMPACTION_ENABLE.defaultValue())
+        .parse();
+  }
+
   /**
    * NOTE: This may be removed or changed in a future release. This value specifies the interval for
    * refreshing the table instances in sink writer subtasks. If not specified then the default

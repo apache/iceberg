@@ -38,7 +38,7 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestTableSerializerCache {
+class TestTableSerializerCache {
 
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension("db", "table");

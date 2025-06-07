@@ -33,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -133,12 +135,14 @@ public class TestAwsClientFactories {
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
   }
 
-  @Test
-  public void testDefaultAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testDefaultAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(defaultAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(defaultAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(defaultAwsClientFactory);
@@ -148,15 +152,17 @@ public class TestAwsClientFactories {
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
-  @Test
-  public void testAssumeRoleAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testAssumeRoleAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     AwsClientFactory assumeRoleAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(assumeRoleAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(assumeRoleAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(AssumeRoleAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(assumeRoleAwsClientFactory);
@@ -165,8 +171,11 @@ public class TestAwsClientFactories {
     assertThat(deserializedClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
   }
 
-  @Test
-  public void testLakeFormationAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testLakeFormationAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
@@ -176,8 +185,7 @@ public class TestAwsClientFactories {
             + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
         "emr");
     AwsClientFactory lakeFormationAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(lakeFormationAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(lakeFormationAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(LakeFormationAwsClientFactory.class);
 
     byte[] serializedFactoryBytes =
