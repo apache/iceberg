@@ -30,7 +30,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     api project(':iceberg-data')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
-    implementation project(':iceberg-hive-metastore')
+    implementation project(':iceberg-hive4-metastore')
 
     compileOnly libs.flink119.avro
     // for dropwizard histogram metrics implementation
@@ -82,7 +82,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'junit'
     }
 
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-hive4-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
@@ -91,7 +91,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
+    testImplementation("${libs.hive4.exec.get().module}:${libs.hive4.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -103,7 +103,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation(libs.hive2.metastore) {
+    testImplementation(libs.hive4.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -120,6 +120,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.slf4j'
     }
 
+    testImplementation libs.hive4.standalone.metastore.server
+    testImplementation libs.hadoop3.hdfs
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
     testImplementation libs.sqlite.jdbc
@@ -180,7 +182,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-hive4-metastore', configuration: 'testArtifacts')
     integrationImplementation(libs.flink119.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
@@ -195,7 +197,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    integrationImplementation(libs.hive2.metastore) {
+    integrationImplementation(libs.hive4.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -212,7 +214,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'org.slf4j'
     }
 
-    integrationImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
+    integrationImplementation("${libs.hive4.exec.get().module}:${libs.hive4.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
