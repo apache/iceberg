@@ -107,8 +107,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
     }
-    testImplementation project(path: ':iceberg-hive-metastore')
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-hive4-metastore')
+    testImplementation project(path: ':iceberg-hive4-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
@@ -173,11 +173,11 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation project(path: ':iceberg-data')
     testImplementation project(path: ':iceberg-parquet')
-    testImplementation project(path: ':iceberg-hive-metastore')
+    testImplementation project(path: ':iceberg-hive4-metastore')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-hive4-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
     testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
       transitive = false
@@ -251,7 +251,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'commons-logging', module: 'commons-logging'
     }
     implementation project(':iceberg-gcp')
-    implementation project(':iceberg-hive-metastore')
+    implementation project(':iceberg-hive4-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -266,12 +266,12 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-hive4-metastore', configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
     // runtime dependencies for running Hive Catalog based integration test
-    integrationRuntimeOnly project(':iceberg-hive-metastore')
+    integrationRuntimeOnly project(':iceberg-hive4-metastore')
     // runtime dependencies for running REST Catalog based integration test
     integrationRuntimeOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
     integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
