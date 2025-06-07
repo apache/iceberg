@@ -97,6 +97,19 @@ public interface RESTClient extends Closeable {
     return get(path, queryParams, responseType, headers.get(), errorHandler);
   }
 
+  default <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      ParserContext parserContext) {
+    if (parserContext != null) {
+      throw new UnsupportedOperationException("Parser context is not supported");
+    }
+    return get(path, queryParams, responseType, headers, errorHandler);
+  }
+
   <T extends RESTResponse> T get(
       String path,
       Map<String, String> queryParams,
@@ -121,6 +134,20 @@ public interface RESTClient extends Closeable {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
     return post(path, body, responseType, headers.get(), errorHandler, responseHeaders);
+  }
+
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
+    if (parserContext != null) {
+      throw new UnsupportedOperationException("Parser context is not supported");
+    }
+    return post(path, body, responseType, headers, errorHandler, responseHeaders);
   }
 
   default <T extends RESTResponse> T post(
