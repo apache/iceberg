@@ -44,6 +44,7 @@ import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
@@ -114,7 +115,10 @@ public class FlinkSink {
    * @param input the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
    * @return {@link Builder} to connect the iceberg table.
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #forRow(DataStream,
+   *     ResolvedSchema)} instead.
    */
+  @Deprecated
   public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
     RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
     DataType[] fieldDataTypes = tableSchema.getFieldDataTypes();
@@ -123,6 +127,26 @@ public class FlinkSink {
         new DataFormatConverters.RowConverter(fieldDataTypes);
     return builderFor(input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
         .tableSchema(tableSchema);
+  }
+
+  /**
+   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into
+   * iceberg table. We use {@link RowData} inside the sink connector, so users need to provide a
+   * {@link ResolvedSchema} for builder to convert those {@link Row}s to a {@link RowData}
+   * DataStream.
+   *
+   * @param input the source input data stream with {@link Row}s.
+   * @param resolvedSchema defines the {@link TypeInformation} for input data.
+   * @return {@link Builder} to connect the iceberg table.
+   */
+  public static Builder forRow(DataStream<Row> input, ResolvedSchema resolvedSchema) {
+    RowType rowType = (RowType) resolvedSchema.toSinkRowDataType().getLogicalType();
+    DataType[] fieldDataTypes = resolvedSchema.getColumnDataTypes().toArray(new DataType[0]);
+
+    DataFormatConverters.RowConverter rowConverter =
+        new DataFormatConverters.RowConverter(fieldDataTypes);
+    return builderFor(input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
+        .resolvedSchema(resolvedSchema);
   }
 
   /**
@@ -140,7 +164,8 @@ public class FlinkSink {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
-    private TableSchema tableSchema;
+    @Deprecated private TableSchema tableSchema;
+    private ResolvedSchema resolvedSchema;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
@@ -223,6 +248,12 @@ public class FlinkSink {
     @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
+      return this;
+    }
+
+    @Override
+    public Builder resolvedSchema(ResolvedSchema newResolvedSchema) {
+      this.resolvedSchema = newResolvedSchema;
       return this;
     }
 
@@ -421,7 +452,10 @@ public class FlinkSink {
       List<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+      RowType flinkRowType =
+          resolvedSchema != null
+              ? toFlinkRowType(table.schema(), resolvedSchema)
+              : toFlinkRowType(table.schema(), tableSchema);
       int writerParallelism =
           flinkWriteConf.writeParallelism() == null
               ? rowDataInput.getParallelism()
@@ -688,6 +722,8 @@ public class FlinkSink {
     }
   }
 
+  /** Clean up after removing {@link Builder#tableSchema} */
+  @Deprecated
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
@@ -700,6 +736,23 @@ public class FlinkSink {
       // (backend by 1 'byte'), we will read 4 bytes rather than 1 byte, it will mess up the
       // byte array in BinaryRowData. So here we must use flink schema.
       return (RowType) requestedSchema.toRowDataType().getLogicalType();
+    } else {
+      return FlinkSchemaUtil.convert(schema);
+    }
+  }
+
+  static RowType toFlinkRowType(Schema schema, ResolvedSchema requestedSchema) {
+    if (requestedSchema != null) {
+      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
+      // iceberg schema.
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
+
+      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will
+      // be promoted to iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT
+      // (backend by 1 'byte'), we will read 4 bytes rather than 1 byte, it will mess up the
+      // byte array in BinaryRowData. So here we must use flink schema.
+      return (RowType) requestedSchema.toSinkRowDataType().getLogicalType();
     } else {
       return FlinkSchemaUtil.convert(schema);
     }

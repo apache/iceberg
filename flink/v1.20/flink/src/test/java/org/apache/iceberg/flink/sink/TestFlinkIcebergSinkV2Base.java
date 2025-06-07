@@ -29,6 +29,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.FileFormat;
@@ -52,7 +53,10 @@ class TestFlinkIcebergSinkV2Base {
 
   static final int FORMAT_V2 = 2;
   static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
+              .map(ExternalTypeInfo::of)
+              .toArray(TypeInformation[]::new));
 
   static final int ROW_ID_POS = 0;
   static final int ROW_DATA_POS = 1;
@@ -334,7 +338,7 @@ class TestFlinkIcebergSinkV2Base {
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)

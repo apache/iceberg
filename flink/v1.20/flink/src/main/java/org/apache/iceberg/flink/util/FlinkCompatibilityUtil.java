@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.util;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.data.RowData;
@@ -37,11 +38,19 @@ public class FlinkCompatibilityUtil {
     return InternalTypeInfo.of(rowType);
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 2.0.0.
+   */
+  @Deprecated
   public static boolean isPhysicalColumn(TableColumn column) {
     return column.isPhysical();
   }
 
   public static boolean isPhysicalColumn(Column column) {
     return column.isPhysical();
+  }
+
+  public static boolean isPhysicalColumn(Schema.UnresolvedColumn column) {
+    return column instanceof Schema.UnresolvedPhysicalColumn;
   }
 }
