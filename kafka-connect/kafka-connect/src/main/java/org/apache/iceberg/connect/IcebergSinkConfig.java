@@ -86,6 +86,16 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
+  private static final String COMMIT_MAX_RETRIES_PROP = "iceberg.control.commit.max-retries";
+  private static final int COMMIT_MAX_RETRIES_DEFAULT = 3;
+  private static final String COMMIT_MIN_RETRY_WAIT_MS_PROP = "iceberg.control.commit.min-retry-wait-ms";
+  private static final int COMMIT_MIN_RETRY_WAIT_MS_DEFAULT = 100;
+  private static final String COMMIT_MAX_RETRY_WAIT_MS_PROP = "iceberg.control.commit.max-retry-wait-ms";
+  private static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60_000;
+  private static final String COMMIT_TOTAL_RETRY_TIME_MS_PROP = "iceberg.control.commit.total-retry-time-ms";
+  private static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 300_000; // 5 minutes
+  public static final String FAIL_ON_MAX_COMMIT_RETRIES = "fail.on.max.commit.retries";
+  public static final boolean FAIL_ON_MAX_COMMIT_RETRIES_DEFAULT = false;
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String TRANSACTIONAL_PREFIX_PROP =
       "iceberg.coordinator.transactional.prefix";
@@ -213,6 +223,37 @@ public class IcebergSinkConfig extends AbstractConfig {
         Runtime.getRuntime().availableProcessors() * 2,
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
+    configDef.define(
+        COMMIT_MAX_RETRIES_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_MAX_RETRIES_DEFAULT,
+        Importance.MEDIUM,
+        "Maximum number of commit retries");
+    configDef.define(
+        COMMIT_MIN_RETRY_WAIT_MS_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+        Importance.MEDIUM,
+        "Minimum wait time between commit retries, in milliseconds");
+    configDef.define(
+        COMMIT_MAX_RETRY_WAIT_MS_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+        Importance.MEDIUM,
+        "Maximum wait time between commit retries, in milliseconds");
+    configDef.define(
+        COMMIT_TOTAL_RETRY_TIME_MS_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+        Importance.MEDIUM,
+       "Total retry time for commit, in milliseconds");
+    configDef.define(
+        FAIL_ON_MAX_COMMIT_RETRIES,
+        ConfigDef.Type.BOOLEAN,
+        FAIL_ON_MAX_COMMIT_RETRIES_DEFAULT,
+        Importance.MEDIUM,
+        "If true, the connector will fail when commit operations fail after maximum retry attempts. " +
+                    "If false, the connector will log the error and continue operation, attempting again in the next cycle.");
     configDef.define(
         TRANSACTIONAL_PREFIX_PROP,
         ConfigDef.Type.STRING,
@@ -399,6 +440,26 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitThreads() {
     return getInt(COMMIT_THREADS_PROP);
+  }
+
+  public int commitMaxRetries() {
+    return getInt(COMMIT_MAX_RETRIES_PROP);
+  }
+
+  public int commitMinRetryWaitMs() {
+    return getInt(COMMIT_MIN_RETRY_WAIT_MS_PROP);
+  }
+
+  public int commitMaxRetryWaitMs() {
+    return getInt(COMMIT_MAX_RETRY_WAIT_MS_PROP);
+  }
+
+  public int commitTotalRetryTimeMs() {
+    return getInt(COMMIT_TOTAL_RETRY_TIME_MS_PROP);
+  }
+
+  public boolean failOnMaxCommitRetries() {
+    return getBoolean(FAIL_ON_MAX_COMMIT_RETRIES);
   }
 
   public String transactionalPrefix() {

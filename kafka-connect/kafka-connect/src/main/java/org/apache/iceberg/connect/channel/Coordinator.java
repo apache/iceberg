@@ -49,6 +49,7 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
@@ -130,9 +131,27 @@ class Coordinator extends Channel {
 
   private void commit(boolean partialCommit) {
     try {
-      doCommit(partialCommit);
+      Tasks.foreach(ImmutableList.of(partialCommit))
+              .retry(config.commitMaxRetries())
+              .exponentialBackoff(
+                      config.commitMinRetryWaitMs(),
+                      config.commitMaxRetryWaitMs(),
+                      config.commitTotalRetryTimeMs(),
+                      2.0 /* exponential */)
+              .onlyRetryOn(Exception.class)
+              .run(
+                      item -> {
+                        doCommit(partialCommit);
+                      });
     } catch (Exception e) {
-      LOG.warn("Commit failed, will try again next cycle", e);
+      LOG.error("Commit failed after {} retries", config.commitMaxRetries(), e);
+
+      if (config.failOnMaxCommitRetries()) {
+        throw new ConnectException("Commit operation failed after maximum retry attempts: " +
+                config.commitMaxRetries(), e);
+      } else {
+        LOG.warn("Connector will continue and try again next cycle. Set 'fail.on.max.commit.retries' to true to fail fast on persistent commit errors.");
+      }
     } finally {
       commitState.endCurrentCommit();
     }
