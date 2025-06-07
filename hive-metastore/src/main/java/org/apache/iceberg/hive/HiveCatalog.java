@@ -62,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -90,6 +91,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
+  private boolean uniqueTableLocation = false;
   private Map<String, String> catalogProperties;
 
   public HiveCatalog() {}
@@ -121,6 +123,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         fileIOImpl == null
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
 
     this.clients = new CachedClientPool(conf, properties);
   }
@@ -707,7 +715,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
           clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
-        return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
+        return String.format(
+            "%s/%s",
+            databaseData.getLocationUri(), formatTableName(tableIdentifier, uniqueTableLocation));
       }
 
     } catch (NoSuchObjectException e) {
@@ -724,7 +734,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
     String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
-    return String.format("%s/%s", databaseLocation, tableIdentifier.name());
+    return String.format(
+        "%s/%s", databaseLocation, formatTableName(tableIdentifier, uniqueTableLocation));
   }
 
   private String databaseLocation(String databaseName) {
