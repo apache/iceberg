@@ -88,11 +88,14 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String COMMIT_MAX_RETRIES_PROP = "iceberg.control.commit.max-retries";
   private static final int COMMIT_MAX_RETRIES_DEFAULT = 3;
-  private static final String COMMIT_MIN_RETRY_WAIT_MS_PROP = "iceberg.control.commit.min-retry-wait-ms";
+  private static final String COMMIT_MIN_RETRY_WAIT_MS_PROP =
+      "iceberg.control.commit.min-retry-wait-ms";
   private static final int COMMIT_MIN_RETRY_WAIT_MS_DEFAULT = 100;
-  private static final String COMMIT_MAX_RETRY_WAIT_MS_PROP = "iceberg.control.commit.max-retry-wait-ms";
+  private static final String COMMIT_MAX_RETRY_WAIT_MS_PROP =
+      "iceberg.control.commit.max-retry-wait-ms";
   private static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60_000;
-  private static final String COMMIT_TOTAL_RETRY_TIME_MS_PROP = "iceberg.control.commit.total-retry-time-ms";
+  private static final String COMMIT_TOTAL_RETRY_TIME_MS_PROP =
+      "iceberg.control.commit.total-retry-time-ms";
   private static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 300_000; // 5 minutes
   public static final String FAIL_ON_MAX_COMMIT_RETRIES = "fail.on.max.commit.retries";
   public static final boolean FAIL_ON_MAX_COMMIT_RETRIES_DEFAULT = false;
@@ -246,14 +249,14 @@ public class IcebergSinkConfig extends AbstractConfig {
         ConfigDef.Type.INT,
         COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
         Importance.MEDIUM,
-       "Total retry time for commit, in milliseconds");
+        "Total retry time for commit, in milliseconds");
     configDef.define(
         FAIL_ON_MAX_COMMIT_RETRIES,
         ConfigDef.Type.BOOLEAN,
         FAIL_ON_MAX_COMMIT_RETRIES_DEFAULT,
         Importance.MEDIUM,
-        "If true, the connector will fail when commit operations fail after maximum retry attempts. " +
-                    "If false, the connector will log the error and continue operation, attempting again in the next cycle.");
+        "If true, the connector will fail when commit operations fail after maximum retry attempts. "
+            + "If false, the connector will log the error and continue operation, attempting again in the next cycle.");
     configDef.define(
         TRANSACTIONAL_PREFIX_PROP,
         ConfigDef.Type.STRING,
