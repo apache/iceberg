@@ -67,14 +67,14 @@ public class TestIcebergSinkConfig {
   @Test
   public void testCommitRetryConfiguration() {
     Map<String, String> props =
-            ImmutableMap.of(
-                    "iceberg.catalog.type", "rest",
-                    "topics", "source-topic",
-                    "iceberg.tables", "db.landing",
-                    "iceberg.control.commit.max-retries", "5",
-                    "iceberg.control.commit.min-retry-wait-ms", "200",
-                    "iceberg.control.commit.max-retry-wait-ms", "120000",
-                    "iceberg.control.commit.total-retry-time-ms", "600000");
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "db.landing",
+            "iceberg.control.commit.max-retries", "5",
+            "iceberg.control.commit.min-retry-wait-ms", "200",
+            "iceberg.control.commit.max-retry-wait-ms", "120000",
+            "iceberg.control.commit.total-retry-time-ms", "600000");
     IcebergSinkConfig config = new IcebergSinkConfig(props);
     assertThat(config.commitMaxRetries()).isEqualTo(5);
     assertThat(config.commitMinRetryWaitMs()).isEqualTo(200);
@@ -82,23 +82,24 @@ public class TestIcebergSinkConfig {
     assertThat(config.commitTotalRetryTimeMs()).isEqualTo(600_000);
     assertThat(config.failOnMaxCommitRetries()).isFalse();
   }
+
   @Test
   public void testFailOnMaxCommitRetries() {
     Map<String, String> propsEnabled =
-            ImmutableMap.of(
-                    "iceberg.catalog.type", "rest",
-                    "topics", "source-topic",
-                    "iceberg.tables", "db.landing",
-                    "fail.on.max.commit.retries", "true");
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "db.landing",
+            "fail.on.max.commit.retries", "true");
     IcebergSinkConfig configEnabled = new IcebergSinkConfig(propsEnabled);
     assertThat(configEnabled.failOnMaxCommitRetries()).isTrue();
 
     Map<String, String> propsDisabled =
-            ImmutableMap.of(
-                    "iceberg.catalog.type", "rest",
-                    "topics", "source-topic",
-                    "iceberg.tables", "db.landing",
-                    "fail.on.max.commit.retries", "false");
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "db.landing",
+            "fail.on.max.commit.retries", "false");
     IcebergSinkConfig configDisabled = new IcebergSinkConfig(propsDisabled);
     assertThat(configDisabled.failOnMaxCommitRetries()).isFalse();
   }

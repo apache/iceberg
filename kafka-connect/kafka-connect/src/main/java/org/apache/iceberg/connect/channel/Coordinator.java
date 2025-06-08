@@ -132,25 +132,27 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       Tasks.foreach(ImmutableList.of(partialCommit))
-              .retry(config.commitMaxRetries())
-              .exponentialBackoff(
-                      config.commitMinRetryWaitMs(),
-                      config.commitMaxRetryWaitMs(),
-                      config.commitTotalRetryTimeMs(),
-                      2.0 /* exponential */)
-              .onlyRetryOn(Exception.class)
-              .run(
-                      item -> {
-                        doCommit(partialCommit);
-                      });
+          .retry(config.commitMaxRetries())
+          .exponentialBackoff(
+              config.commitMinRetryWaitMs(),
+              config.commitMaxRetryWaitMs(),
+              config.commitTotalRetryTimeMs(),
+              2.0 /* exponential */)
+          .onlyRetryOn(Exception.class)
+          .run(
+              item -> {
+                doCommit(partialCommit);
+              });
     } catch (Exception e) {
       LOG.error("Commit failed after {} retries", config.commitMaxRetries(), e);
 
       if (config.failOnMaxCommitRetries()) {
-        throw new ConnectException("Commit operation failed after maximum retry attempts: " +
-                config.commitMaxRetries(), e);
+        throw new ConnectException(
+            "Commit operation failed after maximum retry attempts: " + config.commitMaxRetries(),
+            e);
       } else {
-        LOG.warn("Connector will continue and try again next cycle. Set 'fail.on.max.commit.retries' to true to fail fast on persistent commit errors.");
+        LOG.warn(
+            "Connector will continue and try again next cycle. Set 'fail.on.max.commit.retries' to true to fail fast on persistent commit errors.");
       }
     } finally {
       commitState.endCurrentCommit();
