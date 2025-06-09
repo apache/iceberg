@@ -52,6 +52,7 @@ class ParserContext {
 
     public Builder add(String key, Object value) {
       Preconditions.checkNotNull(key, "Key cannot be null");
+      Preconditions.checkNotNull(value, "Value cannot be null");
       this.data.put(key, value);
       return this;
     }

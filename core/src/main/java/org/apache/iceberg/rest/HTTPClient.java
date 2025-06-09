@@ -26,7 +26,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.auth.AuthScope;
@@ -103,7 +103,7 @@ public class HTTPClient extends BaseHTTPClient {
   private final ObjectMapper mapper;
   private final AuthSession authSession;
   private final boolean isRootClient;
-  private final ConcurrentHashMap<Class<?>, ObjectReader> objectReaderCache = new ConcurrentHashMap<>();
+  private final ConcurrentMap<Class<?>, ObjectReader> objectReaderCache = Maps.newConcurrentMap();
 
   private HTTPClient(
       URI baseUri,
@@ -355,8 +355,8 @@ public class HTTPClient extends BaseHTTPClient {
       }
 
       try {
-        var reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
-        if (!parserContext.isEmpty()) {
+        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+        if (parserContext != null && !parserContext.isEmpty()) {
           reader = reader.with(parserContext.toInjectableValues());
         }
         return reader.readValue(responseBody);
