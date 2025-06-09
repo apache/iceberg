@@ -39,7 +39,7 @@ class IcebergWriter implements RecordWriter {
   private final IcebergSinkConfig config;
   private final List<IcebergWriterResult> writerResults;
 
-  private RecordConverter recordConverter;
+  private Converter recordConverter;
   private TaskWriter<Record> writer;
 
   IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
@@ -52,7 +52,10 @@ class IcebergWriter implements RecordWriter {
 
   private void initNewWriter() {
     this.writer = RecordUtils.createTableWriter(table, tableName, config);
-    this.recordConverter = new RecordConverter(table, config);
+    this.recordConverter =
+        config.supportBackwardCompatibility()
+            ? new BackwardCompatibleRecordConverter(table, config)
+            : new RecordConverter(table, config);
   }
 
   @Override
@@ -76,7 +79,14 @@ class IcebergWriter implements RecordWriter {
   }
 
   private Record convertToRow(SinkRecord record) {
-    if (!config.evolveSchemaEnabled()) {
+    // Making sure schema is evolved only in the following cases
+    // 1. Schema evolution should be explicitly enabled
+    // 2. The version of schema in the current connect record should be higher than the one stored
+    // in the table
+    if (!config.evolveSchemaEnabled()
+        || record.valueSchema().version()
+            <= Integer.parseInt(
+                table.properties().getOrDefault(IcebergSinkConfig.CONNECT_SCHEMA_VERSION, "-1"))) {
       return recordConverter.convert(record.value());
     }
 
@@ -86,6 +96,8 @@ class IcebergWriter implements RecordWriter {
     if (!updates.empty()) {
       // complete the current file
       flush();
+      // update the version in schema consumer
+      updates.version(record.valueSchema().version());
       // apply the schema updates, this will refresh the table
       SchemaUtils.applySchemaUpdates(table, updates);
       // initialize a new writer with the new schema
