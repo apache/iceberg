@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
@@ -25,7 +26,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
@@ -33,6 +36,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionUtil {
@@ -47,7 +54,8 @@ public class TestExpressionUtil {
           Types.NestedField.required(7, "time", Types.DateType.get()),
           Types.NestedField.optional(8, "data", Types.StringType.get()),
           Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
-          Types.NestedField.optional(10, "test", Types.IntegerType.get()));
+          Types.NestedField.optional(10, "test", Types.IntegerType.get()),
+          Types.NestedField.required(11, "var", Types.VariantType.get()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -1048,6 +1056,171 @@ public class TestExpressionUtil {
                 true))
         .as("Should not select partitions, on hour not day boundary")
         .isFalse();
+  }
+
+  @Test
+  public void testSanitizeVariantArray() {
+    Expression bound = Binder.bind(STRUCT, equal("var", Variant.of(VariantMetadata.empty(), VariantTestUtil.createMixedArray())));
+    assertEquals(
+        Expressions.equal(
+            "var",
+            "{(date), (2-digit-INT8), (hash-2024a117), {(hash-7b813b77), (hash-512b3ddf), (hash-36f6eef4)}, (hash-6926fdc4), "
+                + "(hash-06eb5017), (hash-64f79f23), (hash-3682a0b4), (hash-451a5465), (4-digit-INT16)}"),
+        ExpressionUtil.sanitize(bound));
+  }
+
+  @Test
+  public void testSanitizeVariantPrimitive() {
+    Expression int8Bound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 32}))));
+    assertEquals(Expressions.equal("var", "(2-digit-INT8)"), ExpressionUtil.sanitize(int8Bound));
+    Expression int16Bound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(4, new byte[] {(byte) 0xD2, 0x04}))));
+    assertEquals(Expressions.equal("var", "(4-digit-INT16)"), ExpressionUtil.sanitize(int16Bound));
+    Expression doubleBound =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(
+                        7,
+                        new byte[] {
+                          (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+                        }))));
+    assertEquals(
+        Expressions.equal("var", "(-224-digit-DOUBLE)"), ExpressionUtil.sanitize(doubleBound));
+
+    Expression timestamp =
+        Binder.bind(
+            STRUCT,
+            equal(
+                "var",
+                Variant.of(
+                    VariantMetadata.empty(),
+                    VariantTestUtil.createSerializedPrimitive(
+                        12,
+                        new byte[] {
+                          0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00
+                        }))));
+    assertEquals(Expressions.equal("var", "(timestamp)"), ExpressionUtil.sanitize(timestamp));
+  }
+
+  @Test
+  public void testSanitizeVariantObject() {
+    Map<String, VariantValue> data = new HashMap<String, VariantValue>();
+    data.put("event_id_8", VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 32}));
+    data.put(
+        "event_id_16",
+        VariantTestUtil.createSerializedPrimitive(4, new byte[] {(byte) 0xD2, 0x04}));
+    data.put(
+        "event_id_32",
+        VariantTestUtil.createSerializedPrimitive(
+            5, new byte[] {(byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_id_64",
+        VariantTestUtil.createSerializedPrimitive(
+            6, new byte[] {(byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11}));
+    data.put("event_name", VariantTestUtil.createString("test"));
+    data.put(
+        "event_float",
+        VariantTestUtil.createSerializedPrimitive(
+            14, new byte[] {(byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_double",
+        VariantTestUtil.createSerializedPrimitive(
+            7, new byte[] {(byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11}));
+    byte[] empty = new byte[0];
+    data.put("event_bool_t", VariantTestUtil.createSerializedPrimitive(1, empty));
+    data.put("event_bool_f", VariantTestUtil.createSerializedPrimitive(2, empty));
+    data.put(
+        "event_id_dec4",
+        VariantTestUtil.createSerializedPrimitive(
+            8, new byte[] {0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49}));
+    data.put(
+        "event_id_dec8", // scale=9
+        VariantTestUtil.createSerializedPrimitive(
+            9,
+            new byte[] {
+              0x09, (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
+            }));
+    data.put(
+        "event_id_dec16", // scale=9
+        VariantTestUtil.createSerializedPrimitive(
+            10,
+            new byte[] {
+              0x09,
+              0x15,
+              0x71,
+              0x34,
+              (byte) 0xB0,
+              (byte) 0xB8,
+              (byte) 0x87,
+              0x10,
+              (byte) 0x89,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00
+            }));
+    data.put(
+        "event_date",
+        VariantTestUtil.createSerializedPrimitive(11, new byte[] {(byte) 0xF4, 0x43, 0x00, 0x00}));
+    data.put(
+        "event_timestamp_tz",
+        VariantTestUtil.createSerializedPrimitive(
+            12, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
+    data.put(
+        "event_timestamp_ntz",
+        VariantTestUtil.createSerializedPrimitive(
+            13, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
+    data.put(
+        "event_binary",
+        VariantTestUtil.createSerializedPrimitive(
+            15, new byte[] {0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'}));
+    data.put("event_array", VariantTestUtil.createMixedArray());
+    Variant value = VariantTestUtil.variant(data);
+    Expression bound = Binder.bind(STRUCT, equal("var", value));
+    assertEquals(
+        Expressions.equal(
+            "var",
+            "{(hash-event_array): "
+                + "{(date), (2-digit-INT8), (hash-2024a117), {(hash-7b813b77), (hash-512b3ddf), (hash-36f6eef4)}, (hash-6926fdc4), "
+                + "(hash-06eb5017), (hash-64f79f23), (hash-3682a0b4), (hash-451a5465), (4-digit-INT16)}, "
+                + "(hash-event_binary): (hash-04584bd6), "
+                + "(hash-event_bool_f): (hash-3682a0b4), "
+                + "(hash-event_bool_t): (hash-451a5465), "
+                + "(hash-event_date): (date), "
+                + "(hash-event_double): (-224-digit-DOUBLE), "
+                + "(hash-event_float): (7-digit-FLOAT), "
+                + "(hash-event_id_16): (4-digit-INT16), "
+                + "(hash-event_id_32): (10-digit-INT32), "
+                + "(hash-event_id_64): (19-digit-INT64), "
+                + "(hash-event_id_8): (2-digit-INT8), "
+                + "(hash-event_id_dec16): (10-digit-DECIMAL16), "
+                + "(hash-event_id_dec4): (6-digit-DECIMAL4), "
+                + "(hash-event_id_dec8): (10-digit-DECIMAL8), "
+                + "(hash-event_name): (hash-79b17dd6), "
+                + "(hash-event_timestamp_ntz): (timestamp), "
+                + "(hash-event_timestamp_tz): (timestamp)}"),
+        ExpressionUtil.sanitize(bound));
   }
 
   private void assertEquals(Expression expected, Expression actual) {
