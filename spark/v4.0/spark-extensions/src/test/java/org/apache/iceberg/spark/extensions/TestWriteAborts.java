@@ -121,7 +121,7 @@ public class TestWriteAborts extends ExtensionsTestBase {
         "Should be no orphan data files",
         ImmutableList.of(),
         sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', older_than => %dL, location => '%s')",
+            "CALL %s.system.remove_orphan_files(table => '%s', older_than => CAST(%dL AS TIMESTAMP), location => '%s')",
             catalogName, tableName, System.currentTimeMillis() + 5000, dataLocation));
   }
 
