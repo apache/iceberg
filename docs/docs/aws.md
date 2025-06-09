@@ -33,7 +33,8 @@ or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would li
 
 All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
 for HTTP connection management.
-This dependency is not part of the AWS SDK bundle and needs to be added separately.
+This dependency is included as a shaded library in the AWS SDK bundle JAR,
+but if if the individual client libraries are used, it needs to be added separately.
 To choose a different HTTP client library such as [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client),
 see the section [client customization](#aws-client-customization) for more details.
 
@@ -420,18 +421,13 @@ There is no redundant consistency wait and check which might negatively impact p
 
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
 As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
- and is thus recommended for S3 use cases rather than the S3A FileSystem.
+and is thus recommended for S3 use cases rather than the S3A FileSystem.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
 This feature allows people to easily switch from S3A to `S3FileIO`.
 
-If for any reason you have to use S3A, here are the instructions:
-
-1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
-2. For `HiveCatalog`, to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
-3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
-4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
+If you do wish to use S3A, see the "Using the Hadoop S3A Connector" section below.
 
 ### S3 Write Checksum Verification
 
@@ -744,6 +740,24 @@ Users can use catalog properties to override the defaults. For example, to confi
 ```shell
 --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
+
+## Using the Hadoop S3A Connector
+
+To use the S3A Connector, here are the instructions:
+
+1. Dpecify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
+2. For `HiveCatalog` to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
+3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine. The version of this library must be the exact same version as the other hadoop binaries on the classpath.
+4. Put a compatible version of the AWS SDK in the classpath.
+5. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html).
+
+```shell
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3a://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.hadoop.HadoopFileIO
+```
+If any problems are encountered consult its [troubleshooting](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/troubleshooting_s3a.html) document. 
 
 ## Run Iceberg on AWS
 
