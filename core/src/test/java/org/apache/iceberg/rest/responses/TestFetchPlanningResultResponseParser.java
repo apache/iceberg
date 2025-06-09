@@ -26,9 +26,12 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
@@ -39,10 +42,23 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
-import org.apache.iceberg.rest.RESTObjectMapper;
+import org.apache.iceberg.rest.RESTSerializers;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestFetchPlanningResultResponseParser {
+
+  private static final JsonFactory FACTORY =
+      new JsonFactoryBuilder()
+          .configure(JsonFactory.Feature.INTERN_FIELD_NAMES, false)
+          .configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false)
+          .build();
+  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
+
+  @BeforeEach
+  public void before() {
+    RESTSerializers.registerAll(MAPPER);
+  }
 
   @Test
   public void nullAndEmptyCheck() {
@@ -198,9 +214,7 @@ public class TestFetchPlanningResultResponseParser {
     injectableValues.addValue("specsById", PARTITION_SPECS_BY_ID);
     injectableValues.addValue("caseSensitive", false);
     ObjectReader objectReader =
-        RESTObjectMapper.mapper()
-            .readerFor(FetchPlanningResultResponse.class)
-            .with(injectableValues);
+        MAPPER.readerFor(FetchPlanningResultResponse.class).with(injectableValues);
     FetchPlanningResultResponse fromResponse = objectReader.readValue(json);
     // Need to make a new response with partitionSpec set
     FetchPlanningResultResponse copyResponse =

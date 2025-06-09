@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
-public class RESTObjectMapper {
+class RESTObjectMapper {
   private static final JsonFactory FACTORY =
       new JsonFactoryBuilder()
           .configure(JsonFactory.Feature.INTERN_FIELD_NAMES, false)
