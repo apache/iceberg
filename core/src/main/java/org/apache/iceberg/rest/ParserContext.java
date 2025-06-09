@@ -31,6 +31,10 @@ class ParserContext {
     this.data = Collections.unmodifiableMap(builder.data);
   }
 
+  public boolean isEmpty() {
+    return data.isEmpty();
+  }
+
   public InjectableValues toInjectableValues() {
     return new InjectableValues.Std(data);
   }
