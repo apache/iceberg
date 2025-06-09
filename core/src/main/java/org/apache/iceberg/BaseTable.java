@@ -227,7 +227,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    return new RemoveSnapshots(ops);
+    return new RemoveSnapshots(name, ops);
   }
 
   @Override
