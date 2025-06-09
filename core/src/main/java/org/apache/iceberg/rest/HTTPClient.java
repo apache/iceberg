@@ -26,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.auth.AuthScope;
@@ -102,6 +103,7 @@ public class HTTPClient extends BaseHTTPClient {
   private final ObjectMapper mapper;
   private final AuthSession authSession;
   private final boolean isRootClient;
+  private final ConcurrentHashMap<Class<?>, ObjectReader> objectReaderCache = new ConcurrentHashMap<>();
 
   private HTTPClient(
       URI baseUri,
@@ -353,8 +355,10 @@ public class HTTPClient extends BaseHTTPClient {
       }
 
       try {
-        ObjectReader reader =
-            mapper.readerFor(responseType).with(parserContext.toInjectableValues());
+        var reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+        if (!parserContext.isEmpty()) {
+          reader = reader.with(parserContext.toInjectableValues());
+        }
         return reader.readValue(responseBody);
       } catch (JsonProcessingException e) {
         throw new RESTException(
