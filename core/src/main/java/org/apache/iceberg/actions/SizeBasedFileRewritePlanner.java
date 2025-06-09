@@ -174,7 +174,7 @@ public abstract class SizeBasedFileRewritePlanner<
   }
 
   protected boolean enoughInputFiles(List<T> group) {
-    return group.size() > 1 && group.size() >= minInputFiles;
+    return group.size() > minInputFiles;
   }
 
   protected boolean enoughContent(List<T> group) {

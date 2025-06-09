@@ -102,7 +102,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     tableLoader(),
                     11,
                     1L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(MIN_INPUT_FILES, "1")))) {
       testHarness.open();
 
       // Cause an exception
@@ -167,7 +167,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     tableLoader(),
                     11,
                     maxRewriteBytes,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(MIN_INPUT_FILES, "1")))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
