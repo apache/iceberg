@@ -833,7 +833,7 @@ public class IcebergSink
   private int resolveParallelismFor(DataStream<RowData> input) {
     // if the writeParallelism is not specified, we set the default to the input parallelism to
     // encourage chaining.
-    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElse(input.getParallelism());
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
   }
 
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
