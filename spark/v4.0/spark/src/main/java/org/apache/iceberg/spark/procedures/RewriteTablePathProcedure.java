@@ -118,7 +118,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
           if (stagingLocation != null) {
             action.stagingLocation(stagingLocation);
           }
-          action.skipFileList(skipFileList);
+          action.saveFileList(skipFileList);
 
           return toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute());
         });

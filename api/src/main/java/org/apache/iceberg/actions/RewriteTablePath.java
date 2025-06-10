@@ -92,7 +92,7 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * @param skipFileList true to skip saving the file list, false to include it
    * @return this instance for method chaining
    */
-  default RewriteTablePath skipFileList(boolean skipFileList) {
+  default RewriteTablePath saveFileList(boolean skipFileList) {
     return this;
   }
 
