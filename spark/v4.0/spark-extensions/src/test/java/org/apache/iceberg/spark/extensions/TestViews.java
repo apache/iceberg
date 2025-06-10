@@ -1442,6 +1442,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "view comment", ""),
+            row("Owner", "", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
@@ -1472,6 +1473,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "", ""),
+            row("Owner", "", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
@@ -1504,6 +1506,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "", ""),
+            row("Owner", "", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, namespace), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
