@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
@@ -231,7 +230,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(writeSchemaAndSpec);
+    return Boolean.hashCode(writeSchemaAndSpec);
   }
 
   @Override
