@@ -55,6 +55,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Caching ensures that a new key selector is also created when the table metadata (e.g. schema,
  * spec) or the user-provided metadata changes (e.g. distribution mode, write parallelism).
+ *
+ * <p>Note: The hashing must be deterministic given the same parameters of the KeySelector and the
+ * same provided values.
  */
 class HashKeyGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(HashKeyGenerator.class);
