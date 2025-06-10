@@ -59,12 +59,10 @@ public class TestPrimitiveWrapper {
         Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
-        Variants.of("icebergicebergicebergicebergicebergicebergicebergicebergiceberg"), // short string of 63 (9*7) chars
         Variants.of(
-            RandomUtil.generateString(
-                64,
-                new Random(
-                    1))), // string of 64 chars
+            "icebergicebergicebergicebergicebergicebergicebergicebergiceberg"), // short string of
+        // 63 (9*7) chars
+        Variants.of(RandomUtil.generateString(64, new Random(1))), // string of 64 chars
       };
 
   @ParameterizedTest
