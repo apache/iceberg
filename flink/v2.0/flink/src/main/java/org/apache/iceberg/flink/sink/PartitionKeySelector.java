@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionKey;
@@ -27,12 +28,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
 
 /**
- * Create a {@link NonThrowingKeySelector} to shuffle by partition key, then each partition/bucket
- * will be wrote by only one task. That will reduce lots of small files in partitioned fanout write
- * policy for {@link FlinkSink}.
+ * Create a {@link KeySelector} to shuffle by partition key, then each partition/bucket will be
+ * wrote by only one task. That will reduce lots of small files in partitioned fanout write policy
+ * for {@link FlinkSink}.
  */
 @Internal
-public class PartitionKeySelector implements NonThrowingKeySelector<RowData, String> {
+public class PartitionKeySelector implements KeySelector<RowData, String> {
 
   private final Schema schema;
   private final PartitionKey partitionKey;

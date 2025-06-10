@@ -37,6 +37,7 @@ class DynamicSinkUtil {
         return Collections.emptyList();
       }
     }
+
     List<Integer> equalityFieldIds = Lists.newArrayListWithCapacity(equalityFields.size());
     for (String equalityField : equalityFields) {
       Types.NestedField field = schema.findField(equalityField);
@@ -44,6 +45,7 @@ class DynamicSinkUtil {
           field, "Equality field %s does not exist in schema", equalityField);
       equalityFieldIds.add(field.fieldId());
     }
+
     return equalityFieldIds;
   }
 
@@ -51,11 +53,13 @@ class DynamicSinkUtil {
     if (input >= 0) {
       return input;
     }
+
     if (input == Integer.MIN_VALUE) {
       // -Integer.MIN_VALUE would be Integer.MIN_VALUE due to integer overflow. Map to
       // Integer.MAX_VALUE instead!
       return Integer.MAX_VALUE;
     }
+
     return -input;
   }
 }

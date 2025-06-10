@@ -38,7 +38,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.sink.EqualityFieldKeySelector;
-import org.apache.iceberg.flink.sink.NonThrowingKeySelector;
 import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,22 +60,23 @@ class HashKeyGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(HashKeyGenerator.class);
 
   private final int maxWriteParallelism;
-  private final Cache<SelectorKey, NonThrowingKeySelector<RowData, Integer>> keySelectorCache;
+  private final Cache<SelectorKey, KeySelector<RowData, Integer>> keySelectorCache;
 
   HashKeyGenerator(int maxCacheSize, int maxWriteParallelism) {
     this.maxWriteParallelism = maxWriteParallelism;
     this.keySelectorCache = Caffeine.newBuilder().maximumSize(maxCacheSize).build();
   }
 
-  Integer generateKey(DynamicRecord dynamicRecord) {
+  int generateKey(DynamicRecord dynamicRecord) throws Exception {
     return generateKey(dynamicRecord, null, null, null);
   }
 
-  Integer generateKey(
+  int generateKey(
       DynamicRecord dynamicRecord,
       @Nullable Schema tableSchema,
       @Nullable PartitionSpec tableSpec,
-      @Nullable RowData overrideRowData) {
+      @Nullable RowData overrideRowData)
+      throws Exception {
     String tableIdent = dynamicRecord.tableIdentifier().toString();
     SelectorKey cacheKey =
         new SelectorKey(
@@ -103,7 +103,7 @@ class HashKeyGenerator {
         .getKey(overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
   }
 
-  private NonThrowingKeySelector<RowData, Integer> getKeySelector(
+  private KeySelector<RowData, Integer> getKeySelector(
       String tableName,
       Schema schema,
       PartitionSpec spec,
@@ -176,7 +176,7 @@ class HashKeyGenerator {
     }
   }
 
-  private static NonThrowingKeySelector<RowData, Integer> equalityFieldKeySelector(
+  private static KeySelector<RowData, Integer> equalityFieldKeySelector(
       String tableName,
       Schema schema,
       List<String> equalityFields,
@@ -192,13 +192,13 @@ class HashKeyGenerator {
         maxWriteParallelism);
   }
 
-  private static NonThrowingKeySelector<RowData, Integer> partitionKeySelector(
+  private static KeySelector<RowData, Integer> partitionKeySelector(
       String tableName,
       Schema schema,
       PartitionSpec spec,
       int writeParallelism,
       int maxWriteParallelism) {
-    NonThrowingKeySelector<RowData, String> inner =
+    KeySelector<RowData, String> inner =
         new PartitionKeySelector(spec, schema, FlinkSchemaUtil.convert(schema));
     return new TargetLimitedKeySelector(
         in -> inner.getKey(in).hashCode(),
@@ -207,7 +207,7 @@ class HashKeyGenerator {
         maxWriteParallelism);
   }
 
-  private static NonThrowingKeySelector<RowData, Integer> tableKeySelector(
+  private static KeySelector<RowData, Integer> tableKeySelector(
       String tableName, int writeParallelism, int maxWriteParallelism) {
     return new TargetLimitedKeySelector(
         new RoundRobinKeySelector<>(writeParallelism),
@@ -218,17 +218,16 @@ class HashKeyGenerator {
 
   /**
    * Generates a new key using the salt as a base, and reduces the target key range of the {@link
-   * #wrapped} {@link NonThrowingKeySelector} to {@link #writeParallelism}.
+   * #wrapped} {@link KeySelector} to {@link #writeParallelism}.
    */
-  private static class TargetLimitedKeySelector
-      implements NonThrowingKeySelector<RowData, Integer> {
-    private final NonThrowingKeySelector<RowData, Integer> wrapped;
+  private static class TargetLimitedKeySelector implements KeySelector<RowData, Integer> {
+    private final KeySelector<RowData, Integer> wrapped;
     private final int writeParallelism;
     private final int[] distinctKeys;
 
     @SuppressWarnings("checkstyle:ParameterAssignment")
     TargetLimitedKeySelector(
-        NonThrowingKeySelector<RowData, Integer> wrapped,
+        KeySelector<RowData, Integer> wrapped,
         int salt,
         int writeParallelism,
         int maxWriteParallelism) {
@@ -261,7 +260,7 @@ class HashKeyGenerator {
     }
 
     @Override
-    public Integer getKey(RowData value) {
+    public Integer getKey(RowData value) throws Exception {
       return distinctKeys[
           DynamicSinkUtil.safeAbs(wrapped.getKey(value).hashCode()) % writeParallelism];
     }
@@ -280,7 +279,7 @@ class HashKeyGenerator {
    *
    * @param <T> unused input for key generation
    */
-  private static class RoundRobinKeySelector<T> implements NonThrowingKeySelector<T, Integer> {
+  private static class RoundRobinKeySelector<T> implements KeySelector<T, Integer> {
     private final int maxTarget;
     private int lastTarget = 0;
 
@@ -296,8 +295,8 @@ class HashKeyGenerator {
   }
 
   /**
-   * Cache key for the {@link NonThrowingKeySelector}. Only contains the {@link Schema} and the
-   * {@link PartitionSpec} if their ids are not provided.
+   * Cache key for the {@link KeySelector}. Only contains the {@link Schema} and the {@link
+   * PartitionSpec} if their ids are not provided.
    */
   static class SelectorKey {
     private final String tableName;
@@ -365,7 +364,7 @@ class HashKeyGenerator {
   }
 
   @VisibleForTesting
-  Cache<SelectorKey, NonThrowingKeySelector<RowData, Integer>> getKeySelectorCache() {
+  Cache<SelectorKey, KeySelector<RowData, Integer>> getKeySelectorCache() {
     return keySelectorCache;
   }
 }

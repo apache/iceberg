@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
@@ -30,11 +31,11 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
 
 /**
- * Create a {@link NonThrowingKeySelector} to shuffle by equality fields, to ensure same equality
- * fields record will be emitted to same writer in order.
+ * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record
+ * will be emitted to same writer in order.
  */
 @Internal
-public class EqualityFieldKeySelector implements NonThrowingKeySelector<RowData, Integer> {
+public class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
 
   private final Schema schema;
   private final RowType flinkSchema;

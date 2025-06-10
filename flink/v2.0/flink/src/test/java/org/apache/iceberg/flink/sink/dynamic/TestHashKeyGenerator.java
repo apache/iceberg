@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -31,7 +32,6 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.flink.sink.NonThrowingKeySelector;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -47,7 +47,7 @@ class TestHashKeyGenerator {
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("default", "table");
 
   @Test
-  void testRoundRobinWithDistributionModeNone() {
+  void testRoundRobinWithDistributionModeNone() throws Exception {
     int writeParallelism = 10;
     int maxWriteParallelism = 2;
     HashKeyGenerator generator = new HashKeyGenerator(1, maxWriteParallelism);
@@ -73,7 +73,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testBucketingWithDistributionModeHash() {
+  void testBucketingWithDistributionModeHash() throws Exception {
     int writeParallelism = 3;
     HashKeyGenerator generator = new HashKeyGenerator(1, 8);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
@@ -122,7 +122,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testEqualityKeys() {
+  void testEqualityKeys() throws Exception {
     int writeParallelism = 2;
     HashKeyGenerator generator = new HashKeyGenerator(16, 8);
     PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
@@ -162,7 +162,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testCapAtMaxWriteParallelism() {
+  void testCapAtMaxWriteParallelism() throws Exception {
     int writeParallelism = 10;
     int maxWriteParallelism = 5;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
@@ -185,7 +185,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testHashModeWithoutEqualityFieldsFallsBackToNone() {
+  void testHashModeWithoutEqualityFieldsFallsBackToNone() throws Exception {
     int writeParallelism = 2;
     HashKeyGenerator generator = new HashKeyGenerator(16, 8);
     Schema noIdSchema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get()));
@@ -209,7 +209,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testOverrides() {
+  void testOverrides() throws Exception {
     int maxCacheSize = 10;
     int writeParallelism = 5;
     int maxWriteParallelism = 10;
@@ -245,7 +245,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testMultipleTables() {
+  void testMultipleTables() throws Exception {
     int maxCacheSize = 10;
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
@@ -287,12 +287,12 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testCaching() {
+  void testCaching() throws Exception {
     int maxCacheSize = 1;
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(maxCacheSize, maxWriteParallelism);
-    Cache<HashKeyGenerator.SelectorKey, NonThrowingKeySelector<RowData, Integer>> keySelectorCache =
+    Cache<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
         generator.getKeySelectorCache();
 
     PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
@@ -329,7 +329,8 @@ class TestHashKeyGenerator {
       DistributionMode mode,
       int writeParallelism,
       List<String> equalityFields,
-      GenericRowData row) {
+      GenericRowData row)
+      throws Exception {
     DynamicRecord record =
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
     record.setEqualityFields(equalityFields);
