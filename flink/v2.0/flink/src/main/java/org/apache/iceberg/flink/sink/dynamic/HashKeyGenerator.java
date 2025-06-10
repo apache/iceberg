@@ -110,7 +110,8 @@ class HashKeyGenerator {
       DistributionMode mode,
       List<String> equalityFields,
       int writeParallelism) {
-    LOG.info("Write distribution mode is '{}'", mode.modeName());
+    LOG.debug(
+        "Creating new KeySelector for table '{}' with distribution mode '{}'", tableName, mode);
     switch (mode) {
       case NONE:
         if (equalityFields.isEmpty()) {
