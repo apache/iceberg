@@ -65,7 +65,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
@@ -215,6 +214,22 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
         .select(files.col(FILE_PATH))
         .as(Encoders.STRING());
+  }
+
+  /**
+   * Returns a Dataset of files that would be deleted without performing the actual deletion. Cannot
+   * be used to determine PREFIX mismatch conflicts.
+   *
+   * @return a Dataset of files that are orphaned and would be deleted
+   */
+  public Dataset<String> orphanFiles() {
+    Preconditions.checkArgument(
+        prefixMismatchMode != PrefixMismatchMode.ERROR,
+        "Cannot call orphanFiles() when prefixMismatchMode is set to ERROR since this is determined after"
+            + "the Dataset is collected");
+    return remoteFindOrphanFiles(
+            spark(), actualFileIdentDS(), validFileIdentDS(), prefixMismatchMode)
+        .orphanFiles();
   }
 
   @Override
@@ -385,40 +400,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-  }
-
-  @VisibleForTesting
-  static List<String> findOrphanFiles(
-      SparkSession spark,
-      Dataset<FileURI> actualFileIdentDS,
-      Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode) {
-
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark.sparkContext().register(conflicts);
-
-    Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
-
-    List<String> orphanFiles =
-        actualFileIdentDS
-            .joinWith(validFileIdentDS, joinCond, "leftouter")
-            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
-            .collectAsList();
-
-    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
-      throw new ValidationException(
-          "Unable to determine whether certain files are orphan. "
-              + "Metadata references files that match listed/provided files except for authority/scheme. "
-              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
-              + "authorities/schemes are different. It will be impossible to recover deleted files. "
-              + "Conflicting authorities/schemes: %s.",
-          conflicts.value());
-    }
-
-    return orphanFiles;
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
@@ -672,5 +653,73 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     public String getUriAsString() {
       return uriAsString;
     }
+  }
+
+  private static class FindOrphanFilesResult {
+    private final Dataset<String> orphanFiles;
+    private final SetAccumulator<Pair<String, String>> conflicts;
+
+    FindOrphanFilesResult(
+        Dataset<String> orphanFiles, SetAccumulator<Pair<String, String>> conflicts) {
+      this.orphanFiles = orphanFiles;
+      this.conflicts = conflicts;
+    }
+
+    Dataset<String> orphanFiles() {
+      return orphanFiles;
+    }
+
+    SetAccumulator<Pair<String, String>> conflicts() {
+      return conflicts;
+    }
+  }
+
+  @VisibleForTesting
+  static List<String> findOrphanFiles(
+      SparkSession spark,
+      Dataset<FileURI> actualFileURIDS,
+      Dataset<FileURI> validFileURIDS,
+      DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode) {
+
+    FindOrphanFilesResult result =
+        remoteFindOrphanFiles(spark, actualFileURIDS, validFileURIDS, prefixMismatchMode);
+
+    List<String> orphanFiles = result.orphanFiles().collectAsList();
+    Set<Pair<String, String>> conflicts = result.conflicts().value();
+
+    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.isEmpty()) {
+      throw new ValidationException(
+          "Unable to determine whether certain files are orphan. "
+              + "Metadata references files that match listed/provided files except for authority/scheme. "
+              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
+              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
+              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
+              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
+              + "authorities/schemes are different. It will be impossible to recover deleted files. "
+              + "Conflicting authorities/schemes: %s.",
+          conflicts);
+    }
+
+    return orphanFiles;
+  }
+
+  private static FindOrphanFilesResult remoteFindOrphanFiles(
+      SparkSession spark,
+      Dataset<FileURI> actualFileURIDS,
+      Dataset<FileURI> validFileURIDS,
+      DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode) {
+
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    spark.sparkContext().register(conflicts);
+
+    Dataset<String> result =
+        actualFileURIDS
+            .joinWith(
+                validFileURIDS,
+                actualFileURIDS.col("path").equalTo(validFileURIDS.col("path")),
+                "leftouter")
+            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
+
+    return new FindOrphanFilesResult(result, conflicts);
   }
 }
