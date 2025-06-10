@@ -29,6 +29,12 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 
+/**
+ * An optional operator to perform table updates for tables (e.g. schema update) in a non-concurrent
+ * way. Records must be keyed / routed to this operator by table name to ensure non-concurrent
+ * updates. The operator itself forwards the record after updating schema / spec of the table. The
+ * update is also reflected in the record.
+ */
 @Internal
 class DynamicTableUpdateOperator
     extends RichMapFunction<DynamicRecordInternal, DynamicRecordInternal> {
