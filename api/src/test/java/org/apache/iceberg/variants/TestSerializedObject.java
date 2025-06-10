@@ -250,7 +250,7 @@ public class TestSerializedObject {
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(5);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
