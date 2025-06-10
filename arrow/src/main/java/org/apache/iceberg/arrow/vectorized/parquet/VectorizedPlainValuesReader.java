@@ -25,53 +25,53 @@ import org.apache.parquet.io.api.Binary;
 
 class VectorizedPlainValuesReader extends ValuesAsBytesReader implements VectorizedValuesReader {
 
-    VectorizedPlainValuesReader() {}
+  VectorizedPlainValuesReader() {}
 
-    @Override
-    public byte readByte() {
-        return (byte) readInteger();
-    }
+  @Override
+  public byte readByte() {
+    return (byte) readInteger();
+  }
 
-    @Override
-    public short readShort() {
-        return (short) readInteger();
-    }
+  @Override
+  public short readShort() {
+    return (short) readInteger();
+  }
 
-    @Override
-    public Binary readBinary(int len) {
-        ByteBuffer buffer = getBuffer(len);
-        if (buffer.hasArray()) {
-            return Binary.fromConstantByteArray(
-                    buffer.array(), buffer.arrayOffset() + buffer.position(), len);
-        } else {
-            byte[] bytes = new byte[len];
-            buffer.get(bytes);
-            return Binary.fromConstantByteArray(bytes);
-        }
+  @Override
+  public Binary readBinary(int len) {
+    ByteBuffer buffer = getBuffer(len);
+    if (buffer.hasArray()) {
+      return Binary.fromConstantByteArray(
+          buffer.array(), buffer.arrayOffset() + buffer.position(), len);
+    } else {
+      byte[] bytes = new byte[len];
+      buffer.get(bytes);
+      return Binary.fromConstantByteArray(bytes);
     }
+  }
 
-    private void readValues(int total, FieldVector vec, int rowId, int typeWidth) {
-        ByteBuffer buffer = getBuffer(total * typeWidth);
-        vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
-    }
+  private void readValues(int total, FieldVector vec, int rowId, int typeWidth) {
+    ByteBuffer buffer = getBuffer(total * typeWidth);
+    vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
+  }
 
-    @Override
-    public void readIntegers(int total, FieldVector vec, int rowId) {
-        readValues(total, vec, rowId, 4);
-    }
+  @Override
+  public void readIntegers(int total, FieldVector vec, int rowId) {
+    readValues(total, vec, rowId, 4);
+  }
 
-    @Override
-    public void readLongs(int total, FieldVector vec, int rowId) {
-        readValues(total, vec, rowId, 8);
-    }
+  @Override
+  public void readLongs(int total, FieldVector vec, int rowId) {
+    readValues(total, vec, rowId, 8);
+  }
 
-    @Override
-    public void readFloats(int total, FieldVector vec, int rowId) {
-        readValues(total, vec, rowId, 4);
-    }
+  @Override
+  public void readFloats(int total, FieldVector vec, int rowId) {
+    readValues(total, vec, rowId, 4);
+  }
 
-    @Override
-    public void readDoubles(int total, FieldVector vec, int rowId) {
-        readValues(total, vec, rowId, 8);
-    }
+  @Override
+  public void readDoubles(int total, FieldVector vec, int rowId) {
+    readValues(total, vec, rowId, 8);
+  }
 }

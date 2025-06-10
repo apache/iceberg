@@ -24,32 +24,32 @@ import org.apache.parquet.io.api.Binary;
 
 /** Interface for value decoding that supports vectorized (aka batched) decoding. */
 interface VectorizedValuesReader {
-    boolean readBoolean();
+  boolean readBoolean();
 
-    byte readByte();
+  byte readByte();
 
-    short readShort();
+  short readShort();
 
-    int readInteger();
+  int readInteger();
 
-    long readLong();
+  long readLong();
 
-    float readFloat();
+  float readFloat();
 
-    double readDouble();
+  double readDouble();
 
-    Binary readBinary(int len);
+  Binary readBinary(int len);
 
-    /*
-     * Reads `total` values into `vec` start at `vec[rowId]`
-     */
-    void readIntegers(int total, FieldVector vec, int rowId);
+  /*
+   * Reads `total` values into `vec` start at `vec[rowId]`
+   */
+  void readIntegers(int total, FieldVector vec, int rowId);
 
-    void readLongs(int total, FieldVector vec, int rowId);
+  void readLongs(int total, FieldVector vec, int rowId);
 
-    void readFloats(int total, FieldVector vec, int rowId);
+  void readFloats(int total, FieldVector vec, int rowId);
 
-    void readDoubles(int total, FieldVector vec, int rowId);
+  void readDoubles(int total, FieldVector vec, int rowId);
 
-    void initFromPage(int valueCount, ByteBufferInputStream in);
+  void initFromPage(int valueCount, ByteBufferInputStream in);
 }
