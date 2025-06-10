@@ -65,8 +65,8 @@ jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.25"
-junit = "5.13.1"
-junit-platform = "1.13.1"
+junit = "5.10.2"
+junit-platform = "1.10.2"
 kafka = "3.9.1"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.2"
@@ -159,6 +159,7 @@ kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "
 kafka-connect-transforms = { module = "org.apache.kafka:connect-transforms", version.ref = "kafka" }
 microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
+nessie-junit-engine = { module = "org.projectnessie.nessie:nessie-junit-engine", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
