@@ -120,7 +120,9 @@ class HashKeyGenerator {
         if (equalityFields.isEmpty()) {
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {
-          LOG.info("Distribute rows by equality fields, because there are equality fields set");
+          LOG.info(
+              "{}Distribute rows by equality fields, because there are equality fields set",
+              tableName);
           return equalityFieldKeySelector(
               tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
         }
@@ -129,8 +131,9 @@ class HashKeyGenerator {
         if (equalityFields.isEmpty()) {
           if (spec.isUnpartitioned()) {
             LOG.warn(
-                "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                    + "and table is unpartitioned");
+                "{}: Fallback to use 'none' distribution mode, because there are no equality fields set "
+                    + "and table is unpartitioned",
+                tableName);
             return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
           } else {
             return partitionKeySelector(
@@ -139,16 +142,18 @@ class HashKeyGenerator {
         } else {
           if (spec.isUnpartitioned()) {
             LOG.info(
-                "Distribute rows by equality fields, because there are equality fields set "
-                    + "and table is unpartitioned");
+                "{}: Distribute rows by equality fields, because there are equality fields set "
+                    + "and table is unpartitioned",
+                tableName);
             return equalityFieldKeySelector(
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
             for (PartitionField partitionField : spec.fields()) {
               Preconditions.checkState(
                   equalityFields.contains(partitionField.name()),
-                  "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                  "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
+                  tableName,
                   partitionField,
                   schema.columns().stream()
                       .filter(c -> equalityFields.contains(c.name()))
@@ -162,21 +167,24 @@ class HashKeyGenerator {
       case RANGE:
         if (schema.identifierFieldIds().isEmpty()) {
           LOG.warn(
-              "Fallback to use 'none' distribution mode, because there are no equality fields set "
+              "{}: Fallback to use 'none' distribution mode, because there are no equality fields set "
                   + "and {}=range is not supported yet in flink",
+              tableName,
               WRITE_DISTRIBUTION_MODE);
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {
           LOG.info(
-              "Distribute rows by equality fields, because there are equality fields set "
+              "{}: Distribute rows by equality fields, because there are equality fields set "
                   + "and{}=range is not supported yet in flink",
+              tableName,
               WRITE_DISTRIBUTION_MODE);
           return equalityFieldKeySelector(
               tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
         }
 
       default:
-        throw new IllegalArgumentException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
+        throw new IllegalArgumentException(
+            tableName + ": Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
     }
   }
 
