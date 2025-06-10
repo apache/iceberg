@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -30,6 +31,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Testing {@link DeleteFileSet} is easier in iceberg-core since the delete file builders are
@@ -304,18 +307,12 @@ public class TestDeleteFileSet {
     assertThat(set1.hashCode()).isEqualTo(set2.hashCode()).isEqualTo(set3.hashCode());
   }
 
-  @Test
-  public void kryoSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void serialization(TestHelpers.RoundTripSerializer<DeleteFileSet> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     DeleteFileSet deleteFiles =
         DeleteFileSet.of(ImmutableList.of(FILE_C_DELETES, FILE_B_DELETES, FILE_A_DELETES));
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(deleteFiles)).isEqualTo(deleteFiles);
-  }
-
-  @Test
-  public void javaSerialization() throws Exception {
-    DeleteFileSet deleteFiles =
-        DeleteFileSet.of(ImmutableList.of(FILE_C_DELETES, FILE_B_DELETES, FILE_A_DELETES));
-    DeleteFileSet deserialize = TestHelpers.deserialize(TestHelpers.serialize(deleteFiles));
-    assertThat(deserialize).isEqualTo(deleteFiles);
+    assertThat(roundTripSerializer.apply(deleteFiles)).isEqualTo(deleteFiles);
   }
 }

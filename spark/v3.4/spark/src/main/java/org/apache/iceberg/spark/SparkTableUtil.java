@@ -452,7 +452,9 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -510,7 +512,9 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -546,7 +550,9 @@ public class SparkTableUtil {
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
    * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
    *     #listPartition} for the Spark partitions
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -768,7 +774,9 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkPartitions(
       SparkSession spark,
@@ -793,7 +801,9 @@ public class SparkTableUtil {
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
    * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
    *     #listPartition} for the Spark partitions
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkPartitions(
       SparkSession spark,
