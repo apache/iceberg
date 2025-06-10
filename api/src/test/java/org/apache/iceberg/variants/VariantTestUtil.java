@@ -107,6 +107,15 @@ public class VariantTestUtil {
     return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
+  /** Creates a short string primitive of max 63 chars to use only 1 header */
+  static SerializedShortString createShortString(String string) {
+    byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
+    ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.put(0, (byte) (VariantUtil.primitiveHeader(utf8.length) | 0b00000001));
+    writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
+    return SerializedShortString.from(buffer, buffer.get(0));
+  }
+
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);

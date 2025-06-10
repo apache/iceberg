@@ -100,16 +100,22 @@ public class TestSerializedArray {
     assertThat(array.numElements()).isEqualTo(6);
     assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(array.get(0).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(1).asPrimitive().get()).isEqualTo("b");
+    assertThat(array.get(1).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(2).asPrimitive().get()).isEqualTo("c");
+    assertThat(array.get(2).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(3).asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(array.get(3).asPrimitive().sizeInBytes()).isEqualTo(8);
     assertThat(array.get(4).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(4).asPrimitive().get()).isEqualTo("d");
+    assertThat(array.get(4).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(5).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(5).asPrimitive().get()).isEqualTo("e");
+    assertThat(array.get(5).asPrimitive().sizeInBytes()).isEqualTo(2);
 
     assertThatThrownBy(() -> array.get(6))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
@@ -178,12 +184,16 @@ public class TestSerializedArray {
     assertThat(array.numElements()).isEqualTo(4);
     assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(0).asPrimitive().get()).isEqualTo(randomString);
+    assertThat(array.get(0).asPrimitive().sizeInBytes()).isEqualTo(5 + randomString.length());
     assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(1).asPrimitive().get()).isEqualTo("a");
+    assertThat(array.get(1).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(2).asPrimitive().get()).isEqualTo("b");
+    assertThat(array.get(2).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(3).asPrimitive().get()).isEqualTo("c");
+    assertThat(array.get(3).asPrimitive().sizeInBytes()).isEqualTo(2);
 
     assertThatThrownBy(() -> array.get(4))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
@@ -203,12 +213,16 @@ public class TestSerializedArray {
     assertThat(array.numElements()).isEqualTo(4);
     assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(0).asPrimitive().get()).isEqualTo(randomString);
+    assertThat(array.get(0).asPrimitive().sizeInBytes()).isEqualTo(5 + randomString.length());
     assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(1).asPrimitive().get()).isEqualTo("a");
+    assertThat(array.get(1).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(2).asPrimitive().get()).isEqualTo("b");
+    assertThat(array.get(2).asPrimitive().sizeInBytes()).isEqualTo(2);
     assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
     assertThat(array.get(3).asPrimitive().get()).isEqualTo("c");
+    assertThat(array.get(3).asPrimitive().sizeInBytes()).isEqualTo(2);
 
     assertThatThrownBy(() -> array.get(4))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
