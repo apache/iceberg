@@ -165,6 +165,7 @@ class RowDataEvolver {
       convertedArray[i] =
           convert(elementGetter.getElementOrNull(sourceData, i), fromElementType, toElementType);
     }
+
     return new GenericArrayData(convertedArray);
   }
 
