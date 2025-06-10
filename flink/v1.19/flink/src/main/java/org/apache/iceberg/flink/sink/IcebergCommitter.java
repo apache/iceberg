@@ -104,7 +104,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
     this.workerPool =
-        ThreadPools.newWorkerPool(
+        ThreadPools.newFixedThreadPool(
             "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     this.continuousEmptyCheckpoints = 0;
     this.compactMode = compactMode;
@@ -312,5 +312,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   @Override
   public void close() throws IOException {
     tableLoader.close();
+    workerPool.shutdown();
   }
 }

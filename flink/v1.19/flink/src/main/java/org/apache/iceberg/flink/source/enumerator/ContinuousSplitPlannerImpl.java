@@ -64,7 +64,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     this.workerPool =
         isSharedPool
             ? ThreadPools.getWorkerPool()
-            : ThreadPools.newWorkerPool(
+            : ThreadPools.newFixedThreadPool(
                 "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
   }
 
