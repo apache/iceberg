@@ -288,6 +288,14 @@ public class TestChangelogTable extends ExtensionsTestBase {
         ImmutableList.of(
             row(1, file1, 0L, false, 0, row("a")), row(2, file2, 0L, false, 0, row("b"))),
         rows);
+
+
+    assertEquals(
+            "Rows should match",
+            ImmutableList.of(),
+            sql(
+                    "SELECT _CHANGE_ORDINAL, _COMMIT_SNAPSHOT_ID, _CHANGE_TYPE FROM %s.changes WHERE _CHANGE_TYPE = 'DELETE'",
+                    tableName));
   }
 
   @TestTemplate
