@@ -390,9 +390,6 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   void testDefaultWriteParallelism() throws Exception {
-    // since source dataStream parallelism used in the test is 1, we focus on parallelism > 1 so the
-    // assertion makes sense
-    assumeThat(parallelism).isGreaterThan(1);
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");

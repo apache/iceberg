@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -832,11 +833,7 @@ public class IcebergSink
   private int resolveParallelismFor(DataStream<RowData> input) {
     // if the writeParallelism is not specified, we set the default to the input parallelism to
     // encourage chaining.
-    if (flinkWriteConf.writeParallelism() == null) {
-      return input.getParallelism();
-    } else {
-      return flinkWriteConf.writeParallelism();
-    }
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElse(input.getParallelism());
   }
 
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
