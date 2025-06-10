@@ -150,7 +150,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
-  public RewriteTablePath skipFileList(boolean pSkipFileList) {
+  public RewriteTablePath saveFileList(boolean pSkipFileList) {
     this.skipFileList = pSkipFileList;
     return this;
   }
