@@ -18,73 +18,27 @@
  */
 package org.apache.iceberg.rest.auth;
 
-import java.util.List;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * An {@link AuthManager} that provides machinery for refreshing authentication data asynchronously,
- * using a background thread pool.
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link ThreadPools#getAuthRefreshPool()}.
  */
+@Deprecated
 public abstract class RefreshingAuthManager implements AuthManager {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RefreshingAuthManager.class);
+  protected RefreshingAuthManager(String ignored) {}
 
-  private final String executorNamePrefix;
-  private boolean keepRefreshed = true;
-  private volatile ScheduledExecutorService refreshExecutor;
-
-  protected RefreshingAuthManager(String executorNamePrefix) {
-    this.executorNamePrefix = executorNamePrefix;
-  }
-
-  public void keepRefreshed(boolean keep) {
-    this.keepRefreshed = keep;
-  }
+  @Deprecated
+  public void keepRefreshed(boolean ignored) {}
 
   @Override
-  public void close() {
-    ScheduledExecutorService service = refreshExecutor;
-    this.refreshExecutor = null;
-    if (service != null) {
-      List<Runnable> tasks = service.shutdownNow();
-      tasks.forEach(
-          task -> {
-            if (task instanceof Future) {
-              ((Future<?>) task).cancel(true);
-            }
-          });
-
-      try {
-        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
-          LOG.warn("Timed out waiting for refresh executor to terminate");
-        }
-      } catch (InterruptedException e) {
-        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
-        Thread.currentThread().interrupt();
-      }
-    }
-  }
+  public void close() {}
 
   @Nullable
+  @Deprecated
   protected ScheduledExecutorService refreshExecutor() {
-    if (!keepRefreshed) {
-      return null;
-    }
-
-    if (refreshExecutor == null) {
-      synchronized (this) {
-        if (refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(executorNamePrefix, 1);
-        }
-      }
-    }
-
-    return refreshExecutor;
+    return null;
   }
 }
