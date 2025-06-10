@@ -45,8 +45,8 @@ public class AvroEncoderUtil {
   private static final byte[] MAGIC_BYTES = new byte[] {(byte) 0xC2, (byte) 0x01};
 
   public static <T> byte[] encode(T datum, Schema avroSchema) throws IOException {
-    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-      DataOutputStream dataOut = new DataOutputStream(out);
+    try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+         DataOutputStream dataOut = new DataOutputStream(out)) {
 
       // Write the magic bytes
       dataOut.write(MAGIC_BYTES);

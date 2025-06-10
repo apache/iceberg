@@ -100,8 +100,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deleteFile(String path) {
     Path toDelete = new Path(path);
-    FileSystem fs = Util.getFs(toDelete, getConf());
-    try {
+    try (FileSystem fs = Util.getFs(toDelete, getConf())) {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
@@ -164,9 +163,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deletePrefix(String prefix) {
     Path prefixToDelete = new Path(prefix);
-    FileSystem fs = Util.getFs(prefixToDelete, getConf());
 
-    try {
+    try(FileSystem fs = Util.getFs(prefixToDelete, getConf());) {
       fs.delete(prefixToDelete, true /* recursive */);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
