@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -57,16 +56,16 @@ class TestHashKeyGenerator {
     GenericRowData row = GenericRowData.of(1, StringData.fromString("z"));
     int writeKey1 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptyList(), row);
+            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
     int writeKey2 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptyList(), row);
+            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
     int writeKey3 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptyList(), row);
+            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
     int writeKey4 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptyList(), row);
+            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
 
     assertThat(writeKey1).isNotEqualTo(writeKey2);
     assertThat(writeKey3).isEqualTo(writeKey1);
@@ -92,36 +91,16 @@ class TestHashKeyGenerator {
 
     int writeKey1 =
         getWriteKey(
-            generator,
-            spec,
-            DistributionMode.HASH,
-            writeParallelism,
-            Collections.emptyList(),
-            row1);
+            generator, spec, DistributionMode.HASH, writeParallelism, Collections.emptySet(), row1);
     int writeKey2 =
         getWriteKey(
-            generator,
-            spec,
-            DistributionMode.HASH,
-            writeParallelism,
-            Collections.emptyList(),
-            row2);
+            generator, spec, DistributionMode.HASH, writeParallelism, Collections.emptySet(), row2);
     int writeKey3 =
         getWriteKey(
-            generator,
-            spec,
-            DistributionMode.HASH,
-            writeParallelism,
-            Collections.emptyList(),
-            row3);
+            generator, spec, DistributionMode.HASH, writeParallelism, Collections.emptySet(), row3);
     int writeKey4 =
         getWriteKey(
-            generator,
-            spec,
-            DistributionMode.HASH,
-            writeParallelism,
-            Collections.emptyList(),
-            row4);
+            generator, spec, DistributionMode.HASH, writeParallelism, Collections.emptySet(), row4);
 
     assertThat(writeKey1).isEqualTo(writeKey2);
     assertThat(writeKey3).isNotEqualTo(writeKey1);
@@ -143,7 +122,7 @@ class TestHashKeyGenerator {
     GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
     GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
     GenericRowData row3 = GenericRowData.of(2, StringData.fromString("baz"));
-    List<String> equalityColumns = Collections.singletonList("id");
+    Set<String> equalityColumns = Collections.singleton("id");
 
     int writeKey1 =
         getWriteKey(
@@ -194,7 +173,7 @@ class TestHashKeyGenerator {
               unpartitioned,
               DistributionMode.NONE,
               writeParallelism,
-              Collections.emptyList(),
+              Collections.emptySet(),
               row));
     }
 
@@ -292,7 +271,7 @@ class TestHashKeyGenerator {
             unpartitioned,
             DistributionMode.HASH,
             writeParallelism);
-    record1.setEqualityFields(Collections.singletonList("id"));
+    record1.setEqualityFields(Collections.singleton("id"));
     DynamicRecord record2 =
         new DynamicRecord(
             TableIdentifier.of("my", "other", "table"),
@@ -302,7 +281,7 @@ class TestHashKeyGenerator {
             unpartitioned,
             DistributionMode.HASH,
             writeParallelism);
-    record2.setEqualityFields(Collections.singletonList("id"));
+    record2.setEqualityFields(Collections.singleton("id"));
 
     // Consistent hashing for the same record due to HASH distribution mode
     int writeKeyRecord1 = generator.generateKey(record1);
@@ -359,7 +338,7 @@ class TestHashKeyGenerator {
       PartitionSpec spec,
       DistributionMode mode,
       int writeParallelism,
-      List<String> equalityFields,
+      Set<String> equalityFields,
       GenericRowData row)
       throws Exception {
     DynamicRecord record =

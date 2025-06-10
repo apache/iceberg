@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
@@ -46,10 +45,10 @@ public class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
   private transient StructLikeWrapper structLikeWrapper;
 
   public EqualityFieldKeySelector(
-      Schema schema, RowType flinkSchema, List<Integer> equalityFieldIds) {
+      Schema schema, RowType flinkSchema, Set<Integer> equalityFieldIds) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
-    this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+    this.deleteSchema = TypeUtil.select(schema, equalityFieldIds);
   }
 
   /**

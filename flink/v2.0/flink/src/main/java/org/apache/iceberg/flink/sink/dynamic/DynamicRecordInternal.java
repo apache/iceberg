@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -37,7 +37,7 @@ class DynamicRecordInternal {
   private int writerKey;
   private RowData rowData;
   private boolean upsertMode;
-  private List<Integer> equalityFieldIds;
+  private Set<Integer> equalityFieldIds;
 
   // Required for serialization instantiation
   DynamicRecordInternal() {}
@@ -50,7 +50,7 @@ class DynamicRecordInternal {
       PartitionSpec spec,
       int writerKey,
       boolean upsertMode,
-      List<Integer> equalityFieldsIds) {
+      Set<Integer> equalityFieldsIds) {
     this.tableName = tableName;
     this.branch = branch;
     this.schema = schema;
@@ -117,11 +117,11 @@ class DynamicRecordInternal {
     this.upsertMode = upsertMode;
   }
 
-  public List<Integer> equalityFields() {
+  public Set<Integer> equalityFields() {
     return equalityFieldIds;
   }
 
-  public void setEqualityFieldIds(List<Integer> equalityFieldIds) {
+  public void setEqualityFieldIds(Set<Integer> equalityFieldIds) {
     this.equalityFieldIds = equalityFieldIds;
   }
 

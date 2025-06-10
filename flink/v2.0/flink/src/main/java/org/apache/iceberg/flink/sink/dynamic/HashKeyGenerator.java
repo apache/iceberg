@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -101,7 +100,7 @@ class HashKeyGenerator {
                     MoreObjects.firstNonNull(
                         dynamicRecord.distributionMode(), DistributionMode.NONE),
                     MoreObjects.firstNonNull(
-                        dynamicRecord.equalityFields(), Collections.emptyList()),
+                        dynamicRecord.equalityFields(), Collections.emptySet()),
                     dynamicRecord.writeParallelism()))
         .getKey(overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
   }
@@ -111,7 +110,7 @@ class HashKeyGenerator {
       Schema schema,
       PartitionSpec spec,
       DistributionMode mode,
-      List<String> equalityFields,
+      Set<String> equalityFields,
       int writeParallelism) {
     LOG.debug(
         "Creating new KeySelector for table '{}' with distribution mode '{}'", tableName, mode);
@@ -191,7 +190,7 @@ class HashKeyGenerator {
   private static KeySelector<RowData, Integer> equalityFieldKeySelector(
       String tableName,
       Schema schema,
-      List<String> equalityFields,
+      Set<String> equalityFields,
       int writeParallelism,
       int maxWriteParallelism) {
     return new TargetLimitedKeySelector(
@@ -317,7 +316,7 @@ class HashKeyGenerator {
     private final Integer specId;
     private final Schema schema;
     private final PartitionSpec spec;
-    private final List<String> equalityFields;
+    private final Set<String> equalityFields;
 
     SelectorKey(
         String tableName,
@@ -326,7 +325,7 @@ class HashKeyGenerator {
         @Nullable Integer tableSpecId,
         Schema schema,
         PartitionSpec spec,
-        List<String> equalityFields) {
+        Set<String> equalityFields) {
       this.tableName = tableName;
       this.branch = branch;
       this.schemaId = tableSchemaId;

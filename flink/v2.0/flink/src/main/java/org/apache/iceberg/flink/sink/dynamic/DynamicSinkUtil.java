@@ -19,26 +19,26 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Set;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 class DynamicSinkUtil {
 
   private DynamicSinkUtil() {}
 
-  static List<Integer> getEqualityFieldIds(List<String> equalityFields, Schema schema) {
+  static Set<Integer> getEqualityFieldIds(Set<String> equalityFields, Schema schema) {
     if (equalityFields == null || equalityFields.isEmpty()) {
       if (!schema.identifierFieldIds().isEmpty()) {
-        return Lists.newArrayList(schema.identifierFieldIds());
+        return schema.identifierFieldIds();
       } else {
-        return Collections.emptyList();
+        return Collections.emptySet();
       }
     }
 
-    List<Integer> equalityFieldIds = Lists.newArrayListWithCapacity(equalityFields.size());
+    Set<Integer> equalityFieldIds = Sets.newHashSetWithExpectedSize(equalityFields.size());
     for (String equalityField : equalityFields) {
       Types.NestedField field = schema.findField(equalityField);
       Preconditions.checkNotNull(

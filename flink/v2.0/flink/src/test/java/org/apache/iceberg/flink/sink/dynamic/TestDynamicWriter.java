@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.net.URI;
 import java.util.Collection;
@@ -33,7 +34,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
@@ -118,7 +118,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
 
     DynamicRecordInternal record = getDynamicRecordInternal(table1);
     record.setUpsertMode(true);
-    record.setEqualityFieldIds(Lists.newArrayList(1));
+    record.setEqualityFieldIds(Sets.newHashSet(1));
 
     dyamicWriter.write(record, null);
     dyamicWriter.prepareCommit();

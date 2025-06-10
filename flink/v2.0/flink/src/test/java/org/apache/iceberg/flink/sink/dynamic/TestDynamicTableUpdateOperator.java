@@ -69,7 +69,7 @@ class TestDynamicTableUpdateOperator {
             PartitionSpec.unpartitioned(),
             42,
             false,
-            Collections.emptyList());
+            Collections.emptySet());
     DynamicRecordInternal output = operator.map(input);
 
     assertThat(catalog.tableExists(table)).isTrue();
@@ -98,7 +98,7 @@ class TestDynamicTableUpdateOperator {
             PartitionSpec.unpartitioned(),
             42,
             false,
-            Collections.emptyList());
+            Collections.emptySet());
     DynamicRecordInternal output = operator.map(input);
 
     assertThat(catalog.loadTable(table).schema().sameSchema(SCHEMA2)).isTrue();
