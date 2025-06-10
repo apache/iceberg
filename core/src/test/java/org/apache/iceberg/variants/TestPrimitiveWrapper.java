@@ -59,13 +59,12 @@ public class TestPrimitiveWrapper {
         Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
-        Variants.of("iceberg"), // short string below 255 bytes to test value offset size of 1
+        Variants.of("icebergicebergicebergicebergicebergicebergicebergicebergiceberg"), // short string of 63 (9*7) chars
         Variants.of(
             RandomUtil.generateString(
-                300,
+                64,
                 new Random(
-                    871925))), // string exceeding 255 bytes to test value offset sizes of 2, 3, and
-        // 4 bytes
+                    1))), // string of 64 chars
       };
 
   @ParameterizedTest

@@ -442,6 +442,7 @@ public class TestSerializedPrimitives {
 
     assertThat(value.type()).isEqualTo(PhysicalType.STRING);
     assertThat(value.get()).isEqualTo("iceberg");
+    assertThat(value.sizeInBytes()).isEqualTo(12);
   }
 
   @Test
@@ -451,6 +452,7 @@ public class TestSerializedPrimitives {
 
     assertThat(value.type()).isEqualTo(PhysicalType.STRING);
     assertThat(value.get()).isEqualTo("iceberg");
+    assertThat(value.sizeInBytes()).isEqualTo(8);
   }
 
   @Test

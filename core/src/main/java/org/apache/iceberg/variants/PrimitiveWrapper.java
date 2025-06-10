@@ -53,7 +53,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte TIMESTAMPNTZ_NANOS_HEADER =
       VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NANOS);
   private static final byte UUID_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_UUID);
-  private static final int SHORT_STRING_LENGTH_MASK = 0b11111100;
+  private static final int SHORT_STRING_LENGTH = 64;
   private static final int SHORT_STRING_LENGTH_UMASK = 0b00000001;
 
   private final PhysicalType type;
@@ -113,10 +113,11 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       case BINARY:
         return 5 + ((ByteBuffer) value).remaining(); // 1 header + 4 length + value length
       case STRING:
+        byte[] valueBytes = ((String) value).getBytes(StandardCharsets.UTF_8);
         if (null == buffer) {
-          this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
+          this.buffer = ByteBuffer.wrap(valueBytes);
         }
-        if (((String) value).getBytes(StandardCharsets.UTF_8).length <= SHORT_STRING_LENGTH_MASK) {
+        if (valueBytes.length < SHORT_STRING_LENGTH) {
           return 1 + buffer.remaining(); // 1 header + 1 length + value length
         }
         return 5 + buffer.remaining(); // 1 header + 4 length + value length
@@ -216,7 +217,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(valueBytes);
         }
-        if (valueBytes.length <= SHORT_STRING_LENGTH_MASK) {
+        if (valueBytes.length < SHORT_STRING_LENGTH) {
           outBuffer.put(
               offset,
               (byte) (VariantUtil.primitiveHeader(valueBytes.length) | SHORT_STRING_LENGTH_UMASK));

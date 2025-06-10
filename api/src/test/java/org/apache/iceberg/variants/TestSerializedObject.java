@@ -189,7 +189,18 @@ public class TestSerializedObject {
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
-    Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", I1, "b", I2, "c", I3);
+    Map<String, VariantValue> data =
+        ImmutableMap.of(
+            "small",
+            VariantTestUtil.createShortString("iceberg"),
+            "big",
+            bigString,
+            "a",
+            I1,
+            "b",
+            I2,
+            "c",
+            I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
@@ -197,7 +208,7 @@ public class TestSerializedObject {
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(5);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -207,6 +218,10 @@ public class TestSerializedObject {
     assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
     assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("big").asPrimitive().sizeInBytes()).isEqualTo(5 + randomString.length());
+    assertThat(object.get("small").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("small").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("small").asPrimitive().sizeInBytes()).isEqualTo(8);
   }
 
   @Test
@@ -217,7 +232,17 @@ public class TestSerializedObject {
 
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
-        ImmutableMap.of("really-big", reallyBigString, "a", I1, "b", I2, "c", I3);
+        ImmutableMap.of(
+            "small",
+            VariantTestUtil.createShortString("iceberg"),
+            "really-big",
+            reallyBigString,
+            "a",
+            I1,
+            "b",
+            I2,
+            "c",
+            I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
@@ -235,6 +260,11 @@ public class TestSerializedObject {
     assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
     assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("really-big").asPrimitive().sizeInBytes())
+        .isEqualTo(5 + randomString.length());
+    assertThat(object.get("small").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("small").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("small").asPrimitive().sizeInBytes()).isEqualTo(8);
   }
 
   @ParameterizedTest
@@ -261,6 +291,8 @@ public class TestSerializedObject {
       VariantValue fieldValue = object.get(entry.getKey());
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
+      assertThat(fieldValue.asPrimitive().sizeInBytes())
+          .isEqualTo(5 + entry.getValue().get().toString().length());
     }
   }
 
