@@ -103,5 +103,10 @@ class TestDynamicTableUpdateOperator {
 
     assertThat(catalog.loadTable(table).schema().sameSchema(SCHEMA2)).isTrue();
     assertThat(input).isEqualTo(output);
+
+    // Process the same input again
+    DynamicRecordInternal output2 = operator.map(input);
+    assertThat(output2).isEqualTo(output);
+    assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
   }
 }
