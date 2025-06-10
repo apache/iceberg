@@ -159,7 +159,6 @@ kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "
 kafka-connect-transforms = { module = "org.apache.kafka:connect-transforms", version.ref = "kafka" }
 microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
-nessie-junit-engine = { module = "org.projectnessie.nessie:nessie-junit-engine", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
