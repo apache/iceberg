@@ -655,13 +655,19 @@ public class TestBase {
     }
   }
 
+  protected DataFile newDataFile(StructLike partition) {
+    return newDataFileBuilder(table).withPartition(partition).build();
+  }
+
   protected DataFile newDataFile(String partitionPath) {
+    return newDataFileBuilder(table).withPartitionPath(partitionPath).build();
+  }
+
+  private static DataFiles.Builder newDataFileBuilder(Table table) {
     return DataFiles.builder(table.spec())
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath(partitionPath)
-        .withRecordCount(1)
-        .build();
+        .withRecordCount(1);
   }
 
   protected DeleteFile fileADeletes() {
