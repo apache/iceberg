@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -48,7 +48,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final PartitionSpec spec;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final Set<Integer> equalityFieldIds;
+  private final Collection<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileAppenderFactory<RowData> appenderFactory;
 
@@ -60,7 +60,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      Set<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert) {
     this(
         () -> table,
@@ -78,7 +78,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      Set<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert) {
     this(
         tableSupplier,
@@ -98,7 +98,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      Set<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {

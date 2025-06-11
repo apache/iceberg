@@ -138,7 +138,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             targetDataFileSize,
                             dataFileFormat,
                             tableWriteProperties,
-                            equalityFieldIds,
+                            Lists.newArrayList(equalityFieldIds),
                             element.upsertMode(),
                             element.schema(),
                             element.spec());

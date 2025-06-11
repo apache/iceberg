@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Collection;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -56,7 +56,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       long targetFileSize,
       Schema schema,
       RowType flinkSchema,
-      Set<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
