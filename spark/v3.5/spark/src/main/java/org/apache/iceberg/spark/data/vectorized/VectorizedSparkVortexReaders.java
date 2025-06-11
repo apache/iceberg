@@ -26,7 +26,9 @@ import dev.vortex.spark.read.VortexArrowColumnVector;
 import dev.vortex.spark.read.VortexColumnarBatch;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.vortex.VortexBatchReader;
@@ -38,7 +40,6 @@ public class VectorizedSparkVortexReaders {
 
   public static VortexBatchReader<ColumnarBatch> buildReader(
       Schema icebergSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
-    // TODO(aduffy): schema compat, idToConstant handling.
     return new SchemaCachingBatchReader(icebergSchema, vortexSchema, idToConstant);
   }
 
@@ -61,14 +62,7 @@ public class VectorizedSparkVortexReaders {
     public ColumnarBatch read(Array batch) {
       this.root = batch.exportToArrow(ArrowAllocation.rootAllocator(), this.root);
       int rowCount = this.root.getRowCount();
-      int highestPartitionField =
-          idToConstant.keySet().stream()
-              .filter(fieldId -> !MetadataColumns.isMetadataColumn(fieldId))
-              .mapToInt(fieldId -> fieldId)
-              .max()
-              .orElse(1);
-      int maxFieldId = Math.max(readerSchema.highestFieldId(), highestPartitionField);
-      ColumnVector[] vectors = new ColumnVector[maxFieldId];
+      TreeMap<Integer, ColumnVector> vectors = new TreeMap<>();
 
       for (Map.Entry<Integer, ?> entry : idToConstant.entrySet()) {
         Integer fieldId = entry.getKey();
@@ -78,21 +72,39 @@ public class VectorizedSparkVortexReaders {
         }
 
         // Field IDs are 1-indexed in Iceberg.
-        vectors[fieldId - 1] =
+        vectors.put(
+            fieldId,
             new ConstantColumnVector(
-                readerSchema.findType(fieldId), (int) batch.getLen(), constant);
+                readerSchema.findType(fieldId), (int) batch.getLen(), constant));
       }
 
       for (int i = 0; i < root.getFieldVectors().size(); i++) {
         int fieldId = schemaMapping.get(i);
-        vectors[fieldId - 1] = new VortexArrowColumnVector(root.getVector(i));
+        vectors.put(fieldId, new VortexArrowColumnVector(root.getVector(i)));
       }
 
-      return new VortexColumnarBatch(batch, vectors, rowCount);
+      return new VortexColumnarBatch(
+          batch, vectors.values().toArray(new ColumnVector[0]), rowCount);
     }
 
     // Mapping from Vortex schema index to Iceberg Field ID.
     static List<Integer> vortexSchemaMapping(Schema icebergSchema, DType vortexSchema) {
+      // The schema mapping allows us to map the vortex schema into positions in the
+      // return icebergSchema.
+      List<String> fieldNames = vortexSchema.getFieldNames();
+
+      // iceberg field id LUT
+      Integer[] fieldIds =
+          fieldNames.stream()
+              .map(name -> icebergSchema.findField(name).fieldId())
+              .toArray(Integer[]::new);
+
+      // Return all of the integers
+      IntStream.range(0, fieldNames.size())
+          .mapToObj(i -> i)
+          .sorted((i, j) -> fieldIds[i].compareTo(fieldIds[j]))
+          .map(idx -> fieldNames);
+
       return vortexSchema.getFieldNames().stream()
           .map(fieldName -> icebergSchema.findField(fieldName).fieldId())
           .collect(Collectors.toList());
