@@ -120,7 +120,7 @@ class HashKeyGenerator {
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {
           LOG.info(
-              "{}Distribute rows by equality fields, because there are equality fields set",
+              "{}: Distribute rows by equality fields, because there are equality fields set",
               tableName);
           return equalityFieldKeySelector(
               tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
@@ -167,14 +167,14 @@ class HashKeyGenerator {
         if (schema.identifierFieldIds().isEmpty()) {
           LOG.warn(
               "{}: Fallback to use 'none' distribution mode, because there are no equality fields set "
-                  + "and {}=range is not supported yet in flink",
+                  + "and {}='range' is not supported yet in flink",
               tableName,
               WRITE_DISTRIBUTION_MODE);
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {
           LOG.info(
               "{}: Distribute rows by equality fields, because there are equality fields set "
-                  + "and{}=range is not supported yet in flink",
+                  + "and {}='range' is not supported yet in flink",
               tableName,
               WRITE_DISTRIBUTION_MODE);
           return equalityFieldKeySelector(
