@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
@@ -152,7 +153,7 @@ public class IcebergSink
   private final RowType flinkRowType;
   private final SerializableSupplier<Table> tableSupplier;
   private final transient FlinkWriteConf flinkWriteConf;
-  private final List<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsertMode;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
@@ -163,7 +164,7 @@ public class IcebergSink
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
-  private final List<String> equalityFieldColumns = null;
+  private final Set<String> equalityFieldColumns = null;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -174,7 +175,7 @@ public class IcebergSink
       RowType flinkRowType,
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
-      List<Integer> equalityFieldIds,
+      Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
       FlinkMaintenanceConfig flinkMaintenanceConfig) {
@@ -617,7 +618,7 @@ public class IcebergSink
       boolean overwriteMode = flinkWriteConf.overwriteMode();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
