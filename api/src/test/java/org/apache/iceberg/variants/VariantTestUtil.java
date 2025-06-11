@@ -78,6 +78,20 @@ public class VariantTestUtil {
     }
   }
 
+  public static void assertVariantString(VariantValue actual, String expected) {
+    int maxShortStringLength = 64;
+    int expectedLength = expected.length();
+    assertThat(actual.type()).isEqualTo(PhysicalType.STRING);
+    assertThat(actual.asPrimitive().get()).isEqualTo(expected);
+    if (expectedLength < maxShortStringLength) {
+      assertThat(actual.getClass()).isEqualTo(SerializedShortString.class);
+      assertThat(actual.asPrimitive().sizeInBytes()).isEqualTo(1 + expectedLength);
+    } else {
+      assertThat(actual.getClass()).isEqualTo(SerializedPrimitive.class);
+      assertThat(actual.asPrimitive().sizeInBytes()).isEqualTo(5 + expectedLength);
+    }
+  }
+
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
   }
@@ -111,7 +125,7 @@ public class VariantTestUtil {
   static SerializedShortString createShortString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
-    buffer.put(0, (byte) (VariantUtil.primitiveHeader(utf8.length) | 0b00000001));
+    buffer.put(0, VariantUtil.shortStringHeader(utf8.length));
     writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
     return SerializedShortString.from(buffer, buffer.get(0));
   }
