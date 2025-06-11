@@ -198,7 +198,7 @@ class HashKeyGenerator {
             schema,
             FlinkSchemaUtil.convert(schema),
             DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema)),
-        tableName.hashCode(),
+        tableName,
         writeParallelism,
         maxWriteParallelism);
   }
@@ -212,17 +212,14 @@ class HashKeyGenerator {
     KeySelector<RowData, String> inner =
         new PartitionKeySelector(spec, schema, FlinkSchemaUtil.convert(schema));
     return new TargetLimitedKeySelector(
-        in -> inner.getKey(in).hashCode(),
-        tableName.hashCode(),
-        writeParallelism,
-        maxWriteParallelism);
+        in -> inner.getKey(in).hashCode(), tableName, writeParallelism, maxWriteParallelism);
   }
 
   private static KeySelector<RowData, Integer> tableKeySelector(
       String tableName, int writeParallelism, int maxWriteParallelism) {
     return new TargetLimitedKeySelector(
         new RoundRobinKeySelector<>(writeParallelism),
-        tableName.hashCode(),
+        tableName,
         writeParallelism,
         maxWriteParallelism);
   }
@@ -239,12 +236,13 @@ class HashKeyGenerator {
     @SuppressWarnings("checkstyle:ParameterAssignment")
     TargetLimitedKeySelector(
         KeySelector<RowData, Integer> wrapped,
-        int salt,
+        String tableName,
         int writeParallelism,
         int maxWriteParallelism) {
       if (writeParallelism > maxWriteParallelism) {
         LOG.warn(
-            "writeParallelism {} is greater than maxWriteParallelism {}. Capping writeParallelism at {}",
+            "{}: writeParallelism {} is greater than maxWriteParallelism {}. Capping writeParallelism at {}",
+            tableName,
             writeParallelism,
             maxWriteParallelism,
             maxWriteParallelism);
@@ -256,7 +254,7 @@ class HashKeyGenerator {
 
       // Ensures that the generated keys are always result in unique slotId
       Set<Integer> targetSlots = Sets.newHashSetWithExpectedSize(writeParallelism);
-      int nextKey = salt;
+      int nextKey = tableName.hashCode();
       for (int i = 0; i < writeParallelism; ++i) {
         int subtaskId = subtaskId(nextKey, writeParallelism, maxWriteParallelism);
         while (targetSlots.contains(subtaskId)) {
