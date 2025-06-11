@@ -660,10 +660,8 @@ public class FlinkCatalog extends AbstractCatalog {
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer
-    // may use
-    // CatalogTableImpl to copy a new catalog table.
+    // may use DefaultCatalogTable to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
-    // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
     return CatalogTable.newBuilder()
         .schema(
             org.apache.flink.table.api.Schema.newBuilder()

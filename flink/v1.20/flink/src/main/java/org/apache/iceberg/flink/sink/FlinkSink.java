@@ -722,7 +722,12 @@ public class FlinkSink {
     }
   }
 
-  /** Clean up after removing {@link Builder#tableSchema} */
+  /**
+   * Clean up after removing {@link Builder#tableSchema}
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toFlinkRowType(Schema,
+   *     ResolvedSchema)} instead.
+   */
   @Deprecated
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
