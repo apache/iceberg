@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.spark.sql.SparkSession;
 
 abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<ThisT> {
@@ -37,11 +38,17 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   }
 
   protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
+    if (!CommitMetadata.commitProperties().isEmpty()) {
+      summary.putAll(CommitMetadata.commitProperties());
+    }
     summary.forEach(update::set);
     update.commit();
   }
 
   protected Map<String, String> commitSummary() {
+    if (!CommitMetadata.commitProperties().isEmpty()) {
+      summary.putAll(CommitMetadata.commitProperties());
+    }
     return ImmutableMap.copyOf(summary);
   }
 }
