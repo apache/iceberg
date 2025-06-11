@@ -296,7 +296,7 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.9.0, will be removed in 2.0.0
+   * @deprecated since 1.10.0, will be removed in 1.11.0
    */
   @Deprecated
   public static RewriteResult<DataFile> rewriteDataManifest(
@@ -371,7 +371,7 @@ public class RewriteTablePathUtil {
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.9.0, will be removed in 2.0.0
+   * @deprecated since 1.10.0, will be removed in 1.11.0
    */
   @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
@@ -467,7 +467,7 @@ public class RewriteTablePathUtil {
     appendEntryWithFile(entry, writer, newDataFile);
     // keep the following entries in metadata but exclude them from copyPlan
     // 1) deleted data files
-    // 2) entries not changed by snapshots within the range
+    // 2) entries not changed by deltaSnapshotIds
     if (entry.isLive() && deltaSnapshotIds.contains(entry.snapshotId())) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
@@ -500,7 +500,7 @@ public class RewriteTablePathUtil {
         appendEntryWithFile(entry, writer, movedFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted position delete files
-        // 2) entries not changed by snapshots within the range
+        // 2) entries not changed by deltaSnapshotIds
         if (entry.isLive() && deltaSnapshotIds.contains(entry.snapshotId())) {
           result
               .copyPlan()
@@ -513,7 +513,7 @@ public class RewriteTablePathUtil {
         appendEntryWithFile(entry, writer, eqDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted equality delete files
-        // 2) entries not changed by snapshots within the range
+        // 2) entries not changed by deltaSnapshotIds
         if (entry.isLive() && deltaSnapshotIds.contains(entry.snapshotId())) {
           // No need to rewrite equality delete files as they do not contain absolute file paths.
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
