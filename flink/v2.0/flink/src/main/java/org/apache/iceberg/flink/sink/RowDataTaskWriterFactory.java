@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -48,7 +49,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final PartitionSpec spec;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final Collection<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileAppenderFactory<RowData> appenderFactory;
 
@@ -117,7 +118,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.spec = spec;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.equalityFieldIds = equalityFieldIds;
+    this.equalityFieldIds = equalityFieldIds != null ? Sets.newHashSet(equalityFieldIds) : null;
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {

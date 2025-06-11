@@ -20,8 +20,8 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -49,7 +49,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       long targetFileSize,
       Schema schema,
       RowType flinkSchema,
-      Collection<Integer> equalityFieldIds,
+      Set<Integer> equalityFieldIds,
       boolean upsert) {
     super(
         spec,
