@@ -195,7 +195,6 @@ base weight of `2%` of targeted weight of `1,000` for every write task. It would
 avoid placing more than `50` data files (one per day) on one writer task no matter how small
 they are.
 
-This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
-{@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
+This is only applicable to [`StatisticsType.Map`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/sink/shuffle/StatisticsType.html#Map) for low-cardinality scenario. For [`StatisticsType.Sketch`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/sink/shuffle/StatisticsType.html#Sketch) high-cardinality sort columns, they are usually not used as
 partition columns. Otherwise, too many partitions and small files may be generated during
 write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.
