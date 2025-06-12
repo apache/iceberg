@@ -35,21 +35,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestAntiJoin extends OperatorTestBase {
-  private Map<String, String> equalSchemes =
+  private static Map<String, String> equalSchemes =
       Maps.newHashMap(
           ImmutableMap.of(
               "s3n", "s3",
               "s3a", "s3"));
-  private Map<String, String> equalAuthorities = Maps.newHashMap();
-  private final FileURI SCHEME_FILE_1 =
+  private static Map<String, String> equalAuthorities = Maps.newHashMap();
+  private static final FileURI SCHEME_FILE_1 =
       new FileURI("s3:/fileName1", equalSchemes, equalAuthorities);
-  private final FileURI SCHEME_FILE_2 =
+  private static final FileURI SCHEME_FILE_2 =
       new FileURI("s3:/fileName2", equalSchemes, equalAuthorities);
-  private final FileURI AUTHORITY_FILE_1 =
+  private static final FileURI AUTHORITY_FILE_1 =
       new FileURI("s3://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
-  private final FileURI S3A_SCHEME_FILE_1 =
+  private static final FileURI ONE_AUTHORITY_SCHEME_FILE_1 =
       new FileURI("s3a://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
-  private final FileURI S3B_SCHEME_FILE_1 =
+  private static final FileURI TWO_AUTHORITY_SCHEME_FILE_1 =
       new FileURI("s3b://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
 
   @Test
@@ -158,7 +158,7 @@ public class TestAntiJoin extends OperatorTestBase {
       testHarness.open();
 
       testHarness.processElement1(AUTHORITY_FILE_1, EVENT_TIME);
-      testHarness.processElement2(S3A_SCHEME_FILE_1, EVENT_TIME);
+      testHarness.processElement2(ONE_AUTHORITY_SCHEME_FILE_1, EVENT_TIME);
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
@@ -173,7 +173,7 @@ public class TestAntiJoin extends OperatorTestBase {
       testHarness.open();
 
       testHarness.processElement1(AUTHORITY_FILE_1, EVENT_TIME);
-      testHarness.processElement2(S3B_SCHEME_FILE_1, EVENT_TIME);
+      testHarness.processElement2(TWO_AUTHORITY_SCHEME_FILE_1, EVENT_TIME);
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       ConcurrentLinkedQueue<StreamRecord<Exception>> errorList =
