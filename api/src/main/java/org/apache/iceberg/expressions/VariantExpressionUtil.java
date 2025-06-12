@@ -49,14 +49,14 @@ class VariantExpressionUtil {
 
   private VariantExpressionUtil() {}
 
-  // Todo: Fix cyclomatic complexity checkstyle error using appropriate casting functions
-  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+  @SuppressWarnings("unchecked")
   static <T> T castTo(VariantValue value, Type type) {
     if (value == null) {
       return null;
     } else if (NO_CONVERSION_NEEDED.get(type) == value.type()) {
       return (T) value.asPrimitive().get();
     }
+
     switch (type.typeId()) {
       case INTEGER:
         switch (value.type()) {
@@ -64,6 +64,7 @@ class VariantExpressionUtil {
           case INT16:
             return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
         }
+
         break;
       case LONG:
         switch (value.type()) {
@@ -72,11 +73,13 @@ class VariantExpressionUtil {
           case INT32:
             return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
         }
+
         break;
       case DOUBLE:
         if (value.type() == PhysicalType.FLOAT) {
           return (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
         }
+
         break;
       case FIXED:
         Types.FixedType fixedType = (Types.FixedType) type;
@@ -86,6 +89,7 @@ class VariantExpressionUtil {
             return (T) buffer;
           }
         }
+
         break;
       case DECIMAL:
         Types.DecimalType decimalType = (Types.DecimalType) type;
@@ -98,6 +102,7 @@ class VariantExpressionUtil {
               return (T) decimalValue;
             }
         }
+
         break;
       case BOOLEAN:
         switch (value.type()) {
@@ -106,6 +111,7 @@ class VariantExpressionUtil {
           case BOOLEAN_TRUE:
             return (T) Boolean.TRUE;
         }
+
         break;
       case TIMESTAMP:
       case TIMESTAMP_NANO:
@@ -113,6 +119,7 @@ class VariantExpressionUtil {
         if (value.type() == PhysicalType.INT64) {
           return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
         }
+
         break;
       case UUID:
         if (value.type() == PhysicalType.STRING) {
