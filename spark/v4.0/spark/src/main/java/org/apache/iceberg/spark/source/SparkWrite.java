@@ -31,6 +31,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -65,6 +66,9 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.executor.OutputMetrics;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.ProjectingInternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -687,8 +691,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .writeProperties(writeProperties)
               .build();
 
+      boolean persistLineageFields =
+          writeSchema.findField(MetadataColumns.ROW_ID.fieldId()) != null;
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
+        return new UnpartitionedDataWriter(
+            writerFactory, fileFactory, io, spec, targetFileSize, persistLineageFields);
 
       } else {
         return new PartitionedDataWriter(
@@ -699,29 +706,83 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             writeSchema,
             dsSchema,
             targetFileSize,
-            useFanoutWriter);
+            useFanoutWriter,
+            persistLineageFields);
       }
     }
   }
 
-  private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
+  private abstract static class DataWriterWithLineage implements DataWriter<InternalRow> {
+    private Integer rowIdOrdinal = null;
+    private Integer lastUpdatedOrdinal = null;
+
+    protected InternalRow lineageRow(InternalRow meta) {
+      GenericInternalRow row = new GenericInternalRow(2);
+      row.setNullAt(0);
+      row.setNullAt(1);
+
+      if (meta == null) {
+        return row;
+      }
+
+      // Ordinals are cached
+      if (rowIdOrdinal != null && lastUpdatedOrdinal != null) {
+        setIfNotNull(row, 0, meta, rowIdOrdinal);
+        setIfNotNull(row, 1, meta, lastUpdatedOrdinal);
+        return row;
+      }
+
+      // Otherwise, discover ordinals and set values
+      ProjectingInternalRow metaProj = (ProjectingInternalRow) meta;
+      for (int i = 0; i < metaProj.numFields(); i++) {
+        String fieldName = metaProj.schema().fields()[i].name();
+
+        if (fieldName.equals(MetadataColumns.ROW_ID.name())) {
+          rowIdOrdinal = i;
+          setIfNotNull(row, 0, meta, i);
+        } else if (fieldName.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())) {
+          lastUpdatedOrdinal = i;
+          setIfNotNull(row, 1, meta, i);
+        }
+      }
+      return row;
+    }
+
+    private void setIfNotNull(GenericInternalRow row, int rowPos, InternalRow meta, int metaPos) {
+      if (!meta.isNullAt(metaPos)) {
+        row.setLong(rowPos, meta.getLong(metaPos));
+      }
+    }
+  }
+
+  private static class UnpartitionedDataWriter extends DataWriterWithLineage {
     private final FileWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
+    private final boolean persistLineageFields;
 
     private UnpartitionedDataWriter(
         SparkFileWriterFactory writerFactory,
         OutputFileFactory fileFactory,
         FileIO io,
         PartitionSpec spec,
-        long targetFileSize) {
+        long targetFileSize,
+        boolean persistLineageFields) {
       this.delegate =
           new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
+      this.persistLineageFields = persistLineageFields;
     }
 
     @Override
     public void write(InternalRow record) throws IOException {
-      delegate.write(record);
+      write(null, record);
+    }
+
+    @Override
+    public void write(InternalRow meta, InternalRow record) throws IOException {
+      InternalRow recordToPersist =
+          persistLineageFields ? new JoinedRow(record, lineageRow(meta)) : record;
+      delegate.write(recordToPersist);
     }
 
     @Override
@@ -748,12 +809,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
   }
 
-  private static class PartitionedDataWriter implements DataWriter<InternalRow> {
+  private static class PartitionedDataWriter extends DataWriterWithLineage {
     private final PartitioningWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
     private final PartitionSpec spec;
     private final PartitionKey partitionKey;
     private final InternalRowWrapper internalRowWrapper;
+    private final boolean persistLineageFields;
 
     private PartitionedDataWriter(
         SparkFileWriterFactory writerFactory,
@@ -763,7 +825,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Schema dataSchema,
         StructType dataSparkType,
         long targetFileSize,
-        boolean fanoutEnabled) {
+        boolean fanoutEnabled,
+        boolean persistLineageFields) {
       if (fanoutEnabled) {
         this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
@@ -773,12 +836,20 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);
       this.internalRowWrapper = new InternalRowWrapper(dataSparkType, dataSchema.asStruct());
+      this.persistLineageFields = persistLineageFields;
     }
 
     @Override
     public void write(InternalRow row) throws IOException {
+      write(null, row);
+    }
+
+    @Override
+    public void write(InternalRow meta, InternalRow row) throws IOException {
       partitionKey.partition(internalRowWrapper.wrap(row));
-      delegate.write(row, spec, partitionKey);
+      InternalRow recordToPersist =
+          persistLineageFields ? new JoinedRow(row, lineageRow(meta)) : row;
+      delegate.write(recordToPersist, spec, partitionKey);
     }
 
     @Override

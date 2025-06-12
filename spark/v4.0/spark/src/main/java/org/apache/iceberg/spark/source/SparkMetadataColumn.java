@@ -20,17 +20,40 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.MetadataBuilder;
 
 public class SparkMetadataColumn implements MetadataColumn {
 
   private final String name;
   private final DataType dataType;
   private final boolean isNullable;
+  private final boolean preserveOnReinsert;
+  private final boolean preserveOnUpdate;
+  private final boolean preserveOnDelete;
 
   public SparkMetadataColumn(String name, DataType dataType, boolean isNullable) {
+    this(
+        name,
+        dataType,
+        isNullable,
+        MetadataColumn.PRESERVE_ON_REINSERT_DEFAULT,
+        MetadataColumn.PRESERVE_ON_UPDATE_DEFAULT,
+        MetadataColumn.PRESERVE_ON_DELETE_DEFAULT);
+  }
+
+  public SparkMetadataColumn(
+      String name,
+      DataType dataType,
+      boolean isNullable,
+      boolean preserveOnReinsert,
+      boolean preserveOnUpdate,
+      boolean preserveOnDelete) {
     this.name = name;
     this.dataType = dataType;
     this.isNullable = isNullable;
+    this.preserveOnReinsert = preserveOnReinsert;
+    this.preserveOnUpdate = preserveOnUpdate;
+    this.preserveOnDelete = preserveOnDelete;
   }
 
   @Override
@@ -46,5 +69,15 @@ public class SparkMetadataColumn implements MetadataColumn {
   @Override
   public boolean isNullable() {
     return isNullable;
+  }
+
+  @Override
+  public String metadataInJSON() {
+    return new MetadataBuilder()
+        .putBoolean(MetadataColumn.PRESERVE_ON_REINSERT, preserveOnReinsert)
+        .putBoolean(MetadataColumn.PRESERVE_ON_UPDATE, preserveOnUpdate)
+        .putBoolean(MetadataColumn.PRESERVE_ON_DELETE, preserveOnDelete)
+        .build()
+        .json();
   }
 }
