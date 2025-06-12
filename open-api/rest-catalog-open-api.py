@@ -1157,6 +1157,11 @@ class TableMetadata(BaseModel):
         description="A long higher than all assigned row IDs; the next snapshot's first-row-id.",
     )
     properties: Optional[Dict[str, str]] = None
+    schema_: Optional[Schema] = Field(
+        None,
+        alias='schema',
+        description='Table schema (deprecated in v2+, use schemas and current-schema-id instead)',
+    )
     schemas: Optional[List[Schema]] = None
     current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
     last_column_id: Optional[int] = Field(None, alias='last-column-id')
