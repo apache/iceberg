@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestDynamicCommittableSerializer {
@@ -33,7 +33,7 @@ class TestDynamicCommittableSerializer {
   void testRoundtrip() throws IOException {
     DynamicCommittable committable =
         new DynamicCommittable(
-            new WriteTarget("table", "branch", 42, 23, false, Lists.newArrayList(1, 2)),
+            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
             new byte[] {3, 4},
             JobID.generate().toHexString(),
             new OperatorID().toHexString(),
@@ -48,7 +48,7 @@ class TestDynamicCommittableSerializer {
   void testUnsupportedVersion() throws IOException {
     DynamicCommittable committable =
         new DynamicCommittable(
-            new WriteTarget("table", "branch", 42, 23, false, Lists.newArrayList(1, 2)),
+            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
             new byte[] {3, 4},
             JobID.generate().toHexString(),
             new OperatorID().toHexString(),

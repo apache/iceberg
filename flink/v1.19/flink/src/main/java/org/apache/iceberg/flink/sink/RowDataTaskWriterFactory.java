@@ -18,8 +18,9 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -48,7 +49,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final PartitionSpec spec;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final List<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileAppenderFactory<RowData> appenderFactory;
 
@@ -60,7 +61,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      List<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert) {
     this(
         () -> table,
@@ -78,7 +79,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      List<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert) {
     this(
         tableSupplier,
@@ -98,7 +99,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       long targetFileSizeBytes,
       FileFormat format,
       Map<String, String> writeProperties,
-      List<Integer> equalityFieldIds,
+      Collection<Integer> equalityFieldIds,
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {
@@ -117,7 +118,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.spec = spec;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.equalityFieldIds = equalityFieldIds;
+    this.equalityFieldIds = equalityFieldIds != null ? Sets.newHashSet(equalityFieldIds) : null;
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
@@ -137,7 +138,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               flinkSchema,
               writeProperties,
               spec,
-              ArrayUtil.toIntArray(equalityFieldIds),
+              ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
               TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)),
               null);
     } else {
@@ -148,7 +149,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               flinkSchema,
               writeProperties,
               spec,
-              ArrayUtil.toIntArray(equalityFieldIds),
+              ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
               schema,
               null);
     }
