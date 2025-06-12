@@ -606,6 +606,17 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
+    return execute(
+        request, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
+  }
+
+  @Override
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest request,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(request.method(), request.path());
     if (routeAndVars != null) {

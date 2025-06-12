@@ -37,7 +37,7 @@ class RESTObjectMapper {
 
   private RESTObjectMapper() {}
 
-  static ObjectMapper mapper() {
+  public static ObjectMapper mapper() {
     if (!isInitialized) {
       synchronized (RESTObjectMapper.class) {
         if (!isInitialized) {
