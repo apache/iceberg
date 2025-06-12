@@ -32,6 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  */
 public class FileSystemWalker {
 
+  private FileSystemWalker() {}
+
   /**
    * Recursively lists files in the specified directory that satisfy the given conditions.
    *
