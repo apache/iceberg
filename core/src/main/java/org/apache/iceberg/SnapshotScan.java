@@ -79,6 +79,25 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     return scanMetrics;
   }
 
+  protected Map<Integer, PartitionSpec> specs() {
+    Map<Integer, PartitionSpec> specs = table().specs();
+    // requires latest schema
+    if (!useSnapshotSchema()
+        || snapshotId() == null
+        || snapshotId().equals(table().currentSnapshot().snapshotId())) {
+      return specs;
+    }
+
+    // this is a time travel request
+    Schema snapshotSchema = tableSchema();
+    Map<Integer, PartitionSpec> newSpecs = Maps.newHashMapWithExpectedSize(specs.size());
+    for (Map.Entry<Integer, PartitionSpec> entry : specs.entrySet()) {
+      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bindUnchecked(snapshotSchema));
+    }
+
+    return newSpecs;
+  }
+
   public ThisT useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());

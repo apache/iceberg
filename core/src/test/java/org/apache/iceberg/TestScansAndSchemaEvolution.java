@@ -65,21 +65,26 @@ public class TestScansAndSchemaEvolution {
   @TempDir private File temp;
 
   private DataFile createDataFile(String partValue) throws IOException {
-    List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
+    return createDataFile(partValue, SCHEMA, SPEC);
+  }
+
+  private DataFile createDataFile(String partValue, Schema schema, PartitionSpec spec)
+      throws IOException {
+    List<GenericData.Record> expected = RandomAvroData.generate(schema, 100, 0L);
 
     OutputFile dataFile =
         new InMemoryOutputFile(FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
     try (FileAppender<GenericData.Record> writer =
-        Avro.write(dataFile).schema(SCHEMA).named("test").build()) {
+        Avro.write(dataFile).schema(schema).named("test").build()) {
       for (GenericData.Record rec : expected) {
         rec.put("part", partValue); // create just one partition
         writer.add(rec);
       }
     }
 
-    PartitionData partition = new PartitionData(SPEC.partitionType());
+    PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, partValue);
-    return DataFiles.builder(SPEC)
+    return DataFiles.builder(spec)
         .withInputFile(dataFile.toInputFile())
         .withPartition(partition)
         .withRecordCount(100)
@@ -99,6 +104,7 @@ public class TestScansAndSchemaEvolution {
     DataFile fileTwo = createDataFile("two");
 
     table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
 
     List<FileScanTask> tasks =
         Lists.newArrayList(table.newScan().filter(Expressions.equal("part", "one")).planFiles());
@@ -111,6 +117,88 @@ public class TestScansAndSchemaEvolution {
     tasks = Lists.newArrayList(table.newScan().filter(Expressions.equal("p", "one")).planFiles());
 
     assertThat(tasks).hasSize(1);
+
+    // create a new commit
+    table.newAppend().appendFile(createDataFile("three")).commit();
+
+    // use fiter with previous partition name
+    tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(firstSnapshotId)
+                .filter(Expressions.equal("part", "one"))
+                .planFiles());
+
+    assertThat(tasks).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testColumnRename() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().renameColumn("data", "renamed_data").commit();
+
+    DataFile fileThree = createDataFile("three", table.schema(), table.spec());
+    table.newAppend().appendFile(fileThree).commit();
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    // generate a new commit
+    DataFile fileFour = createDataFile("four", table.schema(), table.spec());
+    table.newAppend().appendFile(fileFour).commit();
+
+    // running successfully with the new filter on previous column name
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(firstSnapshotId)
+                .filter(Expressions.equal("data", "xyz"))
+                .planFiles());
+    assertThat(tasks).hasSize(2);
+
+    // running successfully with the new filter on renamed column name
+    tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(secondSnapshotId)
+                .filter(Expressions.equal("renamed_data", "xyz"))
+                .planFiles());
+    assertThat(tasks).hasSize(3);
+  }
+
+  @TestTemplate
+  public void testColumnDrop() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().deleteColumn("data").commit();
+
+    // make sure generating a new commit after dropping a column
+    DataFile fileThree = createDataFile("three", table.schema(), table.spec());
+    table.newAppend().appendFile(fileThree).commit();
+
+    // running successfully with the new filter on previous column name
+    List<FileScanTask> tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(firstSnapshotId)
+                .filter(Expressions.equal("data", "xyz"))
+                .planFiles());
+    assertThat(tasks).hasSize(2);
   }
 
   @TestTemplate
