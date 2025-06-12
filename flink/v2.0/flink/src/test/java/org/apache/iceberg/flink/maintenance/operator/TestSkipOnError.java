@@ -29,7 +29,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class TestSkipOnError extends OperatorTestBase {
 
-  private final Exception EXCEPTION = new Exception("Test error");
+  private static final Exception EXCEPTION = new Exception("Test error");
 
   @Test
   void testNoFailure() throws Exception {
