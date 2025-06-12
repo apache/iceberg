@@ -119,7 +119,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       FileIO io = table().io();
-      Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
+      Map<Integer, PartitionSpec> specs = Maps.newHashMap(specs());
       Schema dataTableSchema = table().schema();
       Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
 
