@@ -134,8 +134,8 @@ public class BucketFunction implements UnboundFunction {
       return DataTypes.IntegerType;
     }
 
-    public int gcd(int num1, int num2) {
-      return BigInteger.valueOf(num1).gcd(BigInteger.valueOf(num2)).intValueExact();
+    protected int gcd(int a, int b) {
+      return BigInteger.valueOf(a).gcd(BigInteger.valueOf(b)).intValueExact();
     }
 
     @Override
@@ -145,9 +145,11 @@ public class BucketFunction implements UnboundFunction {
       if (otherBucketFunction instanceof BucketBase) {
         int commonDivisor = gcd(thisNumBuckets, otherNumBuckets);
         if (commonDivisor > 1 && commonDivisor != thisNumBuckets) {
+
           return new BucketReducer(commonDivisor);
         }
       }
+
       return null;
     }
   }

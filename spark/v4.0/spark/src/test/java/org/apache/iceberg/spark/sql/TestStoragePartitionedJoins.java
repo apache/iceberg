@@ -580,9 +580,50 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
 
     sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
     sql("INSERT INTO %s VALUES (3L, 300, 'hardware')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (4L, 103, 'sales')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (5L, 104, 'marketing')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (6L, 105, 'pr')", tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsWithEqualBucketNumbers() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(4, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (2L, 101, 'hr')", tableName);
+    sql("INSERT INTO %s VALUES (3L, 102, 'operation')", tableName);
     sql("INSERT INTO %s VALUES (4L, 103, 'sales')", tableName);
     sql("INSERT INTO %s VALUES (5L, 104, 'marketing')", tableName);
     sql("INSERT INTO %s VALUES (6L, 105, 'pr')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(4, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (3L, 300, 'hardware')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (4L, 103, 'sales')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (5L, 104, 'marketing')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (6L, 105, 'pr')", tableName(OTHER_TABLE_NAME));
 
     assertPartitioningAwarePlan(
         1, /* expected num of shuffles with SPJ */
@@ -621,9 +662,9 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
 
     sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
     sql("INSERT INTO %s VALUES (3L, 300, 'hardware')", tableName(OTHER_TABLE_NAME));
-    sql("INSERT INTO %s VALUES (4L, 103, 'sales')", tableName);
-    sql("INSERT INTO %s VALUES (5L, 104, 'marketing')", tableName);
-    sql("INSERT INTO %s VALUES (6L, 105, 'pr')", tableName);
+    sql("INSERT INTO %s VALUES (4L, 103, 'sales')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (5L, 104, 'marketing')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (6L, 105, 'pr')", tableName(OTHER_TABLE_NAME));
 
     assertPartitioningAwarePlan(
         3, /* expected num of shuffles with SPJ */
