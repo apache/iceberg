@@ -1279,7 +1279,10 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThatThrownBy(() -> removeSnapshots(table).expireSnapshotId(snapshotId).commit())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot expire 2. Still referenced by refs: [branch]");
+        .hasMessage(
+            String.format(
+                "Cannot expire 2 in the table %s. Still referenced by refs: [branch]",
+                table.name()));
   }
 
   @TestTemplate
@@ -1295,7 +1298,9 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThatThrownBy(() -> removeSnapshots(table).expireSnapshotId(snapshotId).commit())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot expire 1. Still referenced by refs: [tag]");
+        .hasMessage(
+            String.format(
+                "Cannot expire 1 in the table %s. Still referenced by refs: [tag]", table.name()));
   }
 
   @TestTemplate
