@@ -324,7 +324,7 @@ public class DynamicIcebergSink
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    public DynamicIcebergSink build() {
+    DynamicIcebergSink build() {
 
       Preconditions.checkArgument(
           generator != null, "Please use withGenerator() to convert the input DataStream.");
