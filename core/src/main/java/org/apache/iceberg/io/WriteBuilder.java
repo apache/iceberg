@@ -1,0 +1,112 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.io;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.Schema;
+
+/**
+ * Builder interface for creating file writers across supported data file formats. The {@link
+ * FileAccessFactory} implementations provide the appropriate {@link WriteBuilder} instances.
+ *
+ * <p>The {@link WriteBuilder} follows the builder pattern to configure and create {@link
+ * FileAppender} instances that write data to the target output files.
+ *
+ * <p>This interface is directly exposed to users for parameterizing when only an appender is
+ * required.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <E> schema type for the input data records
+ * @param <D> the input data type for the writer
+ */
+public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
+  /** Set the file schema. */
+  B fileSchema(Schema newSchema);
+
+  /**
+   * Set a writer configuration property which affects the writer behavior.
+   *
+   * @param property a writer config property name
+   * @param value config value
+   * @return this for method chaining
+   */
+  B set(String property, String value);
+
+  default B set(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return (B) this;
+  }
+
+  /**
+   * Set a file metadata property in the created file.
+   *
+   * @param property a file metadata property name
+   * @param value config value
+   * @return this for method chaining
+   */
+  B meta(String property, String value);
+
+  default B meta(Map<String, String> properties) {
+    properties.forEach(this::meta);
+    return (B) this;
+  }
+
+  /** Sets the metrics configuration used for collecting column metrics for the created file. */
+  B metricsConfig(MetricsConfig newMetricsConfig);
+
+  /** Overwrite the file if it already exists. By default, overwrite is disabled. */
+  B overwrite();
+
+  /**
+   * Sets the encryption key used for writing the file. If the writer does not support encryption,
+   * then an exception should be thrown.
+   */
+  default B fileEncryptionKey(ByteBuffer encryptionKey) {
+    throw new UnsupportedOperationException("Not supported");
+  }
+
+  /**
+   * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
+   * does not support encryption, then an exception should be thrown.
+   */
+  default B fileAADPrefix(ByteBuffer aadPrefix) {
+    throw new UnsupportedOperationException("Not supported");
+  }
+
+  /**
+   * Sets the schema for the input data records.
+   *
+   * <p>This method is necessary when the mapping between input types and Iceberg types is not
+   * one-to-one. For example, when multiple input types could map to the same Iceberg type, or when
+   * schema metadata beyond the structure is needed to properly interpret the data.
+   *
+   * <p>While the Iceberg schema defines the expected output structure, the input schema provides
+   * the exact input format details needed for proper type conversion.
+   *
+   * @param newDataSchema the native schema representation from the input (Spark, Flink, etc.)
+   * @return this builder for method chaining
+   */
+  B dataSchema(E newDataSchema);
+
+  /** Finalizes the configuration and builds the {@link FileAppender}. */
+  FileAppender<D> build() throws IOException;
+}
