@@ -34,6 +34,7 @@ import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -63,6 +64,7 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -100,7 +102,7 @@ public class TestDeltaTaskWriter extends TestBase {
   }
 
   private void testCdcEvents(boolean partitioned) throws IOException {
-    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -178,7 +180,7 @@ public class TestDeltaTaskWriter extends TestBase {
 
   private void testWritePureEqDeletes(boolean partitioned) throws IOException {
     createAndInitTable(partitioned);
-    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -207,7 +209,7 @@ public class TestDeltaTaskWriter extends TestBase {
 
   private void testAbort(boolean partitioned) throws IOException {
     createAndInitTable(partitioned);
-    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -247,7 +249,7 @@ public class TestDeltaTaskWriter extends TestBase {
   @TestTemplate
   public void testPartitionedTableWithDataAsKey() throws IOException {
     createAndInitTable(true);
-    List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(dataFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -290,7 +292,7 @@ public class TestDeltaTaskWriter extends TestBase {
   @TestTemplate
   public void testPartitionedTableWithDataAndIdAsKey() throws IOException {
     createAndInitTable(true);
-    List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId(), idFieldId());
+    Set<Integer> equalityFieldIds = Sets.newHashSet(dataFieldId(), idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -325,7 +327,7 @@ public class TestDeltaTaskWriter extends TestBase {
     this.table = create(tableSchema, PartitionSpec.unpartitioned());
     initTable(table);
 
-    List<Integer> equalityIds = ImmutableList.of(table.schema().findField("ts").fieldId());
+    Set<Integer> equalityIds = ImmutableSet.of(table.schema().findField("ts").fieldId());
     TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(flinkType, equalityIds);
     taskWriterFactory.initialize(1, 1);
 
@@ -383,7 +385,7 @@ public class TestDeltaTaskWriter extends TestBase {
     return SimpleDataUtil.actualRowSet(table, columns);
   }
 
-  private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
+  private TaskWriterFactory<RowData> createTaskWriterFactory(Set<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         FlinkSchemaUtil.convert(table.schema()),
@@ -395,7 +397,7 @@ public class TestDeltaTaskWriter extends TestBase {
   }
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(
-      RowType flinkType, List<Integer> equalityFieldIds) {
+      RowType flinkType, Set<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         flinkType,

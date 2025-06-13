@@ -114,7 +114,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             Maps.newHashMap(commonWriteProperties);
                         tableWriteProperties.putAll(table.properties());
 
-                        List<Integer> equalityFieldIds =
+                        Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());
                         if (element.upsertMode()) {
                           Preconditions.checkState(
@@ -138,7 +138,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             targetDataFileSize,
                             dataFileFormat,
                             tableWriteProperties,
-                            equalityFieldIds,
+                            Lists.newArrayList(equalityFieldIds),
                             element.upsertMode(),
                             element.schema(),
                             element.spec());
@@ -199,15 +199,15 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     return result;
   }
 
-  private static List<Integer> getEqualityFields(Table table, List<Integer> equalityFieldIds) {
+  private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {
     if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
       return equalityFieldIds;
     }
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
     if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
-      return Lists.newArrayList(identifierFieldIds);
+      return identifierFieldIds;
     }
-    return Collections.emptyList();
+    return Collections.emptySet();
   }
 
   @VisibleForTesting

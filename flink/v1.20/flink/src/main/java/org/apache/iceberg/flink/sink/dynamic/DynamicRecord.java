@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.util.List;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DistributionMode;
@@ -37,7 +37,7 @@ public class DynamicRecord {
   private DistributionMode distributionMode;
   private int writeParallelism;
   private boolean upsertMode;
-  @Nullable private List<String> equalityFields;
+  @Nullable private Set<String> equalityFields;
 
   public DynamicRecord(
       TableIdentifier tableIdentifier,
@@ -120,11 +120,11 @@ public class DynamicRecord {
     this.upsertMode = upsertMode;
   }
 
-  public List<String> equalityFields() {
+  public Set<String> equalityFields() {
     return equalityFields;
   }
 
-  public void setEqualityFields(List<String> equalityFields) {
+  public void setEqualityFields(Set<String> equalityFields) {
     this.equalityFields = equalityFields;
   }
 }

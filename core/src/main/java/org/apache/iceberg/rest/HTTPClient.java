@@ -86,6 +86,7 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_PROXY_PORT = "rest.client.proxy.port";
   static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
   static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
+  static final String REST_USER_AGENT = "rest.client.user-agent";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -121,6 +122,11 @@ public class HTTPClient extends BaseHTTPClient {
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
+    String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
+    if (userAgent != null) {
+      clientBuilder.setUserAgent(userAgent);
+    }
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
