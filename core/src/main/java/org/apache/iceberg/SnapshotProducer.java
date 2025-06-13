@@ -119,6 +119,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private Consumer<String> deleteFunc = defaultDelete;
 
   private ExecutorService workerPool;
+  private ExecutorService writerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -201,6 +202,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return workerPool;
+  }
+
+  protected ExecutorService writerPool() {
+    if (writerPool == null) {
+      this.writerPool =
+          ThreadPools.newExitingWorkerPool("iceberg-manifest-writer-pool", writerPoolSize());
+    }
+
+    return writerPool;
+  }
+
+  private int writerPoolSize() {
+    return Math.max(2, ThreadPools.WORKER_THREAD_POOL_SIZE);
   }
 
   @Override
@@ -665,15 +679,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
+  private <F> List<ManifestFile> writeManifests(
       Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
+    int parallelism = manifestWriterCount(writerPoolSize(), files.size());
     List<List<F>> groups = divide(files, parallelism);
     Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(groups)
         .stopOnFailure()
         .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(writerPool())
         .run(group -> manifests.addAll(writeFunc.apply(group)));
     return ImmutableList.copyOf(manifests);
   }
