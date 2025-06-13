@@ -134,8 +134,8 @@ public class BucketFunction implements UnboundFunction {
       return DataTypes.IntegerType;
     }
 
-    protected int gcd(int a, int b) {
-      return BigInteger.valueOf(a).gcd(BigInteger.valueOf(b)).intValueExact();
+    protected int gcd(int num1, int num2) {
+      return BigInteger.valueOf(num1).gcd(BigInteger.valueOf(num2)).intValueExact();
     }
 
     @Override
