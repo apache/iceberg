@@ -142,7 +142,7 @@ class TestDynamicIcebergSinkPerf {
     }
   }
 
-  private static class IdBasedConverter implements DynamicRecordConverter<Integer> {
+  private static class IdBasedGenerator implements DynamicRecordGenerator<Integer> {
 
     @Override
     public void convert(Integer id, Collector<DynamicRecord> out) {
@@ -158,7 +158,7 @@ class TestDynamicIcebergSinkPerf {
     runTest(
         s -> {
           DynamicIcebergSink.forInput(s)
-              .withConverter(new IdBasedConverter())
+              .withGenerator(new IdBasedGenerator())
               .immediateTableUpdate(true)
               .catalogLoader(CATALOG_EXTENSION.catalogLoader())
               .append();

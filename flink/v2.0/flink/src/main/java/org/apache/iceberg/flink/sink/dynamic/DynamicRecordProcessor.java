@@ -36,7 +36,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     implements Collector<DynamicRecord> {
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
 
-  private final DynamicRecordConverter<T> converter;
+  private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
   private final boolean immediateUpdate;
   private final int cacheMaximumSize;
@@ -50,12 +50,12 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient Context context;
 
   DynamicRecordProcessor(
-      DynamicRecordConverter<T> converter,
+      DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
       boolean immediateUpdate,
       int cacheMaximumSize,
       long cacheRefreshMs) {
-    this.converter = converter;
+    this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
@@ -79,7 +79,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             DYNAMIC_TABLE_UPDATE_STREAM,
             new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
 
-    converter.open(openContext);
+    generator.open(openContext);
   }
 
   @Override
@@ -87,7 +87,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       throws Exception {
     this.context = ctx;
     this.collector = out;
-    converter.convert(element, this);
+    generator.convert(element, this);
   }
 
   @Override

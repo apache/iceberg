@@ -184,7 +184,7 @@ public class DynamicIcebergSink
 
   public static class Builder<T> {
     private DataStream<T> input;
-    private DynamicRecordConverter<T> converter;
+    private DynamicRecordGenerator<T> generator;
     private CatalogLoader catalogLoader;
     private String uidPrefix = null;
     private final Map<String, String> writeOptions = Maps.newHashMap();
@@ -201,8 +201,8 @@ public class DynamicIcebergSink
       return this;
     }
 
-    public Builder<T> withConverter(DynamicRecordConverter<T> inputConverter) {
-      this.converter = inputConverter;
+    public Builder<T> withGenerator(DynamicRecordGenerator<T> inputGenerator) {
+      this.generator = inputGenerator;
       return this;
     }
 
@@ -327,7 +327,7 @@ public class DynamicIcebergSink
     public DynamicIcebergSink build() {
 
       Preconditions.checkArgument(
-          converter != null, "Please use withConverter() to convert the input DataStream.");
+          generator != null, "Please use withGenerator() to convert the input DataStream.");
       Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
 
       // Init the `flinkWriteConf` here, so we can do the checks
@@ -362,9 +362,9 @@ public class DynamicIcebergSink
           input
               .process(
                   new DynamicRecordProcessor<>(
-                      converter, catalogLoader, immediateUpdate, cacheMaximumSize, cacheRefreshMs))
-              .uid(prefixIfNotNull(uidPrefix, "-converter"))
-              .name(operatorName("Converter"))
+                      generator, catalogLoader, immediateUpdate, cacheMaximumSize, cacheRefreshMs))
+              .uid(prefixIfNotNull(uidPrefix, "-generator"))
+              .name(operatorName("generator"))
               .returns(type);
 
       DataStreamSink<DynamicRecordInternal> rowDataDataStreamSink =

@@ -22,10 +22,10 @@ import java.io.Serializable;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.util.Collector;
 
-/** Conversion method to return input type into a DynamicRecord */
-public interface DynamicRecordConverter<T> extends Serializable {
+/** A generator to yield {@link DynamicRecord} from the provided input. */
+public interface DynamicRecordGenerator<T> extends Serializable {
   default void open(OpenContext openContext) throws Exception {}
 
-  /** Takes a user-defined input type and converts it one or multiple {@link DynamicRecord}s. */
+  /** Takes the user-defined input and yields zero, one, or multiple {@link DynamicRecord}s. */
   void convert(T inputRecord, Collector<DynamicRecord> out) throws Exception;
 }

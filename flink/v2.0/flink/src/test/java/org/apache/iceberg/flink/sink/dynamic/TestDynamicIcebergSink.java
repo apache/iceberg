@@ -158,7 +158,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
-  private static class Converter implements DynamicRecordConverter<DynamicIcebergDataImpl> {
+  private static class Generator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
 
     @Override
     public void convert(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
@@ -519,7 +519,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     env.setParallelism(parallelism);
 
     DynamicIcebergSink.forInput(dataStream)
-        .withConverter(new Converter())
+        .withGenerator(new Generator())
         .catalogLoader(CATALOG_EXTENSION.catalogLoader())
         .writeParallelism(parallelism)
         .immediateTableUpdate(immediateUpdate)
