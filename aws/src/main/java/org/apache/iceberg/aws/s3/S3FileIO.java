@@ -434,9 +434,9 @@ public class S3FileIO
     if (null == clientByPrefix) {
       synchronized (this) {
         if (null == clientByPrefix) {
-          this.clientByPrefix = Maps.newHashMap();
+          Map<String, PrefixedS3Client> localClientByPrefix = Maps.newHashMap();
 
-          clientByPrefix.put(
+          localClientByPrefix.put(
               ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
@@ -449,11 +449,12 @@ public class S3FileIO
                             .putAll(storageCredential.config())
                             .buildKeepingLast();
 
-                    clientByPrefix.put(
+                    localClientByPrefix.put(
                         storageCredential.prefix(),
                         new PrefixedS3Client(
                             storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
                   });
+          this.clientByPrefix = localClientByPrefix;
         }
       }
     }
