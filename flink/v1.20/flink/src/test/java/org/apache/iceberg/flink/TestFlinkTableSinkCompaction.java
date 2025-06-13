@@ -31,6 +31,8 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
@@ -53,10 +55,14 @@ import org.junit.jupiter.api.TestTemplate;
 public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
+              .map(ExternalTypeInfo::of)
+              .toArray(TypeInformation[]::new));
 
   private static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+      new DataFormatConverters.RowConverter(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(DataType[]::new));
 
   private static final String TABLE_NAME = "test_table";
   private StreamTableEnvironment tEnv;
