@@ -62,6 +62,25 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Performance test class to compare {@link DynamicIcebergSink} against {@link IcebergSink} to
+ * measure and compare their throughput.
+ *
+ * <p>The test dynamically generates input for multiple tables, then writes to these tables. For the
+ * DynamicSink, a single sink is used to write all tables. For the IcebergSink, one sink is used per
+ * table. The test logs the written record counts and elapsed time based on the Iceberg snapshot
+ * metadata.
+ *
+ * <h2>Usage</h2>
+ *
+ * <ul>
+ *   <li>Set the SAMPLE_SIZE, RECORD_SIZE, and TABLE_NUM.
+ *   <li>Run the unit tests and review logs for performance results.
+ * </ul>
+ *
+ * <p>Note: This test is disabled by default and should be enabled manually when performance testing
+ * is needed. It is not intended as a standard unit test.
+ */
 @Disabled("Please enable manually for performance testing.")
 class TestDynamicIcebergSinkPerf {
   private static final Logger LOG = LoggerFactory.getLogger(TestDynamicIcebergSinkPerf.class);
