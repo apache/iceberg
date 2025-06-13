@@ -339,7 +339,12 @@ public class IcebergSink
       return this;
     }
 
-    /** Clean up after removing {@link IcebergSink#forRow(DataStream, TableSchema)} */
+    /**
+     * Clean up after removing {@link IcebergSink#forRow(DataStream, TableSchema)}
+     *
+     * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #forRow(DataStream,
+     *     ResolvedSchema)} instead.
+     */
     @Deprecated
     private Builder forRow(DataStream<Row> input, TableSchema inputTableSchema) {
       RowType rowType = (RowType) inputTableSchema.toRowDataType().getLogicalType();
@@ -733,7 +738,12 @@ public class IcebergSink
     return (SerializableTable) SerializableTable.copyOf(table);
   }
 
-  /** Clean up after removing {@link Builder#tableSchema} */
+  /**
+   * Clean up after removing {@link Builder#tableSchema}
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toFlinkRowType(Schema,
+   *     ResolvedSchema)} instead.
+   */
   @Deprecated
   private static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
