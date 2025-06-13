@@ -403,7 +403,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testWriteDynamicRowData() throws Exception {
+  void testWriteMultipleTablesWithSchemaChanges() throws Exception {
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             new DynamicIcebergDataImpl(
