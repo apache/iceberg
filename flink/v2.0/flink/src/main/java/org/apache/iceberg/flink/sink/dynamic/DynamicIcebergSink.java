@@ -64,11 +64,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 /**
  * Dynamic version of the IcebergSink which supports:
  *
- * <ol>
+ * <ul>
  *   <li>Writing to any number of tables (No more 1:1 sink/topic relationship).
  *   <li>Creating and updating tables based on the user-supplied routing.
  *   <li>Updating the schema and partition spec of tables based on the user-supplied specification.
- * </ol>
+ * </ul>
  */
 @Experimental
 public class DynamicIcebergSink
