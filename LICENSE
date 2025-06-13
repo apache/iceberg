@@ -273,6 +273,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 This product includes code from Apache Hive.
 
 * Hive metastore derby schema in hive-schema-3.1.0.derby.sql
+* Hive metastore derby schema in hive-schema-4.0.0.derby.sql
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://hive.apache.org/
