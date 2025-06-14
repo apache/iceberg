@@ -42,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -84,6 +85,7 @@ import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFil
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -1164,7 +1166,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
       spyAction.execute();
       mockedStatic.verify(
           () ->
-              DeleteOrphanFilesSparkAction.listDirRecursivelyWithHadoop(
+              FileSystemWalker.listDirRecursivelyWithHadoop(
                   anyString(),
                   any(Predicate.class),
                   any(Configuration.class),
@@ -1172,7 +1174,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
                   anyInt(),
                   anyList(),
                   any(PathFilter.class),
-                  anyList()));
+                  any(Consumer.class)));
     }
   }
 
