@@ -47,7 +47,7 @@ class RewriteUtil {
                     tableLoader,
                     11,
                     10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(MIN_INPUT_FILES, "1")))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

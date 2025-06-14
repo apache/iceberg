@@ -284,7 +284,7 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                     10_000_000,
                     ImmutableMap.of(
                         MIN_INPUT_FILES,
-                        "2",
+                        "1",
                         TARGET_FILE_SIZE_BYTES,
                         String.valueOf(targetFileSize))))) {
       testHarness.open();
