@@ -65,6 +65,38 @@ public class FileURI {
     return uriAsString;
   }
 
+  public String getScheme() {
+    return scheme;
+  }
+
+  public void setScheme(String scheme) {
+    this.scheme = scheme;
+  }
+
+  public String getAuthority() {
+    return authority;
+  }
+
+  public void setAuthority(String authority) {
+    this.authority = authority;
+  }
+
+  public String getPath() {
+    return path;
+  }
+
+  public void setPath(String path) {
+    this.path = path;
+  }
+
+  public String getUriAsString() {
+    return uriAsString;
+  }
+
+  public void setUriAsString(String uriAsString) {
+    this.uriAsString = uriAsString;
+  }
+
   public boolean schemeMatch(FileURI another) {
     return uriComponentMatch(scheme, another.scheme());
   }
