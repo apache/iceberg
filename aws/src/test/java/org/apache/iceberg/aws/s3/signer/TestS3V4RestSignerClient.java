@@ -32,16 +32,19 @@ import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
+import software.amazon.awssdk.utils.IoUtils;
 
 class TestS3V4RestSignerClient {
 
   @BeforeAll
   static void beforeAll() {
+    S3V4RestSignerClient.authManager = null;
     S3V4RestSignerClient.httpClient = Mockito.mock(RESTClient.class);
     when(S3V4RestSignerClient.httpClient.withAuthSession(Mockito.any()))
         .thenReturn(S3V4RestSignerClient.httpClient);
@@ -67,6 +70,12 @@ class TestS3V4RestSignerClient {
   @AfterAll
   static void afterAll() {
     S3V4RestSignerClient.httpClient = null;
+  }
+
+  @AfterEach
+  void afterEach() {
+    IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
+    S3V4RestSignerClient.authManager = null;
   }
 
   @ParameterizedTest
