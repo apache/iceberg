@@ -311,6 +311,22 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
+  public void testCreateTableAfterRename() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    String newTableName = tableName + "_2";
+
+    glueCatalogWithUniqueLocation.renameTable(
+        TableIdentifier.of(namespace, tableName), TableIdentifier.of(namespace, newTableName));
+    Table renamedTable =
+        glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, newTableName));
+    createTable(namespace, tableName);
+    Table table = glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, tableName));
+
+    assertThat(renamedTable.location()).isNotEqualTo(table.location());
+  }
+
+  @Test
   public void testRenameTableFailsToCreateNewTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
@@ -744,7 +760,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
         new AwsProperties(properties),
         new S3FileIOProperties(properties),
         GLUE,
-        null);
+        null,
+        false);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
