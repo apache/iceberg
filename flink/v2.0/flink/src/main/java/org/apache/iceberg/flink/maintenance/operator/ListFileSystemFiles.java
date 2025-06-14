@@ -62,7 +62,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
   private transient Counter errorCounter;
   private final TableLoader tableLoader;
   private final boolean usePrefixListing;
-  private final Configuration configuration = new Configuration();
+  private transient Configuration configuration;
   private final int maxListingDepth;
   private final int maxListingDirectSubDirs;
 
@@ -99,6 +99,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), table.name(), taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
+    this.configuration = new Configuration();
     table.properties().forEach(configuration::set);
   }
 
