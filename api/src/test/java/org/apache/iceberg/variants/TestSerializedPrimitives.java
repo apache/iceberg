@@ -450,9 +450,7 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
 
-    assertThat(value.type()).isEqualTo(PhysicalType.STRING);
-    assertThat(value.get()).isEqualTo("iceberg");
-    assertThat(value.sizeInBytes()).isEqualTo(8);
+    VariantTestUtil.assertVariantString(value, "iceberg");
   }
 
   @Test
