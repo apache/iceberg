@@ -42,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1173,7 +1174,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
                   anyInt(),
                   anyList(),
                   any(PathFilter.class),
-                  anyList()));
+                  any(Consumer.class)));
     }
   }
 
