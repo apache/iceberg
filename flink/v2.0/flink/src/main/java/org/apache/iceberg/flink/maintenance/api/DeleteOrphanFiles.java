@@ -285,11 +285,11 @@ public class DeleteOrphanFiles {
           tableMetadataFiles
               .union(tableDataFiles)
               .map(new FileUriConverter(equalSchemes, equalAuthorities))
-              .keyBy(FileURI::path)
+              .keyBy(FileURI::getPath)
               .connect(
                   allFsFiles
                       .map(new FileUriConverter(equalSchemes, equalAuthorities))
-                      .keyBy(FileURI::path))
+                      .keyBy(FileURI::getPath))
               .process(new AntiJoin(prefixMismatchMode))
               .slotSharingGroup(slotSharingGroup())
               .name(operatorName(FILTER_FILES_TASK_NAME))

@@ -466,21 +466,21 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       FileURI valid = row._2;
 
       if (valid == null) {
-        return actual.uriAsString();
+        return actual.getUriAsString();
       }
 
       boolean schemeMatch = valid.schemeMatch(actual);
       boolean authorityMatch = valid.authorityMatch(actual);
 
       if ((!schemeMatch || !authorityMatch) && mode == PrefixMismatchMode.DELETE) {
-        return actual.uriAsString();
+        return actual.getUriAsString();
       } else {
         if (!schemeMatch) {
-          conflicts.add(Pair.of(valid.scheme(), actual.scheme()));
+          conflicts.add(Pair.of(valid.getScheme(), actual.getScheme()));
         }
 
         if (!authorityMatch) {
-          conflicts.add(Pair.of(valid.authority(), actual.authority()));
+          conflicts.add(Pair.of(valid.getAuthority(), actual.getAuthority()));
         }
 
         return null;

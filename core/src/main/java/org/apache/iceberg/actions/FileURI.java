@@ -49,22 +49,6 @@ public class FileURI {
 
   public FileURI() {}
 
-  public String scheme() {
-    return scheme;
-  }
-
-  public String authority() {
-    return authority;
-  }
-
-  public String path() {
-    return path;
-  }
-
-  public String uriAsString() {
-    return uriAsString;
-  }
-
   public String getScheme() {
     return scheme;
   }
@@ -98,11 +82,11 @@ public class FileURI {
   }
 
   public boolean schemeMatch(FileURI another) {
-    return uriComponentMatch(scheme, another.scheme());
+    return uriComponentMatch(scheme, another.getScheme());
   }
 
   public boolean authorityMatch(FileURI another) {
-    return uriComponentMatch(authority, another.authority());
+    return uriComponentMatch(authority, another.getAuthority());
   }
 
   private boolean uriComponentMatch(String valid, String actual) {

@@ -98,7 +98,7 @@ public class TestAntiJoin extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues())
-          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.uriAsString()));
+          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.getUriAsString()));
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
     }
   }
@@ -198,7 +198,7 @@ public class TestAntiJoin extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues())
-          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.uriAsString()));
+          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.getUriAsString()));
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
     }
   }
@@ -224,8 +224,8 @@ public class TestAntiJoin extends OperatorTestBase {
           throws Exception {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
         new AntiJoin(prefixMismatchMode),
-        (KeySelector<FileURI, String>) t -> t.path(),
-        (KeySelector<FileURI, String>) t -> t.path(),
+        (KeySelector<FileURI, String>) t -> t.getPath(),
+        (KeySelector<FileURI, String>) t -> t.getPath(),
         BasicTypeInfo.STRING_TYPE_INFO);
   }
 

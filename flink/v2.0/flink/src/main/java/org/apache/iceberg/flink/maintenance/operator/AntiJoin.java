@@ -73,14 +73,14 @@ public class AntiJoin extends KeyedCoProcessFunction<String, FileURI, FileURI, S
   @Override
   public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
     if (foundInFileSystem.value() != null && foundInTable.value() == null) {
-      out.collect(foundInFileSystem.value().uriAsString());
+      out.collect(foundInFileSystem.value().getUriAsString());
     } else if (foundInFileSystem.value() != null && foundInTable.value() != null) {
       FileURI valid = foundInTable.value();
       FileURI actual = foundInFileSystem.value();
 
       if (!valid.schemeMatch(actual) || !valid.authorityMatch(actual)) {
         if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
-          out.collect(foundInFileSystem.value().uriAsString());
+          out.collect(foundInFileSystem.value().getUriAsString());
         } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
           ValidationException validationException =
               new ValidationException(
