@@ -254,6 +254,33 @@ public class TestSerializedObject {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testLargeObjectUsingShortStringWithBigHeader(boolean sortFieldNames) {
+    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
+    for (int i = 0; i < 10_000; i += 1) {
+      fields.put(
+          RandomUtil.generateString(10, random),
+          VariantTestUtil.createString(RandomUtil.generateString(10, random)));
+    }
+
+    ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
+    ByteBuffer value = VariantTestUtil.createObject(meta, (Map) fields);
+
+    VariantMetadata metadata = VariantMetadata.from(meta);
+    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
+
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numFields()).isEqualTo(10_000);
+
+    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
+      VariantValue fieldValue = object.get(entry.getKey());
+      assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
+      assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
   public void testTwoByteFieldIds(boolean sortFieldNames) {
     Set<String> keySet = Sets.newHashSet();
     for (int i = 0; i < 10_000; i += 1) {
