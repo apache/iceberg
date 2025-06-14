@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.actions;
 
 import java.net.URI;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 public class FileURI {
 
@@ -36,6 +37,13 @@ public class FileURI {
     this.scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
     this.authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
     this.path = uri.getPath();
+    this.uriAsString = uriAsString;
+  }
+
+  public FileURI(String scheme, String authority, String path, String uriAsString) {
+    this.scheme = scheme;
+    this.authority = authority;
+    this.path = path;
     this.uriAsString = uriAsString;
   }
 
@@ -55,6 +63,18 @@ public class FileURI {
 
   public String uriAsString() {
     return uriAsString;
+  }
+
+  public boolean schemeMatch(FileURI another) {
+    return uriComponentMatch(scheme, another.scheme());
+  }
+
+  public boolean authorityMatch(FileURI another) {
+    return uriComponentMatch(authority, another.authority());
+  }
+
+  private boolean uriComponentMatch(String valid, String actual) {
+    return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
   }
 
   @Override

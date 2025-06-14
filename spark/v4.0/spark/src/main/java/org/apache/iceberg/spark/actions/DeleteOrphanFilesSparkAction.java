@@ -21,8 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -34,13 +32,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -49,7 +47,6 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -120,6 +117,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private boolean usePrefixListing = false;
+  private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -327,7 +325,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
       // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
       // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
-      listDirRecursivelyWithHadoop(
+      FileSystemWalker.listDirRecursivelyWithHadoop(
           location,
           predicate,
           hadoopConf.value(),
@@ -352,59 +350,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
       return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
-    }
-  }
-
-  @VisibleForTesting
-  static void listDirRecursivelyWithHadoop(
-      String dir,
-      Predicate<FileStatus> predicate,
-      Configuration conf,
-      int maxDepth,
-      int maxDirectSubDirs,
-      List<String> remainingSubDirs,
-      PathFilter pathFilter,
-      List<String> matchingFiles) {
-
-    // stop listing whenever we reach the max depth
-    if (maxDepth <= 0) {
-      remainingSubDirs.add(dir);
-      return;
-    }
-
-    try {
-      Path path = new Path(dir);
-      FileSystem fs = path.getFileSystem(conf);
-
-      List<String> subDirs = Lists.newArrayList();
-
-      for (FileStatus file : fs.listStatus(path, pathFilter)) {
-        if (file.isDirectory()) {
-          subDirs.add(file.getPath().toString());
-        } else if (file.isFile() && predicate.test(file)) {
-          matchingFiles.add(file.getPath().toString());
-        }
-      }
-
-      // stop listing if the number of direct sub dirs is bigger than maxDirectSubDirs
-      if (subDirs.size() > maxDirectSubDirs) {
-        remainingSubDirs.addAll(subDirs);
-        return;
-      }
-
-      for (String subDir : subDirs) {
-        listDirRecursivelyWithHadoop(
-            subDir,
-            predicate,
-            conf,
-            maxDepth - 1,
-            maxDirectSubDirs,
-            remainingSubDirs,
-            pathFilter,
-            matchingFiles);
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 
@@ -479,7 +424,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
       while (dirs.hasNext()) {
-        listDirRecursivelyWithHadoop(
+        FileSystemWalker.listDirRecursivelyWithHadoop(
             dirs.next(),
             predicate,
             hadoopConf.value().value(),
@@ -521,29 +466,25 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       FileURI valid = row._2;
 
       if (valid == null) {
-        return actual.uriAsString;
+        return actual.uriAsString();
       }
 
-      boolean schemeMatch = uriComponentMatch(valid.scheme, actual.scheme);
-      boolean authorityMatch = uriComponentMatch(valid.authority, actual.authority);
+      boolean schemeMatch = valid.schemeMatch(actual);
+      boolean authorityMatch = valid.authorityMatch(actual);
 
       if ((!schemeMatch || !authorityMatch) && mode == PrefixMismatchMode.DELETE) {
-        return actual.uriAsString;
+        return actual.uriAsString();
       } else {
         if (!schemeMatch) {
-          conflicts.add(Pair.of(valid.scheme, actual.scheme));
+          conflicts.add(Pair.of(valid.scheme(), actual.scheme()));
         }
 
         if (!authorityMatch) {
-          conflicts.add(Pair.of(valid.authority, actual.authority));
+          conflicts.add(Pair.of(valid.authority(), actual.authority()));
         }
 
         return null;
       }
-    }
-
-    private boolean uriComponentMatch(String valid, String actual) {
-      return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
     }
   }
 
@@ -584,7 +525,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     protected abstract String uriAsString(I input);
 
     Dataset<FileURI> apply(Dataset<I> ds) {
-      return ds.mapPartitions(this, FileURI.ENCODER);
+      return ds.mapPartitions(this, FILE_URI_ENCODER);
     }
 
     @Override
@@ -598,56 +539,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       String scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
       String authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
       return new FileURI(scheme, authority, uri.getPath(), uriAsString);
-    }
-  }
-
-  public static class FileURI {
-    public static final Encoder<FileURI> ENCODER = Encoders.bean(FileURI.class);
-
-    private String scheme;
-    private String authority;
-    private String path;
-    private String uriAsString;
-
-    public FileURI(String scheme, String authority, String path, String uriAsString) {
-      this.scheme = scheme;
-      this.authority = authority;
-      this.path = path;
-      this.uriAsString = uriAsString;
-    }
-
-    public FileURI() {}
-
-    public void setScheme(String scheme) {
-      this.scheme = scheme;
-    }
-
-    public void setAuthority(String authority) {
-      this.authority = authority;
-    }
-
-    public void setPath(String path) {
-      this.path = path;
-    }
-
-    public void setUriAsString(String uriAsString) {
-      this.uriAsString = uriAsString;
-    }
-
-    public String getScheme() {
-      return scheme;
-    }
-
-    public String getAuthority() {
-      return authority;
-    }
-
-    public String getPath() {
-      return path;
-    }
-
-    public String getUriAsString() {
-      return uriAsString;
     }
   }
 }
