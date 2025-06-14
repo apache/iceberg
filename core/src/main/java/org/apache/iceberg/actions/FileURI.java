@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.actions;
 
 import java.net.URI;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 public class FileURI {
 
@@ -39,22 +40,57 @@ public class FileURI {
     this.uriAsString = uriAsString;
   }
 
+  public FileURI(String scheme, String authority, String path, String uriAsString) {
+    this.scheme = scheme;
+    this.authority = authority;
+    this.path = path;
+    this.uriAsString = uriAsString;
+  }
+
   public FileURI() {}
 
-  public String scheme() {
+  public String getScheme() {
     return scheme;
   }
 
-  public String authority() {
+  public void setScheme(String scheme) {
+    this.scheme = scheme;
+  }
+
+  public String getAuthority() {
     return authority;
   }
 
-  public String path() {
+  public void setAuthority(String authority) {
+    this.authority = authority;
+  }
+
+  public String getPath() {
     return path;
   }
 
-  public String uriAsString() {
+  public void setPath(String path) {
+    this.path = path;
+  }
+
+  public String getUriAsString() {
     return uriAsString;
+  }
+
+  public void setUriAsString(String uriAsString) {
+    this.uriAsString = uriAsString;
+  }
+
+  public boolean schemeMatch(FileURI another) {
+    return uriComponentMatch(scheme, another.getScheme());
+  }
+
+  public boolean authorityMatch(FileURI another) {
+    return uriComponentMatch(authority, another.getAuthority());
+  }
+
+  private boolean uriComponentMatch(String valid, String actual) {
+    return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
   }
 
   @Override

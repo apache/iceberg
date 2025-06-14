@@ -29,9 +29,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.flink.maintenance.operator.AntiJoin;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
-import org.apache.iceberg.flink.maintenance.operator.FileURI;
 import org.apache.iceberg.flink.maintenance.operator.FileUriConverter;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFilesProcess;
@@ -79,12 +79,15 @@ public class DeleteOrphanFiles {
     private int planningWorkerPoolSize = 10;
     private int deleteBatchSize = 1000;
     private boolean caseSensitive = false;
+    private int maxListingDepth = 3;
+    private int maxListingDirectSubDirs = 10;
+    private boolean usePrefixListing = false;
     private Map<String, String> equalSchemes =
         Maps.newHashMap(
             ImmutableMap.of(
                 "s3n", "s3",
                 "s3a", "s3a"));
-    private Map<String, String> equalAuthorities = Maps.newHashMap();
+    private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode =
         org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.ERROR;
 
@@ -97,6 +100,39 @@ public class DeleteOrphanFiles {
      */
     public Builder location(String newLocation) {
       this.location = newLocation;
+      return this;
+    }
+
+    /**
+     * Whether to use prefix listing when listing files from the file system.
+     *
+     * @param newUsePrefixListing true to enable prefix listing, false otherwise
+     * @return for chained calls
+     */
+    public Builder usePrefixListing(boolean newUsePrefixListing) {
+      this.usePrefixListing = newUsePrefixListing;
+      return this;
+    }
+
+    /**
+     * The maximum number of direct subdirectories to list in a single directory.
+     *
+     * @param newMaxListingDirectSubDirs the maximum number of direct sub-directories to list
+     * @return for chained calls
+     */
+    public Builder maxListingDirectSubDirs(int newMaxListingDirectSubDirs) {
+      this.maxListingDirectSubDirs = newMaxListingDirectSubDirs;
+      return this;
+    }
+
+    /**
+     * The maximum depth to recurse when listing files from the file system.
+     *
+     * @param newMaxListingDepth the maximum depth to recurse
+     * @return for chained calls
+     */
+    public Builder maxListingDepth(int newMaxListingDepth) {
+      this.maxListingDepth = newMaxListingDepth;
       return this;
     }
 
@@ -198,6 +234,7 @@ public class DeleteOrphanFiles {
                       index(),
                       tableLoader(),
                       FILE_PATH_SCAN_CONTEXT,
+                      MetadataTableType.ALL_FILES,
                       planningWorkerPoolSize,
                       caseSensitive))
               .name(operatorName(PLANNER_TASK_NAME))
@@ -231,7 +268,14 @@ public class DeleteOrphanFiles {
           trigger
               .process(
                   new ListFileSystemFiles(
-                      taskName(), index(), tableLoader(), location, minAge.toMillis()))
+                      taskName(),
+                      index(),
+                      tableLoader(),
+                      location,
+                      minAge.toMillis(),
+                      usePrefixListing,
+                      maxListingDepth,
+                      maxListingDirectSubDirs))
               .name(operatorName(FILESYSTEM_FILES_TASK_NAME))
               .uid(FILESYSTEM_FILES_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
@@ -241,11 +285,11 @@ public class DeleteOrphanFiles {
           tableMetadataFiles
               .union(tableDataFiles)
               .map(new FileUriConverter(equalSchemes, equalAuthorities))
-              .keyBy(FileURI::path)
+              .keyBy(FileURI::getPath)
               .connect(
                   allFsFiles
                       .map(new FileUriConverter(equalSchemes, equalAuthorities))
-                      .keyBy(FileURI::path))
+                      .keyBy(FileURI::getPath))
               .process(new AntiJoin(prefixMismatchMode))
               .slotSharingGroup(slotSharingGroup())
               .name(operatorName(FILTER_FILES_TASK_NAME))
@@ -308,6 +352,7 @@ public class DeleteOrphanFiles {
         }
       }
     }
+
     return flattenedMap;
   }
 }
