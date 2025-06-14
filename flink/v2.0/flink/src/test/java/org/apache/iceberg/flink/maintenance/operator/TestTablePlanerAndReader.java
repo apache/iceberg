@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -48,6 +49,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 0,
                 tableLoader(),
                 FILE_PATH_SCAN_CONTEXT,
+                MetadataTableType.ALL_FILES,
                 1,
                 false))) {
       testHarness.open();
@@ -85,6 +87,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 0,
                 tableLoader(),
                 FILE_PATH_SCAN_CONTEXT,
+                MetadataTableType.ALL_FILES,
                 1,
                 false))) {
       testHarness.open();

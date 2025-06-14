@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
@@ -30,20 +31,23 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
-import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
@@ -55,7 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -317,9 +320,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       Predicate<org.apache.iceberg.io.FileInfo> predicate =
           fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
-      matchingFiles =
-          FileSystemWalker.listDirRecursively(
-              (SupportsPrefixOperations) table.io(), location, predicate, pathFilter);
+      listDirRecursivelyWithFileIO(
+          (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -353,6 +355,41 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
       return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
+  }
+
+  private static void listDirRecursivelyWithFileIO(
+      SupportsPrefixOperations io,
+      String dir,
+      Predicate<org.apache.iceberg.io.FileInfo> predicate,
+      PathFilter pathFilter,
+      List<String> matchingFiles) {
+    String listPath = dir;
+    if (!dir.endsWith("/")) {
+      listPath = dir + "/";
+    }
+
+    Iterable<org.apache.iceberg.io.FileInfo> files = io.listPrefix(listPath);
+    for (org.apache.iceberg.io.FileInfo file : files) {
+      Path path = new Path(file.location());
+      if (!isHiddenPath(dir, path, pathFilter) && predicate.test(file)) {
+        matchingFiles.add(file.location());
+      }
+    }
+  }
+
+  private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
+    boolean isHiddenPath = false;
+    Path currentPath = path;
+    while (currentPath.getParent().toString().contains(baseDir)) {
+      if (!pathFilter.accept(currentPath)) {
+        isHiddenPath = true;
+        break;
+      }
+
+      currentPath = currentPath.getParent();
+    }
+
+    return isHiddenPath;
   }
 
   @VisibleForTesting
@@ -598,6 +635,50 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       String scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
       String authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
       return new FileURI(scheme, authority, uri.getPath(), uriAsString);
+    }
+  }
+
+  /**
+   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be
+   * marked as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of
+   * the characters that indicate a hidden path.
+   */
+  @VisibleForTesting
+  static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
+
+    private final Set<String> hiddenPathPartitionNames;
+
+    PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames) {
+      this.hiddenPathPartitionNames = hiddenPathPartitionNames;
+    }
+
+    @Override
+    public boolean accept(Path path) {
+      return isHiddenPartitionPath(path) || HiddenPathFilter.get().accept(path);
+    }
+
+    private boolean isHiddenPartitionPath(Path path) {
+      return hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
+    }
+
+    static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
+      if (specs == null) {
+        return HiddenPathFilter.get();
+      }
+
+      Set<String> partitionNames =
+          specs.values().stream()
+              .map(PartitionSpec::fields)
+              .flatMap(List::stream)
+              .filter(field -> field.name().startsWith("_") || field.name().startsWith("."))
+              .map(field -> field.name() + "=")
+              .collect(Collectors.toSet());
+
+      if (partitionNames.isEmpty()) {
+        return HiddenPathFilter.get();
+      } else {
+        return new PartitionAwareHiddenPathFilter(partitionNames);
+      }
     }
   }
 

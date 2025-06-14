@@ -54,12 +54,14 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
   private transient Table table;
   private final boolean caseSensitive;
   private transient IcebergSourceSplitSerializer splitSerializer;
+  private final MetadataTableType metadataTableType;
 
   public TablePlanner(
       String taskName,
       int taskIndex,
       TableLoader tableLoader,
       ScanContext scanContext,
+      MetadataTableType metadataTableType,
       int workerPoolSize,
       boolean caseSensitive) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
@@ -72,14 +74,14 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
     this.scanContext = scanContext;
     this.workerPoolSize = workerPoolSize;
     this.caseSensitive = caseSensitive;
+    this.metadataTableType = metadataTableType;
   }
 
   @Override
   public void open(OpenContext openContext) throws Exception {
     tableLoader.open();
     Table tableOri = tableLoader.loadTable();
-    this.table =
-        MetadataTableUtils.createMetadataTableInstance(tableOri, MetadataTableType.ALL_FILES);
+    this.table = MetadataTableUtils.createMetadataTableInstance(tableOri, metadataTableType);
     this.workerPool =
         ThreadPools.newFixedThreadPool(table.name() + "-table--planner", workerPoolSize);
     this.splitSerializer = new IcebergSourceSplitSerializer(caseSensitive);
