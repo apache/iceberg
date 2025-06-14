@@ -21,13 +21,14 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @Internal
 public class FileUriConverter implements MapFunction<String, FileURI> {
 
-  private Map<String, String> equalSchemes;
-  private Map<String, String> equalAuthorities;
+  private final Map<String, String> equalSchemes;
+  private final Map<String, String> equalAuthorities;
 
   public FileUriConverter(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
     Preconditions.checkNotNull(equalSchemes, "equalSchemes should no be null");

@@ -20,16 +20,40 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestListFileSystemFiles extends OperatorTestBase {
+  @Parameter(index = 0)
+  private boolean usePrefixListing;
 
-  @Test
+  @Parameter(index = 1)
+  private int maxListingDepth;
+
+  @Parameter(index = 2)
+  private int maxListingDirectSubDirs;
+
+  @Parameters(name = "usePrefixListing={0},maxListingDepth={1},maxListingDirectSubDirs={2}")
+  public static List<Object[]> parameters() {
+    return Arrays.asList(
+        new Object[] {true, 0, 0},
+        new Object[] {false, 0, 0},
+        new Object[] {true, 1, 5},
+        new Object[] {false, 1, 5});
+  }
+
+  @TestTemplate
   void testMetadataFilesWithTable() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -38,7 +62,14 @@ class TestListFileSystemFiles extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new ListFileSystemFiles(
-                OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader(), table.location(), 0))) {
+                OperatorTestBase.DUMMY_TABLE_NAME,
+                0,
+                tableLoader(),
+                table.location(),
+                0,
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
@@ -47,7 +78,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   void testMetadataFilesWithPartitionTable() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -57,7 +88,14 @@ class TestListFileSystemFiles extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new ListFileSystemFiles(
-                OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader(), table.location(), 0))) {
+                OperatorTestBase.DUMMY_TABLE_NAME,
+                0,
+                tableLoader(),
+                table.location(),
+                0,
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
@@ -66,13 +104,20 @@ class TestListFileSystemFiles extends OperatorTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   void testMetadataFilesWithEmptyTable() throws Exception {
     Table table = createTable();
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new ListFileSystemFiles(
-                OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader(), table.location(), 0))) {
+                OperatorTestBase.DUMMY_TABLE_NAME,
+                0,
+                tableLoader(),
+                table.location(),
+                0,
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 

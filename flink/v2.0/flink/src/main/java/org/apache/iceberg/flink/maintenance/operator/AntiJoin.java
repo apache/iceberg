@@ -25,8 +25,8 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,18 +73,15 @@ public class AntiJoin extends KeyedCoProcessFunction<String, FileURI, FileURI, S
   @Override
   public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
     if (foundInFileSystem.value() != null && foundInTable.value() == null) {
-      out.collect(foundInFileSystem.value().uriAsString());
+      out.collect(foundInFileSystem.value().getUriAsString());
     } else if (foundInFileSystem.value() != null && foundInTable.value() != null) {
       FileURI valid = foundInTable.value();
       FileURI actual = foundInFileSystem.value();
-      boolean schemeMatch = uriComponentMatch(valid.scheme(), actual.scheme());
-      boolean authorityMatch = uriComponentMatch(valid.authority(), actual.authority());
 
-      if ((!schemeMatch || !authorityMatch)
-          && prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
-        out.collect(foundInFileSystem.value().uriAsString());
-      } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
-        if (!schemeMatch || !authorityMatch) {
+      if (!valid.schemeMatch(actual) || !valid.authorityMatch(actual)) {
+        if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
+          out.collect(foundInFileSystem.value().getUriAsString());
+        } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
           ValidationException validationException =
               new ValidationException(
                   "Unable to determine whether certain files are orphan. "
@@ -109,9 +106,5 @@ public class AntiJoin extends KeyedCoProcessFunction<String, FileURI, FileURI, S
 
     foundInTable.clear();
     foundInFileSystem.clear();
-  }
-
-  private boolean uriComponentMatch(String valid, String actual) {
-    return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
   }
 }
