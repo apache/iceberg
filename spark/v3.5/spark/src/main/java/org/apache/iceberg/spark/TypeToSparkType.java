@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
@@ -67,6 +68,19 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
+
+      if (field.writeDefault() != null) {
+        sparkField =
+            sparkField.withCurrentDefaultValue(
+                Literal$.MODULE$.create(field.writeDefault(), type).sql());
+      }
+
+      if (field.initialDefault() != null) {
+        sparkField =
+            sparkField.withExistenceDefaultValue(
+                Literal$.MODULE$.create(field.initialDefault(), type).sql());
+      }
+
       sparkFields.add(sparkField);
     }
 
