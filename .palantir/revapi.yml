@@ -1285,6 +1285,12 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.TableProperties.ROW_LINEAGE"
       justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.abstractMethodAdded"
+      new: "method <T extends org.apache.iceberg.rest.RESTResponse> T org.apache.iceberg.rest.BaseHTTPClient::execute(org.apache.iceberg.rest.HTTPRequest,\
+        \ java.lang.Class<T>, java.util.function.Consumer<org.apache.iceberg.rest.responses.ErrorResponse>,\
+        \ java.util.function.Consumer<java.util.Map<java.lang.String, java.lang.String>>,\
+        \ org.apache.iceberg.rest.ParserContext)"
+      justification: "Add context aware parsing"
     - code: "java.method.removed"
       old: "method boolean org.apache.iceberg.TableMetadata::rowLineageEnabled()"
       justification: "Removing deprecations for 1.10.0"
