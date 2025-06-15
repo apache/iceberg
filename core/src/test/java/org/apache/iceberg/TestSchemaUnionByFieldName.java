@@ -361,6 +361,29 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
+  // date -> Can promote to timestamp without timezone
+  public void testTypePromoteDateToTimestamp() {
+    Schema currentSchema = new Schema(required(1, "aCol", DateType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", TimestampType.withoutZone()));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct().fields()).hasSize(1);
+    assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(TimestampType.withoutZone());
+  }
+
+  @Test
+  // date -> Can promote to timestamp nano without timezone
+  public void testTypePromoteDateToTimestampNano() {
+    Schema currentSchema = new Schema(required(1, "aCol", DateType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", TimestampNanoType.withoutZone()));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct().fields()).hasSize(1);
+    assertThat(applied.asStruct().fields().get(0).type())
+        .isEqualTo(TimestampNanoType.withoutZone());
+  }
+
+  @Test
   // float 32-bit IEEE 754 floating point -> Can promote to double
   public void testTypePromoteFloatToDouble() {
     Schema currentSchema = new Schema(required(1, "aCol", FloatType.get()));
