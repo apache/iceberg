@@ -71,6 +71,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final long defaultMaxRefAgeMs;
   private boolean cleanExpiredFiles = true;
   private TableMetadata base;
+  private final String tableName;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
   private Consumer<String> deleteFunc = null;
@@ -80,9 +81,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   private boolean specifiedSnapshotId = false;
   private boolean cleanExpiredMetadata = false;
 
-  RemoveSnapshots(TableOperations ops) {
+  RemoveSnapshots(String tableName, TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+    this.tableName = tableName;
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
@@ -109,7 +111,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireSnapshotId(long expireSnapshotId) {
-    LOG.info("Expiring snapshot with id: {}", expireSnapshotId);
+    LOG.info("Expiring snapshot with id: {} in the table {}", expireSnapshotId, tableName);
     idsToRemove.add(expireSnapshotId);
     specifiedSnapshotId = true;
     return this;
@@ -118,9 +120,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
     LOG.info(
-        "Expiring snapshots older than: {} ({})",
+        "Expiring snapshots older than: {} ({}) in the table {}",
         DateTimeUtil.formatTimestampMillis(timestampMillis),
-        timestampMillis);
+        timestampMillis,
+        tableName);
     this.defaultExpireOlderThan = timestampMillis;
     return this;
   }
@@ -197,8 +200,9 @@ class RemoveSnapshots implements ExpireSnapshots {
       List<String> refsForId = retainedIdToRefs.get(idToRemove);
       Preconditions.checkArgument(
           refsForId == null,
-          "Cannot expire %s. Still referenced by refs: %s",
+          "Cannot expire %s in the table %s. Still referenced by refs: %s",
           idToRemove,
+          tableName,
           refsForId);
     }
 
@@ -270,7 +274,11 @@ class RemoveSnapshots implements ExpireSnapshots {
           retainedRefs.put(name, ref);
         }
       } else {
-        LOG.warn("Removing invalid ref {}: snapshot {} does not exist", name, ref.snapshotId());
+        LOG.warn(
+            "Removing invalid ref {}: snapshot {} does not exist in the table {}",
+            name,
+            ref.snapshotId(),
+            tableName);
       }
     }
 
@@ -348,7 +356,7 @@ class RemoveSnapshots implements ExpireSnapshots {
               TableMetadata updated = internalApply();
               ops.commit(base, updated);
             });
-    LOG.info("Committed snapshot changes");
+    LOG.info("Committed snapshot changes ({})", tableName);
 
     if (cleanExpiredFiles) {
       cleanExpiredSnapshots();
@@ -377,7 +385,9 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     LOG.info(
-        "Cleaning up expired files (local, {})", incrementalCleanup ? "incremental" : "reachable");
+        "Cleaning up expired files (local, {}, {})",
+        incrementalCleanup ? "incremental" : "reachable",
+        tableName);
 
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
