@@ -28,6 +28,8 @@ public interface RegisterTableRequest extends RESTRequest {
 
   String metadataLocation();
 
+  boolean overwrite();
+
   @Override
   default void validate() {
     // nothing to validate as it's not possible to create an invalid instance
