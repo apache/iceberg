@@ -67,11 +67,31 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.9.1 release
+
+Apache Iceberg 1.9.1 was released on May 27, 2025.
+
+The 1.9.1 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.9.1)
+
+* API
+    - API, Build: Fix Iceberg Build Version [\#12949](https://github.com/apache/iceberg/pull/12949)
+* Core
+    - Core: Revert [\#12670](https://github.com/apache/iceberg/pull/12670) to Temporarily Restore Sending Single Snapshot Changes Rather than in Bulk [\#13100](https://github.com/apache/iceberg/pull/13100)
+    - Core: Ensure reactivated view version uses correct timestamp [\#12821](https://github.com/apache/iceberg/pull/12821)
+* Dependencies
+    - Parquet to 1.15.2 [CVE-2025-46762](https://github.com/advisories/GHSA-53wx-pr6q-m3j5)
+
+
+## Past releases
+
 ### 1.9.0 release
 
 Apache Iceberg 1.9.0 was released on April 28, 2025.
 
 The 1.9.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.9.0)
+
+Note - Due to a bug in the build system, Iceberg 1.9.0 will return a version of 'unknown' when queried via
+the API. This is fixed in 1.9.1.
 
 * Deprecation / End of Support
     - Spark: Remove Spark 3.3 support ([\#12279](https://github.com/apache/iceberg/pull/12279))
@@ -140,7 +160,6 @@ The 1.9.0 release contains bug fixes and new features. For full release notes vi
     - Jackson to 2.18.3
     - downgraded AWS SDK to 2.29.52 ([\#12649](https://github.com/apache/iceberg/pull/12649))
 
-## Past releases
 
 ### 1.8.1 release
 

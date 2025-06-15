@@ -73,6 +73,64 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return null;
   }
 
+  static class V4Writer extends ManifestListWriter {
+    private final V4Metadata.ManifestFileWrapper wrapper;
+    private Long nextRowId;
+
+    V4Writer(
+        OutputFile snapshotFile,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber,
+        long firstRowId) {
+      super(
+          snapshotFile,
+          ImmutableMap.of(
+              "snapshot-id", String.valueOf(snapshotId),
+              "parent-snapshot-id", String.valueOf(parentSnapshotId),
+              "sequence-number", String.valueOf(sequenceNumber),
+              "first-row-id", String.valueOf(firstRowId),
+              "format-version", "4"));
+      this.wrapper = new V4Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
+      this.nextRowId = firstRowId;
+    }
+
+    @Override
+    protected ManifestFile prepare(ManifestFile manifest) {
+      if (manifest.content() != ManifestContent.DATA || manifest.firstRowId() != null) {
+        return wrapper.wrap(manifest, null);
+      } else {
+        // assign first-row-id and update the next to assign
+        wrapper.wrap(manifest, nextRowId);
+        // leave space for existing and added rows, in case any of the existing data files do not
+        // have an assigned first-row-id (this is the case with manifests from pre-v3 snapshots)
+        this.nextRowId += manifest.existingRowsCount() + manifest.addedRowsCount();
+        return wrapper;
+      }
+    }
+
+    @Override
+    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+      try {
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(V4Metadata.MANIFEST_LIST_SCHEMA)
+            .named("manifest_file")
+            .meta(meta)
+            .overwrite()
+            .build();
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(
+            e, "Failed to create snapshot list writer for path: %s", file.location());
+      }
+    }
+
+    @Override
+    public Long nextRowId() {
+      return nextRowId;
+    }
+  }
+
   static class V3Writer extends ManifestListWriter {
     private final V3Metadata.ManifestFileWrapper wrapper;
     private Long nextRowId;

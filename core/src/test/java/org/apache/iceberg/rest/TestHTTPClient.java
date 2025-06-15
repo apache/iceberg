@@ -50,6 +50,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.TLSConfigurer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
@@ -71,6 +72,8 @@ public class TestHTTPClient {
 
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
+  private static final String USER_AGENT = "User-Agent";
+  private static final String TEST_USER_AGENT = "Test-User-Agent";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
@@ -79,11 +82,26 @@ public class TestHTTPClient {
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
+  public static class DefaultTLSConfigurer implements TLSConfigurer {
+    public static int count = 0;
+
+    public DefaultTLSConfigurer() {
+      count++;
+    }
+  }
+
+  public static class TLSConfigurerMissingNoArgCtor implements TLSConfigurer {
+    TLSConfigurerMissingNoArgCtor(String str) {}
+  }
+
   @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
     restClient =
-        HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build();
+        HTTPClient.builder(ImmutableMap.of(HTTPClient.REST_USER_AGENT, TEST_USER_AGENT))
+            .uri(URI)
+            .withAuthSession(AuthSession.EMPTY)
+            .build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
@@ -333,6 +351,48 @@ public class TestHTTPClient {
   }
 
   @Test
+  public void testLoadTLSConfigurer() {
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, DefaultTLSConfigurer.class.getName());
+    HttpClientConnectionManager connectionManager =
+        HTTPClient.configureConnectionManager(properties);
+    assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
+    assertThat(DefaultTLSConfigurer.count).isEqualTo(1);
+  }
+
+  @Test
+  public void testLoadTLSConfigurerNoArgConstructorNotFound() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_TLS_CONFIGURER, TLSConfigurerMissingNoArgCtor.class.getName());
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer implementation")
+        .hasMessageContaining(
+            "NoSuchMethodException: org.apache.iceberg.rest.TestHTTPClient$TLSConfigurerMissingNoArgCtor.<init>()");
+  }
+
+  @Test
+  public void testLoadTLSConfigurerClassNotFound() {
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, "TLSConfigurerDoesNotExist");
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer implementation")
+        .hasMessageContaining("java.lang.ClassNotFoundException: TLSConfigurerDoesNotExist");
+  }
+
+  @Test
+  public void testLoadTLSConfigurerNotImplementTLSConfigurer() {
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, Object.class.getName());
+    assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot initialize TLSConfigurer")
+        .hasMessageContaining("does not implement TLSConfigurer");
+  }
+
+  @Test
   public void testSocketTimeout() throws IOException {
     long socketTimeoutMs = 2000L;
     Map<String, String> properties =
@@ -461,7 +521,8 @@ public class TestHTTPClient {
             .withMethod(method.name().toUpperCase(Locale.ROOT))
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
             .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
-            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
+            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
+            .withHeader(USER_AGENT, TEST_USER_AGENT);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);

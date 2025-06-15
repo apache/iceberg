@@ -39,6 +39,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -48,8 +49,12 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.protocol.BasicHttpContext;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -57,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.TLSConfigurer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -80,11 +86,14 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_PROXY_PORT = "rest.client.proxy.port";
   static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
   static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
+  static final String REST_USER_AGENT = "rest.client.user-agent";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
 
   @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
+
+  static final String REST_TLS_CONFIGURER = "rest.client.tls.configurer-impl";
 
   private final URI baseUri;
   private final CloseableHttpClient httpClient;
@@ -113,6 +122,11 @@ public class HTTPClient extends BaseHTTPClient {
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
+    String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
+    if (userAgent != null) {
+      clientBuilder.setUserAgent(userAgent);
+    }
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
@@ -183,7 +197,10 @@ public class HTTPClient extends BaseHTTPClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
+      CloseableHttpResponse response,
+      String responseBody,
+      Consumer<ErrorResponse> errorHandler,
+      Object wasRetried) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -220,10 +237,19 @@ public class HTTPClient extends BaseHTTPClient {
       errorResponse = buildDefaultErrorResponse(response);
     }
 
-    errorHandler.accept(errorResponse);
+    ErrorResponse enrichedErrorResponse =
+        ErrorResponse.builder()
+            .wasRetried(wasRetried == Boolean.TRUE)
+            .responseCode(errorResponse.code())
+            .withMessage(errorResponse.message())
+            .withType(errorResponse.type())
+            .withStackTrace(errorResponse.stack())
+            .build();
+
+    errorHandler.accept(enrichedErrorResponse);
 
     // Throw an exception in case the provided error handler does not throw.
-    throw new RESTException("Unhandled error: %s", errorResponse);
+    throw new RESTException("Unhandled error: %s", enrichedErrorResponse);
   }
 
   @Override
@@ -286,7 +312,8 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    try (CloseableHttpResponse response = httpClient.execute(request)) {
+    HttpContext context = new BasicHttpContext();
+    try (CloseableHttpResponse response = httpClient.execute(request, context)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
         respHeaders.put(header.getName(), header.getValue());
@@ -304,7 +331,7 @@ public class HTTPClient extends BaseHTTPClient {
 
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler);
+        throwFailure(response, responseBody, errorHandler, context.getAttribute("was-retried"));
       }
 
       if (responseBody == null) {
@@ -344,7 +371,7 @@ public class HTTPClient extends BaseHTTPClient {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
 
-    return connectionManagerBuilder
+    connectionManagerBuilder
         .useSystemProperties()
         .setMaxConnTotal(
             Integer.getInteger(
@@ -353,8 +380,57 @@ public class HTTPClient extends BaseHTTPClient {
                     properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT)))
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
-                properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
-        .build();
+                properties,
+                REST_MAX_CONNECTIONS_PER_ROUTE,
+                REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT));
+
+    TLSConfigurer tlsConfigurer = loadTlsConfigurer(properties);
+    if (tlsConfigurer != null) {
+      connectionManagerBuilder.setTlsSocketStrategy(
+          new DefaultClientTlsStrategy(
+              tlsConfigurer.sslContext(),
+              tlsConfigurer.supportedProtocols(),
+              tlsConfigurer.supportedCipherSuites(),
+              SSLBufferMode.STATIC,
+              tlsConfigurer.hostnameVerifier()));
+    }
+
+    return connectionManagerBuilder.build();
+  }
+
+  private static TLSConfigurer loadTlsConfigurer(Map<String, String> properties) {
+    String impl = properties.get(REST_TLS_CONFIGURER);
+    if (impl == null) {
+      return null;
+    }
+
+    DynConstructors.Ctor<TLSConfigurer> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(TLSConfigurer.class)
+              .loader(HTTPClient.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize TLSConfigurer implementation %s: %s", impl, e.getMessage()),
+          e);
+    }
+
+    TLSConfigurer configurer;
+    try {
+      configurer = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize TLSConfigurer, %s does not implement TLSConfigurer.", impl),
+          e);
+    }
+
+    configurer.initialize(properties);
+
+    return configurer;
   }
 
   @VisibleForTesting

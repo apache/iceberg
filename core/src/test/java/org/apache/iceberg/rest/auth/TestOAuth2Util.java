@@ -73,6 +73,7 @@ public class TestOAuth2Util {
   public void testExpiresAt() {
     assertThat(OAuth2Util.expiresAtMillis(null)).isNull();
     assertThat(OAuth2Util.expiresAtMillis("not a token")).isNull();
+    assertThat(OAuth2Util.expiresAtMillis("a.b.c")).isNull();
 
     // expires at epoch second = 1
     String token =

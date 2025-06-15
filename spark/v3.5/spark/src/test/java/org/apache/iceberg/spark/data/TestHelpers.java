@@ -113,33 +113,6 @@ public class TestHelpers {
     }
   }
 
-  public static void assertEqualsBatch(
-      Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch) {
-    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
-      InternalRow row = batch.getRow(rowId);
-      Record rec = expected.next();
-
-      List<Types.NestedField> fields = struct.fields();
-      for (int readPos = 0; readPos < fields.size(); readPos += 1) {
-        Types.NestedField field = fields.get(readPos);
-        Field writeField = rec.getSchema().getField(field.name());
-
-        Type fieldType = field.type();
-        Object actualValue = row.isNullAt(readPos) ? null : row.get(readPos, convert(fieldType));
-
-        Object expectedValue;
-        if (writeField != null) {
-          int writePos = writeField.pos();
-          expectedValue = rec.get(writePos);
-        } else {
-          expectedValue = field.initialDefault();
-        }
-
-        assertEqualsUnsafe(fieldType, expectedValue, actualValue);
-      }
-    }
-  }
-
   public static void assertEqualsBatchWithRows(
       Types.StructType struct, Iterator<Row> expected, ColumnarBatch batch) {
     for (int rowId = 0; rowId < batch.numRows(); rowId++) {

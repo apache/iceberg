@@ -23,6 +23,7 @@ nav:
   - Docs: 
     - nightly: '!include docs/docs/nightly/mkdocs.yml'
     - latest: '!include docs/docs/latest/mkdocs.yml'
+    - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
     - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
     - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
     - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'

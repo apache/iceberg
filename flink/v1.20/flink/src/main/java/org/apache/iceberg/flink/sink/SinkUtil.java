@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,8 +41,8 @@ class SinkUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
 
-  static List<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
-    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
+  static Set<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
+    Set<Integer> equalityFieldIds = Sets.newHashSet(table.schema().identifierFieldIds());
     if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
       Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
       for (String column : equalityFieldColumns) {
@@ -63,7 +62,7 @@ class SinkUtil {
             equalityFieldSet,
             table.schema().identifierFieldIds());
       }
-      equalityFieldIds = Lists.newArrayList(equalityFieldSet);
+      equalityFieldIds = Sets.newHashSet(equalityFieldSet);
     }
     return equalityFieldIds;
   }

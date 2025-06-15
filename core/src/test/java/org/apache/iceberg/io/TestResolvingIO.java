@@ -43,63 +43,40 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestResolvingIO {
 
   @TempDir private java.nio.file.Path temp;
 
-  @Test
-  public void testResolvingFileIOKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testResolvingFileIOSerialization(
+      TestHelpers.RoundTripSerializer<FileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     FileIO testResolvingFileIO = new ResolvingFileIO();
 
     // resolving fileIO should be serializable when properties are passed as immutable map
-    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO =
-        TestHelpers.KryoHelpers.roundTripSerialize(testResolvingFileIO);
+    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
+    FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testResolvingFileIO);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
   }
 
-  @Test
-  public void testResolvingFileIOWithHadoopFileIOKryoSerialization() throws IOException {
-    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
-    Configuration conf = new Configuration();
-    resolvingFileIO.setConf(conf);
-    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-
-    assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
-    assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
-
-    ResolvingFileIO roundTripSerializedFileIO =
-        TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
-    roundTripSerializedFileIO.setConf(conf);
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
-
-    assertThat(roundTripSerializedFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
-    assertThat(roundTripSerializedFileIO.newInputFile(temp.toString())).isNotNull();
-  }
-
-  @Test
-  public void testResolvingFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testResolvingFileIO = new ResolvingFileIO();
-
-    // resolving fileIO should be serializable when properties are passed as immutable map
-    testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testResolvingFileIO);
-    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
-  }
-
-  @Test
-  public void testResolvingFileIOWithHadoopFileIOJavaSerialization()
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testResolvingFileIOWithHadoopFileIOSerialization(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
     Configuration conf = new Configuration();
     resolvingFileIO.setConf(conf);
-    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    resolvingFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
 
     assertThat(resolvingFileIO.ioClass(temp.toString())).isEqualTo(HadoopFileIO.class);
     assertThat(resolvingFileIO.newInputFile(temp.toString())).isNotNull();
 
-    ResolvingFileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    ResolvingFileIO roundTripSerializedFileIO = roundTripSerializer.apply(resolvingFileIO);
     roundTripSerializedFileIO.setConf(conf);
     assertThat(roundTripSerializedFileIO.properties()).isEqualTo(resolvingFileIO.properties());
 
@@ -186,25 +163,10 @@ public class TestResolvingIO {
     assertThat(resolvingFileIO.newInputFile("/file")).isNull();
   }
 
-  @Test
-  public void resolvingFileIOWithStorageCredentialsKryoSerialization() throws IOException {
-    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
-    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
-    ResolvingFileIO resolvingFileIO =
-        (ResolvingFileIO)
-            CatalogUtil.loadFileIO(
-                ResolvingFileIO.class.getName(),
-                ImmutableMap.of(),
-                new Configuration(),
-                storageCredentials);
-
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO).credentials())
-        .isEqualTo(storageCredentials)
-        .isEqualTo(resolvingFileIO.credentials());
-  }
-
-  @Test
-  public void resolvingFileIOWithStorageCredentialsJavaSerialization()
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void resolvingFileIOWithStorageCredentialsSerialization(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
@@ -216,7 +178,7 @@ public class TestResolvingIO {
                 new Configuration(),
                 storageCredentials);
 
-    assertThat(TestHelpers.roundTripSerialize(resolvingFileIO).credentials())
+    assertThat(roundTripSerializer.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
   }
