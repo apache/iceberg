@@ -74,7 +74,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Hadoop Filesystem | Y    | Y         | Y    | Y  |
 | S3 Compatible     | Y    | Y         | Y    | Y  |
 | GCS Compatible    | Y    | Y         | Y    | Y  |
-| ADLS Compatible   | Y    | Y         | N    | Y  |
+| ADLS Compatible   | Y    | Y         | Y    | Y  |
 
 ## Table Maintenance Operations
 
