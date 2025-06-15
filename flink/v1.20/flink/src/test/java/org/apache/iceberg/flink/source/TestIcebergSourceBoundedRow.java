@@ -21,7 +21,8 @@ package org.apache.iceberg.flink.source;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
@@ -41,8 +42,13 @@ public class TestIcebergSourceBoundedRow extends TestIcebergSourceBoundedConvert
 
   @Override
   protected TypeInformation<Row> getTypeInfo(Schema icebergSchema) {
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
-    return new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
+    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(icebergSchema);
+    TypeInformation<?>[] types =
+        resolvedSchema.getColumnDataTypes().stream()
+            .map(ExternalTypeInfo::of)
+            .toArray(TypeInformation[]::new);
+    String[] fieldNames = resolvedSchema.getColumnNames().toArray(String[]::new);
+    return new RowTypeInfo(types, fieldNames);
   }
 
   @Override

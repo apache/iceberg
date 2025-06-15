@@ -26,7 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Parameter;
@@ -211,7 +211,7 @@ public class TestCompressionSettings {
 
   private static OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult>
       createIcebergStreamWriter(
-          Table icebergTable, TableSchema flinkSchema, Map<String, String> override)
+          Table icebergTable, ResolvedSchema flinkSchema, Map<String, String> override)
           throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
@@ -230,7 +230,7 @@ public class TestCompressionSettings {
   }
 
   private static Map<String, String> appenderProperties(
-      Table table, TableSchema schema, Map<String, String> override) throws Exception {
+      Table table, ResolvedSchema schema, Map<String, String> override) throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter(table, schema, override)) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
