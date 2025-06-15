@@ -515,6 +515,11 @@ project(':iceberg-aws') {
       compileClasspath += main.output + test.output
       runtimeClasspath += main.output + test.output
     }
+    jmh {
+        java {
+            srcDirs = ['src/jmh/java']
+        }
+    }
   }
 
   configurations {
@@ -718,6 +723,7 @@ project(':iceberg-gcp') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+
   }
 }
 
