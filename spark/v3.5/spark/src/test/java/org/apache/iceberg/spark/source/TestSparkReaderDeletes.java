@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.types.DataTypes.IntegerType;
@@ -135,7 +134,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             .config("spark.appStateStore.asyncTracking.enable", false)
             .config("spark.ui.liveUpdate.period", 0)
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config("spark.hadoop.hive.metastore.uris", hiveConf.get("hive.metastore.uris"))
             .enableHiveSupport()
             .getOrCreate();
 
