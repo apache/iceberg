@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Literal;
@@ -280,8 +281,12 @@ class SchemaUpdate implements UpdateSchema {
       return this;
     }
 
+    List<PartitionField> fieldsBySourceId =
+        Optional.ofNullable(this.base)
+            .map(tableMetadata -> tableMetadata.spec().getFieldsBySourceId(field.fieldId()))
+            .orElseGet(List::of);
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(field.type(), newType),
+        TypeUtil.isPromotionAllowed(field.type(), newType, !fieldsBySourceId.isEmpty()),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),

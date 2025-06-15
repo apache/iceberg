@@ -66,18 +66,20 @@ public class TestReadabilityChecks {
     for (Type.PrimitiveType from : PRIMITIVES) {
       Schema fromSchema = new Schema(required(1, "from_field", from));
       for (Type.PrimitiveType to : PRIMITIVES) {
-        List<String> errors =
-            CheckCompatibility.writeCompatibilityErrors(
-                new Schema(required(1, "to_field", to)), fromSchema);
+        for (boolean referencedBySourceId : List.of(true, false)) {
+          List<String> errors =
+              CheckCompatibility.writeCompatibilityErrors(
+                  new Schema(required(1, "to_field", to)), fromSchema);
 
-        if (TypeUtil.isPromotionAllowed(from, to)) {
-          assertThat(errors).as("Should produce 0 error messages").isEmpty();
-        } else {
-          assertThat(errors).hasSize(1);
+          if (TypeUtil.isPromotionAllowed(from, to, referencedBySourceId)) {
+            assertThat(errors).as("Should produce 0 error messages").isEmpty();
+          } else {
+            assertThat(errors).hasSize(1);
 
-          assertThat(errors.get(0))
-              .as("Should complain that promotion is not allowed")
-              .contains("cannot be promoted to");
+            assertThat(errors.get(0))
+                .as("Should complain that promotion is not allowed")
+                .contains("cannot be promoted to");
+          }
         }
       }
 

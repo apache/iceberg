@@ -179,7 +179,7 @@ being difficult to orchestrate, it is up to the committers to decide if deprecat
 All interfaces, classes, and methods targeted for deprecation must include the following:
 
 1. `@Deprecated` annotation on the appropriate element
-2. `@depreceted` javadoc comment including: the version for removal, the appropriate alternative for usage
+2. `@deprecated` javadoc comment including: the version for removal, the appropriate alternative for usage
 3. Replacement of existing code paths that use the deprecated behavior
 
 Example:
