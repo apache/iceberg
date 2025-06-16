@@ -72,6 +72,7 @@ enum Timestamps implements Transform<Long, Integer> {
             default:
               throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
           }
+
         case NANOS:
           switch (granularity) {
             case YEARS:
