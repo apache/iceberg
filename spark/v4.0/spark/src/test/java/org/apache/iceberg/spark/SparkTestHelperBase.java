@@ -28,11 +28,11 @@ import org.apache.spark.sql.Row;
 public class SparkTestHelperBase {
   protected static final Object ANY = new Object();
 
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
+  public static List<Object[]> rowsToJava(List<Row> rows) {
+    return rows.stream().map(SparkTestHelperBase::toJava).collect(Collectors.toList());
   }
 
-  private Object[] toJava(Row row) {
+  private static Object[] toJava(Row row) {
     return IntStream.range(0, row.size())
         .mapToObj(
             pos -> {
