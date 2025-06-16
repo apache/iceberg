@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -34,6 +35,7 @@ import org.apache.iceberg.flink.CatalogLoader;
 @Internal
 class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
     implements Collector<DynamicRecord> {
+  @VisibleForTesting
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
 
   private final DynamicRecordGenerator<T> generator;
