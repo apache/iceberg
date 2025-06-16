@@ -132,5 +132,5 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
   }
 
   /** Builds the reader. */
-  CloseableIterable<D> build();
+  FileReader<D> build();
 }
