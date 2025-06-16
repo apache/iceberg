@@ -26,6 +26,9 @@ import org.apache.flink.util.Collector;
 public interface DynamicRecordGenerator<T> extends Serializable {
   default void open(OpenContext openContext) throws Exception {}
 
-  /** Takes the user-defined input and yields zero, one, or multiple {@link DynamicRecord}s. */
+  /**
+   * Takes the user-defined input and yields zero, one, or multiple {@link DynamicRecord}s using the
+   * {@link Collector}.
+   */
   void convert(T inputRecord, Collector<DynamicRecord> out) throws Exception;
 }
