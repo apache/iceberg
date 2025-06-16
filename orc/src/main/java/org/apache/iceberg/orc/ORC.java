@@ -77,6 +77,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -1044,7 +1045,7 @@ public class ORC {
     }
 
     @Override
-    public CloseableIterable<D> build() {
+    public FileReader<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       Function<TypeDescription, OrcRowReader<D>> reader =
           readerFunc != null

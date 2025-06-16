@@ -24,11 +24,14 @@ import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PR
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.META_KEY;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.META_VALUE;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,6 +67,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
+  private static final Schema SCHEMA = new Schema(optional(1, "intCol", IntegerType.get()));
 
   @TempDir private Path temp;
 
@@ -152,8 +156,6 @@ public class TestParquet {
 
   @Test
   public void testNumberOfBytesWritten() throws IOException {
-    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
-
     // this value was specifically derived to reproduce iss1980
     // record count grow factor is 10000 (hardcoded)
     // total 10 checkSize method calls
@@ -163,17 +165,17 @@ public class TestParquet {
     File file = createTempFile(temp);
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(SCHEMA.asStruct());
     for (int i = 1; i <= recordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("intCol", i);
+      record.put(SCHEMA.columns().get(0).name(), i);
       records.add(record);
     }
 
     long actualSize =
         write(
             file,
-            schema,
+            SCHEMA,
             Collections.emptyMap(),
             ParquetAvroWriter::buildWriter,
             records.toArray(new GenericData.Record[] {}));
@@ -265,6 +267,33 @@ public class TestParquet {
     }
   }
 
+  @Test
+  public void testMeta() throws Exception {
+    File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
+
+    assertThat(
+            new ParquetFileAccessFactory<>("test", null)
+                .readBuilder(localInput(parquetFile))
+                .project(SCHEMA)
+                .build()
+                .meta())
+        .contains(entry(META_KEY, META_VALUE));
+    assertThat(
+            new ParquetFileAccessFactory<>("test", (a, b, c, d, e) -> null)
+                .readBuilder(localInput(parquetFile))
+                .project(SCHEMA)
+                .build()
+                .meta())
+        .contains(entry(META_KEY, META_VALUE));
+    assertThat(
+            new ParquetFileAccessFactory<>("test", (a, b, c) -> null, null, null)
+                .readBuilder(localInput(parquetFile))
+                .project(SCHEMA)
+                .build()
+                .meta())
+        .contains(entry(META_KEY, META_VALUE));
+  }
+
   private Pair<File, Long> generateFile(
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       int desiredRecordCount,
@@ -272,8 +301,6 @@ public class TestParquet {
       Integer minCheckRecordCount,
       Integer maxCheckRecordCount)
       throws IOException {
-    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
-
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
     if (rowGroupSizeBytes != null) {
       propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSizeBytes));
@@ -288,10 +315,10 @@ public class TestParquet {
     }
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(desiredRecordCount);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(SCHEMA.asStruct());
     for (int i = 1; i <= desiredRecordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("intCol", i);
+      record.put(SCHEMA.columns().get(0).name(), i);
       records.add(record);
     }
 
@@ -299,7 +326,7 @@ public class TestParquet {
     long size =
         write(
             file,
-            schema,
+            SCHEMA,
             propsBuilder.build(),
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
