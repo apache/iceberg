@@ -124,11 +124,12 @@ public class GoogleAuthManager implements AuthManager {
     return new GoogleAuthSession(credentials);
   }
 
-  /** Returns a session for a specific context. Defaults to the catalog session. */
+  /**
+   * Returns a session for a specific context. Defaults to the catalog session. For GCP, tokens are
+   * typically not context-specific in this manner.
+   */
   @Override
   public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
-    // For GCP, tokens are typically not context-specific in this manner.
-    // Re-using the parent (which should be a GoogleAuthSession) is appropriate.
     return parent;
   }
 
@@ -136,14 +137,10 @@ public class GoogleAuthManager implements AuthManager {
   @Override
   public AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
-    // Similar to contextualSession, GCP tokens are generally not table-specific.
     return parent;
   }
 
   /** Closes the manager. This is a no-op for GoogleAuthManager. */
   @Override
-  public void close() {
-    // No-op. Credentials lifecycle is managed by the GoogleCredentials object itself or by the
-    // application.
-  }
+  public void close() {}
 }

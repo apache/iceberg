@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * An authentication session that uses Google Credentials (typically Application Default
  * Credentials) to obtain an OAuth2 access token and add it to HTTP requests.
  */
-public class GoogleAuthSession implements AuthSession {
+class GoogleAuthSession implements AuthSession {
   private static final Logger LOG = LoggerFactory.getLogger(GoogleAuthSession.class);
   private final GoogleCredentials credentials;
 
@@ -43,7 +43,7 @@ public class GoogleAuthSession implements AuthSession {
    *
    * @param credentials The GoogleCredentials to use for authentication.
    */
-  public GoogleAuthSession(GoogleCredentials credentials) {
+  GoogleAuthSession(GoogleCredentials credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid credentials: null");
     this.credentials = credentials;
   }
@@ -59,9 +59,6 @@ public class GoogleAuthSession implements AuthSession {
   @Override
   public HTTPRequest authenticate(HTTPRequest request) {
     try {
-      // Ensure the credentials have a valid token, refreshing if necessary.
-      // refreshIfExpired() returns true if the token was refreshed, false otherwise.
-      // In either case, getAccessToken() after this call should provide a usable token.
       credentials.refreshIfExpired();
       AccessToken token = credentials.getAccessToken();
 
@@ -77,9 +74,8 @@ public class GoogleAuthSession implements AuthSession {
             ? request
             : ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
       } else {
-        LOG.warn(
-            "Failed to obtain Google access token. Request will be sent without Authorization header.");
-        return request;
+        throw new IllegalStateException(
+            "Failed to obtain Google access token. Cannot authenticate request.");
       }
     } catch (IOException e) {
       LOG.error("IOException while trying to refresh Google access token", e);

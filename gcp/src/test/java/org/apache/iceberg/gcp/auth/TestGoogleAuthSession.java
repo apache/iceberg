@@ -129,7 +129,7 @@ public class TestGoogleAuthSession {
   }
 
   @Test
-  public void returnsOriginalRequestWhenAccessTokenIsNull() {
+  public void throwsExceptionWhenAccessTokenIsNull() {
     when(credentials.getAccessToken()).thenReturn(null);
 
     HTTPRequest originalRequest =
@@ -138,14 +138,14 @@ public class TestGoogleAuthSession {
             .path(TEST_RELATIVE_PATH)
             .method(HTTPRequest.HTTPMethod.GET)
             .build();
-    HTTPRequest authenticatedRequest = session.authenticate(originalRequest);
 
-    assertThat(authenticatedRequest).isSameAs(originalRequest);
-    assertThat(authenticatedRequest.headers().entries()).isEmpty();
+    assertThatThrownBy(() -> session.authenticate(originalRequest))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Failed to obtain Google access token. Cannot authenticate request.");
   }
 
   @Test
-  public void returnsOriginalRequestWhenTokenValueIsNull() {
+  public void throwsExceptionWhenTokenValueIsNull() {
     when(credentials.getAccessToken()).thenReturn(accessToken);
     when(accessToken.getTokenValue()).thenReturn(null);
 
@@ -155,10 +155,10 @@ public class TestGoogleAuthSession {
             .path(TEST_RELATIVE_PATH)
             .method(HTTPRequest.HTTPMethod.GET)
             .build();
-    HTTPRequest authenticatedRequest = session.authenticate(originalRequest);
 
-    assertThat(authenticatedRequest).isSameAs(originalRequest);
-    assertThat(authenticatedRequest.headers().entries()).isEmpty();
+    assertThatThrownBy(() -> session.authenticate(originalRequest))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Failed to obtain Google access token. Cannot authenticate request.");
   }
 
   @Test
