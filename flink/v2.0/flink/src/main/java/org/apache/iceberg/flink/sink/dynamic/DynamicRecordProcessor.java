@@ -161,5 +161,11 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    try {
+      super.close();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
 }
