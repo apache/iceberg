@@ -24,14 +24,21 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.connector.sink2.Committer;
+import org.apache.flink.api.connector.sink2.CommitterInitContext;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -42,18 +49,28 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotUpdate;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
+import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -467,7 +484,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 Sets.newHashSet("id"),
                 true));
 
-    executeDynamicSink(rows, env, true, 1);
+    executeDynamicSink(rows, env, true, 1, null);
 
     try (CloseableIterable<Record> iterable =
         IcebergGenerics.read(
@@ -487,6 +504,118 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
+  @Test
+  void testCommitFailedBeforeOrAfterCommit() throws Exception {
+    // Configure a Restart strategy to allow recovery
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "fixed-delay");
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 2);
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ZERO);
+    env.configure(configuration);
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t2", "main", PartitionSpec.unpartitioned()));
+
+    FailBeforeAndAfterCommit.reset();
+    final CommitHook commitHook = new FailBeforeAndAfterCommit();
+    assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isFalse();
+    assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isFalse();
+
+    executeDynamicSink(rows, env, true, 1, commitHook);
+
+    assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isTrue();
+    assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isTrue();
+  }
+
+  @Test
+  void testCommitConcurrency() throws Exception {
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t2", "main", PartitionSpec.unpartitioned()));
+
+    TableIdentifier tableIdentifier = TableIdentifier.of("default", "t1");
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    catalog.createTable(tableIdentifier, new Schema());
+
+    final CommitHook commitHook = new AppendRightBeforeCommit(tableIdentifier.toString());
+
+    executeDynamicSink(rows, env, true, 1, commitHook);
+  }
+
+  interface CommitHook extends Serializable {
+    void beforeCommit();
+
+    void duringCommit();
+
+    void afterCommit();
+  }
+
+  private static class FailBeforeAndAfterCommit implements CommitHook {
+
+    static boolean failedBeforeCommit;
+    static boolean failedAfterCommit;
+
+    @Override
+    public void beforeCommit() {
+      if (!failedBeforeCommit) {
+        failedBeforeCommit = true;
+        throw new RuntimeException("Failing before commit");
+      }
+    }
+
+    @Override
+    public void duringCommit() {}
+
+    @Override
+    public void afterCommit() {
+      if (!failedAfterCommit) {
+        failedAfterCommit = true;
+        throw new RuntimeException("Failing before commit");
+      }
+    }
+
+    static void reset() {
+      failedBeforeCommit = false;
+      failedAfterCommit = false;
+    }
+  }
+
+  private static class AppendRightBeforeCommit implements CommitHook {
+
+    final String tableIdentifier;
+
+    private AppendRightBeforeCommit(String tableIdentifier) {
+      this.tableIdentifier = tableIdentifier;
+    }
+
+    @Override
+    public void beforeCommit() {}
+
+    @Override
+    public void duringCommit() {
+      // Create a conflict
+      Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.parse(tableIdentifier));
+      DataFile dataFile =
+          DataFiles.builder(PartitionSpec.unpartitioned())
+              .withInputFile(new InMemoryInputFile(new byte[] {1, 2, 3}))
+              .withFormat(FileFormat.AVRO)
+              .withRecordCount(3)
+              .build();
+      table.newAppend().appendFile(dataFile).commit();
+    }
+
+    @Override
+    public void afterCommit() {}
+  }
+
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {
     runTest(dynamicData, this.env, 2);
   }
@@ -504,7 +633,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       boolean immediateUpdate,
       int parallelism)
       throws Exception {
-    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism);
+    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, null);
     verifyResults(dynamicData);
   }
 
@@ -512,21 +641,131 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       List<DynamicIcebergDataImpl> dynamicData,
       StreamExecutionEnvironment env,
       boolean immediateUpdate,
-      int parallelism)
+      int parallelism,
+      @Nullable CommitHook commitHook)
       throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.addSource(createBoundedSource(dynamicData), TypeInformation.of(new TypeHint<>() {}));
     env.setParallelism(parallelism);
 
-    DynamicIcebergSink.forInput(dataStream)
-        .withGenerator(new Generator())
-        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
-        .writeParallelism(parallelism)
-        .immediateTableUpdate(immediateUpdate)
-        .append();
+    if (commitHook != null) {
+      //      Sink failingDynamicIcebergSink =
+      new CommitHookEnabledDynamicIcebergSink(commitHook)
+          .forInput(dataStream)
+          .withGenerator(new Generator())
+          .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+          .writeParallelism(parallelism)
+          .immediateTableUpdate(immediateUpdate)
+          .setSnapshotProperty("commit.retry.num-retries", "0")
+          .append();
+    } else {
+      DynamicIcebergSink.forInput(dataStream)
+          .withGenerator(new Generator())
+          .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+          .writeParallelism(parallelism)
+          .immediateTableUpdate(immediateUpdate)
+          .append();
+    }
 
     // Write the data
     env.execute("Test Iceberg DataStream");
+  }
+
+  static class CommitHookEnabledDynamicIcebergSink<T> extends DynamicIcebergSink.Builder<T> {
+    private final CommitHook commitHook;
+
+    CommitHookEnabledDynamicIcebergSink(CommitHook commitHook) {
+      this.commitHook = commitHook;
+    }
+
+    @Override
+    DynamicIcebergSink instantiateSink(
+        Map<String, String> writeProperties, FlinkWriteConf flinkWriteConf) {
+      return new CommitHookDynamicIcebergSink(
+          commitHook,
+          CATALOG_EXTENSION.catalogLoader(),
+          Collections.emptyMap(),
+          "uidPrefix",
+          writeProperties,
+          flinkWriteConf,
+          100);
+    }
+  }
+
+  static class CommitHookDynamicIcebergSink extends DynamicIcebergSink {
+
+    private final CommitHook commitHook;
+
+    CommitHookDynamicIcebergSink(
+        CommitHook commitHook,
+        CatalogLoader catalogLoader,
+        Map<String, String> snapshotProperties,
+        String uidPrefix,
+        Map<String, String> writeProperties,
+        FlinkWriteConf flinkWriteConf,
+        int cacheMaximumSize) {
+      super(
+          catalogLoader,
+          snapshotProperties,
+          uidPrefix,
+          writeProperties,
+          flinkWriteConf,
+          cacheMaximumSize);
+      this.commitHook = commitHook;
+    }
+
+    @Override
+    public Committer<DynamicCommittable> createCommitter(CommitterInitContext context) {
+      //      return super.createCommitter(context);
+      return new CommitHookEnabledDynamicCommitter(
+          commitHook,
+          CATALOG_EXTENSION.catalogLoader().loadCatalog(),
+          Collections.emptyMap(),
+          false,
+          10,
+          "sinkId",
+          new DynamicCommitterMetrics(context.metricGroup()));
+    }
+  }
+
+  static class CommitHookEnabledDynamicCommitter extends DynamicCommitter {
+    private final CommitHook commitHook;
+
+    CommitHookEnabledDynamicCommitter(
+        CommitHook commitHook,
+        Catalog catalog,
+        Map<String, String> snapshotProperties,
+        boolean replacePartitions,
+        int workerPoolSize,
+        String sinkId,
+        DynamicCommitterMetrics committerMetrics) {
+      super(
+          catalog, snapshotProperties, replacePartitions, workerPoolSize, sinkId, committerMetrics);
+      this.commitHook = commitHook;
+    }
+
+    @Override
+    public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
+        throws IOException, InterruptedException {
+      commitHook.beforeCommit();
+      super.commit(commitRequests);
+      commitHook.afterCommit();
+    }
+
+    @Override
+    void commitOperation(
+        Table table,
+        String branch,
+        SnapshotUpdate<?> operation,
+        CommitSummary summary,
+        String description,
+        String newFlinkJobId,
+        String operatorId,
+        long checkpointId) {
+      commitHook.duringCommit();
+      super.commitOperation(
+          table, branch, operation, summary, description, newFlinkJobId, operatorId, checkpointId);
+    }
   }
 
   private void verifyResults(List<DynamicIcebergDataImpl> dynamicData) throws IOException {

@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
@@ -90,7 +91,7 @@ public class DynamicIcebergSink
   private final int workerPoolSize;
   private final int cacheMaximumSize;
 
-  private DynamicIcebergSink(
+  DynamicIcebergSink(
       CatalogLoader catalogLoader,
       Map<String, String> snapshotProperties,
       String uidPrefix,
@@ -194,7 +195,7 @@ public class DynamicIcebergSink
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
 
-    private Builder() {}
+    Builder() {}
 
     public Builder<T> forInput(DataStream<T> inputStream) {
       this.input = inputStream;
@@ -324,22 +325,23 @@ public class DynamicIcebergSink
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    DynamicIcebergSink build() {
+    private DynamicIcebergSink build() {
 
       Preconditions.checkArgument(
           generator != null, "Please use withGenerator() to convert the input DataStream.");
       Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
 
-      // Init the `flinkWriteConf` here, so we can do the checks
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
-
       Map<String, String> writeProperties =
           writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf);
-
       uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
 
-      // FlinkWriteConf properties needed to be set separately, so we do not have to serialize the
-      // full conf
+      return instantiateSink(writeProperties, flinkWriteConf);
+    }
+
+    @VisibleForTesting
+    DynamicIcebergSink instantiateSink(
+        Map<String, String> writeProperties, FlinkWriteConf flinkWriteConf) {
       return new DynamicIcebergSink(
           catalogLoader,
           snapshotSummary,
