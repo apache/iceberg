@@ -649,7 +649,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     env.setParallelism(parallelism);
 
     if (commitHook != null) {
-      //      Sink failingDynamicIcebergSink =
       new CommitHookEnabledDynamicIcebergSink(commitHook)
           .forInput(dataStream)
           .generator(new Generator())
