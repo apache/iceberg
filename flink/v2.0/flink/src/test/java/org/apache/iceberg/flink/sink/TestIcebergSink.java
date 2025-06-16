@@ -403,13 +403,17 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
             .append();
 
     // since the sink write parallelism was null, it asserts that the default parallelism used was
-    // the input source parallelism
+    // the input source parallelism.
+    // sink.getTransformation is referring to the SinkV2 Writer Operator associated to the
+    // IcebergSink
     assertThat(sink.getTransformation().getParallelism()).isEqualTo(dataStream.getParallelism());
   }
 
   @TestTemplate
   void testWriteParallelism() {
     List<Row> rows = createRows("");
+
+    // the parallelism of this input source is always 1, as this is a non-parallel source.
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
 
@@ -422,6 +426,10 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .append();
 
+    // The parallelism has been properly specified when creating the IcebergSink, so this asserts
+    // that its value is the same as the parallelism TestTemplate parameter
+    // sink.getTransformation is referring to the SinkV2 Writer Operator associated to the
+    // IcebergSink
     assertThat(sink.getTransformation().getParallelism()).isEqualTo(parallelism);
   }
 
