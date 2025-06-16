@@ -1812,12 +1812,8 @@ public class TestRemoveSnapshots extends TestBase {
         .retainLast(1)
         .cleanExpiredMetadata(true)
         .commit();
-    assertThat(table.schemas())
-        .as("Expired schemas should be removed")
-        .hasSize(1);
-    assertThat(table.specs())
-        .as("Expired specs should be removed")
-        .hasSize(1);
+    assertThat(table.schemas()).as("Expired schemas should be removed").hasSize(1);
+    assertThat(table.specs()).as("Expired specs should be removed").hasSize(1);
 
     TableMetadata current = table.ops().current();
     removeSnapshots(table)
