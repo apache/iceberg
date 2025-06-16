@@ -74,12 +74,12 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
     if (immediateUpdate) {
       updater = new TableUpdater(tableCache, catalog);
+    } else {
+      updateStream =
+          new OutputTag<>(
+              DYNAMIC_TABLE_UPDATE_STREAM,
+              new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
-
-    updateStream =
-        new OutputTag<>(
-            DYNAMIC_TABLE_UPDATE_STREAM,
-            new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
 
     generator.open(openContext);
   }
