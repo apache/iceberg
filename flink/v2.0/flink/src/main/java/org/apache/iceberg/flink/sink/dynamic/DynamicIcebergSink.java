@@ -202,7 +202,7 @@ public class DynamicIcebergSink
       return this;
     }
 
-    public Builder<T> withGenerator(DynamicRecordGenerator<T> inputGenerator) {
+    public Builder<T> generator(DynamicRecordGenerator<T> inputGenerator) {
       this.generator = inputGenerator;
       return this;
     }

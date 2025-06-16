@@ -177,7 +177,7 @@ class TestDynamicIcebergSinkPerf {
     runTest(
         s -> {
           DynamicIcebergSink.forInput(s)
-              .withGenerator(new IdBasedGenerator())
+              .generator(new IdBasedGenerator())
               .immediateTableUpdate(true)
               .catalogLoader(CATALOG_EXTENSION.catalogLoader())
               .append();

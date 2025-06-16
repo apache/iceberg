@@ -652,7 +652,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       //      Sink failingDynamicIcebergSink =
       new CommitHookEnabledDynamicIcebergSink(commitHook)
           .forInput(dataStream)
-          .withGenerator(new Generator())
+          .generator(new Generator())
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
@@ -660,7 +660,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .append();
     } else {
       DynamicIcebergSink.forInput(dataStream)
-          .withGenerator(new Generator())
+          .generator(new Generator())
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
