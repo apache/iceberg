@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -664,9 +665,7 @@ public class IcebergSink
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
       // The following parallelism will be propagated to all of the above operators.
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
-      }
+      rowDataDataStreamSink.setParallelism(sink.resolveWriterParallelism(rowDataInput));
       return rowDataDataStreamSink;
     }
   }
@@ -818,16 +817,19 @@ public class IcebergSink
     }
   }
 
+  private int resolveWriterParallelism(DataStream<RowData> input) {
+    // if the writeParallelism is not specified, we set the default to the input parallelism to
+    // encourage chaining.
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
+  }
+
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
       DataStream<RowData> input,
       Schema iSchema,
       PartitionSpec partitionSpec,
       SortOrder sortOrderParam) {
 
-    int writerParallelism =
-        flinkWriteConf.writeParallelism() == null
-            ? input.getParallelism()
-            : flinkWriteConf.writeParallelism();
+    int writerParallelism = resolveWriterParallelism(input);
 
     // needed because of checkStyle not allowing us to change the value of an argument
     SortOrder sortOrder = sortOrderParam;
