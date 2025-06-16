@@ -18,13 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
-
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,6 +52,7 @@ import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.sink.IcebergSink;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -333,7 +327,7 @@ public class DynamicIcebergSink
 
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
       Map<String, String> writeProperties =
-          writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf);
+          SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, null);
       uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
 
       return instantiateSink(writeProperties, flinkWriteConf);
@@ -389,45 +383,6 @@ public class DynamicIcebergSink
 
       return rowDataDataStreamSink;
     }
-  }
-
-  /**
-   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
-   * write.
-   *
-   * @param format The FileFormat to use
-   * @param conf The write configuration
-   * @return The properties to use for writing
-   */
-  private static Map<String, String> writeProperties(FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap();
-
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
-
-    return writeProperties;
   }
 
   DataStream<DynamicRecordInternal> distributeDataStream(DataStream<DynamicRecordInternal> input) {
