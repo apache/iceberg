@@ -495,7 +495,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
 
 #### Examples
 
