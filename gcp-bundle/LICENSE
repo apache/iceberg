@@ -210,7 +210,6 @@ This binary artifact contains:
 Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.2
 Project URL: https://github.com/FasterXML/jackson-core
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
-License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -223,14 +222,12 @@ License: The Apache Software License, Version 2.0 - https://www.apache.org/licen
 Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
 Project URL: https://github.com/FasterXML/jackson
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
-License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
 Project URL: https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310 
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
-License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -247,20 +244,98 @@ License: BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/
 --------------------------------------------------------------------------------
 
 Group: com.google.api  Name: gax  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api  Name: gax-grpc  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api  Name: gax-httpjson  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -298,49 +373,49 @@ License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1  Version: 3.14.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1beta1
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/grpc-google-cloud-bigquerystorage-v1beta2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1  Version: 3.14.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1 
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1alpha  Version: 3.14.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1alpha
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta  Version: 3.14.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta1
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
-Project URL: https://github.com/googleapis/java-bigquerystorage/proto-google-cloud-bigquerystorage-v1beta2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -367,12 +442,68 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 --------------------------------------------------------------------------------
 
 Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.33.1
-License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
+License: BSD New license
+Copyright 2014, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
 Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.33.1
-License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
+License: BSD New license
+Copyright 2014, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -806,27 +937,59 @@ License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.
 
 Group: org.checkerframework  Name: checker-compat-qual  Version: 2.5.6
 Project URL: https://checkerframework.org
-License: The MIT License - http://opensource.org/licenses/MIT
+License: The MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 --------------------------------------------------------------------------------
 
 Group: org.checkerframework  Name: checker-qual  Version: 3.49.0
 Project URL: https://checkerframework.org/
-License: The MIT License - http://opensource.org/licenses/MIT 
+License: The MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 --------------------------------------------------------------------------------
 
 Group: org.eclipse.collections  Name: eclipse-collections  Version: 11.1.0
 Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections
 License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
-License: Eclipse Public License - v 1.0 - https://www.eclipse.org/legal/epl-v10.html 
 
 --------------------------------------------------------------------------------
 
 Group: org.eclipse.collections  Name: eclipse-collections-api  Version: 11.1.0
 Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections-api
 License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
-License: Eclipse Public License - v 1.0 - https://www.eclipse.org/legal/epl-v10.html
 
 --------------------------------------------------------------------------------
 
@@ -838,10 +1001,60 @@ License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENS
 
 Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
 Project URL: http://www.slf4j.org
-License: MIT - https://opensource.org/license/mit
+License: MIT
+Copyright (c) 2004-2025 QOS.ch
+ All rights reserved.
+
+ Permission is hereby granted, free  of charge, to any person obtaining
+ a  copy  of this  software  and  associated  documentation files  (the
+ "Software"), to  deal in  the Software without  restriction, including
+ without limitation  the rights to  use, copy, modify,  merge, publish,
+ distribute,  sublicense, and/or sell  copies of  the Software,  and to
+ permit persons to whom the Software  is furnished to do so, subject to
+ the following conditions:
+
+ The  above  copyright  notice  and  this permission  notice  shall  be
+ included in all copies or substantial portions of the Software.
+
+ THE  SOFTWARE IS  PROVIDED  "AS  IS", WITHOUT  WARRANTY  OF ANY  KIND,
+ EXPRESS OR  IMPLIED, INCLUDING  BUT NOT LIMITED  TO THE  WARRANTIES OF
+ MERCHANTABILITY,    FITNESS    FOR    A   PARTICULAR    PURPOSE    AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
 
 Group: org.threeten  Name: threeten-extra  Version: 1.8.0
 Project URL: https://www.threeten.org/threeten-extra 
-License: BSD 3-clause - https://raw.githubusercontent.com/ThreeTen/threeten-extra/main/LICENSE.txt
+License: BSD 3-clause
+Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
+
+All rights reserved.
+
+* Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of JSR-310 nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
