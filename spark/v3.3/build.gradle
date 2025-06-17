@@ -232,7 +232,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
     implementation 'io.netty:netty-common:4.1.118.Final'
     implementation 'org.apache.avro:avro:1.11.4'
-    implementation 'org.apache.parquet:parquet-avro:1.15.1'
+    implementation 'org.apache.parquet:parquet-avro:1.15.2'
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive33.get()}"
