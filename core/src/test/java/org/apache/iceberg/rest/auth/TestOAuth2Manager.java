@@ -508,6 +508,81 @@ class TestOAuth2Manager {
   }
 
   @Test
+  void standaloneTableSessionEmptyProperties() {
+    Map<String, String> properties = Map.of();
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, properties)) {
+      assertThat(tableSession.headers()).isEmpty();
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should not create refresh executor when no table credentials provided")
+          .isNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should create session cache for table with token")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void standaloneTableSessionTokenProvided() {
+    Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+      assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer table-token"));
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should create refresh executor when table session created")
+          .isNotNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should create session cache for table with token")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void standaloneTableSessionCredentialProvided() {
+    Map<String, String> tableProperties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+      assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should create refresh executor when table session created")
+          .isNotNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should create session cache for table with token")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verify(client)
+        .postForm(
+            any(),
+            eq(
+                Map.of(
+                    "grant_type", "client_credentials",
+                    "client_id", "client",
+                    "client_secret", "secret",
+                    "scope", "catalog")),
+            eq(OAuthTokenResponse.class),
+            eq(Map.of()),
+            any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void close() {
     Map<String, String> catalogProperties = Map.of();
     SessionCatalog.SessionContext context =
