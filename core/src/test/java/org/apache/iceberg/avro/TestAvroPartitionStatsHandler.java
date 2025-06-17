@@ -54,8 +54,8 @@ public class TestAvroPartitionStatsHandler extends PartitionStatsHandlerTestBase
         PartitionStatsHandler.readPartitionStatsFile(
             schema, testTable.io().newInputFile(invalidSchema))) {
       assertThatThrownBy(() -> Lists.newArrayList(recordIterator))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Not a primitive type: struct");
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Not an instance of org.apache.iceberg.StructLike");
     }
   }
 }

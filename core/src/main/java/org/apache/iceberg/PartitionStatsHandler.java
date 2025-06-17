@@ -304,7 +304,7 @@ public class PartitionStatsHandler {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
-    } catch (IllegalArgumentException exception) {
+    } catch (IllegalArgumentException | IllegalStateException exception) {
       throw new InvalidStatsFileException(exception);
     }
 
