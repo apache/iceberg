@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -25,10 +24,8 @@ import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 import scala.collection.compat.immutable.ArraySeq
 
-case class CallExec(
-    output: Seq[Attribute],
-    procedure: Procedure,
-    input: InternalRow) extends LeafV2CommandExec {
+case class CallExec(output: Seq[Attribute], procedure: Procedure, input: InternalRow)
+    extends LeafV2CommandExec {
 
   override protected def run(): Seq[InternalRow] = {
     ArraySeq.unsafeWrapArray(procedure.call(input))

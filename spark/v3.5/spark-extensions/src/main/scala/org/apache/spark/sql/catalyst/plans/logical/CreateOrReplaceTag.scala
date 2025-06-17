@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -27,7 +26,8 @@ case class CreateOrReplaceTag(
     tagOptions: TagOptions,
     create: Boolean,
     replace: Boolean,
-    ifNotExists: Boolean) extends LeafCommand {
+    ifNotExists: Boolean)
+    extends LeafCommand {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 

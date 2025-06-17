@@ -16,29 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.plans.logical.BinaryCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 case class CreateIcebergView(
-  child: LogicalPlan,
-  queryText: String,
-  query: LogicalPlan,
-  columnAliases: Seq[String],
-  columnComments: Seq[Option[String]],
-  queryColumnNames: Seq[String] = Seq.empty,
-  comment: Option[String],
-  properties: Map[String, String],
-  allowExisting: Boolean,
-  replace: Boolean,
-  rewritten: Boolean = false) extends BinaryCommand {
+    child: LogicalPlan,
+    queryText: String,
+    query: LogicalPlan,
+    columnAliases: Seq[String],
+    columnComments: Seq[Option[String]],
+    queryColumnNames: Seq[String] = Seq.empty,
+    comment: Option[String],
+    properties: Map[String, String],
+    allowExisting: Boolean,
+    replace: Boolean,
+    rewritten: Boolean = false)
+    extends BinaryCommand {
   override def left: LogicalPlan = child
 
   override def right: LogicalPlan = query
 
   override protected def withNewChildrenInternal(
-    newLeft: LogicalPlan, newRight: LogicalPlan): LogicalPlan =
+      newLeft: LogicalPlan,
+      newRight: LogicalPlan): LogicalPlan =
     copy(child = newLeft, query = newRight)
 }

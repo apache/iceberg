@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -28,10 +27,12 @@ import org.apache.spark.sql.internal.SQLConf
 import scala.collection.mutable.ArrayBuffer
 
 case class ShowV2ViewsExec(
-  output: Seq[Attribute],
-  catalog: ViewCatalog,
-  namespace: Seq[String],
-  pattern: Option[String]) extends V2CommandExec with LeafExecNode {
+    output: Seq[Attribute],
+    catalog: ViewCatalog,
+    namespace: Seq[String],
+    pattern: Option[String])
+    extends V2CommandExec
+    with LeafExecNode {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -41,7 +42,8 @@ case class ShowV2ViewsExec(
     // handle GLOBAL VIEWS
     val globalTemp = SQLConf.get.globalTempDatabase
     if (namespace.nonEmpty && globalTemp == namespace.head) {
-      pattern.map(p => session.sessionState.catalog.globalTempViewManager.listViewNames(p))
+      pattern
+        .map(p => session.sessionState.catalog.globalTempViewManager.listViewNames(p))
         .getOrElse(session.sessionState.catalog.globalTempViewManager.listViewNames("*"))
         .map(name => rows += toCatalystRow(globalTemp, name, true))
     } else {
@@ -54,7 +56,8 @@ case class ShowV2ViewsExec(
     }
 
     // include TEMP VIEWS
-    pattern.map(p => session.sessionState.catalog.listLocalTempViews(p))
+    pattern
+      .map(p => session.sessionState.catalog.listLocalTempViews(p))
       .getOrElse(session.sessionState.catalog.listLocalTempViews("*"))
       .map(v => rows += toCatalystRow(v.database.toArray.quoted, v.table, true))
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import java.util.Locale
@@ -60,7 +59,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (duplicateParamNames.nonEmpty) {
-      throw new IcebergAnalysisException(s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}")
+      throw new IcebergAnalysisException(
+        s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}")
     }
 
     // optional params should be at the end
@@ -88,7 +88,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (missingParamNames.nonEmpty) {
-      throw new IcebergAnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}")
+      throw new IcebergAnalysisException(
+        s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}")
     }
 
     val argExprs = new Array[Expression](params.size)
@@ -140,7 +141,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (validationErrors.nonEmpty) {
-      throw new IcebergAnalysisException(s"Could not build name to arg map: ${validationErrors.mkString(", ")}")
+      throw new IcebergAnalysisException(
+        s"Could not build name to arg map: ${validationErrors.mkString(", ")}")
     }
 
     namedArgs.map(arg => arg.name -> arg).toMap
@@ -183,7 +185,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
       case procedureCatalog: ProcedureCatalog =>
         procedureCatalog
       case _ =>
-        throw new IcebergAnalysisException(s"Cannot use catalog ${plugin.name}: not a ProcedureCatalog")
+        throw new IcebergAnalysisException(
+          s"Cannot use catalog ${plugin.name}: not a ProcedureCatalog")
     }
   }
 }
