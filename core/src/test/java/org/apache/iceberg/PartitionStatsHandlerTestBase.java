@@ -18,17 +18,18 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
+import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID_POSITION;
 import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatsHandler.PARTITION_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION;
+import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT_POSITION;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,7 +64,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
   public abstract FileFormat format();
 
-  private static final Schema SCHEMA =
+  protected static final Schema SCHEMA =
       new Schema(
           optional(1, "c1", Types.IntegerType.get()),
           optional(2, "c2", Types.StringType.get()),
@@ -76,7 +77,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  private final Map<String, String> fileFormatProperty =
+  protected final Map<String, String> fileFormatProperty =
       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format().name());
 
   @Test
@@ -194,9 +195,9 @@ public abstract class PartitionStatsHandlerTestBase {
     partitionData.set(14, Literal.of("10:10:10").to(Types.TimeType.get()).value());
 
     PartitionStats partitionStats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    partitionStats.set(DATA_RECORD_COUNT.fieldId(), RANDOM.nextLong());
-    partitionStats.set(DATA_FILE_COUNT.fieldId(), RANDOM.nextInt());
-    partitionStats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), 1024L * RANDOM.nextInt(20));
+    partitionStats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
+    partitionStats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
+    partitionStats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
     List<PartitionStats> expected = Collections.singletonList(partitionStats);
     PartitionStatisticsFile statisticsFile =
         PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
@@ -237,17 +238,17 @@ public abstract class PartitionStatsHandlerTestBase {
       partitionData.set(0, RANDOM.nextInt());
 
       PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-      stats.set(PARTITION_FIELD_ID, partitionData);
-      stats.set(DATA_RECORD_COUNT.fieldId(), RANDOM.nextLong());
-      stats.set(DATA_FILE_COUNT.fieldId(), RANDOM.nextInt());
-      stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), 1024L * RANDOM.nextInt(20));
-      stats.set(POSITION_DELETE_RECORD_COUNT.fieldId(), null);
-      stats.set(POSITION_DELETE_FILE_COUNT.fieldId(), null);
-      stats.set(EQUALITY_DELETE_RECORD_COUNT.fieldId(), null);
-      stats.set(EQUALITY_DELETE_FILE_COUNT.fieldId(), null);
-      stats.set(TOTAL_RECORD_COUNT.fieldId(), null);
-      stats.set(LAST_UPDATED_AT.fieldId(), null);
-      stats.set(LAST_UPDATED_SNAPSHOT_ID.fieldId(), null);
+      stats.set(PARTITION_POSITION, partitionData);
+      stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
+      stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
+      stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
+      stats.set(POSITION_DELETE_RECORD_COUNT_POSITION, null);
+      stats.set(POSITION_DELETE_FILE_COUNT_POSITION, null);
+      stats.set(EQUALITY_DELETE_RECORD_COUNT_POSITION, null);
+      stats.set(EQUALITY_DELETE_FILE_COUNT_POSITION, null);
+      stats.set(TOTAL_RECORD_COUNT_POSITION, null);
+      stats.set(LAST_UPDATED_AT_POSITION, null);
+      stats.set(LAST_UPDATED_SNAPSHOT_ID_POSITION, null);
 
       partitionListBuilder.add(stats);
     }
@@ -617,7 +618,7 @@ public abstract class PartitionStatsHandlerTestBase {
     return posDelete;
   }
 
-  private File tempDir(String folderName) throws IOException {
+  protected File tempDir(String folderName) throws IOException {
     return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
   }
 

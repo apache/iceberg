@@ -18,12 +18,44 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.PartitionStatsHandlerTestBase;
+import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TestTables;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.api.Test;
 
 public class TestAvroPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 
   public FileFormat format() {
     return FileFormat.AVRO;
+  }
+
+  @Test
+  public void testReadingStatsWithInvalidSchema() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("old_schema"), "old_schema", SCHEMA, SPEC, 2, fileFormatProperty);
+    Schema schema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
+
+    String invalidSchema =
+        getClass()
+            .getClassLoader()
+            .getResource("org/apache/iceberg/PartitionStatsInvalidSchema.avro")
+            .toString();
+
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            schema, testTable.io().newInputFile(invalidSchema))) {
+      assertThatThrownBy(() -> Lists.newArrayList(recordIterator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Not a primitive type: struct");
+    }
   }
 }
