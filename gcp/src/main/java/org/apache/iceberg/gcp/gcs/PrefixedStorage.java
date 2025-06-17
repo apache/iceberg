@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.google.auth.oauth2.AccessToken;
-import com.google.auth.oauth2.OAuth2Credentials;
-import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
+import org.apache.iceberg.gcp.GCPAuthUtils;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -34,7 +35,7 @@ class PrefixedStorage implements AutoCloseable {
   private final String storagePrefix;
   private final GCPProperties gcpProperties;
   private SerializableSupplier<Storage> storage;
-  private OAuth2RefreshCredentialsHandler refreshHandler = null;
+  private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
 
   PrefixedStorage(
@@ -62,26 +63,12 @@ class PrefixedStorage implements AutoCloseable {
               // Explicitly allow "no credentials" for testing purposes
               builder.setCredentials(NoCredentials.getInstance());
             }
-            gcpProperties
-                .oauth2Token()
-                .ifPresent(
-                    token -> {
-                      // Explicitly configure an OAuth token
-                      AccessToken accessToken =
-                          new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
-                      if (gcpProperties.oauth2RefreshCredentialsEnabled()
-                          && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
-                        this.refreshHandler = OAuth2RefreshCredentialsHandler.create(properties);
-                        builder.setCredentials(
-                            OAuth2CredentialsWithRefresh.newBuilder()
-                                .setAccessToken(accessToken)
-                                .setRefreshHandler(refreshHandler)
-                                .build());
-                      } else {
-                        builder.setCredentials(OAuth2Credentials.create(accessToken));
-                      }
-                    });
 
+            if (gcpProperties.oauth2Token().isPresent()) {
+              this.closeableGroup = new CloseableGroup();
+              builder.setCredentials(
+                  GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup));
+            }
             return builder.build().getService();
           };
     }
@@ -109,8 +96,12 @@ class PrefixedStorage implements AutoCloseable {
 
   @Override
   public void close() {
-    if (null != refreshHandler) {
-      refreshHandler.close();
+    if (null != closeableGroup) {
+      try {
+        closeableGroup.close();
+      } catch (IOException ioe) {
+        throw new UncheckedIOException(ioe);
+      }
     }
 
     if (null != storage) {
