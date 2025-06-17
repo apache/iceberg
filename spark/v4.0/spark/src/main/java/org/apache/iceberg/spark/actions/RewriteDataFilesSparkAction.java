@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -47,6 +48,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -87,6 +89,7 @@ public class RewriteDataFilesSparkAction
   private final Table table;
 
   private Expression filter = Expressions.alwaysTrue();
+  private Predicate<DataFile> fileFilter = Predicates.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private int maxFailedCommits;
@@ -152,6 +155,12 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles fileFilter(Predicate<DataFile> predicate) {
+    this.fileFilter = predicate;
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
@@ -185,8 +194,10 @@ public class RewriteDataFilesSparkAction
   private void init(long startingSnapshotId) {
     this.planner =
         runner instanceof SparkShufflingFileRewriteRunner
-            ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
-            : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
+            ? new SparkShufflingDataRewritePlanner(
+                table, filter, fileFilter, startingSnapshotId, caseSensitive)
+            : new BinPackRewriteFilePlanner(
+                table, filter, fileFilter, startingSnapshotId, caseSensitive);
 
     // Default to BinPack if no strategy selected
     if (this.runner == null) {

@@ -252,6 +252,32 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testBinPackWithFileFilter() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    String firstFileLocation = currentDataFiles(table).get(0).location();
+
+    Result result =
+        basicRewrite(table)
+            .fileFilter(file -> !file.location().equals(firstFileLocation))
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount())
+        .as("Action should rewrite 6 data files")
+        .isEqualTo(6);
+    assertThat(result.addedDataFilesCount()).as("Action should add 3 data files").isEqualTo(3);
+    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+
+    shouldHaveFiles(table, 5);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testBinPackWithFilterOnBucketExpression() {
     Table table = createTablePartitioned(4, 2);
 

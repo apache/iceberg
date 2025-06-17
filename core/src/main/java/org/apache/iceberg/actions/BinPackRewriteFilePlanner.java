@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -38,6 +39,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -94,6 +96,7 @@ public class BinPackRewriteFilePlanner
   private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
   private final Expression filter;
+  private final Predicate<DataFile> fileFilter;
   private final Long snapshotId;
   private final boolean caseSensitive;
 
@@ -110,23 +113,35 @@ public class BinPackRewriteFilePlanner
     this(
         table,
         filter,
+        Predicates.alwaysTrue(),
         table.currentSnapshot() != null ? table.currentSnapshot().snapshotId() : null,
         false);
+  }
+
+  public BinPackRewriteFilePlanner(
+      Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
+    this(table, filter, Predicates.alwaysTrue(), snapshotId, caseSensitive);
   }
 
   /**
    * Creates the planner for the given table.
    *
    * @param table to plan for
-   * @param filter used to remove files from the plan
+   * @param filter used to remove files from the plan by expression
+   * @param fileFilter used to remove files from the plan by user-defined predicate
    * @param snapshotId a snapshot ID used for planning and as the starting snapshot id for commit
    *     validation when replacing the files
    * @param caseSensitive property used for scanning
    */
   public BinPackRewriteFilePlanner(
-      Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
+      Table table,
+      Expression filter,
+      Predicate<DataFile> fileFilter,
+      Long snapshotId,
+      boolean caseSensitive) {
     super(table);
     this.filter = filter;
+    this.fileFilter = fileFilter;
     this.snapshotId = snapshotId;
     this.caseSensitive = caseSensitive;
   }
@@ -291,7 +306,9 @@ public class BinPackRewriteFilePlanner
       scan = scan.useSnapshot(snapshotId);
     }
 
-    CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
+    CloseableIterable<FileScanTask> fileScanTasks =
+        CloseableIterable.filter(
+            scan.planFiles(), fileScanTask -> fileFilter.test(fileScanTask.file()));
 
     try {
       Types.StructType partitionType = table().spec().partitionType();
