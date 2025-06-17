@@ -18,36 +18,9 @@
  */
 package org.apache.iceberg;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.jupiter.api.Test;
-
 public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 
   public FileFormat format() {
     return FileFormat.PARQUET;
-  }
-
-  @Test
-  public void testReadingStatsWithInvalidSchema() throws Exception {
-    Table testTable =
-        TestTables.create(tempDir("old_schema"), "old_schema", SCHEMA, SPEC, 2, fileFormatProperty);
-    Schema schema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
-
-    String invalidSchema =
-        getClass()
-            .getClassLoader()
-            .getResource("org/apache/iceberg/PartitionStatsInvalidSchema.parquet")
-            .toString();
-
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            schema, testTable.io().newInputFile(invalidSchema))) {
-      assertThatThrownBy(() -> Lists.newArrayList(recordIterator))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Not a primitive type: struct");
-    }
   }
 }

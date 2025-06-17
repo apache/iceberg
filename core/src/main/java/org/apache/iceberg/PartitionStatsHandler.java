@@ -90,20 +90,6 @@ public class PartitionStatsHandler {
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
       NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
 
-  // position in StructLike
-  static final int PARTITION_POSITION = 0;
-  static final int SPEC_ID_POSITION = 1;
-  static final int DATA_RECORD_COUNT_POSITION = 2;
-  static final int DATA_FILE_COUNT_POSITION = 3;
-  static final int TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION = 4;
-  static final int POSITION_DELETE_RECORD_COUNT_POSITION = 5;
-  static final int POSITION_DELETE_FILE_COUNT_POSITION = 6;
-  static final int EQUALITY_DELETE_RECORD_COUNT_POSITION = 7;
-  static final int EQUALITY_DELETE_FILE_COUNT_POSITION = 8;
-  static final int TOTAL_RECORD_COUNT_POSITION = 9;
-  static final int LAST_UPDATED_AT_POSITION = 10;
-  static final int LAST_UPDATED_SNAPSHOT_ID_POSITION = 11;
-
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
    * all specs in a table.
@@ -261,32 +247,15 @@ public class PartitionStatsHandler {
   }
 
   private static PartitionStats recordToPartitionStats(StructLike record) {
+    int pos = 0;
     PartitionStats stats =
         new PartitionStats(
-            record.get(PARTITION_POSITION, StructLike.class),
-            record.get(SPEC_ID_POSITION, Integer.class));
-    stats.set(DATA_RECORD_COUNT_POSITION, record.get(DATA_RECORD_COUNT_POSITION, Long.class));
-    stats.set(DATA_FILE_COUNT_POSITION, record.get(DATA_FILE_COUNT_POSITION, Integer.class));
-    stats.set(
-        TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
-        record.get(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, Long.class));
-    stats.set(
-        POSITION_DELETE_RECORD_COUNT_POSITION,
-        record.get(POSITION_DELETE_RECORD_COUNT_POSITION, Long.class));
-    stats.set(
-        POSITION_DELETE_FILE_COUNT_POSITION,
-        record.get(POSITION_DELETE_FILE_COUNT_POSITION, Integer.class));
-    stats.set(
-        EQUALITY_DELETE_RECORD_COUNT_POSITION,
-        record.get(EQUALITY_DELETE_RECORD_COUNT_POSITION, Long.class));
-    stats.set(
-        EQUALITY_DELETE_FILE_COUNT_POSITION,
-        record.get(EQUALITY_DELETE_FILE_COUNT_POSITION, Integer.class));
-    stats.set(TOTAL_RECORD_COUNT_POSITION, record.get(TOTAL_RECORD_COUNT_POSITION, Long.class));
-    stats.set(LAST_UPDATED_AT_POSITION, record.get(LAST_UPDATED_AT_POSITION, Long.class));
-    stats.set(
-        LAST_UPDATED_SNAPSHOT_ID_POSITION,
-        record.get(LAST_UPDATED_SNAPSHOT_ID_POSITION, Long.class));
+            record.get(pos++, StructLike.class), // partition
+            record.get(pos++, Integer.class)); // spec id
+    for (; pos < record.size(); pos++) {
+      stats.set(pos, record.get(pos, Object.class));
+    }
+
     return stats;
   }
 
