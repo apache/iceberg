@@ -164,7 +164,7 @@ class TestDynamicIcebergSinkPerf {
   private static class IdBasedGenerator implements DynamicRecordGenerator<Integer> {
 
     @Override
-    public void convert(Integer id, Collector<DynamicRecord> out) {
+    public void generate(Integer id, Collector<DynamicRecord> out) {
       out.collect(rows.get(id % SAMPLE_SIZE));
     }
   }

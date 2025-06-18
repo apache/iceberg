@@ -89,7 +89,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       throws Exception {
     this.context = ctx;
     this.collector = out;
-    generator.convert(element, this);
+    generator.generate(element, this);
   }
 
   @Override
