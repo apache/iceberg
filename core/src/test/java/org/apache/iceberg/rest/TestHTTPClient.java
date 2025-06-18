@@ -48,6 +48,9 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
@@ -60,6 +63,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
+import org.mockserver.matchers.Times;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
@@ -96,7 +100,10 @@ public class TestHTTPClient {
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
     restClient =
-        HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build();
+        HTTPClient.builder(ImmutableMap.of("rest.client.max-retries", "1"))
+            .uri(URI)
+            .withAuthSession(AuthSession.EMPTY)
+            .build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
@@ -451,6 +458,37 @@ public class TestHTTPClient {
         .doesNotThrowAnyException();
   }
 
+  @ParameterizedTest(name = "testCommitAndRetry [{index}] selfConflict={0}")
+  @ValueSource(booleans = {true, false})
+  public void testCommitAndRetry(boolean selfConflict) throws IOException {
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Map.of());
+    ErrorHandler errorHandler = (ErrorHandler) ErrorHandlers.tableCommitHandler();
+    String path = paths.table(TableIdentifier.of("ns", "table"));
+    Item updateTableRequestBody = new Item(0L, "table update");
+    if (selfConflict) {
+      // First request will respond with 503 (Service Unavailable)
+      addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 503);
+    }
+    // Second request will respond with 409 (Conflict): self-conflict with the first request
+    addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 409);
+
+    if (selfConflict) {
+      // 503 + 409 should result in CommitStateUnknownException
+      assertThatThrownBy(
+              () ->
+                  doExecuteRequest(
+                      HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
+          .isInstanceOf(CommitStateUnknownException.class);
+    } else {
+      // 409 alone should result in CommitFailedException
+      assertThatThrownBy(
+              () ->
+                  doExecuteRequest(
+                      HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
+          .isInstanceOf(CommitFailedException.class);
+    }
+  }
+
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
@@ -502,12 +540,17 @@ public class TestHTTPClient {
   // it.
   private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode)
       throws JsonProcessingException {
-
-    // Build the path route, which must be unique per test case.
     boolean isSuccess = statusCode == 200;
     // Using different paths keeps the expectations unique for the test's mock server
     String pathName = isSuccess ? "success" : "failure";
     String path = String.format("%s_%s", method, pathName);
+
+    return TestHTTPClient.addRequestTestCaseAndGetPath(path, method, body, statusCode);
+  }
+
+  private static String addRequestTestCaseAndGetPath(
+      String path, HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
+    boolean isSuccess = statusCode == 200;
 
     // Build the expected request
     String asJson = body != null ? MAPPER.writeValueAsString(body) : null;
@@ -536,7 +579,7 @@ public class TestHTTPClient {
       }
     }
 
-    mockServer.when(mockRequest).respond(mockResponse);
+    mockServer.when(mockRequest, Times.exactly(1)).respond(mockResponse);
 
     return path;
   }
