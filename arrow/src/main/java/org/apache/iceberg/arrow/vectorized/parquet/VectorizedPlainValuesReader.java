@@ -25,6 +25,11 @@ import org.apache.parquet.io.api.Binary;
 
 class VectorizedPlainValuesReader extends ValuesAsBytesReader implements VectorizedValuesReader {
 
+  public static final int INT_SIZE = 4;
+  public static final int LONG_SIZE = 8;
+  public static final int FLOAT_SIZE = 4;
+  public static final int DOUBLE_SIZE = 8;
+
   VectorizedPlainValuesReader() {}
 
   @Override
@@ -57,21 +62,21 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
 
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, 4);
+    readValues(total, vec, rowId, INT_SIZE);
   }
 
   @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, 8);
+    readValues(total, vec, rowId, LONG_SIZE);
   }
 
   @Override
   public void readFloats(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, 4);
+    readValues(total, vec, rowId, FLOAT_SIZE);
   }
 
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, 8);
+    readValues(total, vec, rowId, DOUBLE_SIZE);
   }
 }
