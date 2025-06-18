@@ -81,9 +81,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     this.retriableCodes =
         ImmutableSet.of(
             HttpStatus.SC_TOO_MANY_REQUESTS,
-            HttpStatus.SC_SERVICE_UNAVAILABLE,
-            HttpStatus.SC_BAD_GATEWAY,
-            HttpStatus.SC_GATEWAY_TIMEOUT);
+            HttpStatus.SC_SERVICE_UNAVAILABLE);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
