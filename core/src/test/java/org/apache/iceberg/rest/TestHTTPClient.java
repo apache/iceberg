@@ -470,14 +470,14 @@ public class TestHTTPClient {
     String path = paths.table(TableIdentifier.of("ns", "table"));
     Item updateTableRequestBody = new Item(0L, "table update");
     if (selfConflict) {
-      // First request will respond with 503 (Service Unavailable) if self-conflict is enabled
-      addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 503);
+      // First request will respond with 504 (Gateway Timeout) if self-conflict is enabled
+      addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 504);
     }
     // For the subsequent requests, we will return 409 (Conflict)
     addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 409);
 
     if (selfConflict) {
-      // 503 + 409 should result in CommitStateUnknownException
+      // 504 + 409 should result in CommitStateUnknownException
       assertThatThrownBy(
               () ->
                   doExecuteRequest(
