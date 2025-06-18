@@ -30,5 +30,5 @@ public interface DynamicRecordGenerator<T> extends Serializable {
    * Takes the user-defined input and yields zero, one, or multiple {@link DynamicRecord}s using the
    * {@link Collector}.
    */
-  void generate(T inputRecord, Collector<DynamicRecord> out) throws Exception;
+  void convert(T inputRecord, Collector<DynamicRecord> out) throws Exception;
 }

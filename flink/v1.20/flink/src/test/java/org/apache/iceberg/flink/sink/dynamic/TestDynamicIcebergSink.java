@@ -42,9 +42,9 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
@@ -178,7 +178,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   private static class Generator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
 
     @Override
-    public void generate(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
+    public void convert(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
       TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, row.tableName);
       String branch = row.branch;
       Schema schema = row.schemaProvided;

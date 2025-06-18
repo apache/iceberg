@@ -79,7 +79,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
   protected void validatePartition(
       CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries,
       int position,
-      int partitionValue) {
+      Object partitionValue) {
     assertThat(entries)
         .as("File scan tasks do not include correct file")
         .anyMatch(
