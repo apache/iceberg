@@ -76,6 +76,8 @@ public class TestHTTPClient {
 
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
+  private static final String USER_AGENT = "User-Agent";
+  private static final String TEST_USER_AGENT = "Test-User-Agent";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
@@ -100,7 +102,9 @@ public class TestHTTPClient {
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
     restClient =
-        HTTPClient.builder(ImmutableMap.of("rest.client.max-retries", "1"))
+        HTTPClient.builder(
+                ImmutableMap.of(
+                    HTTPClient.REST_USER_AGENT, TEST_USER_AGENT, "rest.client.max-retries", "1"))
             .uri(URI)
             .withAuthSession(AuthSession.EMPTY)
             .build();
@@ -559,7 +563,8 @@ public class TestHTTPClient {
             .withMethod(method.name().toUpperCase(Locale.ROOT))
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
             .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
-            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
+            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
+            .withHeader(USER_AGENT, TEST_USER_AGENT);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);

@@ -31,6 +31,8 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
@@ -151,7 +153,7 @@ public class IcebergSink
   private final RowType flinkRowType;
   private final SerializableSupplier<Table> tableSupplier;
   private final transient FlinkWriteConf flinkWriteConf;
-  private final List<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsertMode;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
@@ -162,7 +164,7 @@ public class IcebergSink
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
-  private final List<String> equalityFieldColumns = null;
+  private final Set<String> equalityFieldColumns = null;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -173,7 +175,7 @@ public class IcebergSink
       RowType flinkRowType,
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
-      List<Integer> equalityFieldIds,
+      Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
       FlinkMaintenanceConfig flinkMaintenanceConfig) {
@@ -605,7 +607,7 @@ public class IcebergSink
       boolean overwriteMode = flinkWriteConf.overwriteMode();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
@@ -663,9 +665,7 @@ public class IcebergSink
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
       // The following parallelism will be propagated to all of the above operators.
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
-      }
+      rowDataDataStreamSink.setParallelism(sink.resolveWriterParallelism(rowDataInput));
       return rowDataDataStreamSink;
     }
   }
@@ -817,16 +817,19 @@ public class IcebergSink
     }
   }
 
+  private int resolveWriterParallelism(DataStream<RowData> input) {
+    // if the writeParallelism is not specified, we set the default to the input parallelism to
+    // encourage chaining.
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
+  }
+
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
       DataStream<RowData> input,
       Schema iSchema,
       PartitionSpec partitionSpec,
       SortOrder sortOrderParam) {
 
-    int writerParallelism =
-        flinkWriteConf.writeParallelism() == null
-            ? input.getParallelism()
-            : flinkWriteConf.writeParallelism();
+    int writerParallelism = resolveWriterParallelism(input);
 
     // needed because of checkStyle not allowing us to change the value of an argument
     SortOrder sortOrder = sortOrderParam;
