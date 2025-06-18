@@ -462,37 +462,42 @@ public class TestHTTPClient {
         .doesNotThrowAnyException();
   }
 
-  @ParameterizedTest(name = "[{index}] selfConflict={0}")
-  @ValueSource(booleans = {true, false})
-  public void testCommitAndRetry(boolean selfConflict) throws IOException {
+  @Test
+  public void testCommitConflict() throws IOException {
     ResourcePaths paths = ResourcePaths.forCatalogProperties(Map.of());
     ErrorHandler errorHandler = (ErrorHandler) ErrorHandlers.tableCommitHandler();
     String path = paths.table(TableIdentifier.of("ns", "table"));
     Item updateTableRequestBody = new Item(0L, "table update");
-    if (selfConflict) {
-      // First request will respond with 504 (Gateway Timeout) if self-conflict is enabled
-      addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 504);
-    }
-    // For the subsequent requests, we will return 409 (Conflict)
+
+    // Return 409 (Conflict) alone will result in CommitFailedException
+    addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 409);
+    assertThatThrownBy(
+            () ->
+                doExecuteRequest(
+                    HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Commit failed");
+  }
+
+  @Test
+  public void testRetryAndCommitConflict() throws IOException {
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Map.of());
+    ErrorHandler errorHandler = (ErrorHandler) ErrorHandlers.tableCommitHandler();
+    String path = paths.table(TableIdentifier.of("ns", "table"));
+    Item updateTableRequestBody = new Item(0L, "table update");
+
+    // First request will respond with 504 (Gateway Timeout)
+    addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 504);
+    // Second request will response with 409 (Conflict) to simulate a self-conflict
     addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 409);
 
-    if (selfConflict) {
-      // 504 + 409 should result in CommitStateUnknownException
-      assertThatThrownBy(
-              () ->
-                  doExecuteRequest(
-                      HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
-          .isInstanceOf(CommitStateUnknownException.class)
-          .hasMessageStartingWith("Commit status unknown, due to retries: 409");
-    } else {
-      // 409 alone should result in CommitFailedException
-      assertThatThrownBy(
-              () ->
-                  doExecuteRequest(
-                      HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
-          .isInstanceOf(CommitFailedException.class)
-          .hasMessageStartingWith("Commit failed");
-    }
+    // 504 + 409 should result in CommitStateUnknownException
+    assertThatThrownBy(
+            () ->
+                doExecuteRequest(
+                    HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Commit status unknown, due to retries: 409");
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
@@ -540,10 +545,14 @@ public class TestHTTPClient {
     verify(onError).accept(any());
   }
 
-  // Adds a request that the mock-server can match against, based on the method, path, body, and
-  // headers.
-  // Return the path generated for the test case, so that the client can call that path to exercise
-  // it.
+  /**
+   * Adds a request that the mock server can match against, using the HTTP method, request body, and
+   * status code to define behavior. This method generates a unique path (based on the method and
+   * success/failure outcome) so the client can call it during tests.
+   *
+   * <p>Note: This will only add one exact request test case, i.e., the response will only be
+   * returned for the next matching invocation of the path.
+   */
   private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode)
       throws JsonProcessingException {
     boolean isSuccess = statusCode == 200;
@@ -551,9 +560,17 @@ public class TestHTTPClient {
     String pathName = isSuccess ? "success" : "failure";
     String path = String.format("%s_%s", method, pathName);
 
-    return TestHTTPClient.addRequestTestCaseAndGetPath(path, method, body, statusCode);
+    return addRequestTestCaseAndGetPath(path, method, body, statusCode);
   }
 
+  /**
+   * Adds a request that the mock server can match against, using the provided path, method, body,
+   * and status code. This version allows custom control over the path used in the test, e.g., in
+   * the retry scenario, we need to return different responses for the same path and request.
+   *
+   * <p>Note: This will only add one exact request test case, i.e., the response will only be
+   * returned for the next matching invocation of the path.
+   */
   private static String addRequestTestCaseAndGetPath(
       String path, HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
     boolean isSuccess = statusCode == 200;
