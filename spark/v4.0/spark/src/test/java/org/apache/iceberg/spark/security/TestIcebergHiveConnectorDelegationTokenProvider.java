@@ -18,232 +18,272 @@
  */
 package org.apache.iceberg.spark.security;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Optional;
+import java.util.Base64;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.SparkConf;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import scala.Option;
+import org.mockito.Mockito;
+import org.mockito.Spy;
 
-@ExtendWith(MockitoExtension.class)
 public class TestIcebergHiveConnectorDelegationTokenProvider {
-  private IcebergHiveConnectorDelegationTokenProvider tokenProvider;
+  @Spy private IcebergHiveConnectorDelegationTokenProvider tokenProvider;
+  private SparkConf sparkConf;
+  private Configuration hadoopConf;
 
   @BeforeEach
   public void before() {
-    tokenProvider = new IcebergHiveConnectorDelegationTokenProvider();
+    tokenProvider = Mockito.spy(new IcebergHiveConnectorDelegationTokenProvider());
+    sparkConf = new SparkConf();
+    hadoopConf = new Configuration();
   }
 
-  private SparkConf createSparkConf(
-      String catalog, String type, String uri, String principal, String catalogImpl) {
-    SparkConf conf = new SparkConf();
-    if (type != null) {
-      conf.set("spark.sql.catalog." + catalog + ".type", type);
-    }
+  static class TestCase {
+    String catalogType;
+    String uri;
+    String catalogClass;
+    String auth;
+    String sasl;
+    boolean tokenExists;
+    boolean renewalDisabled;
+    boolean allMet;
+    boolean expected;
 
-    if (uri != null) {
-      conf.set("spark.sql.catalog." + catalog + ".uri", uri);
+    TestCase(
+        String catalogType,
+        String uri,
+        String catalogClass,
+        String auth,
+        String sasl,
+        boolean tokenExists,
+        boolean renewalDisabled,
+        boolean allMet,
+        boolean expected) {
+      this.catalogType = catalogType;
+      this.uri = uri;
+      this.catalogClass = catalogClass;
+      this.auth = auth;
+      this.sasl = sasl;
+      this.tokenExists = tokenExists;
+      this.renewalDisabled = renewalDisabled;
+      this.allMet = allMet;
+      this.expected = expected;
     }
-
-    if (principal != null) {
-      conf.set("spark.sql.catalog." + catalog + ".hive.metastore.kerberos.principal", principal);
-    }
-
-    if (catalogImpl != null) {
-      conf.set("spark.sql.catalog." + catalog, catalogImpl);
-    }
-
-    return conf;
   }
 
-  private static Stream<Arguments> parameterCases() {
+  /**
+   * Provides test cases for delegation token requirements. Each case includes catalog type, URI,
+   * catalog class, authentication method, SASL setting, whether a token exists, whether renewal is
+   * disabled, and the expected result.
+   */
+  static Stream<TestCase> delegationTokenCases() {
     return Stream.of(
-        Arguments.of("test_catalog", null, null, null, null),
-        Arguments.of(
-            "test_catalog",
-            "non_hive",
+        // No catalog config
+        new TestCase(null, null, null, null, null, false, false, false, false),
+        // Catalog type not hive
+        new TestCase(
+            "custom",
             "thrift://localhost:9083",
-            "test_principal",
-            SparkCatalog.class.getName()),
-        Arguments.of(
-            "test_catalog",
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "true",
+            false,
+            false,
+            false,
+            false),
+        // Missing metastore uri
+        new TestCase(
             "hive",
             null,
-            "test_principal",
-            "org.apache.iceberg.spark.SparkCatalog"),
-        Arguments.of(
-            "test_catalog", "hive", "thrift://localhost:9083", null, SparkCatalog.class.getName()),
-        Arguments.of("test_catalog", "hive", "thrift://localhost:9083", "test_principal", null));
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "true",
+            false,
+            false,
+            false,
+            false),
+        // Delegation token renewal disabled
+        new TestCase(
+            "hive",
+            "thrift://localhost:9083",
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "true",
+            false,
+            true,
+            false,
+            false),
+        // Non-kerberos authentication
+        new TestCase(
+            "hive",
+            "thrift://localhost:9083",
+            SparkCatalog.class.getName(),
+            "simple",
+            "true",
+            false,
+            false,
+            false,
+            false),
+        // SASL disabled
+        new TestCase(
+            "hive",
+            "thrift://localhost:9083",
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "false",
+            false,
+            false,
+            false,
+            false),
+        // Token already exists
+        new TestCase(
+            "hive",
+            "thrift://localhost:9083",
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "true",
+            true,
+            false,
+            false,
+            false),
+        // All conditions met
+        new TestCase(
+            "hive",
+            "thrift://localhost:9083",
+            SparkCatalog.class.getName(),
+            "kerberos",
+            "true",
+            false,
+            false,
+            true,
+            true));
   }
 
   @ParameterizedTest
-  @MethodSource("parameterCases")
-  public void delegationTokensRequired_ShouldReturnFalse_WhenIncompleteParameters(
-      String catalog, String type, String uri, String principal, String catalogClass) {
-    SparkConf conf = createSparkConf(catalog, type, uri, principal, catalogClass);
+  @MethodSource("delegationTokenCases")
+  public void testDelegationTokensRequired(TestCase tc) throws Exception {
 
-    assertFalse(tokenProvider.delegationTokensRequired(conf, new Configuration()));
+    if (tc.catalogType != null) {
+      sparkConf.set("spark.sql.catalog.test.type", tc.catalogType);
+    }
+
+    if (tc.uri != null) {
+      sparkConf.set("spark.sql.catalog.test.uri", tc.uri);
+    }
+
+    if (tc.catalogClass != null) {
+      sparkConf.set("spark.sql.catalog.test", tc.catalogClass);
+    }
+
+    if (tc.renewalDisabled) {
+      sparkConf.set("spark.sql.catalog.test.delegation.token.renewal.enabled", "false");
+    }
+
+    if (tc.auth != null) {
+      hadoopConf.set("hadoop.security.authentication", tc.auth);
+    }
+
+    if (tc.sasl != null) {
+      hadoopConf.set("hive.metastore.sasl.enabled", tc.sasl);
+    }
+
+    // Simulate UGI
+    UserGroupInformation realUser = UserGroupInformation.createRemoteUser("testUser");
+    UserGroupInformation proxyUser = UserGroupInformation.createProxyUser("proxyUser", realUser);
+    UserGroupInformation.setLoginUser(proxyUser);
+
+    if (tc.tokenExists && tc.uri != null) {
+      proxyUser.addToken(
+          new org.apache.hadoop.io.Text(tc.uri), new org.apache.hadoop.security.token.Token<>());
+    }
+
+    boolean result = tokenProvider.delegationTokensRequired(sparkConf, hadoopConf);
+    assertEquals(tc.expected, result);
   }
 
   @Test
-  public void delegationTokensRequired_ShouldReturnFalse_WhenSecurityDisabled() {
-    SparkConf conf =
-        createSparkConf(
-            "test_catalog",
-            "hive",
-            "thrift://localhost:9083",
-            "test_principal",
-            SparkSessionCatalog.class.getName());
-    try (MockedStatic<UserGroupInformation> ugiStatic = mockStatic(UserGroupInformation.class)) {
-      ugiStatic.when(UserGroupInformation::isSecurityEnabled).thenReturn(false);
+  public void obtainDelegationTokens_TwoCatalogs_OneFails_ShouldNotBlockOther()
+      throws IOException, TException {
+    // Configure two catalogs
+    sparkConf.set("spark.sql.catalog.test1.type", "hive");
+    sparkConf.set("spark.sql.catalog.test1.uri", "thrift://localhost:9083");
+    sparkConf.set("spark.sql.catalog.test1", SparkCatalog.class.getName());
 
-      assertFalse(tokenProvider.delegationTokensRequired(conf, new Configuration()));
+    sparkConf.set("spark.sql.catalog.test2.type", "hive");
+    sparkConf.set("spark.sql.catalog.test2.uri", "thrift://localhost:9084");
+    sparkConf.set("spark.sql.catalog.test2", SparkSessionCatalog.class.getName());
+
+    hadoopConf.set("hadoop.security.authentication", "kerberos");
+    hadoopConf.set("hive.metastore.sasl.enabled", String.valueOf(true));
+
+    // Set up user info
+    UserGroupInformation realUser = UserGroupInformation.createRemoteUser("testUser");
+    UserGroupInformation proxyUser = UserGroupInformation.createProxyUser("proxyUser", realUser);
+    UserGroupInformation.setLoginUser(proxyUser);
+
+    // Mock HMS client for test1 (failure case)
+    HiveMetaStoreClient hmsClientTest1 = mock(HiveMetaStoreClient.class);
+    when(hmsClientTest1.getDelegationToken(anyString(), anyString()))
+        .thenThrow(new TException("Token fetch failed"));
+
+    // Mock HMS client for test2 (success case)
+    HiveMetaStoreClient hmsClientTest2 = mock(HiveMetaStoreClient.class);
+    DelegationTokenIdentifier tokenId =
+        new DelegationTokenIdentifier(
+            new Text("testOwner"), new Text("testRenewer"), new Text("testRealUser"));
+    String encodedToken;
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(baos)) {
+      out.writeLong(123456789L);
+      tokenId.write(out);
+      encodedToken = Base64.getEncoder().encodeToString(baos.toByteArray());
     }
-  }
+    when(hmsClientTest2.getDelegationToken(anyString(), anyString())).thenReturn(encodedToken);
 
-  @Test
-  public void delegationTokensRequire_ShouldReturnTrue_WhenNoTokenExists() throws IOException {
-    SparkConf conf =
-        createSparkConf(
-            "test_catalog",
-            "hive",
-            "thrift://localhost:9083",
-            "test_principal",
-            SparkCatalog.class.getName());
-    try (MockedStatic<UserGroupInformation> ugiStatic = mockStatic(UserGroupInformation.class)) {
-      ugiStatic.when(UserGroupInformation::isSecurityEnabled).thenReturn(true);
-      UserGroupInformation ugi = mock(UserGroupInformation.class);
-      Credentials credentials = mock(Credentials.class);
-      when(ugi.getCredentials()).thenReturn(credentials);
-      when(credentials.getToken(new Text("thrift://localhost:9083"))).thenReturn(null);
-      ugiStatic.when(UserGroupInformation::getCurrentUser).thenReturn(ugi);
+    // Return different clients based on metastore URI
+    doAnswer(
+            invocation -> {
+              HiveConf conf = invocation.getArgument(0);
+              String uri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
+              if ("thrift://localhost:9083".equals(uri)) {
+                return hmsClientTest1;
+              } else if ("thrift://localhost:9084".equals(uri)) {
+                return hmsClientTest2;
+              }
+              return null;
+            })
+        .when(tokenProvider)
+        .createHmsClient(any(HiveConf.class));
 
-      assertTrue(tokenProvider.delegationTokensRequired(conf, new Configuration()));
-    }
-  }
+    // Execute and verify
+    Credentials credentials = new Credentials();
+    tokenProvider.obtainDelegationTokens(hadoopConf, sparkConf, credentials);
 
-  @Test
-  public void delegationTokensRequire_ShouldReturnFalse_WhenTokenExists() throws IOException {
-    SparkConf conf =
-        createSparkConf(
-            "test_catalog",
-            "hive",
-            "thrift://localhost:9083",
-            "test_principal",
-            SparkCatalog.class.getName());
-    try (MockedStatic<UserGroupInformation> ugiStatic = mockStatic(UserGroupInformation.class)) {
-      ugiStatic.when(UserGroupInformation::isSecurityEnabled).thenReturn(true);
-      UserGroupInformation ugi = mock(UserGroupInformation.class);
-      Credentials credentials = mock(Credentials.class);
-      when(ugi.getCredentials()).thenReturn(credentials);
-      Token<?> token = new Token<>();
-      when(credentials.getToken(new Text("thrift://localhost:9083"))).thenReturn((Token) token);
-      ugiStatic.when(UserGroupInformation::getCurrentUser).thenReturn(ugi);
-
-      assertFalse(tokenProvider.delegationTokensRequired(conf, new Configuration()));
-    }
-  }
-
-  @Test
-  public void obtainDelegationTokens__ShouldReturnTrue_ForMultipleCatalogs() {
-    SparkConf conf =
-        new SparkConf()
-            .set("spark.sql.catalog.test_catalog1.type", "hive")
-            .set("spark.sql.catalog.test_catalog1.uri", "thrift://localhost:9083")
-            .set("spark.sql.catalog.test_catalog1.hive.metastore.kerberos.principal", "principal1")
-            .set("spark.sql.catalog.test_catalog1", SparkCatalog.class.getName())
-            .set("spark.sql.catalog.test_catalog2.type", "hive")
-            .set("spark.sql.catalog.test_catalog2.uri", "thrift://localhost:9084")
-            .set("spark.sql.catalog.test_catalog2.hive.metastore.kerberos.principal", "principal2")
-            .set("spark.sql.catalog.test_catalog2", SparkSessionCatalog.class.getName());
-    Configuration hadoopConf = new Configuration();
-    Credentials creds = new Credentials();
-
-    // mock UGI
-    UserGroupInformation mockCurrentUser = mock(UserGroupInformation.class);
-    UserGroupInformation mockRealUser = mock(UserGroupInformation.class);
-    when(mockCurrentUser.getRealUser()).thenReturn(mockRealUser);
-    when(mockCurrentUser.getUserName()).thenReturn("testUser");
-    when(mockCurrentUser.getCredentials()).thenReturn(creds);
-    // Mock real user performing privileged actions
-    try {
-      when(mockRealUser.doAs(any(PrivilegedExceptionAction.class)))
-          .then(
-              invocation -> {
-                PrivilegedExceptionAction<?> action = invocation.getArgument(0);
-                return action.run();
-              });
-    } catch (IOException | InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-
-    try (MockedStatic<UserGroupInformation> staticUGI = mockStatic(UserGroupInformation.class)) {
-      staticUGI.when(UserGroupInformation::getCurrentUser).thenReturn(mockCurrentUser);
-      staticUGI.when(UserGroupInformation::isSecurityEnabled).thenReturn(true);
-
-      // mock HiveMetaStoreClient
-      HiveMetaStoreClient mockHmsClient = mock(HiveMetaStoreClient.class);
-      try {
-        when(mockHmsClient.getDelegationToken(anyString(), anyString())).thenReturn("tokenString");
-      } catch (TException e) {
-        throw new RuntimeException(e);
-      }
-
-      // mock provider、createHmsClient and buildHiveConf
-      IcebergHiveConnectorDelegationTokenProvider provider =
-          spy(new IcebergHiveConnectorDelegationTokenProvider());
-      try {
-        doReturn(mockHmsClient).when(provider).createHmsClient(any(HiveConf.class));
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-      doReturn(Optional.of(new HiveConf(hadoopConf, HiveConf.class)))
-          .when(provider)
-          .buildHiveConf(any(), any(), anyString());
-
-      // mock Token
-      try (MockedConstruction<Token> mockedToken =
-          mockConstruction(
-              Token.class,
-              (mock, context) -> doNothing().when(mock).decodeFromUrlString(anyString()))) {
-        // Obtain delegation tokens and verify the result
-        Option<Object> result = provider.obtainDelegationTokens(hadoopConf, conf, creds);
-
-        assertTrue(result.isEmpty());
-        assertEquals(2, ((long) creds.getAllTokens().size()));
-      }
-    }
+    assertNotNull(credentials.getToken(new Text("thrift://localhost:9084")));
+    assertNull(credentials.getToken(new Text("thrift://localhost:9083")));
   }
 }

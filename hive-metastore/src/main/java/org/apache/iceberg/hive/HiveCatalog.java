@@ -105,6 +105,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     if (properties.containsKey(CatalogProperties.URI)) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
+      this.conf.set(
+          HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname,
+          properties.get(CatalogProperties.URI));
     }
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
