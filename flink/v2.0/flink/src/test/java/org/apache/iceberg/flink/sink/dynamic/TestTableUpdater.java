@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -54,9 +53,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     tableUpdater.update(tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned());
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
 
-    Tuple2<Schema, CompareSchemasVisitor.Result> cachedSchema =
-        cache.schema(tableIdentifier, SCHEMA);
-    assertThat(cachedSchema.f0.sameSchema(SCHEMA)).isTrue();
+    TableMetadataCache.SchemaCompareInfo cachedSchema = cache.schema(tableIdentifier, SCHEMA);
+    assertThat(cachedSchema.tableSchema().sameSchema(SCHEMA)).isTrue();
   }
 
   @Test
@@ -71,11 +69,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     // Create the table
     catalog.createTable(tableIdentifier, SCHEMA);
     // Make sure that the cache is invalidated and the table refreshed without an error
-    Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> result =
+    Tuple2<TableMetadataCache.SchemaCompareInfo, PartitionSpec> result =
         tableUpdater.update(tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned());
-    assertThat(result.f0.sameSchema(SCHEMA)).isTrue();
-    assertThat(result.f1).isEqualTo(CompareSchemasVisitor.Result.SAME);
-    assertThat(result.f2).isEqualTo(PartitionSpec.unpartitioned());
+    assertThat(result.f0.tableSchema().sameSchema(SCHEMA)).isTrue();
+    assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    assertThat(result.f1).isEqualTo(PartitionSpec.unpartitioned());
   }
 
   @Test
@@ -102,8 +100,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 10).build();
-    Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> result =
-        tableUpdater.update(tableIdentifier, "main", SCHEMA, spec);
+    tableUpdater.update(tableIdentifier, "main", SCHEMA, spec);
 
     Table table = catalog.loadTable(tableIdentifier);
     assertThat(table).isNotNull();
@@ -120,9 +117,12 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
     Schema updated =
-        tableUpdater.update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned()).f0;
-    assertThat(updated.sameSchema(SCHEMA2));
-    assertThat(cache.schema(tableIdentifier, SCHEMA2).f0.sameSchema(SCHEMA2)).isTrue();
+        tableUpdater
+            .update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned())
+            .f0
+            .tableSchema();
+    assertThat(updated.sameSchema(SCHEMA2)).isTrue();
+    assertThat(cache.schema(tableIdentifier, SCHEMA2).tableSchema().sameSchema(SCHEMA2)).isTrue();
   }
 
   @Test
@@ -141,11 +141,14 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA2);
 
     // Cache still stores the old information
-    assertThat(cache.schema(tableIdentifier, SCHEMA2).f1)
+    assertThat(cache.schema(tableIdentifier, SCHEMA2).compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
 
     assertThat(
-            tableUpdater.update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned()).f1)
+            tableUpdater
+                .update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned())
+                .f0
+                .compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
 
     // Last result cache should be cleared

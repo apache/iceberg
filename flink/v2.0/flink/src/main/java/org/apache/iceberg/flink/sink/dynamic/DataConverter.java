@@ -60,6 +60,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 interface DataConverter {
   Object convert(Object object);
 
+  static DataConverter identity() {
+    return object -> object;
+  }
+
   static DataConverter getNullable(LogicalType sourceType, LogicalType targetType) {
     return nullable(get(sourceType, targetType));
   }
