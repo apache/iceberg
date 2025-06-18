@@ -482,14 +482,16 @@ public class TestHTTPClient {
               () ->
                   doExecuteRequest(
                       HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
-          .isInstanceOf(CommitStateUnknownException.class);
+          .isInstanceOf(CommitStateUnknownException.class)
+          .hasMessageStartingWith("Commit status unknown, due to retries: 409");
     } else {
       // 409 alone should result in CommitFailedException
       assertThatThrownBy(
               () ->
                   doExecuteRequest(
                       HttpMethod.POST, path, updateTableRequestBody, errorHandler, h -> {}))
-          .isInstanceOf(CommitFailedException.class);
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageStartingWith("Commit failed");
     }
   }
 
