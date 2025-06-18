@@ -38,7 +38,9 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -121,7 +123,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         "CREATE TABLE %s "
             + "(id INT, data STRING) "
             + "USING iceberg "
-            + "PARTITIONED BY (bucket(3, id))",
+            + "PARTITIONED BY (bucket(3, id)) "
+            + "TBLPROPERTIES ('commit.manifest.min-count-to-merge'='3', 'commit.manifest-merge.enabled'='true')",
         tableName);
     this.table = validationCatalog.loadTable(tableIdent);
     microBatches.set(0);
@@ -151,8 +154,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_1()
-      throws Exception {
+  public void testReadStreamWithMaxFiles1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
@@ -162,8 +164,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_2()
-      throws Exception {
+  public void testReadStreamWithMaxFiles2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
@@ -173,8 +174,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_1()
-      throws Exception {
+  public void testReadStreamWithMaxRows1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     // only 1 micro-batch will be formed and we will read data partially
@@ -183,7 +183,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1")))
         .isEqualTo(1);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
+    StreamingQuery query =
+        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"));
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
@@ -193,14 +194,42 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_4()
-      throws Exception {
+  public void testReadStreamWithMaxRows2() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
+        .isEqualTo(4);
+
+    StreamingQuery query =
+        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
+
+    List<SimpleRecord> actual = rowsAvailable(query);
+    assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithMaxRows4() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
         .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithCompositeReadLimit() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(
+                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
+                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
+        .isEqualTo(6);
   }
 
   @TestTemplate
@@ -506,6 +535,86 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplace() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(6);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
+        .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(
+                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+                    "4",
+                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+                    "1")))
+        .isEqualTo(6);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotType2RewriteDataFilesIgnoresReplace() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+    makeRewriteDataFiles();
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(6);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceFollowedByAppend()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    appendDataAsMultipleSnapshots(expected);
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
+        .isEqualTo(12);
+  }
+
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
@@ -595,6 +704,29 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
+  /**
+   * We are testing that all the files in a rewrite snapshot are skipped Create a rewrite data files
+   * snapshot using existing files.
+   */
+  public void makeRewriteDataFiles() {
+    table.refresh();
+
+    // we are testing that all the files in a rewrite snapshot are skipped
+    // create a rewrite data files snapshot using existing files
+    RewriteFiles rewrite = table.newRewrite();
+    Iterable<Snapshot> it = table.snapshots();
+    for (Snapshot snapshot : it) {
+      if (snapshot.operation().equals(DataOperations.APPEND)) {
+        Iterable<DataFile> datafiles = snapshot.addedDataFiles(table.io());
+        for (DataFile datafile : datafiles) {
+          rewrite.addFile(datafile);
+          rewrite.deleteFile(datafile);
+        }
+      }
+    }
+    rewrite.commit();
   }
 
   /**

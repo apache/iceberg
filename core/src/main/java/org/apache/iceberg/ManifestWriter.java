@@ -221,6 +221,81 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     writer.close();
   }
 
+  static class V4Writer extends ManifestWriter<DataFile> {
+    private final V4Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
+
+    V4Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
+      super(spec, file, snapshotId, firstRowId);
+      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+    }
+
+    @Override
+    protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      try {
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "4")
+            .meta("content", "data")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(
+            e, "Failed to create manifest writer for path: %s", file.location());
+      }
+    }
+  }
+
+  static class V4DeleteWriter extends ManifestWriter<DeleteFile> {
+    private final V4Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
+
+    V4DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId, null);
+      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+    }
+
+    @Override
+    protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      try {
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "4")
+            .meta("content", "deletes")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(
+            e, "Failed to create manifest writer for path: %s", file.location());
+      }
+    }
+
+    @Override
+    protected ManifestContent content() {
+      return ManifestContent.DELETES;
+    }
+  }
+
   static class V3Writer extends ManifestWriter<DataFile> {
     private final V3Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 

@@ -154,8 +154,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_1()
-      throws Exception {
+  public void testReadStreamWithMaxFiles1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
@@ -165,8 +164,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_2()
-      throws Exception {
+  public void testReadStreamWithMaxFiles2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
@@ -176,8 +174,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_1()
-      throws Exception {
+  public void testReadStreamWithMaxRows1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     // only 1 micro-batch will be formed and we will read data partially
@@ -186,7 +183,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1")))
         .isEqualTo(1);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
+    StreamingQuery query =
+        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"));
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
@@ -196,14 +194,42 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_4()
-      throws Exception {
+  public void testReadStreamWithMaxRows2() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
+        .isEqualTo(4);
+
+    StreamingQuery query =
+        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
+
+    List<SimpleRecord> actual = rowsAvailable(query);
+    assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithMaxRows4() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
         .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testReadStreamWithCompositeReadLimit() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertThat(
+            microBatchCount(
+                ImmutableMap.of(
+                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
+                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
+        .isEqualTo(6);
   }
 
   @TestTemplate

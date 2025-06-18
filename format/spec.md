@@ -24,9 +24,9 @@ This is a specification for the Iceberg table format that is designed to manage 
 
 ## Format Versioning
 
-Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
+Versions 1, 2 and 3 of the Iceberg spec are complete and adopted by the community.
 
-**Version 3 is under active development and has not been formally adopted.**
+**Version 4 is under active development and has not been formally adopted.**
 
 The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
 
@@ -55,6 +55,7 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * Binary deletion vectors
 * Table encryption keys
 
+The full set of changes are listed in [Appendix E](#version-3).
 
 ## Goals
 
@@ -1534,6 +1535,8 @@ The following table describes the possible values for the some of the field with
 
 Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON.
 
+A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952).
+
 |Metadata field|JSON representation|Example|
 |--- |--- |--- |
 |**`format-version`**|`JSON int`|`1`|
@@ -1841,6 +1844,10 @@ Writers should produce positive values for snapshot ids in a manner that minimiz
 The reference Java implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
 
 Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec, but for compatibility, other implementations can accept `-1` as `null`. Java will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
+
+### Naming for GZIP compressed Metadata JSON files
+
+Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
 
 ## Appendix G: Geospatial Notes
 

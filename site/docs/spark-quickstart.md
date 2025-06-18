@@ -36,7 +36,6 @@ which contains a local Spark cluster with a configured Iceberg catalog. To use t
 Once you have those, save the yaml below into a file named `docker-compose.yml`:
 
 ```yaml
-version: "3"
 
 services:
   spark-iceberg:
@@ -102,7 +101,7 @@ services:
       - AWS_REGION=us-east-1
     entrypoint: |
       /bin/sh -c "
-      until (/usr/bin/mc config host add minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
       /usr/bin/mc rm -r --force minio/warehouse;
       /usr/bin/mc mb minio/warehouse;
       /usr/bin/mc policy set public minio/warehouse;

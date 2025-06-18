@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
@@ -48,15 +49,36 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
+import org.junit.jupiter.api.Named;
+import org.junit.jupiter.params.provider.Arguments;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 public class TestHelpers {
 
+  @FunctionalInterface
+  public interface RoundTripSerializer<T> {
+    T apply(T obj) throws IOException, ClassNotFoundException;
+  }
+
+  public static <T> Stream<Arguments> serializers() {
+    return Stream.of(
+        Arguments.of(
+            Named.<RoundTripSerializer<T>>of(
+                "KryoSerialization", TestHelpers.KryoHelpers::roundTripSerialize)),
+        Arguments.of(
+            Named.<RoundTripSerializer<T>>of(
+                "JavaSerialization", TestHelpers::roundTripSerialize)));
+  }
+
   private TestHelpers() {}
 
-  public static final int MAX_FORMAT_VERSION = 3;
+  public static final int MAX_FORMAT_VERSION = 4;
   public static final List<Integer> ALL_VERSIONS =
       IntStream.rangeClosed(1, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+  public static final List<Integer> V2_AND_ABOVE =
+      IntStream.rangeClosed(2, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+  public static final List<Integer> V3_AND_ABOVE =
+      IntStream.rangeClosed(3, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
 
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {

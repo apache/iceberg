@@ -204,7 +204,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -273,7 +273,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -442,6 +442,52 @@ public abstract class PartitionStatsHandlerTestBase {
   }
 
   @Test
+  public void testCopyOnWriteDelete() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("my_test"), "my_test", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    DataFile dataFile1 =
+        DataFiles.builder(SPEC)
+            .withPath("/df1.parquet")
+            .withPartitionPath("c2=a/c3=a")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(SPEC)
+            .withPath("/df2.parquet")
+            .withPartitionPath("c2=b/c3=b")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    assertThat(
+            PartitionStatsHandler.readPartitionStatsFile(
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable)),
+                testTable.io().newInputFile(statisticsFile.path())))
+        .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
+
+    testTable.newDelete().deleteFile(dataFile1).commit();
+    testTable.newDelete().deleteFile(dataFile2).commit();
+
+    PartitionStatisticsFile statisticsFileNew =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+
+    // stats must be decremented to zero as all the files removed from table.
+    assertThat(
+            PartitionStatsHandler.readPartitionStatsFile(
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable)),
+                testTable.io().newInputFile(statisticsFileNew.path())))
+        .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
+  }
+
+  @Test
   public void testLatestStatsFile() throws Exception {
     Table testTable =
         TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2, fileFormatProperty);
@@ -476,6 +522,46 @@ public abstract class PartitionStatsHandlerTestBase {
     assertThat(latestStatsFile).isEqualTo(statisticsFile);
   }
 
+  @Test
+  public void testLatestStatsFileWithBranch() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("stats_file_branch"), "stats_file_branch", SCHEMA, SPEC, 2, fileFormatProperty);
+    DataFile dataFile =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+
+    /*
+                                             * [statsMainB]
+          ---- snapshotA  ------ snapshotMainB
+                        \
+                         \
+                          \
+                           snapshotBranchB(branch:b1)
+    */
+
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotAId = testTable.currentSnapshot().snapshotId();
+
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotMainBId = testTable.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    testTable.manageSnapshots().createBranch(branchName, snapshotAId).commit();
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotBranchBId = testTable.snapshot(branchName).snapshotId();
+
+    PartitionStatisticsFile statsMainB =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable, snapshotMainBId);
+    testTable.updatePartitionStatistics().setPartitionStatistics(statsMainB).commit();
+
+    // should find latest stats for snapshotMainB
+    assertThat(PartitionStatsHandler.latestStatsFile(testTable, snapshotMainBId))
+        .isEqualTo(statsMainB);
+
+    // should not find latest stats for snapshotBranchB
+    assertThat(PartitionStatsHandler.latestStatsFile(testTable, snapshotBranchBId)).isNull();
+  }
+
   private static StructLike partitionRecord(
       Types.StructType partitionType, String val1, String val2) {
     GenericRecord record = GenericRecord.create(partitionType);
@@ -496,7 +582,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> partitionStats;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            recordSchema, Files.localInput(result.path()))) {
+            recordSchema, testTable.io().newInputFile(result.path()))) {
       partitionStats = Lists.newArrayList(recordIterator);
     }
 

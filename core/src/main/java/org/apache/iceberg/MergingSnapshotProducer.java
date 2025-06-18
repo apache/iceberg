@@ -295,6 +295,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             formatVersion(),
             file.location());
         break;
+      case 4:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion(),
+            file.location());
+        break;
       default:
         throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
     }

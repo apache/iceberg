@@ -456,7 +456,7 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-    Builder identity(String sourceName, String targetName) {
+    public Builder identity(String sourceName, String targetName) {
       return identity(findSourceColumn(sourceName), targetName);
     }
 

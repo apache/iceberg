@@ -49,6 +49,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class ADLSFileIOTest extends BaseAzuriteTest {
 
@@ -176,24 +178,15 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
     verify(client).deleteDirectoryWithResponse(eq("dir"), eq(true), any(), any(), any());
   }
 
-  @Test
-  public void testKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(TestHelpers.RoundTripSerializer<FileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     FileIO testFileIO = new ADLSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
-    testFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testFileIO);
-
-    assertThat(testFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
-  }
-
-  @Test
-  public void testJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testFileIO = new ADLSFileIO();
-
-    // gcs fileIO should be serializable when properties are passed as immutable map
-    testFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testFileIO);
+    testFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
+    FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testFileIO);
 
     assertThat(testFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }

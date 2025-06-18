@@ -70,7 +70,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
-  private List<StorageCredential> storageCredentials = ImmutableList.of();
+  // use modifiable collection for Kryo serde
+  private List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
 
   /**
@@ -192,9 +193,9 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     if (null == storageByPrefix) {
       synchronized (this) {
         if (null == storageByPrefix) {
-          this.storageByPrefix = Maps.newHashMap();
+          Map<String, PrefixedStorage> localStorageByPrefix = Maps.newHashMap();
 
-          storageByPrefix.put(
+          localStorageByPrefix.put(
               ROOT_STORAGE_PREFIX,
               new PrefixedStorage(ROOT_STORAGE_PREFIX, properties, storageSupplier));
           storageCredentials.stream()
@@ -208,13 +209,14 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                             .putAll(storageCredential.config())
                             .buildKeepingLast();
 
-                    storageByPrefix.put(
+                    localStorageByPrefix.put(
                         storageCredential.prefix(),
                         new PrefixedStorage(
                             storageCredential.prefix(),
                             propertiesWithCredentials,
                             storageSupplier));
                   });
+          this.storageByPrefix = localStorageByPrefix;
         }
       }
     }

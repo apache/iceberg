@@ -418,7 +418,7 @@ public class FlinkSink {
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
@@ -522,7 +522,7 @@ public class FlinkSink {
     private SingleOutputStreamOperator<FlinkWriteResult> appendWriter(
         DataStream<RowData> input,
         RowType flinkRowType,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         int writerParallelism) {
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (flinkWriteConf.upsertMode()) {
@@ -536,7 +536,8 @@ public class FlinkSink {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
-                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                "In UPSERT mode, source column '%s' of partition field '%s', should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
                 partitionField,
                 equalityFieldColumns);
           }
@@ -572,7 +573,7 @@ public class FlinkSink {
 
     private DataStream<RowData> distributeDataStream(
         DataStream<RowData> input,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         RowType flinkRowType,
         int writerParallelism) {
       DistributionMode writeMode = flinkWriteConf.distributionMode();
@@ -613,8 +614,9 @@ public class FlinkSink {
               for (PartitionField partitionField : partitionSpec.fields()) {
                 Preconditions.checkState(
                     equalityFieldIds.contains(partitionField.sourceId()),
-                    "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                    "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
                         + "should be included in equality fields: '%s'",
+                    table.schema().findColumnName(partitionField.sourceId()),
                     partitionField,
                     equalityFieldColumns);
               }
@@ -707,7 +709,7 @@ public class FlinkSink {
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
+      Set<Integer> equalityFieldIds) {
     Preconditions.checkArgument(tableSupplier != null, "Iceberg table supplier shouldn't be null");
 
     Table initTable = tableSupplier.get();

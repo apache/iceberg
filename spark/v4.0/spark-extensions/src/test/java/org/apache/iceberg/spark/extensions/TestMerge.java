@@ -31,10 +31,12 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static scala.collection.JavaConverters.mapAsScalaMapConverter;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -95,8 +97,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
-  @TestTemplate
-  public void testMergeWithAllClauses() {
+  private void setupMergeWithAllClauses() {
     createAndInitTable(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n"
@@ -110,7 +111,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
             + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
             + "{ \"id\": 5, \"dep\": \"emp-id-5\" }");
+  }
 
+  private void verifyMergeWithAllClauses() {
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, "emp-id-1"), // updated (matched)
+            // row(2, "emp-id-two) // deleted (matched)
+            row(3, "invalid"), // updated (not matched by source)
+            // row(4, "emp-id-4) // deleted (not matched by source)
+            row(5, "emp-id-5")), // new
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergeWithAllClauses() {
+    setupMergeWithAllClauses();
     sql(
         "MERGE INTO %s AS t USING source AS s "
             + "ON t.id == s.id "
@@ -125,16 +142,29 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "WHEN NOT MATCHED BY SOURCE AND t.id = 4 THEN "
             + "  DELETE ",
         commitTarget());
+    verifyMergeWithAllClauses();
+  }
 
-    assertEquals(
-        "Should have expected rows",
-        ImmutableList.of(
-            row(1, "emp-id-1"), // updated (matched)
-            // row(2, "emp-id-two) // deleted (matched)
-            row(3, "invalid"), // updated (not matched by source)
-            // row(4, "emp-id-4) // deleted (not matched by source)
-            row(5, "emp-id-5")), // new
-        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  @TestTemplate
+  public void testMergeWithAllClausesUsingDataFrameAPI() {
+    setupMergeWithAllClauses();
+    spark
+        .table("source")
+        .mergeInto(commitTarget(), col(commitTarget() + ".id").equalTo(col("source.id")))
+        .whenMatched(col(commitTarget() + ".id").equalTo(lit(1)))
+        .updateAll()
+        .whenMatched(col(commitTarget() + ".id").equalTo(lit(2)))
+        .delete()
+        .whenNotMatched()
+        .insertAll()
+        .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(3)))
+        .update(
+            scala.collection.immutable.Map.from(
+                mapAsScalaMapConverter(ImmutableMap.of("dep", lit("invalid"))).asScala()))
+        .whenNotMatchedBySource(col(commitTarget() + ".id").equalTo(lit(4)))
+        .delete()
+        .merge();
+    verifyMergeWithAllClauses();
   }
 
   @TestTemplate

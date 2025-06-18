@@ -317,6 +317,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
 | `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
+| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
 #### Output
 
@@ -368,6 +369,11 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes
 
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
+```
+
+List all the files that are candidates for removal using prefix listing.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_listing => true);
 ```
 
 ### `rewrite_data_files`
@@ -489,7 +495,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
 
 #### Examples
 
@@ -533,6 +539,7 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 #### Output
 
