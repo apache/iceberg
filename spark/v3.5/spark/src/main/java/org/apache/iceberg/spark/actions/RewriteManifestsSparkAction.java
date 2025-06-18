@@ -171,7 +171,7 @@ public class RewriteManifestsSparkAction
   }
 
   @Override
-  public RewriteManifestsSparkAction clusterBy(List<String> partitionFields) {
+  public RewriteManifestsSparkAction sortBy(List<String> partitionFields) {
     // Collect set of available partition columns to cluster on
     Set<String> availablePartitionNames =
         spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
@@ -185,7 +185,7 @@ public class RewriteManifestsSparkAction
     // Check if these partition fields are included in the spec
     Preconditions.checkArgument(
         missingFields.isEmpty(),
-        "Cannot set manifest clustering because specified field(s) %s were not found in current partition spec %s. Spec ID %s",
+        "Cannot set manifest sorting because specified field(s) %s were not found in current partition spec %s. Spec ID %s",
         missingFields,
         this.spec,
         this.spec.specId());

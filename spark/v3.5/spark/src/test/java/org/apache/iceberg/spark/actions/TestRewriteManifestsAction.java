@@ -537,7 +537,7 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithInvalidClusteringColumns()
+  public void testRewriteManifestsPartitionedTableWithInvalidSortingColumns()
       throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
     Map<String, String> options = Maps.newHashMap();
@@ -553,29 +553,29 @@ public class TestRewriteManifestsAction extends TestBase {
                 actions
                     .rewriteManifests(table)
                     .rewriteIf(manifest -> true)
-                    .clusterBy(nonexistentFields)
+                    .sortBy(nonexistentFields)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot set manifest clustering because specified field(s) [c2] were not found in "
+            "Cannot set manifest sorting because specified field(s) [c2] were not found in "
                 + "current partition spec [\n"
                 + "  1000: c1: identity(1)\n"
                 + "  1001: c3_bucket: bucket[10](3)\n"
                 + "]. Spec ID 0");
 
     // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
-    // clusterBy() expects the hidden partition column names
+    // sortBy() expects the hidden partition column names
     List<String> hasIncorrectPartitionFieldNames = ImmutableList.of("c1", "c3");
     assertThatThrownBy(
             () ->
                 actions
                     .rewriteManifests(table)
                     .rewriteIf(manifest -> true)
-                    .clusterBy(hasIncorrectPartitionFieldNames)
+                    .sortBy(hasIncorrectPartitionFieldNames)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot set manifest clustering because specified field(s) [c3] were not found in "
+            "Cannot set manifest sorting because specified field(s) [c3] were not found in "
                 + "current partition spec [\n"
                 + "  1000: c1: identity(1)\n"
                 + "  1001: c3_bucket: bucket[10](3)\n"
@@ -583,7 +583,7 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithCustomClustering() throws IOException {
+  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
     Random random = new Random(4141912);
 
     PartitionSpec spec =
@@ -629,7 +629,7 @@ public class TestRewriteManifestsAction extends TestBase {
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
-            .clusterBy(manifestClusterKeys)
+            .sortBy(manifestClusterKeys)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
@@ -641,7 +641,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
 
-    // Rewritten manifests are clustered by c3_bucket - each should contain only a subset of the
+    // Rewritten manifests are sorted by c3_bucket - each should contain only a subset of the
     // lower and upper bounds
     // of the partition 'c3'.
     List<Pair<Integer, Integer>> c3Boundaries =
@@ -662,10 +662,10 @@ public class TestRewriteManifestsAction extends TestBase {
     List<Integer> lowers = c3Boundaries.stream().map(t -> t.first()).collect(Collectors.toList());
     List<Integer> uppers = c3Boundaries.stream().map(t -> t.second()).collect(Collectors.toList());
 
-    // With custom clustering, this looks like
+    // With custom sorting, this looks like
     // - manifest 1 -> [lower bound = 0, upper bound = 4]
     // - manifest 2 -> [lower bound = 4, upper bound = 9]
-    // Without the custom clustering, each manifest tracks the full range of c3 upper/lower bounds.
+    // Without the custom sorting, each manifest tracks the full range of c3 upper/lower bounds.
     // AKA they look like
     // - manifest 1 -> [lower bound = 0, upper bound = 9]
     // - manifest 2 -> [lower bound = 0, upper bound = 9]

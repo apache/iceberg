@@ -65,9 +65,9 @@ public interface RewriteManifests
    *     bucket(N, data) partition * definition
    * @return this for method chaining
    */
-  default RewriteManifests clusterBy(List<String> partitionFields) {
+  default RewriteManifests sortBy(List<String> partitionFields) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement clusterBy(List<String>)");
+        this.getClass().getName() + " doesn't implement sortBy(List<String>)");
   }
 
   /**
