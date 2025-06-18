@@ -462,7 +462,7 @@ public class TestHTTPClient {
         .doesNotThrowAnyException();
   }
 
-  @ParameterizedTest(name = "testCommitAndRetry [{index}] selfConflict={0}")
+  @ParameterizedTest(name = "[{index}] selfConflict={0}")
   @ValueSource(booleans = {true, false})
   public void testCommitAndRetry(boolean selfConflict) throws IOException {
     ResourcePaths paths = ResourcePaths.forCatalogProperties(Map.of());
@@ -470,10 +470,10 @@ public class TestHTTPClient {
     String path = paths.table(TableIdentifier.of("ns", "table"));
     Item updateTableRequestBody = new Item(0L, "table update");
     if (selfConflict) {
-      // First request will respond with 503 (Service Unavailable)
+      // First request will respond with 503 (Service Unavailable) if self-conflict is enabled
       addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 503);
     }
-    // Second request will respond with 409 (Conflict): self-conflict with the first request
+    // For the subsequent requests, we will return 409 (Conflict)
     addRequestTestCaseAndGetPath(path, HttpMethod.POST, updateTableRequestBody, 409);
 
     if (selfConflict) {
