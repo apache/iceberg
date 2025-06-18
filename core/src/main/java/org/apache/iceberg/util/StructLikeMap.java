@@ -20,28 +20,49 @@ package org.apache.iceberg.util;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 
 public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<StructLike, T> {
 
+  /**
+   * Creates a new StructLikeMap with the specified type and comparator.
+   *
+   * @param type the struct type for the keys
+   * @param comparator the comparator for comparing struct keys
+   * @return a new StructLikeMap instance
+   */
+  public static <T> StructLikeMap<T> create(
+      Types.StructType type, Comparator<StructLike> comparator) {
+    return new StructLikeMap<>(type, comparator);
+  }
+
+  /**
+   * Creates a new StructLikeMap with the specified type using the default comparator for the type.
+   *
+   * @param type the struct type for the keys
+   * @return a new StructLikeMap instance
+   */
   public static <T> StructLikeMap<T> create(Types.StructType type) {
-    return new StructLikeMap<>(type);
+    return create(type, Comparators.forType(type));
   }
 
   private final Types.StructType type;
   private final Map<StructLikeWrapper, T> wrapperMap;
   private final ThreadLocal<StructLikeWrapper> wrappers;
 
-  private StructLikeMap(Types.StructType type) {
+  private StructLikeMap(Types.StructType type, Comparator<StructLike> comparator) {
     this.type = type;
     this.wrapperMap = Maps.newHashMap();
-    this.wrappers = ThreadLocal.withInitial(() -> StructLikeWrapper.forType(type));
+    this.wrappers = ThreadLocal.withInitial(() -> StructLikeWrapper.forType(type, comparator));
   }
 
   @Override
@@ -123,6 +144,10 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
       entrySet.add(new StructLikeEntry<>(entry));
     }
     return entrySet;
+  }
+
+  public T computeIfAbsent(StructLike struct, Supplier<T> valueSupplier) {
+    return wrapperMap.computeIfAbsent(wrappers.get().copyFor(struct), key -> valueSupplier.get());
   }
 
   private static class StructLikeEntry<R> implements Entry<StructLike, R> {
