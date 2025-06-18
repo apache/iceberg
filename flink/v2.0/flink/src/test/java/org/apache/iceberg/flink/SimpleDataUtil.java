@@ -83,6 +83,12 @@ public class SimpleDataUtil {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
+  public static final Schema SCHEMA2 =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
   public static final ResolvedSchema FLINK_SCHEMA =
       ResolvedSchema.of(
           Column.physical("id", DataTypes.INT()), Column.physical("data", DataTypes.STRING()));
@@ -91,6 +97,7 @@ public class SimpleDataUtil {
       (RowType) FLINK_SCHEMA.toSourceRowDataType().getLogicalType();
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
+  public static final Record RECORD2 = GenericRecord.create(SCHEMA2);
 
   public static Table createTable(
       String path, Map<String, String> properties, boolean partitioned) {
@@ -107,6 +114,14 @@ public class SimpleDataUtil {
     Record record = RECORD.copy();
     record.setField("id", id);
     record.setField("data", data);
+    return record;
+  }
+
+  public static Record createRecord(Integer id, String data, String extra) {
+    Record record = RECORD2.copy();
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("extra", extra);
     return record;
   }
 
@@ -227,7 +242,12 @@ public class SimpleDataUtil {
     for (RowData row : rows) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
       String data = row.isNullAt(1) ? null : row.getString(1).toString();
-      records.add(createRecord(id, data));
+      if (row.getArity() == 2) {
+        records.add(createRecord(id, data));
+      } else {
+        String extra = row.isNullAt(2) ? null : row.getString(2).toString();
+        records.add(createRecord(id, data, extra));
+      }
     }
     return records;
   }
