@@ -1801,16 +1801,6 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRemoveMetadataWithNoSnapshots() throws Exception {
-    TableMetadata current = table.ops().current();
-    removeSnapshots(table)
-        .expireOlderThan(System.currentTimeMillis())
-        .retainLast(1)
-        .cleanExpiredMetadata(true)
-        .commit();
-    assertThat(table.ops().current())
-        .as("No snapshot or metadata to remove, should be a no-op")
-        .isSameAs(current);
-
     table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
     table.updateSchema().addColumn("extra_col2", Types.StringType.get()).commit();
     table.updateSpec().addField("extra_col2").commit();
@@ -1824,8 +1814,11 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
     assertThat(table.schemas()).as("Expired schemas should be removed").hasSize(1);
     assertThat(table.specs()).as("Expired specs should be removed").hasSize(1);
+  }
 
-    current = table.ops().current();
+  @TestTemplate
+  public void testRemoveSnapshotsNoOp() throws Exception {
+    TableMetadata current = table.ops().current();
     removeSnapshots(table)
         .expireOlderThan(System.currentTimeMillis())
         .retainLast(1)
