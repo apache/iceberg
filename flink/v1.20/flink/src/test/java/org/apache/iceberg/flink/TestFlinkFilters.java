@@ -427,6 +427,7 @@ public class TestFlinkFilters {
                 unresolvedCall.getChildren().stream()
                     .map(e -> (ResolvedExpression) e.accept(this))
                     .collect(Collectors.toList());
+            // TODO mxm false?
             return new CallExpression(
                 unresolvedCall.getFunctionDefinition(), children, DataTypes.STRING());
           }
