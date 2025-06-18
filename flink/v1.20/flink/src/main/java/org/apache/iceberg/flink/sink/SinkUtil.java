@@ -18,17 +18,30 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SinkUtil {
+@Internal
+public class SinkUtil {
 
   private static final long INITIAL_CHECKPOINT_ID = -1L;
 
@@ -89,5 +102,49 @@ class SinkUtil {
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  /**
+   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
+   * write.
+   *
+   * @param format The FileFormat to use
+   * @param conf The write configuration
+   * @param table The table to get the table level settings
+   * @return The properties to use for writing
+   */
+  public static Map<String, String> writeProperties(
+      FileFormat format, FlinkWriteConf conf, @Nullable Table table) {
+    Map<String, String> writeProperties = Maps.newHashMap();
+    if (table != null) {
+      writeProperties.putAll(table.properties());
+    }
+
+    switch (format) {
+      case PARQUET:
+        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
+        String parquetCompressionLevel = conf.parquetCompressionLevel();
+        if (parquetCompressionLevel != null) {
+          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
+        }
+
+        break;
+      case AVRO:
+        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
+        String avroCompressionLevel = conf.avroCompressionLevel();
+        if (avroCompressionLevel != null) {
+          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
+        }
+
+        break;
+      case ORC:
+        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
+        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
+        break;
+      default:
+        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
+    }
+
+    return writeProperties;
   }
 }

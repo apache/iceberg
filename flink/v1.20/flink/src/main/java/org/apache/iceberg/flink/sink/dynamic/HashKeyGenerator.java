@@ -77,8 +77,7 @@ class HashKeyGenerator {
       DynamicRecord dynamicRecord,
       @Nullable Schema tableSchema,
       @Nullable PartitionSpec tableSpec,
-      @Nullable RowData overrideRowData)
-      throws Exception {
+      @Nullable RowData overrideRowData) {
     String tableIdent = dynamicRecord.tableIdentifier().toString();
     SelectorKey cacheKey =
         new SelectorKey(
@@ -89,8 +88,8 @@ class HashKeyGenerator {
             dynamicRecord.schema(),
             dynamicRecord.spec(),
             dynamicRecord.equalityFields());
-    return keySelectorCache
-        .get(
+    KeySelector<RowData, Integer> keySelector =
+        keySelectorCache.get(
             cacheKey,
             k ->
                 getKeySelector(
@@ -101,8 +100,13 @@ class HashKeyGenerator {
                         dynamicRecord.distributionMode(), DistributionMode.NONE),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
-                    dynamicRecord.writeParallelism()))
-        .getKey(overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
+                    dynamicRecord.writeParallelism()));
+    try {
+      return keySelector.getKey(
+          overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private KeySelector<RowData, Integer> getKeySelector(

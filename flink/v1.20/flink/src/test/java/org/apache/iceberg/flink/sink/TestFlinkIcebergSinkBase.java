@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -64,8 +65,8 @@ public class TestFlinkIcebergSinkBase {
   protected Table table;
   protected StreamExecutionEnvironment env;
 
-  protected BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
-    return new BoundedTestSource<>(rows.toArray(new Row[0]));
+  protected <T> BoundedTestSource<T> createBoundedSource(List<T> rows) {
+    return new BoundedTestSource<>(Collections.singletonList(rows));
   }
 
   protected List<Row> createRows(String prefix) {
