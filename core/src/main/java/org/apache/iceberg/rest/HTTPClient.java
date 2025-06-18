@@ -50,7 +50,6 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
@@ -234,7 +233,7 @@ public class HTTPClient extends BaseHTTPClient {
 
     ErrorResponse enrichedErrorResponse =
         ErrorResponse.builder()
-            .wasRetried(wasRetried == Boolean.TRUE)
+            .wasRetried(Boolean.TRUE.equals(wasRetried))
             .responseCode(errorResponse.code())
             .withMessage(errorResponse.message())
             .withType(errorResponse.type())
