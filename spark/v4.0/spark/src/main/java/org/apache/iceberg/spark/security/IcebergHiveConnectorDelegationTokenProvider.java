@@ -51,9 +51,11 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
   private static final String SERVICE_NAME = "iceberg_hive";
   private static final String SPARK_SQL_CATALOG_PREFIX = "spark.sql.catalog.";
   private static final String CATALOG_TYPE = "hive";
-  private static final String URI_KEY = ".uri";
-  private static final String PRINCIPAL_KEY = ".hive.metastore.kerberos.principal";
-  private static final String TYPE_KEY = ".type";
+  private static final String URI_KEY = "uri";
+  private static final String PRINCIPAL_KEY =
+      HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL.varname;
+  private static final String TYPE_KEY = "type";
+  private static final String DOT = ".";
 
   @Override
   public String serviceName() {
@@ -72,10 +74,21 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
    */
   Optional<HiveConf> buildHiveConf(
       SparkConf sparkConf, Configuration hadoopConf, String catalogName) {
+    String targetPrefix = SPARK_SQL_CATALOG_PREFIX + catalogName + DOT;
     try {
       HiveConf hiveConf = new HiveConf(hadoopConf, HiveConf.class);
-      Arrays.stream(sparkConf.getAllWithPrefix(SPARK_SQL_CATALOG_PREFIX + catalogName))
-          .forEach(x -> hiveConf.set(x._1, x._2));
+      Arrays.stream(sparkConf.getAllWithPrefix(targetPrefix))
+          .forEach(
+              entry -> {
+                if (entry._1.contains(URI_KEY)) {
+                  hiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, entry._2);
+                } else {
+                  // Remove the prefix to create a Hive-specific configuration key
+                  String subKey = entry._1.substring(targetPrefix.length());
+                  hiveConf.set(subKey, entry._2);
+                }
+              });
+
       return Optional.of(hiveConf);
     } catch (Exception e) {
       LOG.warn("Fail to create Hive Configuration for catalog {}: {}", catalogName, e.getMessage());
@@ -116,11 +129,12 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
   }
 
   private boolean checkDelegationTokensRequired(SparkConf sparkConf, String catalogName) {
-    String metastoreUri = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + URI_KEY, "");
-    String principal = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + PRINCIPAL_KEY, "");
+    String metastoreUri = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + DOT + URI_KEY, "");
+    String principal =
+        sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + DOT + PRINCIPAL_KEY, "");
     boolean isHiveType =
         CATALOG_TYPE.equalsIgnoreCase(
-            sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + TYPE_KEY, ""));
+            sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + DOT + TYPE_KEY, ""));
     if (metastoreUri.isEmpty()
         || principal.isEmpty()
         || !isHiveType
@@ -159,8 +173,9 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
 
       LOG.debug("Require token Hive catalog: {}", catalogName);
       HiveConf remoteHmsConf = hiveConfOpt.get();
-      String metastoreUri = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + URI_KEY);
-      String principal = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + PRINCIPAL_KEY);
+      String metastoreUri = sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + DOT + URI_KEY);
+      String principal =
+          sparkConf.get(SPARK_SQL_CATALOG_PREFIX + catalogName + DOT + PRINCIPAL_KEY);
 
       doAsRealUser(
           () -> {
