@@ -39,6 +39,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -306,7 +307,7 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    HttpContext context = new BasicHttpContext();
+    HttpContext context = HttpClientContext.create();
     try (CloseableHttpResponse response = httpClient.execute(request, context)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
