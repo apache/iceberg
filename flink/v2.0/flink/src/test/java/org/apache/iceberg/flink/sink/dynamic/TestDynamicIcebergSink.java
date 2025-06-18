@@ -178,7 +178,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   private static class Generator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
 
     @Override
-    public void convert(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
+    public void generate(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
       TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, row.tableName);
       String branch = row.branch;
       Schema schema = row.schemaProvided;
