@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -28,6 +29,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.S3TestUtil;
 import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -160,6 +162,9 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   public void testNoRetryAwarenessCorruptsTable() {
     // This test exists to replicate the issue the prior test validates the fix for
     // See https://github.com/apache/iceberg/issues/7151
+    skipIfAnalyticsAcceleratorEnabled(
+        new S3FileIOProperties(),
+        "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
