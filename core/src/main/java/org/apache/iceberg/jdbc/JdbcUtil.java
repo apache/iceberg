@@ -123,7 +123,7 @@ final class JdbcUtil {
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ?";
   static final String V0_CREATE_CATALOG_SQL =
-      "CREATE TABLE IF NOT EXISTS "
+      "CREATE TABLE "
           + CATALOG_TABLE_VIEW_NAME
           + "("
           + CATALOG_NAME
@@ -400,7 +400,7 @@ final class JdbcUtil {
   static final String NAMESPACE_PROPERTY_VALUE = "property_value";
 
   static final String CREATE_NAMESPACE_PROPERTIES_TABLE_SQL =
-      "CREATE TABLE IF NOT EXISTS "
+      "CREATE TABLE "
           + NAMESPACE_PROPERTIES_TABLE_NAME
           + "("
           + CATALOG_NAME

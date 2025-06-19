@@ -60,7 +60,9 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
@@ -191,14 +193,17 @@ public class TestJdbcTableConcurrency {
 
   @Test
   public synchronized void testInitializeWithSlowConcurrentConnections()
-      throws InterruptedException, SQLException, ExecutionException {
+          throws InterruptedException, SQLException, ExecutionException, ClassNotFoundException {
+    // number of threads and requests to attempt.
+    int parallelism = 2;
     // verifies that multiple calls to initialize with slow responses will not fail.
     Map<String, String> properties = Maps.newHashMap();
 
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
-    String sqliteDb = "jdbc:slow:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";
-    properties.put(CatalogProperties.URI, sqliteDb);
-    SlowDriver slowDriver = new SlowDriver(sqliteDb);
+    String testingDB = "jdbc:slow:derby:memory:testDb;create=true";
+    new org.apache.derby.jdbc.EmbeddedDriver();
+    properties.put(CatalogProperties.URI, testingDB);
+    SlowDriver slowDriver = new SlowDriver(testingDB);
 
     Callable<JdbcCatalog> makeCatalog =
         () -> {
@@ -212,12 +217,15 @@ public class TestJdbcTableConcurrency {
       DriverManager.registerDriver(slowDriver);
       ExecutorService executorService =
           MoreExecutors.getExitingExecutorService(
-              (ThreadPoolExecutor) Executors.newFixedThreadPool(7));
+              (ThreadPoolExecutor) Executors.newFixedThreadPool(parallelism));
 
-      Future<JdbcCatalog> future1 = executorService.submit(makeCatalog);
-      Future<JdbcCatalog> future2 = executorService.submit(makeCatalog);
-      future1.get();
-      future2.get();
+      List<Future<JdbcCatalog>> futures = new ArrayList<>();
+      for (int i = 0; i < parallelism ; i++) {
+        futures.add(executorService.submit(makeCatalog));
+      }
+      for (Future<JdbcCatalog> future : futures) {
+        future.get();
+      }
     } finally {
       DriverManager.deregisterDriver(slowDriver);
     }
