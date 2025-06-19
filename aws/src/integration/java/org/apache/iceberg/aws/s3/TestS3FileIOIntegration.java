@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -209,8 +210,12 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testCrossRegionAccessEnabled() throws Exception {
-    clientFactory.initialize(
-        ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true"));
+    Map<String, String> properties =
+        ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
+    skipIfAnalyticsAcceleratorEnabled(
+        new S3FileIOProperties(properties),
+        "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access");
+    clientFactory.initialize(properties);
     S3Client s3Client = clientFactory.s3();
     String crossBucketObjectKey = String.format("%s/%s", prefix, UUID.randomUUID());
     String crossBucketObjectUri =
@@ -234,7 +239,12 @@ public class TestS3FileIOIntegration {
   @Test
   public void testNewInputStreamWithCrossRegionAccessPoint() throws Exception {
     requireAccessPointSupport();
-    clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
+    Map<String, String> properties =
+        ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    skipIfAnalyticsAcceleratorEnabled(
+        new S3FileIOProperties(properties),
+        "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access Points");
+    clientFactory.initialize(properties);
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
@@ -485,14 +495,18 @@ public class TestS3FileIOIntegration {
         new String(encoder.encode(digest.digest(secretKey.getEncoded())), StandardCharsets.UTF_8);
 
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> properties =
         ImmutableMap.of(
             S3FileIOProperties.SSE_TYPE,
             S3FileIOProperties.SSE_TYPE_CUSTOM,
             S3FileIOProperties.SSE_KEY,
             encodedKey,
             S3FileIOProperties.SSE_MD5,
-            md5));
+            md5);
+    skipIfAnalyticsAcceleratorEnabled(
+        new S3FileIOProperties(properties),
+        "Analytics Accelerator Library does not support Server Side Custom Encryption");
+    s3FileIO.initialize(properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =

@@ -28,6 +28,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 class StaticClientFactory implements AwsClientFactory {
   static S3Client client;
+  static S3AsyncClient asyncClient;
 
   @Override
   public S3Client s3() {
@@ -36,7 +37,7 @@ class StaticClientFactory implements AwsClientFactory {
 
   @Override
   public S3AsyncClient s3Async() {
-    return null;
+    return asyncClient;
   }
 
   @Override
