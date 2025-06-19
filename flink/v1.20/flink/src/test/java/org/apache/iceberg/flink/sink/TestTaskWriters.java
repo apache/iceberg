@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -229,7 +230,7 @@ public class TestTaskWriters {
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
             SerializableTable.copyOf(table),
-            SimpleDataUtil.ROW_TYPE,
+            (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
             targetFileSize,
             format,
             table.properties(),

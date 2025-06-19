@@ -27,11 +27,9 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
-import org.apache.flink.table.types.DataType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -57,14 +55,10 @@ public class TestFlinkIcebergSinkBase {
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(
-          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
-              .map(ExternalTypeInfo::of)
-              .toArray(TypeInformation[]::new));
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
   protected static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(
-          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(DataType[]::new));
+      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
   protected TableLoader tableLoader;
   protected Table table;
@@ -92,7 +86,7 @@ public class TestFlinkIcebergSinkBase {
   }
 
   protected void testWriteRow(
-      int writerParallelism, ResolvedSchema resolvedSchema, DistributionMode distributionMode)
+      int writerParallelism, TableSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
@@ -100,7 +94,7 @@ public class TestFlinkIcebergSinkBase {
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .resolvedSchema(resolvedSchema)
+        .tableSchema(tableSchema)
         .writeParallelism(writerParallelism)
         .distributionMode(distributionMode)
         .append();

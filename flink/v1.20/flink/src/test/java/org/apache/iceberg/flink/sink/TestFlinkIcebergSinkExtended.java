@@ -127,7 +127,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(leftTable)
         .tableLoader(leftTableLoader)
-        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .distributionMode(DistributionMode.NONE)
         .uidPrefix("leftIcebergSink")
         .append();
@@ -140,7 +140,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(rightTable)
         .tableLoader(rightTableLoader)
-        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidPrefix("rightIcebergSink")

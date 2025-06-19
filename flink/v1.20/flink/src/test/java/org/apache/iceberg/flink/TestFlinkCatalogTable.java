@@ -30,9 +30,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
@@ -102,7 +103,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Table `tl` was not found.");
 
-    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getResolvedSchema());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
     assertThat(tableSchema.asStruct()).isEqualTo(actualSchema.asStruct());
   }
 
@@ -115,11 +116,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
   }
 
   @TestTemplate
@@ -131,10 +129,9 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .as("Should have the expected row key.")
         .isEqualTo(Sets.newHashSet(table.schema().findField("key").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UnresolvedPrimaryKey> uniqueConstraintOptional =
-        catalogTable.getUnresolvedSchema().getPrimaryKey();
+    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
     assertThat(uniqueConstraintOptional).isPresent();
-    assertThat(uniqueConstraintOptional.get().getColumnNames()).containsExactly("key");
+    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("key");
   }
 
   @TestTemplate
@@ -150,10 +147,9 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 table.schema().findField("id").fieldId(),
                 table.schema().findField("data").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UnresolvedPrimaryKey> uniqueConstraintOptional =
-        catalogTable.getUnresolvedSchema().getPrimaryKey();
+    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
     assertThat(uniqueConstraintOptional).isPresent();
-    assertThat(uniqueConstraintOptional.get().getColumnNames()).containsExactly("id", "data");
+    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("id", "data");
   }
 
   @TestTemplate
@@ -188,11 +184,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl2");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
   }
 
   @TestTemplate
@@ -205,11 +198,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
 
     CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
 
     dropCatalog(catalog2, true);
   }
@@ -221,19 +211,15 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
 
     CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
 
     String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
     Map<String, String> options = catalogTable.getOptions();
-    assertThat(options)
-        .containsEntry(
-            FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
-            FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
-        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
+        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .isEqualTo(srcCatalogProps);
   }
 
   @TestTemplate
@@ -264,11 +250,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     assertThat(table.spec())
         .isEqualTo(PartitionSpec.builderFor(table.schema()).identity("dt").build());
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getUnresolvedSchema())
+    assertThat(catalogTable.getSchema())
         .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .column("dt", DataTypes.STRING())
+            TableSchema.builder()
+                .field("id", DataTypes.BIGINT())
+                .field("dt", DataTypes.STRING())
                 .build());
     assertThat(catalogTable.getPartitionKeys()).isEqualTo(Collections.singletonList("dt"));
   }
@@ -287,7 +273,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableWithFormatV2ThroughTableProperty() {
+  public void testCreateTableWithFormatV2ThroughTableProperty() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
@@ -295,7 +281,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testUpgradeTableWithFormatV2ThroughTableProperty() {
+  public void testUpgradeTableWithFormatV2ThroughTableProperty() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='1')");
 
     Table table = table("tl");
@@ -310,7 +296,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() {
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
@@ -333,16 +319,13 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
     assertThat(catalogTable.getPartitionKeys()).isEmpty();
   }
 
   @TestTemplate
-  public void testAlterTableProperties() {
+  public void testAlterTableProperties() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");

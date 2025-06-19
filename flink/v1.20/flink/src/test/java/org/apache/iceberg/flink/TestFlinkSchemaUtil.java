@@ -21,13 +21,9 @@ package org.apache.iceberg.flink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Collections;
-import java.util.List;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.catalog.Column;
-import org.apache.flink.table.catalog.ResolvedSchema;
-import org.apache.flink.table.catalog.UniqueConstraint;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
@@ -48,36 +44,37 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testConvertFlinkSchemaToIcebergSchema() {
-    ResolvedSchema flinkSchema =
-        ResolvedSchema.of(
-            Column.physical("id", DataTypes.INT().notNull()),
-            Column.physical("name", DataTypes.STRING()) /* optional by default */,
-            Column.physical("salary", DataTypes.DOUBLE().notNull()),
-            Column.physical(
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field("id", DataTypes.INT().notNull())
+            .field("name", DataTypes.STRING()) /* optional by default */
+            .field("salary", DataTypes.DOUBLE().notNull())
+            .field(
                 "locations",
                 DataTypes.MAP(
                     DataTypes.STRING(),
                     DataTypes.ROW(
                         DataTypes.FIELD("posX", DataTypes.DOUBLE().notNull(), "X field"),
-                        DataTypes.FIELD("posY", DataTypes.DOUBLE().notNull(), "Y field")))),
-            Column.physical("strArray", DataTypes.ARRAY(DataTypes.STRING()).nullable()),
-            Column.physical("intArray", DataTypes.ARRAY(DataTypes.INT()).nullable()),
-            Column.physical("char", DataTypes.CHAR(10).notNull()),
-            Column.physical("varchar", DataTypes.VARCHAR(10).notNull()),
-            Column.physical("boolean", DataTypes.BOOLEAN().nullable()),
-            Column.physical("tinyint", DataTypes.TINYINT()),
-            Column.physical("smallint", DataTypes.SMALLINT()),
-            Column.physical("bigint", DataTypes.BIGINT()),
-            Column.physical("varbinary", DataTypes.VARBINARY(10)),
-            Column.physical("binary", DataTypes.BINARY(10)),
-            Column.physical("time", DataTypes.TIME()),
-            Column.physical("timestampWithoutZone", DataTypes.TIMESTAMP()),
-            Column.physical("timestampWithZone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()),
-            Column.physical("date", DataTypes.DATE()),
-            Column.physical("decimal", DataTypes.DECIMAL(2, 2)),
-            Column.physical("decimal2", DataTypes.DECIMAL(38, 2)),
-            Column.physical("decimal3", DataTypes.DECIMAL(10, 1)),
-            Column.physical("multiset", DataTypes.MULTISET(DataTypes.STRING().notNull())));
+                        DataTypes.FIELD("posY", DataTypes.DOUBLE().notNull(), "Y field"))))
+            .field("strArray", DataTypes.ARRAY(DataTypes.STRING()).nullable())
+            .field("intArray", DataTypes.ARRAY(DataTypes.INT()).nullable())
+            .field("char", DataTypes.CHAR(10).notNull())
+            .field("varchar", DataTypes.VARCHAR(10).notNull())
+            .field("boolean", DataTypes.BOOLEAN().nullable())
+            .field("tinyint", DataTypes.TINYINT())
+            .field("smallint", DataTypes.SMALLINT())
+            .field("bigint", DataTypes.BIGINT())
+            .field("varbinary", DataTypes.VARBINARY(10))
+            .field("binary", DataTypes.BINARY(10))
+            .field("time", DataTypes.TIME())
+            .field("timestampWithoutZone", DataTypes.TIMESTAMP())
+            .field("timestampWithZone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
+            .field("date", DataTypes.DATE())
+            .field("decimal", DataTypes.DECIMAL(2, 2))
+            .field("decimal2", DataTypes.DECIMAL(38, 2))
+            .field("decimal3", DataTypes.DECIMAL(10, 1))
+            .field("multiset", DataTypes.MULTISET(DataTypes.STRING().notNull()))
+            .build();
 
     Schema icebergSchema =
         new Schema(
@@ -125,17 +122,17 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testMapField() {
-    ResolvedSchema flinkSchema =
-        ResolvedSchema.of(
-            Column.physical(
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field(
                 "map_int_long",
-                DataTypes.MAP(DataTypes.INT(), DataTypes.BIGINT()).notNull()) /* Required */,
-            Column.physical(
+                DataTypes.MAP(DataTypes.INT(), DataTypes.BIGINT()).notNull()) /* Required */
+            .field(
                 "map_int_array_string",
-                DataTypes.MAP(DataTypes.ARRAY(DataTypes.INT()), DataTypes.STRING())),
-            Column.physical(
-                "map_decimal_string", DataTypes.MAP(DataTypes.DECIMAL(10, 2), DataTypes.STRING())),
-            Column.physical(
+                DataTypes.MAP(DataTypes.ARRAY(DataTypes.INT()), DataTypes.STRING()))
+            .field(
+                "map_decimal_string", DataTypes.MAP(DataTypes.DECIMAL(10, 2), DataTypes.STRING()))
+            .field(
                 "map_fields_fields",
                 DataTypes.MAP(
                         DataTypes.ROW(
@@ -148,7 +145,8 @@ public class TestFlinkSchemaUtil {
                                     DataTypes.ARRAY(DataTypes.STRING()),
                                     "doc - array"))
                             .notNull() /* Required */)
-                    .notNull() /* Required */));
+                    .notNull() /* Required */)
+            .build();
 
     Schema icebergSchema =
         new Schema(
@@ -194,9 +192,9 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testStructField() {
-    ResolvedSchema flinkSchema =
-        ResolvedSchema.of(
-            Column.physical(
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field(
                 "struct_int_string_decimal",
                 DataTypes.ROW(
                         DataTypes.FIELD("field_int", DataTypes.INT()),
@@ -210,13 +208,14 @@ public class TestFlinkSchemaUtil {
                                         "inner_struct_float_array",
                                         DataTypes.ARRAY(DataTypes.FLOAT())))
                                 .notNull()) /* Row is required */)
-                    .notNull()) /* Required */,
-            Column.physical(
+                    .notNull()) /* Required */
+            .field(
                 "struct_map_int_int",
                 DataTypes.ROW(
                         DataTypes.FIELD(
                             "field_map", DataTypes.MAP(DataTypes.INT(), DataTypes.INT())))
-                    .nullable()) /* Optional */);
+                    .nullable()) /* Optional */
+            .build();
 
     Schema icebergSchema =
         new Schema(
@@ -252,21 +251,21 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testListField() {
-    ResolvedSchema flinkSchema =
-        ResolvedSchema.of(
-            Column.physical(
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field(
                 "list_struct_fields",
                 DataTypes.ARRAY(DataTypes.ROW(DataTypes.FIELD("field_int", DataTypes.INT())))
-                    .notNull()) /* Required */,
-            Column.physical(
+                    .notNull()) /* Required */
+            .field(
                 "list_optional_struct_fields",
                 DataTypes.ARRAY(
                         DataTypes.ROW(
                             DataTypes.FIELD(
                                 "field_timestamp_with_local_time_zone",
                                 DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())))
-                    .nullable()) /* Optional */,
-            Column.physical(
+                    .nullable()) /* Optional */
+            .field(
                 "list_map_fields",
                 DataTypes.ARRAY(
                         DataTypes.MAP(
@@ -275,7 +274,8 @@ public class TestFlinkSchemaUtil {
                                 DataTypes.ROW(
                                     DataTypes.FIELD("field_0", DataTypes.INT(), "doc - int")))
                             .notNull())
-                    .notNull()) /* Required */);
+                    .notNull()) /* Required */
+            .build();
 
     Schema icebergSchema =
         new Schema(
@@ -312,12 +312,12 @@ public class TestFlinkSchemaUtil {
     checkSchema(flinkSchema, icebergSchema);
   }
 
-  private void checkSchema(ResolvedSchema flinkSchema, Schema icebergSchema) {
+  private void checkSchema(TableSchema flinkSchema, Schema icebergSchema) {
     assertThat(FlinkSchemaUtil.convert(flinkSchema).asStruct()).isEqualTo(icebergSchema.asStruct());
     // The conversion is not a 1:1 mapping, so we just check iceberg types.
     assertThat(
             FlinkSchemaUtil.convert(
-                    FlinkSchemaUtil.toResolvedSchema(FlinkSchemaUtil.convert(icebergSchema)))
+                    FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)))
                 .asStruct())
         .isEqualTo(icebergSchema.asStruct());
   }
@@ -356,9 +356,7 @@ public class TestFlinkSchemaUtil {
       LogicalType flinkType,
       Type icebergExpectedType) {
     assertThat(FlinkSchemaUtil.convert(icebergType)).isEqualTo(flinkExpectedType);
-    assertThat(
-            FlinkSchemaUtil.convert(FlinkSchemaUtil.toResolvedSchema(RowType.of(flinkType)))
-                .asStruct())
+    assertThat(FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct())
         .isEqualTo(Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)));
   }
 
@@ -371,13 +369,12 @@ public class TestFlinkSchemaUtil {
                 Types.NestedField.optional(102, "string", Types.StringType.get())),
             Sets.newHashSet(101));
 
-    ResolvedSchema flinkSchema =
-        new ResolvedSchema(
-            List.of(
-                Column.physical("int", DataTypes.INT().notNull()),
-                Column.physical("string", DataTypes.STRING().nullable())),
-            Collections.emptyList(),
-            UniqueConstraint.primaryKey("pk", List.of("int")));
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field("int", DataTypes.INT().notNull())
+            .field("string", DataTypes.STRING().nullable())
+            .primaryKey("int")
+            .build();
     Schema convertedSchema = FlinkSchemaUtil.convert(baseSchema, flinkSchema);
     assertThat(convertedSchema.asStruct()).isEqualTo(baseSchema.asStruct());
     assertThat(convertedSchema.identifierFieldIds()).containsExactly(101);
@@ -392,8 +389,8 @@ public class TestFlinkSchemaUtil {
                 Types.NestedField.required(2, "string", Types.StringType.get())),
             Sets.newHashSet(1, 2));
 
-    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(icebergSchema);
-    assertThat(resolvedSchema.getPrimaryKey())
+    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    assertThat(tableSchema.getPrimaryKey())
         .isPresent()
         .get()
         .satisfies(k -> assertThat(k.getColumns()).containsExactly("int", "string"));
@@ -411,9 +408,9 @@ public class TestFlinkSchemaUtil {
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
 
-    assertThatThrownBy(() -> FlinkSchemaUtil.toResolvedSchema(icebergSchema))
+    assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Invalid primary key")
+        .hasMessageStartingWith("Could not create a PRIMARY KEY")
         .hasMessageContaining("Column 'struct.inner' does not exist.");
   }
 }

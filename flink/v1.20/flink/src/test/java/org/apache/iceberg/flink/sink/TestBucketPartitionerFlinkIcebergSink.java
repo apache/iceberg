@@ -34,8 +34,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
-import org.apache.flink.table.types.DataType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -78,10 +76,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(
-          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
-              .map(ExternalTypeInfo::of)
-              .toArray(TypeInformation[]::new));
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
   // Parallelism = 8 (parallelism > numBuckets) throughout the test suite
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
@@ -112,8 +107,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   private void appendRowsToTable(List<RowData> allRows) throws Exception {
     DataFormatConverters.RowConverter converter =
-        new DataFormatConverters.RowConverter(
-            SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(DataType[]::new));
+        new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
     DataStream<RowData> dataStream =
         env.addSource(

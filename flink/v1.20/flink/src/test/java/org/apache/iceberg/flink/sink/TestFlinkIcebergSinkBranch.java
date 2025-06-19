@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -100,7 +100,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     verifyOtherBranchUnmodified();
   }
 
-  private void testWriteRow(ResolvedSchema resolvedSchema, DistributionMode distributionMode)
+  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
@@ -108,7 +108,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .resolvedSchema(resolvedSchema)
+        .tableSchema(tableSchema)
         .toBranch(branch)
         .distributionMode(distributionMode)
         .append();

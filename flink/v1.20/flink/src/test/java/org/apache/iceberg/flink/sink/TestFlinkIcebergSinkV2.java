@@ -171,7 +171,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     FlinkSink.Builder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .tableLoader(tableLoader)
-            .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)
             .upsert(true);
 
