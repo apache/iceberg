@@ -366,6 +366,7 @@ project(':iceberg-core') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.derby.core
     testImplementation libs.derby.tools
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo

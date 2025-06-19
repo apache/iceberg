@@ -157,54 +157,62 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     closeableGroup.setSuppressCloseFailure(true);
   }
 
-  private void atomicCreateTable(String tableName, String sqlCommand, String reason) throws SQLException, InterruptedException {
+  private void atomicCreateTable(String tableName, String sqlCommand, String reason)
+      throws SQLException, InterruptedException {
     connections.run(
-            conn -> {
-              DatabaseMetaData dbMeta = conn.getMetaData();
+        conn -> {
+          DatabaseMetaData dbMeta = conn.getMetaData();
 
-              // check the existence of a table name
-              Predicate<String> tableTest = name -> {
+          // check the existence of a table name
+          Predicate<String> tableTest =
+              name -> {
                 try {
                   ResultSet result =
-                          dbMeta.getTables(
-                                  null /* catalog name */,
-                                  null /* schemaPattern */,
-                                  name /* tableNamePattern */,
-                                  null /* types */);
+                      dbMeta.getTables(
+                          null /* catalog name */,
+                          null /* schemaPattern */,
+                          name /* tableNamePattern */,
+                          null /* types */);
                   return result.next();
                 } catch (SQLException e) {
                   return false;
                 }
               };
 
-              // some databases force table name to upper case -- check that last.
-              Predicate<String> tableExists = name -> tableTest.test(name) || tableTest.test(name.toUpperCase(Locale.ROOT));
+          // some databases force table name to upper case -- check that last.
+          Predicate<String> tableExists =
+              name -> tableTest.test(name) || tableTest.test(name.toUpperCase(Locale.ROOT));
 
-              if (tableExists.test(tableName)) {
-                return true;
-              }
+          if (tableExists.test(tableName)) {
+            return true;
+          }
 
-              LOG.debug("Creating table {} {}", tableName, reason);
-              try {
-                conn.prepareStatement(sqlCommand).execute();
-                return true;
-              }
-              catch (SQLException e) {
-                // see if table was created by another thread.
-                if (tableExists.test(tableName)) {
-                  return true;
-                }
-                throw e;
-              }
-            });
-
+          LOG.debug("Creating table {} {}", tableName, reason);
+          try {
+            conn.prepareStatement(sqlCommand).execute();
+            return true;
+          } catch (SQLException e) {
+            // see if table was created by another thread.
+            if (tableExists.test(tableName)) {
+              return true;
+            }
+            throw e;
+          }
+        });
   }
+
   private void initializeCatalogTables() {
     LOG.trace("Creating database tables (if missing) to store iceberg catalog");
 
     try {
-      atomicCreateTable(JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.V0_CREATE_CATALOG_SQL, "to store iceberg catalog tables");
-      atomicCreateTable(JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME, JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL, "to store iceberg catalog namespace properties");
+      atomicCreateTable(
+          JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+          JdbcUtil.V0_CREATE_CATALOG_SQL,
+          "to store iceberg catalog tables");
+      atomicCreateTable(
+          JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+          JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL,
+          "to store iceberg catalog namespace properties");
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {

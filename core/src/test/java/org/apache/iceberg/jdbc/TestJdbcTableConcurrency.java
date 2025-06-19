@@ -60,7 +60,6 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +83,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
@@ -193,7 +193,7 @@ public class TestJdbcTableConcurrency {
 
   @Test
   public synchronized void testInitializeWithSlowConcurrentConnections()
-          throws InterruptedException, SQLException, ExecutionException, ClassNotFoundException {
+      throws InterruptedException, SQLException, ExecutionException, ClassNotFoundException {
     // number of threads and requests to attempt.
     int parallelism = 2;
     // verifies that multiple calls to initialize with slow responses will not fail.
@@ -219,8 +219,8 @@ public class TestJdbcTableConcurrency {
           MoreExecutors.getExitingExecutorService(
               (ThreadPoolExecutor) Executors.newFixedThreadPool(parallelism));
 
-      List<Future<JdbcCatalog>> futures = new ArrayList<>();
-      for (int i = 0; i < parallelism ; i++) {
+      List<Future<JdbcCatalog>> futures = Lists.newArrayList();
+      for (int i = 0; i < parallelism; i++) {
         futures.add(executorService.submit(makeCatalog));
       }
       for (Future<JdbcCatalog> future : futures) {
