@@ -119,7 +119,18 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  public void testWriteRowWithTableSchema() throws Exception {
+  public void testWriteRowWithFlinkSchema() throws Exception {
     testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
+  }
+
+  @TestTemplate
+  public void testWriteRowWithTableSchema() throws Exception {
+    testWriteRowWithTableSchema(parallelism, null, DistributionMode.NONE);
+  }
+
+  @TestTemplate
+  public void testWriteRowWithTableSchemaWithFlinkSchema() throws Exception {
+    testWriteRowWithTableSchema(
+        parallelism, SimpleDataUtil.FLINK_TABLE_SCHEMA, DistributionMode.NONE);
   }
 }

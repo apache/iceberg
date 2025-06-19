@@ -356,7 +356,7 @@ public class IcebergSink
 
     private Builder forRow(DataStream<Row> input, ResolvedSchema inputResolvedSchema) {
       RowType rowType = (RowType) inputResolvedSchema.toSinkRowDataType().getLogicalType();
-      DataType[] fieldDataTypes = inputResolvedSchema.getColumnDataTypes().toArray(new DataType[0]);
+      DataType[] fieldDataTypes = inputResolvedSchema.getColumnDataTypes().toArray(DataType[]::new);
 
       DataFormatConverters.RowConverter rowConverter =
           new DataFormatConverters.RowConverter(fieldDataTypes);

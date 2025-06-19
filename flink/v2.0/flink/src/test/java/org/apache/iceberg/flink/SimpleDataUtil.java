@@ -32,6 +32,7 @@ import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
@@ -88,6 +89,11 @@ public class SimpleDataUtil {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+  /** Use {@link #FLINK_SCHEMA} instead */
+  @Deprecated
+  public static final TableSchema FLINK_TABLE_SCHEMA =
+      TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
 
   public static final ResolvedSchema FLINK_SCHEMA =
       ResolvedSchema.of(

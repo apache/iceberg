@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -95,7 +96,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  public void testWriteRowWithTableSchema() throws Exception {
+  public void testWriteRowWithFlinkSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
     verifyOtherBranchUnmodified();
   }
@@ -109,6 +110,37 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
         .table(table)
         .tableLoader(tableLoader)
         .resolvedSchema(resolvedSchema)
+        .toBranch(branch)
+        .distributionMode(distributionMode)
+        .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
+
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows), branch);
+    SimpleDataUtil.assertTableRows(
+        table,
+        ImmutableList.of(),
+        branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH);
+
+    verifyOtherBranchUnmodified();
+  }
+
+  @TestTemplate
+  public void testWriteRowWithFlinkTableSchema() throws Exception {
+    testWriteRowWithTableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA, DistributionMode.NONE);
+    verifyOtherBranchUnmodified();
+  }
+
+  private void testWriteRowWithTableSchema(
+      TableSchema tableSchema, DistributionMode distributionMode) throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(tableSchema)
         .toBranch(branch)
         .distributionMode(distributionMode)
         .append();

@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
@@ -102,6 +103,26 @@ public class TestFlinkIcebergSinkBase {
         .table(table)
         .tableLoader(tableLoader)
         .resolvedSchema(resolvedSchema)
+        .writeParallelism(writerParallelism)
+        .distributionMode(distributionMode)
+        .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
+
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  protected void testWriteRowWithTableSchema(
+      int writerParallelism, TableSchema tableSchema, DistributionMode distributionMode)
+      throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(tableSchema)
         .writeParallelism(writerParallelism)
         .distributionMode(distributionMode)
         .append();

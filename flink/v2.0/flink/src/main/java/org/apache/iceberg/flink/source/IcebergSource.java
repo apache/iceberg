@@ -558,7 +558,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
-     * @deprecated Use {@link #setAll} instead.
+     * @deprecated will be removed in 2.0.0; use {@link #setAll} instead.
      */
     @Deprecated
     public Builder<T> properties(Map<String, String> properties) {

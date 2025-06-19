@@ -66,7 +66,7 @@ public class FlinkSchemaUtil {
   private FlinkSchemaUtil() {}
 
   /**
-   * @deprecated Use {@link #convert(ResolvedSchema)} instead.
+   * @deprecated will be removed in 2.0.0; use {@link #convert(ResolvedSchema)} instead.
    */
   @Deprecated
   public static Schema convert(TableSchema schema) {
@@ -230,7 +230,8 @@ public class FlinkSchemaUtil {
    *
    * @param rowType a RowType
    * @return Flink TableSchema
-   * @deprecated since 1.10.0, will be removed in 2.0.0.
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toResolvedSchema(RowType)}
+   *     instead
    */
   @Deprecated
   public static TableSchema toSchema(RowType rowType) {
@@ -247,7 +248,7 @@ public class FlinkSchemaUtil {
    * @param rowType a RowType
    * @return Flink ResolvedSchema
    */
-  static ResolvedSchema toResolvedSchema(RowType rowType) {
+  public static ResolvedSchema toResolvedSchema(RowType rowType) {
     List<Column> columns = Lists.newArrayListWithExpectedSize(rowType.getFieldCount());
     for (RowType.RowField field : rowType.getFields()) {
       columns.add(

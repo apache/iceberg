@@ -158,7 +158,7 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheck() {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =

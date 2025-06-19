@@ -136,7 +136,7 @@ public class FlinkSink {
    */
   public static Builder forRow(DataStream<Row> input, ResolvedSchema resolvedSchema) {
     RowType rowType = (RowType) resolvedSchema.toSinkRowDataType().getLogicalType();
-    DataType[] fieldDataTypes = resolvedSchema.getColumnDataTypes().toArray(new DataType[0]);
+    DataType[] fieldDataTypes = resolvedSchema.getColumnDataTypes().toArray(DataType[]::new);
 
     DataFormatConverters.RowConverter rowConverter =
         new DataFormatConverters.RowConverter(fieldDataTypes);
