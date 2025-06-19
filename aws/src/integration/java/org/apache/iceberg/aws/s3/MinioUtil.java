@@ -26,6 +26,8 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
@@ -65,6 +67,18 @@ public class MinioUtil {
     if (legacyMd5PluginEnabled) {
       builder.addPlugin(LegacyMd5Plugin.create());
     }
+    builder.credentialsProvider(
+        StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(container.getUserName(), container.getPassword())));
+    builder.applyMutation(mutator -> mutator.endpointOverride(uri));
+    builder.region(Region.US_EAST_1);
+    builder.forcePathStyle(true); // OSX won't resolve subdomains
+    return builder.build();
+  }
+
+  public static S3AsyncClient createS3AsyncClient(MinIOContainer container) {
+    URI uri = URI.create(container.getS3URL());
+    S3AsyncClientBuilder builder = S3AsyncClient.builder();
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));

@@ -22,12 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
@@ -70,6 +74,43 @@ public class TestMinioUtil {
         s3Client.getObject(
             request -> request.bucket(bucket).key(key), ResponseTransformer.toBytes());
     String responseBody = getResponse.asUtf8String();
+    assertThat(responseBody).isEqualTo("test-payload-0");
+  }
+
+  @Test
+  void validateS3ConditionalWritesUsingAsyncClient() {
+    S3AsyncClient s3AsyncClient = MinioUtil.createS3AsyncClient(MINIO);
+
+    String bucket = "test-bucket-" + UUID.randomUUID();
+
+    CreateBucketResponse createBucketResponse =
+        s3AsyncClient.createBucket(CreateBucketRequest.builder().bucket(bucket).build()).join();
+    assertThat(createBucketResponse.sdkHttpResponse().isSuccessful()).isTrue();
+
+    String key = "test-key-" + UUID.randomUUID().toString();
+    for (int i = 0; i < 5; i++) {
+      String payload = "test-payload-" + i;
+      PutObjectRequest request =
+          PutObjectRequest.builder().bucket(bucket).key(key).ifNoneMatch("*").build();
+      AsyncRequestBody body = AsyncRequestBody.fromString(payload);
+      if (i == 0) {
+        PutObjectResponse response = s3AsyncClient.putObject(request, body).join();
+        assertThat(response.sdkHttpResponse().isSuccessful()).isTrue();
+      } else {
+        assertThatThrownBy(() -> s3AsyncClient.putObject(request, body).join())
+            .isInstanceOf(CompletionException.class)
+            .hasCauseInstanceOf(S3Exception.class)
+            .hasMessageContaining("Service: S3, Status Code: 412")
+            .hasMessageContaining("At least one of the pre-conditions you specified did not hold");
+      }
+    }
+
+    String responseBody =
+        s3AsyncClient
+            .getObject(
+                request -> request.bucket(bucket).key(key), AsyncResponseTransformer.toBytes())
+            .join()
+            .asUtf8String();
     assertThat(responseBody).isEqualTo("test-payload-0");
   }
 }

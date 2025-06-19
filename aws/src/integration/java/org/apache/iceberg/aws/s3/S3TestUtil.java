@@ -18,7 +18,14 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assumptions.assumeThat;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class S3TestUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(S3TestUtil.class);
 
   private S3TestUtil() {}
 
@@ -28,5 +35,19 @@ public class S3TestUtil {
 
   public static String getKeyFromUri(String s3Uri) {
     return new S3URI(s3Uri).key();
+  }
+
+  /**
+   * Skip a test if the Analytics Accelerator Library for Amazon S3 is enabled.
+   *
+   * @param properties properties to probe
+   */
+  public static void skipIfAnalyticsAcceleratorEnabled(
+      S3FileIOProperties properties, String message) {
+    boolean isAcceleratorEnabled = properties.isS3AnalyticsAcceleratorEnabled();
+    if (isAcceleratorEnabled) {
+      LOG.warn(message);
+    }
+    assumeThat(!isAcceleratorEnabled).describedAs(message).isTrue();
   }
 }
