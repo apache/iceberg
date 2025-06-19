@@ -208,6 +208,8 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (LogicalTypes.uuid().getName().equals(name)) {
       return Types.UUIDType.get();
+    } else if ("UUID".equals(name) && primitive.getType() == Schema.Type.STRING) {
+      return Types.UUIDType.get();
     }
 
     return null;
