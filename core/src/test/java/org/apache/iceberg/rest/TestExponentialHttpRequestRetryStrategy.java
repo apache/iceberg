@@ -39,6 +39,7 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestExponentialHttpRequestRetryStrategy {
@@ -197,15 +198,16 @@ public class TestExponentialHttpRequestRetryStrategy {
         .isBetween(4000L, 5000L);
   }
 
-  @Test
-  public void testRetryBadGateway() {
-    BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
-    assertThat(retryStrategy.retryRequest(response502, 3, null)).isTrue();
-  }
-
-  @Test
-  public void testRetryGatewayTimeout() {
-    BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
-    assertThat(retryStrategy.retryRequest(response504, 3, null)).isTrue();
+  @ParameterizedTest
+  @CsvSource({
+    "429, true", // Should retry for 429
+    "503, true", // Should retry for 503
+    "500, false", // Should not retry for 500
+    "502, false", // Should not retry for 502
+    "504, false" // Should not retry for 504
+  })
+  public void testRetryHappensOnAcceptableStatusCodes(int statusCode, boolean expectedRetry) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isEqualTo(expectedRetry);
   }
 }
