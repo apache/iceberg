@@ -19,31 +19,47 @@
 package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 
 /** A wrapper to convert {@link S3SeekableInputStream} to Iceberg {@link SeekableInputStream} */
 class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
 
   private final S3SeekableInputStream delegate;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   AnalyticsAcceleratorInputStreamWrapper(S3SeekableInputStream stream) {
+    this(stream, MetricsContext.nullMetrics());
+  }
+
+  AnalyticsAcceleratorInputStreamWrapper(S3SeekableInputStream stream, MetricsContext metrics) {
     this.delegate = stream;
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
 
   @Override
   public int read() throws IOException {
-    return this.delegate.read();
-  }
-
-  @Override
-  public int read(byte[] b) throws IOException {
-    return this.delegate.read(b, 0, b.length);
+    int nextByteValue = this.delegate.read();
+    if (nextByteValue != -1) {
+      readBytes.increment();
+    }
+    readOperations.increment();
+    return nextByteValue;
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    return this.delegate.read(b, off, len);
+    int bytesRead = this.delegate.read(b, off, len);
+    if (bytesRead > 0) {
+      readBytes.increment(bytesRead);
+    }
+    readOperations.increment();
+    return bytesRead;
   }
 
   @Override
