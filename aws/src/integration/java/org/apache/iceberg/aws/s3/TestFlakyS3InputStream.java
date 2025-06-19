@@ -75,15 +75,16 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
       S3Client s3Client,
       S3AsyncClient s3AsyncClient,
       S3URI uri,
-      Map<String, String> aalProperties) {
+      Map<String, String> aalProperties,
+      MetricsContext metricsContext) {
     final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     if (s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()) {
       PrefixedS3Client client =
           new PrefixedS3Client("s3", aalProperties, () -> s3Client, () -> s3AsyncClient);
       return AnalyticsAcceleratorUtil.newStream(
-          S3InputFile.fromLocation(uri.location(), client, MetricsContext.nullMetrics()));
+          S3InputFile.fromLocation(uri.location(), client, metricsContext));
     }
-    return new S3InputStream(s3Client, uri) {
+    return new S3InputStream(s3Client, uri, s3FileIOProperties, metricsContext) {
       @Override
       void resetForRetry() throws IOException {
         resetForRetryCounter.incrementAndGet();
