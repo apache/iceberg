@@ -145,7 +145,6 @@ public class BucketFunction implements UnboundFunction {
       if (otherBucketFunction instanceof BucketBase) {
         int commonDivisor = gcd(thisNumBuckets, otherNumBuckets);
         if (commonDivisor > 1 && commonDivisor != thisNumBuckets) {
-
           return new BucketReducer(commonDivisor);
         }
       }

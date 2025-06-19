@@ -603,7 +603,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testJoinsWithEqualBucketNumbers() {
+  public void testJoinsWithBucketWithOneSideReducing() {
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
             + "USING iceberg "
@@ -624,7 +624,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
             + "USING iceberg "
-            + "PARTITIONED BY (bucket(4, id))"
+            + "PARTITIONED BY (bucket(8, id))"
             + "TBLPROPERTIES (%s)",
         tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
 
