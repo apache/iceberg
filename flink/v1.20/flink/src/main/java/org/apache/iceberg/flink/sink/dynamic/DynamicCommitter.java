@@ -325,7 +325,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
   }
 
-  private void commitOperation(
+  @VisibleForTesting
+  void commitOperation(
       Table table,
       String branch,
       SnapshotUpdate<?> operation,

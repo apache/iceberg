@@ -38,6 +38,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -198,12 +200,47 @@ public class GenericsHelpers {
 
   public static void assertEqualsUnsafe(
       Types.StructType struct, Record expected, InternalRow actual) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    assertEqualsUnsafe(struct, expected, actual, null, -1);
+  }
 
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i, convert(fieldType));
+  public static void assertEqualsUnsafe(
+      Types.StructType struct,
+      Record expected,
+      InternalRow actual,
+      Map<Integer, Object> idToConstant,
+      int pos) {
+    Types.StructType expectedType = expected.struct();
+    List<Types.NestedField> fields = struct.fields();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Types.NestedField expectedField = expectedType.field(field.fieldId());
+
+      Type fieldType = field.type();
+      Object actualValue =
+          actual.isNullAt(readPos) ? null : actual.get(readPos, convert(fieldType));
+
+      Object expectedValue;
+      if (expectedField != null) {
+        int id = expectedField.fieldId();
+        if (id == MetadataColumns.ROW_ID.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = (Long) idToConstant.get(id) + pos;
+          }
+
+        } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = idToConstant.get(id);
+          }
+
+        } else {
+          expectedValue = expected.getField(expectedField.name());
+        }
+      } else {
+        // comparison expects Iceberg's generic representation
+        expectedValue = GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
+      }
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
