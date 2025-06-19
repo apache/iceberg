@@ -39,7 +39,6 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestExponentialHttpRequestRetryStrategy {
@@ -199,15 +198,16 @@ public class TestExponentialHttpRequestRetryStrategy {
   }
 
   @ParameterizedTest
-  @CsvSource({
-    "429, true", // Should retry for 429
-    "503, true", // Should retry for 503
-    "500, false", // Should not retry for 500
-    "502, false", // Should not retry for 502
-    "504, false" // Should not retry for 504
-  })
-  public void testRetryHappensOnAcceptableStatusCodes(int statusCode, boolean expectedRetry) {
+  @ValueSource(ints = {429, 503})
+  public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
-    assertThat(retryStrategy.retryRequest(response, 3, null)).isEqualTo(expectedRetry);
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {500, 502, 504})
+  public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
   }
 }
