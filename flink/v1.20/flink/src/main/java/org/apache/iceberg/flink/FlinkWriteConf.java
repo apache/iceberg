@@ -55,6 +55,10 @@ public class FlinkWriteConf {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
+  public FlinkWriteConf(Map<String, String> writeOptions, ReadableConfig readableConfig) {
+    this.confParser = new FlinkConfParser(writeOptions, readableConfig);
+  }
+
   public boolean overwriteMode() {
     return confParser
         .booleanConf()
