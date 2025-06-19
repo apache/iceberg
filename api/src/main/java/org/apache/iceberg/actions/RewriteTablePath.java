@@ -86,6 +86,16 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    */
   RewriteTablePath stagingLocation(String stagingLocation);
 
+  /**
+   * Whether to skip saving the file list location.
+   *
+   * @param skipFileList true to skip saving the file list, false to include it
+   * @return this instance for method chaining
+   */
+  default RewriteTablePath saveFileList(boolean skipFileList) {
+    return this;
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Staging location of rewritten files */
@@ -112,5 +122,15 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
 
     /** Name of latest metadata file version */
     String latestVersion();
+
+    /** count of rewrite delete files, default value is 0 */
+    default int deleteFilesCount() {
+      return 0;
+    }
+
+    /** count of rewrite metadata files involved, default value is 0 */
+    default int metadataFilesCount() {
+      return 0;
+    }
   }
 }
