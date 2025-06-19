@@ -26,9 +26,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,14 +64,15 @@ public class TestS3InputStream {
     testRead(s3, s3Async);
   }
 
-  SeekableInputStream newInputStream(S3Client s3Client, S3AsyncClient s3AsyncClient, S3URI uri) {
+  SeekableInputStream newInputStream(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, S3URI uri, MetricsContext metricsContext) {
     if (s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()) {
       PrefixedS3Client client =
           new PrefixedS3Client("s3", Map.of(), () -> s3Client, () -> s3AsyncClient);
       return AnalyticsAcceleratorUtil.newStream(
-          S3InputFile.fromLocation(uri.location(), client, MetricsContext.nullMetrics()));
+          S3InputFile.fromLocation(uri.location(), client, metricsContext));
     }
-    return new S3InputStream(s3Client, uri);
+    return new S3InputStream(s3Client, uri, s3FileIOProperties, metricsContext);
   }
 
   protected void testRead(S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
@@ -79,7 +82,8 @@ public class TestS3InputStream {
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+    try (SeekableInputStream in =
+        newInputStream(s3Client, s3AsyncClient, uri, MetricsContext.nullMetrics())) {
       int readSize = 1024;
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -145,7 +149,9 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (RangeReadable in = (RangeReadable) newInputStream(s3Client, s3AsyncClient, uri)) {
+    try (RangeReadable in =
+        (RangeReadable)
+            newInputStream(s3Client, s3AsyncClient, uri, MetricsContext.nullMetrics())) {
       // first 1k
       position = 0;
       offset = 0;
@@ -180,7 +186,7 @@ public class TestS3InputStream {
         s3FileIOProperties,
         "Analytics Accelerator Library has different exception handling when closed");
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = newInputStream(s3, s3Async, uri);
+    SeekableInputStream closed = newInputStream(s3, s3Async, uri, MetricsContext.nullMetrics());
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -198,12 +204,42 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+    try (SeekableInputStream in =
+        newInputStream(s3Client, s3AsyncClient, uri, MetricsContext.nullMetrics())) {
       in.seek(expected.length / 2);
       byte[] actual = new byte[expected.length / 2];
       IOUtil.readFully(in, actual, 0, expected.length / 2);
       assertThat(actual)
           .isEqualTo(Arrays.copyOfRange(expected, expected.length / 2, expected.length));
+    }
+  }
+
+  @Test
+  public void testMetrics() throws Exception {
+    testMetrics(s3, s3Async);
+  }
+
+  protected void testMetrics(S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
+    MetricsContext metricsContext = new TestMetricsContext();
+    Counter readBytes = metricsContext.counter(FileIOMetricsContext.READ_BYTES);
+    Counter readOperations = metricsContext.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    S3URI uri = new S3URI("s3://bucket/path/to/metrics.dat");
+    int dataSize = 1024 * 1024 * 10;
+    byte[] data = randomData(dataSize);
+
+    writeS3Data(uri, data);
+
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri, metricsContext)) {
+      int readSize = 1024;
+
+      readAndCheck(in, in.getPos(), readSize, data, false);
+      assertThat(readBytes.value()).isEqualTo(readSize);
+      assertThat(readOperations.value()).isEqualTo(readSize);
+
+      readAndCheck(in, in.getPos(), readSize, data, true);
+      assertThat(readBytes.value()).isEqualTo(readSize * 2L);
+      assertThat(readOperations.value()).isEqualTo(readSize + 1L);
     }
   }
 
