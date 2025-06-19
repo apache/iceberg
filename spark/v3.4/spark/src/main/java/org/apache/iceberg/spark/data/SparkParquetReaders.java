@@ -25,7 +25,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -137,10 +136,12 @@ public class SparkParquetReaders {
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+      if (null == expected) {
+        return new InternalRowReader(ImmutableList.of());
+      }
+
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
-      Map<Integer, Type> typesById = Maps.newHashMap();
-      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
@@ -148,48 +149,37 @@ public class SparkParquetReaders {
         if (fieldType.getId() != null) {
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-          typesById.put(id, fieldType);
-          if (idToConstant.containsKey(id)) {
-            maxDefinitionLevelsById.put(id, fieldD);
-          }
         }
       }
 
-      List<Types.NestedField> expectedFields =
-          expected != null ? expected.fields() : ImmutableList.of();
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      List<Types.NestedField> expectedFields = expected.fields();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Defaulting to parent max definition level
-      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (idToConstant.containsKey(id)) {
-          // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
-          reorderedFields.add(
-              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.position());
-        } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.constant(false));
-        } else if (reader != null) {
-          reorderedFields.add(reader);
-        } else if (field.initialDefault() != null) {
-          reorderedFields.add(
-              ParquetValueReaders.constant(
-                  SparkUtil.internalToSpark(field.type(), field.initialDefault()),
-                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
-        } else if (field.isOptional()) {
-          reorderedFields.add(ParquetValueReaders.nulls());
-        } else {
-          throw new IllegalArgumentException(
-              String.format("Missing required field: %s", field.name()));
-        }
+        ParquetValueReader<?> reader =
+            ParquetValueReaders.replaceWithMetadataReader(
+                id, readersById.get(id), idToConstant, constantDefinitionLevel);
+        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
       return new InternalRowReader(reorderedFields);
+    }
+
+    private ParquetValueReader<?> defaultReader(
+        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
+      if (reader != null) {
+        return reader;
+      } else if (field.initialDefault() != null) {
+        return ParquetValueReaders.constant(
+            SparkUtil.internalToSpark(field.type(), field.initialDefault()), constantDL);
+      } else if (field.isOptional()) {
+        return ParquetValueReaders.nulls();
+      }
+
+      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
     }
 
     @Override
