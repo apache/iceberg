@@ -43,7 +43,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
-import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -156,16 +155,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withPartitionPath("id_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
-
-  protected static final Namespace REST_DB = Namespace.of("restDB");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_FILE_SCAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_file_scan_task");
-  public static final TableIdentifier TABLE_SUBMITTED_WITH_FILE_SCAN_TASK =
-      TableIdentifier.of(REST_DB, "table_submitted_with_file_scan_task");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_PLAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_plan_task");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_NESTED_PLAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_nested_plan_task");
 
   protected abstract C catalog();
 
@@ -3335,35 +3324,5 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     namespaces.addAll(starting);
     namespaces.addAll(Arrays.asList(additional));
     return namespaces;
-  }
-
-  public void assertBoundFileScanTasks(Table table, PartitionSpec partitionSpec) {
-    PartitionData partitionData = new PartitionData(partitionSpec.partitionType());
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Streams.stream(tasks)
-          .forEach(
-              task -> {
-                // assert file scan task spec being bound
-                assertThat(task.spec().equals(partitionSpec));
-                // assert data file spec being bound
-                assertThat(task.file().partition().equals(partitionData));
-                // assert all delete files in task are bound
-                task.deletes()
-                    .forEach(
-                        deleteFile -> assertThat(deleteFile.partition().equals(partitionData)));
-              });
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  public void assertBoundFiles(Table table, DataFile dataFile) {
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Streams.stream(tasks)
-          .map(FileScanTask::file)
-          .forEach(file -> assertThat(file.partition()).isEqualTo(dataFile.partition()));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }
