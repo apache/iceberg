@@ -20,11 +20,13 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.MetadataColumns.SPEC_ID_COLUMN_DOC;
 import static org.apache.iceberg.MetadataColumns.SPEC_ID_COLUMN_ID;
+import static org.apache.iceberg.MetadataColumns.schemaWithRowLineage;
 
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -79,6 +81,15 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
     validateRowIdSchema();
     validateMetadataSchema();
+    if (dataSchema != null
+        && info.metadataSchema().isPresent()
+        && info.metadataSchema()
+            .get()
+            .find(f -> f.name().equals(MetadataColumns.ROW_ID.name()))
+            .isDefined()) {
+      dataSchema = MetadataColumns.schemaWithRowLineage(dataSchema);
+    }
+
     SparkUtil.validatePartitionTransforms(table.spec());
 
     return new SparkPositionDeltaWrite(
@@ -109,6 +120,9 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
             Types.NestedField.optional(
                 SPEC_ID_COLUMN_ID, "_spec_id", Types.IntegerType.get(), SPEC_ID_COLUMN_DOC),
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
+    if (TableUtil.supportsRowLineage(table)) {
+      expectedMetadataSchema = schemaWithRowLineage(expectedMetadataSchema);
+    }
 
     StructType metadataSparkType = info.metadataSchema().get();
     Schema metadataSchema = SparkSchemaUtil.convert(expectedMetadataSchema, metadataSparkType);
