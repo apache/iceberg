@@ -301,12 +301,12 @@ SELECT * FROM prod.db.table.entries;
 
 Note:
 
-1. The columns of the `entries` table correspond to the fields of the `manifest_entry` struct (see the [manifest file schema](../../spec.md#manifests) for the full definition):
+1. The columns in the `entries` table correspond to the [manifest entry fields](../../spec.md#manifest-entry-fields):
     - `status`: Used to track additions and deletions
     - `snapshot_id`: The ID of the snapshot in which the file was added or removed
     - `sequence_number`: Used for ordering changes across snapshots
     - `file_sequence_number`: Indicates when the file was added
-    - `data_file`: A struct with metadata about the data file. The fields of the struct are defined in the [data_file schema](../../spec.md#manifests)
+    - `data_file`: A struct containing metadata about the data file, see the [data file fields](../../spec.md#data-file-fields)
 2. The `readable_metrics` column provides a human-readable map of extended column-level metrics derived from the `data_file` column, making it easier to inspect and debug file-level statistics.
 
 ### Files
