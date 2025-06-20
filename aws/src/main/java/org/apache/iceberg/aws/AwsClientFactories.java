@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -106,6 +107,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
+          .addPlugin(LegacyMd5Plugin.create())
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
@@ -131,6 +133,7 @@ public class AwsClientFactories {
             .build();
       }
       return S3AsyncClient.builder()
+          .addPlugin(LegacyMd5Plugin.create())
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(
               b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))

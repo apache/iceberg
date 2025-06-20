@@ -115,9 +115,9 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @Container private final MinIOContainer minio = createMinIOContainer();
 
-  private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(MINIO);
+  private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(minio);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -134,6 +134,12 @@ public class TestS3FileIO {
           "TagValue1",
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
+
+  protected MinIOContainer createMinIOContainer() {
+    MinIOContainer container = MinioUtil.createContainer();
+    container.start();
+    return container;
+  }
 
   @BeforeEach
   public void before() {
