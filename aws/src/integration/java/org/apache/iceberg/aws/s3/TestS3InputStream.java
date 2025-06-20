@@ -132,8 +132,6 @@ public class TestS3InputStream {
 
   @Test
   public void testRangeRead() throws Exception {
-    skipIfAnalyticsAcceleratorEnabled(
-        s3FileIOProperties, "Analytics Accelerator Library does not support range reads");
     testRangeRead(s3, s3Async);
   }
 
