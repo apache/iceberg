@@ -422,6 +422,17 @@ public class TypeUtil {
         Types.DecimalType toDecimal = (Types.DecimalType) to;
         return fromDecimal.scale() == toDecimal.scale()
             && fromDecimal.precision() <= toDecimal.precision();
+
+      case DATE:
+        if (to.typeId() == Type.TypeID.TIMESTAMP) {
+          Types.TimestampType toTimestamp = (Types.TimestampType) to;
+          return Types.TimestampType.withoutZone().equals(toTimestamp);
+        }
+        if (to.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+          Types.TimestampNanoType toTimestampNano = (Types.TimestampNanoType) to;
+          return Types.TimestampNanoType.withoutZone().equals(toTimestampNano);
+        }
+        return false;
     }
 
     return false;
