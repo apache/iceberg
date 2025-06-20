@@ -40,6 +40,8 @@ import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
@@ -273,8 +275,11 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
     }
   }
 
-  @Test
-  public void serializableTest() throws IOException, ClassNotFoundException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void serializableTest(
+      TestHelpers.RoundTripSerializer<VendedAdlsCredentialProvider> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     Credential credential =
         ImmutableCredential.builder()
@@ -297,7 +302,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
       assertThat(azureSasCredential)
           .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
 
-      VendedAdlsCredentialProvider deserializedProvider = TestHelpers.roundTripSerialize(provider);
+      VendedAdlsCredentialProvider deserializedProvider = roundTripSerializer.apply(provider);
       String reGeneratedAzureSasCredential =
           deserializedProvider.credentialForAccount(STORAGE_ACCOUNT);
 

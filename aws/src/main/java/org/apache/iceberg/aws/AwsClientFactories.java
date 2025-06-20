@@ -124,14 +124,16 @@ public class AwsClientFactories {
       if (s3FileIOProperties.isS3CRTEnabled()) {
         return S3AsyncClient.crtBuilder()
             .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-            .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+            .applyMutation(
+                b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
             .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
             .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
             .build();
       }
       return S3AsyncClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(
+              b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .build();
     }

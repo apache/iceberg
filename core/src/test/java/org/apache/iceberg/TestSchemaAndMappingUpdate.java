@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -189,6 +190,20 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     assertThat(table.properties())
         .doesNotContainKey(
             table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
+  }
+
+  @TestTemplate
+  public void testModificationWithParquetColumnStats() {
+    table.updateProperties().set(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id", "true").commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID", "true")
+        .doesNotContainKey(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id");
+
+    table.updateSchema().deleteColumn("ID").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(table.properties().get(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID"));
   }
 
   @TestTemplate

@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -418,7 +412,7 @@ public class FlinkSink {
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
@@ -522,7 +516,7 @@ public class FlinkSink {
     private SingleOutputStreamOperator<FlinkWriteResult> appendWriter(
         DataStream<RowData> input,
         RowType flinkRowType,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         int writerParallelism) {
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (flinkWriteConf.upsertMode()) {
@@ -536,7 +530,8 @@ public class FlinkSink {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
-                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                "In UPSERT mode, source column '%s' of partition field '%s', should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
                 partitionField,
                 equalityFieldColumns);
           }
@@ -572,7 +567,7 @@ public class FlinkSink {
 
     private DataStream<RowData> distributeDataStream(
         DataStream<RowData> input,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         RowType flinkRowType,
         int writerParallelism) {
       DistributionMode writeMode = flinkWriteConf.distributionMode();
@@ -613,8 +608,9 @@ public class FlinkSink {
               for (PartitionField partitionField : partitionSpec.fields()) {
                 Preconditions.checkState(
                     equalityFieldIds.contains(partitionField.sourceId()),
-                    "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                    "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
                         + "should be included in equality fields: '%s'",
+                    table.schema().findColumnName(partitionField.sourceId()),
                     partitionField,
                     equalityFieldColumns);
               }
@@ -707,7 +703,7 @@ public class FlinkSink {
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
+      Set<Integer> equalityFieldIds) {
     Preconditions.checkArgument(tableSupplier != null, "Iceberg table supplier shouldn't be null");
 
     Table initTable = tableSupplier.get();
@@ -718,51 +714,10 @@ public class FlinkSink {
             flinkRowType,
             flinkWriteConf.targetDataFileSize(),
             format,
-            writeProperties(initTable, format, flinkWriteConf),
+            SinkUtil.writeProperties(format, flinkWriteConf, initTable),
             equalityFieldIds,
             flinkWriteConf.upsertMode());
 
     return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
-  }
-
-  /**
-   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
-   * write.
-   *
-   * @param table The table to get the table level settings
-   * @param format The FileFormat to use
-   * @param conf The write configuration
-   * @return The properties to use for writing
-   */
-  private static Map<String, String> writeProperties(
-      Table table, FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
-
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
-
-    return writeProperties;
   }
 }

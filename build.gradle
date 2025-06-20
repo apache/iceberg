@@ -35,8 +35,8 @@ buildscript {
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.0'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.2.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.12.0'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.3.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.13.0'
   }
 }
 
@@ -95,6 +95,7 @@ gitProperties {
   failOnNoGitDirectory = true
   keys = ['git.branch', 'git.build.version', 'git.closest.tag.name','git.commit.id.abbrev', 'git.commit.id',
           'git.commit.message.short', 'git.commit.time', 'git.tags']
+  version = projectVersion
 }
 generateGitProperties.outputs.upToDateWhen { false }
 
@@ -135,7 +136,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.8.0"
+      oldVersion = "1.9.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -233,6 +234,8 @@ subprojects {
       events "failed"
       exceptionFormat "full"
     }
+
+    systemProperty 'project.version', project.version
   }
 
   plugins.withType(ScalaPlugin.class) {
@@ -365,7 +368,9 @@ project(':iceberg-core') {
     testImplementation libs.sqlite.jdbc
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
-    testImplementation libs.guava.testlib
+    testImplementation(libs.guava.testlib) {
+      exclude group: 'junit'
+    }
     testImplementation libs.awaitility
   }
 }
@@ -407,7 +412,6 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation libs.junit.vintage.engine
   }
 
   test {
@@ -657,6 +661,35 @@ project(':iceberg-delta-lake') {
   }
 }
 
+project(':iceberg-bigquery') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+
+    implementation platform(libs.google.libraries.bom)
+    compileOnly "com.google.cloud:google-cloud-storage"
+    implementation "com.google.cloud:google-cloud-bigquery"
+    implementation "com.google.cloud:google-cloud-core"
+
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    testImplementation(libs.hadoop3.common) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+  }
+}
+
 project(':iceberg-gcp') {
   test {
     useJUnitPlatform()
@@ -685,6 +718,7 @@ project(':iceberg-gcp') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 }
 

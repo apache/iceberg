@@ -24,7 +24,6 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -51,10 +50,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -65,6 +62,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class GCSFileIOTest {
   private static final String TEST_BUCKET = "TEST_BUCKET";
@@ -90,7 +89,7 @@ public class GCSFileIOTest {
         .when(storage)
         .delete(any(Iterable.class));
 
-    io = new GCSFileIO(() -> storage, new GCPProperties());
+    io = new GCSFileIO(() -> storage);
   }
 
   @Test
@@ -205,24 +204,17 @@ public class GCSFileIOTest {
         .isEqualTo(1);
   }
 
-  @Test
-  public void testGCSFileIOKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testGCSFileIOSerialization(
+      TestHelpers.RoundTripSerializer<FileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+
     FileIO testGCSFileIO = new GCSFileIO();
 
     // gcs fileIO should be serializable when properties are passed as immutable map
-    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testGCSFileIO);
-
-    assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
-  }
-
-  @Test
-  public void testGCSFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testGCSFileIO = new GCSFileIO();
-
-    // gcs fileIO should be serializable when properties are passed as immutable map
-    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
-    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testGCSFileIO);
+    testGCSFileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
+    FileIO roundTripSerializedFileIO = roundTripSerializer.apply(testGCSFileIO);
 
     assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }
@@ -283,118 +275,235 @@ public class GCSFileIOTest {
 
   @Test
   public void noStorageCredentialConfigured() {
-    AccessToken expectedToken = new AccessToken("gcsTokenFromProperties", new Date(1000L));
-
-    Storage client;
     try (GCSFileIO fileIO = new GCSFileIO()) {
       fileIO.setCredentials(ImmutableList.of());
       fileIO.initialize(
           ImmutableMap.of(
               GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
-      client = fileIO.client();
-    }
 
-    assertThat(client.getOptions().getCredentials())
-        .isInstanceOf(OAuth2Credentials.class)
-        .extracting("value")
-        .extracting("temporaryAccess")
-        .isEqualTo(expectedToken);
+      // make sure that the generic Storage Client is used for all storage paths if there are no
+      // storage credentials configured
+      assertThat(fileIO.client("gs://my-bucket/table1"))
+          .isSameAs(fileIO.client("invalidStoragePath"))
+          .isSameAs(fileIO.client("gs://random-bucket/"))
+          .isSameAs(fileIO.client("gs://random-bucket/tableX"));
+
+      assertThat(fileIO.client().getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+      assertThat(fileIO.client().getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+    }
   }
 
   @Test
   public void singleStorageCredentialConfigured() {
     StorageCredential gcsCredential =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential",
+                "gcs.oauth2.token-expires-at",
+                "2000"));
 
-    AccessToken expectedToken = new AccessToken("gcsTokenFromCredential", new Date(2000L));
-
-    Storage client;
     try (GCSFileIO fileIO = new GCSFileIO()) {
       fileIO.setCredentials(ImmutableList.of(gcsCredential));
       fileIO.initialize(
           ImmutableMap.of(
               GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
-      client = fileIO.client();
-    }
 
-    assertThat(client.getOptions().getCredentials())
-        .isInstanceOf(OAuth2Credentials.class)
-        .extracting("value")
-        .extracting("temporaryAccess")
-        .isEqualTo(expectedToken);
+      assertThat(fileIO.client("gs://custom-uri/table1"))
+          .isNotSameAs(fileIO.client("gs://random-bucket/"))
+          .isNotSameAs(fileIO.client("gs://random-bucket/tableX"));
+
+      assertThat(fileIO.client("gs://custom-uri/table1").getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
+
+      assertThat(fileIO.client().getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+      // verify that the generic storage client is used for all storage prefixes that don't match
+      // the storage credentials
+      assertThat(fileIO.client("gs"))
+          .isSameAs(fileIO.client("gs://random-bucket/tableX"))
+          .isSameAs(fileIO.client("gs://bucketX/tableX"));
+
+      assertThat(fileIO.client("gs://random-bucket/table1").getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+    }
   }
 
   @Test
   public void multipleStorageCredentialsConfigured() {
     StorageCredential gcsCredential1 =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri/1")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential1",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri/1",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential1",
+                "gcs.oauth2.token-expires-at",
+                "2000"));
 
     StorageCredential gcsCredential2 =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri/2")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token",
-                    "gcsTokenFromCredential2",
-                    "gcs.oauth2.token-expires-at",
-                    "2000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri/2",
+            ImmutableMap.of(
+                "gcs.oauth2.token",
+                "gcsTokenFromCredential2",
+                "gcs.oauth2.token-expires-at",
+                "3000"));
 
-    GCSFileIO fileIO = new GCSFileIO();
-    fileIO.setCredentials(ImmutableList.of(gcsCredential1, gcsCredential2));
-    assertThatThrownBy(
-            () ->
-                fileIO.initialize(
-                    ImmutableMap.of(
-                        GCS_OAUTH2_TOKEN,
-                        "gcsTokenFromProperties",
-                        GCS_OAUTH2_TOKEN_EXPIRES_AT,
-                        "1000")))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of(gcsCredential1, gcsCredential2));
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+
+      assertThat(fileIO.client("gs://custom-uri/table1"))
+          .isNotSameAs(fileIO.client("gs://custom-uri/1/table1"))
+          .isNotSameAs(fileIO.client("gs://custom-uri/2/table1"));
+
+      assertThat(fileIO.client("gs://custom-uri/1/table1").getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromCredential1", new Date(2000L)));
+
+      assertThat(fileIO.client("gs://custom-uri/2/table1").getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromCredential2", new Date(3000L)));
+
+      assertThat(fileIO.client("gs://custom-uri/table1").getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+      assertThat(fileIO.client().getOptions().getCredentials())
+          .isInstanceOf(OAuth2Credentials.class)
+          .extracting("value")
+          .extracting("temporaryAccess")
+          .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+    }
   }
 
-  @Test
-  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
-    GCSFileIO fileIO = new GCSFileIO();
-    fileIO.setCredentials(
-        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
-    fileIO.initialize(Map.of());
-
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
-  }
-
-  @Test
-  public void fileIOWithStorageCredentialsJavaSerialization()
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void fileIOWithStorageCredentialsSerialization(
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     GCSFileIO fileIO = new GCSFileIO();
     fileIO.setCredentials(
-        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+        ImmutableList.of(
+            StorageCredential.create("prefix", Map.of("key1", "val1", "key2", "val2"))));
     fileIO.initialize(Map.of());
 
-    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
-        .isEqualTo(fileIO.credentials());
+    assertThat(roundTripSerializer.apply(fileIO).credentials()).isEqualTo(fileIO.credentials());
   }
 
-  @Test
-  public void resolvingFileIOLoadWithStorageCredentials()
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void fileIOWithPrefixedStorageClientWithoutCredentialsSerialization(
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.initialize(
+        Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+
+    GCSFileIO roundTripIO = roundTripSerializer.apply(fileIO);
+    assertThat(roundTripIO).isNotNull();
+    assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials()).isEmpty();
+
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromProperties", new Date(1000L)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void fileIOWithPrefixedStorageClientSerialization(
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(
+            StorageCredential.create(
+                "gs://bucket1",
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))));
+    fileIO.initialize(
+        Map.of(GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+
+    assertThat(fileIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(fileIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
+
+    GCSFileIO roundTripIO = roundTripSerializer.apply(fileIO);
+    assertThat(roundTripIO).isNotNull();
+    assertThat(roundTripIO.credentials()).isEqualTo(fileIO.credentials());
+
+    assertThat(roundTripIO.client("gs")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX")).isInstanceOf(Storage.class);
+    assertThat(roundTripIO.client("gs://bucket1/my-path/tableX").getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(new AccessToken("gcsTokenFromCredential", new Date(2000L)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void resolvingFileIOLoadWithoutStorageCredentials(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    ResolvingFileIO fileIO = roundTripSerializer.apply(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void resolvingFileIOLoadWithStorageCredentials(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
     List<StorageCredential> storageCredentials = ImmutableList.of(credential);
@@ -413,22 +522,8 @@ public class GCSFileIOTest {
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
 
-    // make sure credentials are still present after kryo serde
-    ResolvingFileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
-    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
-    result =
-        DynMethods.builder("io")
-            .hiddenImpl(ResolvingFileIO.class, String.class)
-            .build(fileIO)
-            .invoke("gs://foo/bar");
-    assertThat(result)
-        .isInstanceOf(GCSFileIO.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
-        .extracting(GCSFileIO::credentials)
-        .isEqualTo(storageCredentials);
-
-    // make sure credentials are still present after java serde
-    fileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    // make sure credentials are still present after serde
+    ResolvingFileIO fileIO = roundTripSerializer.apply(resolvingFileIO);
     assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
     result =
         DynMethods.builder("io")

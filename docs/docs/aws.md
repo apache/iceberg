@@ -84,7 +84,7 @@ With those dependencies, you can create a Flink catalog like the following:
 CREATE CATALOG my_catalog WITH (
   'type'='iceberg',
   'warehouse'='s3://my-bucket/my/key/prefix',
-  'type'='glue',
+  'catalog-type'='glue',
   'io-impl'='org.apache.iceberg.aws.s3.S3FileIO'
 );
 ```
@@ -96,7 +96,7 @@ catalogs:
   - name: my_catalog
     type: iceberg
     warehouse: s3://my-bucket/my/key/prefix
-    catalog-impl: org.apache.iceberg.aws.glue.GlueCatalog
+    catalog-type: glue
     io-impl: org.apache.iceberg.aws.s3.S3FileIO
 ```
 
@@ -137,7 +137,7 @@ When used, an Iceberg namespace is stored as a [Glue Database](https://docs.aws.
 an Iceberg table is stored as a [Glue Table](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html),
 and every Iceberg table version is stored as a [Glue TableVersion](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-TableVersion). 
 You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`
-or by setting `type` as `glue`,
+or by setting `catalog-type` as `glue`,
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above. 
 More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#creating-catalogs-and-using-catalogs).
 
@@ -382,7 +382,9 @@ s3://my-table-data-bucket/my_ns.db/my_table/0101/0110/1001/10110010/category=ord
 ```
 
 Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
+
 However, for the older versions up to 0.12.0, the logic is as follows:
+
 - before 0.12.0, `write.object-storage.path` must be set.
 - at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
 - at 2.0.0 `write.object-storage.path` and `write.folder-storage.path` will be removed

@@ -27,20 +27,25 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
-import org.apache.avro.generic.GenericData;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -55,7 +60,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
-  static final Function<GenericData.Record, GenericData.Record> IDENTITY = record -> record;
+  static final Function<Record, Record> IDENTITY = record -> record;
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -76,6 +81,13 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   }
 
   @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> records)
+      throws IOException {
+    writeAndValidate(
+        writeSchema, expectedSchema, true, BATCH_SIZE, records.size(), records, ID_TO_CONSTANT);
+  }
+
+  @Override
   protected boolean supportsDefaultValues() {
     return true;
   }
@@ -83,6 +95,11 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   @Override
   protected boolean supportsNestedTypes() {
     return false;
+  }
+
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
   }
 
   private void writeAndValidate(
@@ -100,7 +117,30 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       float nullPercentage,
       boolean reuseContainers,
       int batchSize,
-      Function<GenericData.Record, GenericData.Record> transform)
+      Function<Record, Record> transform)
+      throws IOException {
+    writeAndValidate(
+        writeSchema,
+        expectedSchema,
+        numRecords,
+        seed,
+        nullPercentage,
+        reuseContainers,
+        batchSize,
+        transform,
+        ImmutableMap.of());
+  }
+
+  private void writeAndValidate(
+      Schema writeSchema,
+      Schema expectedSchema,
+      int numRecords,
+      long seed,
+      float nullPercentage,
+      boolean reuseContainers,
+      int batchSize,
+      Function<Record, Record> transform,
+      Map<Integer, Object> idToConstant)
       throws IOException {
     // Write test data
     assumeThat(
@@ -110,44 +150,66 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .as("Parquet Avro cannot write non-string map keys")
         .isNull();
 
-    Iterable<GenericData.Record> expected =
+    Iterable<Record> expected =
         generateData(writeSchema, numRecords, seed, nullPercentage, transform);
 
+    writeAndValidate(
+        writeSchema,
+        expectedSchema,
+        reuseContainers,
+        batchSize,
+        numRecords,
+        expected,
+        idToConstant);
+  }
+
+  private void writeAndValidate(
+      Schema writeSchema,
+      Schema expectedSchema,
+      boolean reuseContainers,
+      int batchSize,
+      int numRecords,
+      Iterable<Record> expected,
+      Map<Integer, Object> idToConstant)
+      throws IOException {
     // write a test parquet file using iceberg writer
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(writeSchema, testFile)) {
+    try (FileAppender<Record> writer = getParquetWriter(writeSchema, testFile)) {
       writer.addAll(expected);
     }
 
-    assertRecordsMatch(expectedSchema, numRecords, expected, testFile, reuseContainers, batchSize);
+    assertRecordsMatch(
+        expectedSchema, numRecords, expected, testFile, reuseContainers, batchSize, idToConstant);
   }
 
   protected int getNumRows() {
     return NUM_ROWS;
   }
 
-  Iterable<GenericData.Record> generateData(
+  Iterable<Record> generateData(
       Schema schema,
       int numRecords,
       long seed,
       float nullPercentage,
-      Function<GenericData.Record, GenericData.Record> transform) {
-    Iterable<GenericData.Record> data =
-        RandomData.generate(schema, numRecords, seed, nullPercentage);
+      Function<Record, Record> transform) {
+    Iterable<Record> data = RandomGenericData.generate(schema, numRecords, seed);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
-  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile)
-      throws IOException {
-    return Parquet.write(Files.localOutput(testFile)).schema(schema).named("test").build();
-  }
-
-  FileAppender<GenericData.Record> getParquetV2Writer(Schema schema, File testFile)
-      throws IOException {
+  FileAppender<Record> getParquetWriter(Schema schema, File testFile) throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
+        .named("test")
+        .build();
+  }
+
+  FileAppender<Record> getParquetV2Writer(Schema schema, File testFile) throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+        .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
         .named("test")
         .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
         .build();
@@ -156,10 +218,23 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   void assertRecordsMatch(
       Schema schema,
       int expectedSize,
-      Iterable<GenericData.Record> expected,
+      Iterable<Record> expected,
       File testFile,
       boolean reuseContainers,
       int batchSize)
+      throws IOException {
+    assertRecordsMatch(
+        schema, expectedSize, expected, testFile, reuseContainers, batchSize, ImmutableMap.of());
+  }
+
+  void assertRecordsMatch(
+      Schema schema,
+      int expectedSize,
+      Iterable<Record> expected,
+      File testFile,
+      boolean reuseContainers,
+      int batchSize,
+      Map<Integer, Object> idToConstant)
       throws IOException {
     Parquet.ReadBuilder readBuilder =
         Parquet.read(Files.localInput(testFile))
@@ -167,19 +242,19 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             .recordsPerBatch(batchSize)
             .createBatchedReaderFunc(
                 type ->
-                    VectorizedSparkParquetReaders.buildReader(
-                        schema, type, Maps.newHashMap(), null));
+                    VectorizedSparkParquetReaders.buildReader(schema, type, idToConstant, null));
     if (reuseContainers) {
       readBuilder.reuseContainers();
     }
     try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
-      Iterator<GenericData.Record> expectedIter = expected.iterator();
+      Iterator<Record> expectedIter = expected.iterator();
       Iterator<ColumnarBatch> batches = batchReader.iterator();
       int numRowsRead = 0;
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
+        GenericsHelpers.assertEqualsBatch(
+            schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
         numRowsRead += batch.numRows();
-        TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
       assertThat(numRowsRead).isEqualTo(expectedSize);
     }
@@ -239,6 +314,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         new Schema(
             Lists.newArrayList(
                 SUPPORTED_PRIMITIVES.field("id"), SUPPORTED_PRIMITIVES.field("data")));
+    int dataOrdinal = 1;
+
     writeAndValidate(
         schema,
         schema,
@@ -248,10 +325,11 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         true,
         2,
         record -> {
-          if (record.get("data") != null) {
-            record.put("data", Strings.padEnd((String) record.get("data"), 512, 'a'));
+          if (record.get(dataOrdinal, String.class) != null) {
+            record.set(
+                dataOrdinal, Strings.padEnd(record.get(dataOrdinal, String.class), 512, 'a'));
           } else {
-            record.put("data", Strings.padEnd("", 512, 'a'));
+            record.set(dataOrdinal, Strings.padEnd("", 512, 'a'));
           }
           return record;
         });
@@ -268,9 +346,9 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<GenericData.Record> data =
+    Iterable<Record> data =
         generateData(writeSchema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(writeSchema, dataFile)) {
+    try (FileAppender<Record> writer = getParquetWriter(writeSchema, dataFile)) {
       writer.addAll(data);
     }
 
@@ -297,9 +375,9 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<GenericData.Record> data =
+    Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
@@ -312,9 +390,9 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<GenericData.Record> data =
+    Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
     assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))

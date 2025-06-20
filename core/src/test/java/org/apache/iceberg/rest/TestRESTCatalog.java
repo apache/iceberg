@@ -34,6 +34,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +64,7 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
@@ -166,7 +169,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -2646,6 +2649,25 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // what older REST servers would send back too
     verifyTableExistsFallbackToGETRequest(
         ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE)).build());
+  }
+
+  @Test
+  public void testErrorHandlingForConflicts() {
+    Consumer<ErrorResponse> errorResponseConsumer = ErrorHandlers.tableCommitHandler();
+
+    // server returning 409 with client without retrying
+    ErrorResponse errorResponse409WithoutRetries =
+        ErrorResponse.builder().responseCode(409).wasRetried(false).build();
+    assertThatThrownBy(() -> errorResponseConsumer.accept(errorResponse409WithoutRetries))
+        .hasMessageContaining("Commit failed")
+        .isInstanceOf(CommitFailedException.class);
+
+    // server returning 409, with retries.
+    ErrorResponse errorResponse409WithRetries =
+        ErrorResponse.builder().responseCode(409).wasRetried(true).build();
+    assertThatThrownBy(() -> errorResponseConsumer.accept(errorResponse409WithRetries))
+        .hasMessageContaining("Commit status unknown")
+        .isInstanceOf(CommitStateUnknownException.class);
   }
 
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {

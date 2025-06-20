@@ -22,19 +22,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionStatisticsFile;
+import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatsHandler;
+import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
@@ -132,6 +141,49 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
+  public void testPartitionStatsIncrementalCompute() throws IOException {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table));
+    List<PartitionStats> statsBeforeCompaction;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsBeforeCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    table.refresh();
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    List<PartitionStats> statsAfterCompaction;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsAfterCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    for (int index = 0; index < statsBeforeCompaction.size(); index++) {
+      PartitionStats statsAfter = statsAfterCompaction.get(index);
+      PartitionStats statsBefore = statsBeforeCompaction.get(index);
+
+      assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
+      // data count should match after compaction
+      assertThat(statsAfter.dataRecordCount()).isEqualTo(statsBefore.dataRecordCount());
+      // file count should not match as new file count will be one after compaction
+      assertThat(statsAfter.dataFileCount()).isNotEqualTo(statsBefore.dataFileCount());
+    }
   }
 
   @TestTemplate
@@ -638,7 +690,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(

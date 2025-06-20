@@ -441,7 +441,7 @@ public class OAuth2Util {
     JsonNode node;
     try {
       node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts.get(1)));
-    } catch (IOException e) {
+    } catch (IOException | IllegalArgumentException e) {
       return null;
     }
 

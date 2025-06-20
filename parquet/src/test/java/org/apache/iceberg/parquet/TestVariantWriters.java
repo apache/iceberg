@@ -41,10 +41,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -73,6 +76,12 @@ public class TestVariantWriters {
               "c", Variants.of("string")));
   private static final ByteBuffer EMPTY_OBJECT_BUFFER =
       VariantTestUtil.createObject(TEST_METADATA_BUFFER, ImmutableMap.of());
+  private static final ByteBuffer ARRAY_IN_OBJECT_BUFFER =
+      VariantTestUtil.createObject(
+          TEST_METADATA_BUFFER,
+          ImmutableMap.of(
+              "a", Variants.of(123456789),
+              "c", array(Variants.of("string"), Variants.of("iceberg"))));
 
   private static final VariantMetadata EMPTY_METADATA =
       Variants.metadata(VariantTestUtil.emptyMetadata());
@@ -83,6 +92,45 @@ public class TestVariantWriters {
       (VariantObject) Variants.value(TEST_METADATA, SIMILAR_OBJECT_BUFFER);
   private static final VariantObject EMPTY_OBJECT =
       (VariantObject) Variants.value(TEST_METADATA, EMPTY_OBJECT_BUFFER);
+  private static final VariantObject ARRAY_IN_OBJECT =
+      (VariantObject) Variants.value(TEST_METADATA, ARRAY_IN_OBJECT_BUFFER);
+
+  private static final ByteBuffer EMPTY_ARRAY_BUFFER = VariantTestUtil.createArray();
+  private static final ByteBuffer TEST_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"));
+  private static final ByteBuffer MIXED_TYPE_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"), Variants.of(34));
+  private static final ByteBuffer NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg")),
+          array(Variants.of("apple"), Variants.of("banana")));
+  private static final ByteBuffer MIXED_NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg"), Variants.of(34)),
+          array(Variants.of(34), Variants.ofNull()),
+          array(),
+          array(Variants.of("string"), Variants.of("iceberg")),
+          Variants.of(34));
+  private static final ByteBuffer OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(SIMILAR_OBJECT, SIMILAR_OBJECT);
+  private static final ByteBuffer MIXED_OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          SIMILAR_OBJECT, SIMILAR_OBJECT, Variants.of("iceberg"), Variants.of(34));
+
+  private static final VariantArray EMPTY_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, EMPTY_ARRAY_BUFFER);
+  private static final VariantArray TEST_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, TEST_ARRAY_BUFFER);
+  private static final VariantArray MIXED_TYPE_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_TYPE_ARRAY_BUFFER);
+  private static final VariantArray NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, NESTED_ARRAY_BUFFER);
+  private static final VariantArray MIXED_NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_NESTED_ARRAY_BUFFER);
+  private static final VariantArray OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, OBJECT_IN_ARRAY_BUFFER);
+  private static final VariantArray MIXED_OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, MIXED_OBJECT_IN_ARRAY_BUFFER);
 
   private static final Variant[] VARIANTS =
       new Variant[] {
@@ -104,6 +152,14 @@ public class TestVariantWriters {
         Variant.of(EMPTY_METADATA, EMPTY_OBJECT),
         Variant.of(TEST_METADATA, TEST_OBJECT),
         Variant.of(TEST_METADATA, SIMILAR_OBJECT),
+        Variant.of(TEST_METADATA, ARRAY_IN_OBJECT),
+        Variant.of(EMPTY_METADATA, EMPTY_ARRAY),
+        Variant.of(EMPTY_METADATA, TEST_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_TYPE_ARRAY),
+        Variant.of(EMPTY_METADATA, NESTED_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_NESTED_ARRAY),
+        Variant.of(TEST_METADATA, OBJECT_IN_ARRAY),
+        Variant.of(TEST_METADATA, MIXED_OBJECT_IN_ARRAY),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
@@ -121,6 +177,16 @@ public class TestVariantWriters {
         Variant.of(
             EMPTY_METADATA, Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
         Variant.of(EMPTY_METADATA, Variants.of("iceberg")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTime("12:33:54.123456")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestamptzNanos("1957-11-07T12:33:54.123456789+00:00")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestampntzNanos("1957-11-07T12:33:54.123456789")),
+        Variant.of(EMPTY_METADATA, Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56")),
       };
 
   @ParameterizedTest
@@ -189,5 +255,14 @@ public class TestVariantWriters {
             .build()) {
       return Lists.newArrayList(reader);
     }
+  }
+
+  private static ValueArray array(VariantValue... values) {
+    ValueArray arr = Variants.array();
+    for (VariantValue value : values) {
+      arr.add(value);
+    }
+
+    return arr;
   }
 }

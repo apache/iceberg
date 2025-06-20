@@ -167,7 +167,6 @@
                 org.apache.spark.sql.functions.*,
                 org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.*,
                 org.apache.spark.sql.connector.write.RowLevelOperation.Command.*,
-                org.junit.Assert.*,
                 org.assertj.core.api.Assertions.*,
                 org.assertj.core.api.Assumptions.*"/>
         </module>
@@ -201,10 +200,6 @@
             <property name="setterCanReturnItsClass" value="true"/>
         </module>
         <module name="HideUtilityClassConstructor"/> <!-- Java Coding Guidelines: Private constructors -->
-        <module name="IllegalImport"> <!-- Java Coding Guidelines: Use JUnit 4-style test classes and assertions -->
-            <property name="illegalPkgs" value="junit.framework"/>
-            <message key="import.illegal" value="Use JUnit 4-style (org.junit.*) test classes and assertions instead of JUnit 3 (junit.framework.*)."/>
-        </module>
         <module name="IllegalImport"> <!-- Only relevant for pre-Java 11 because javafx is gone completely in Java 11 -->
             <property name="id" value="BanJavafx"/>
             <property name="illegalPkgs" value="javafx"/>
@@ -256,6 +251,11 @@
             <property name="id" value="BanGuavaTesting"/>
             <property name="illegalPkgs" value="com.google.common.testing"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanFlinkPreconditions"/>
+            <property name="illegalClasses" value="org.apache.flink.util.Preconditions"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.com.google.common.base.Preconditions instead."/>
         </module>
         <module name="IllegalImport">
             <property name="id" value="GuavaClassesInAssertJ"/>
@@ -441,7 +441,7 @@
         </module>
         <module name="IllegalImport">
             <property name="id" value="BanJUnit5AssumptionsUsage"/>
-            <property name="illegalPkgs" value="org.junit.jupiter.api.Assumptions"/>
+            <property name="illegalClasses" value="org.junit.jupiter.api.Assumptions"/>
             <message key="import.illegal" value="Prefer using Assertions.assumeThat(...).isTrue() instead."/>
         </module>
         <module name="IllegalImport">
@@ -451,8 +451,13 @@
         </module>
         <module name="IllegalImport">
             <property name="id" value="BanJUnit5Assertions"/>
-            <property name="illegalPkgs" value="org.junit.jupiter.api.Assertions"/>
+            <property name="illegalClasses" value="org.junit.jupiter.api.Assertions"/>
             <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanJUnit4Usage"/>
+            <property name="illegalClasses" value="org.junit.Assert, org.junit.Assume, org.junit.Test"/>
+            <message key="import.illegal" value="Prefer using JUnit5 / AssertJ instead."/>
         </module>
         <module name="RegexpSinglelineJava">
             <property name="ignoreComments" value="true"/>
