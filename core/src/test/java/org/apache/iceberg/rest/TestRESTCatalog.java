@@ -90,12 +90,12 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -195,26 +195,32 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     .withHeaders(RESTUtil.configHeaders(config))
                     .build());
     catalog.setConf(conf);
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
-            "catalog-default-key1",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
-            "catalog-default-key2",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
-            "catalog-default-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
-            "catalog-override-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
-            "catalog-override-key4",
-            "credential",
-            "catalog:12345",
-            "header.test-header",
-            "test-value");
+    int port = ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
+    String oauth2ServerUri = "http://127.0.0.1:" + port + "/v1/oauth/tokens";
+
+    Map<String, String> properties = Maps.newHashMap();
+
+    properties.put(CatalogProperties.URI, "http://127.0.0.1:" + port);
+    properties.put("oauth2-server-uri", oauth2ServerUri);
+    properties.put("rest.auth.type", "oauth2");
+    properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
+
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    properties.put(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
+
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4", "catalog-override-key4");
+
+    properties.put("credential", "catalog:12345");
+    properties.put("header.test-header", "test-value");
+
+    properties.put("oauth2-server-uri", oauth2ServerUri);
+    properties.put("rest.auth.type", "oauth2"); // optional but avoids warnings
+
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()
@@ -355,10 +361,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testDefaultHeadersPropagated() {
     RESTCatalog catalog = new RESTCatalog();
+    int port = ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
     Map<String, String> properties =
         Map.of(
             CatalogProperties.URI,
-            httpServer.getURI().toString(),
+            "http://127.0.0.1:" + port,
             OAuth2Properties.CREDENTIAL,
             "catalog:secret",
             "header.test-header",
@@ -2840,75 +2847,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // simulate a legacy server that doesn't send back supported endpoints, thus the
     // client relies on the default endpoints
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
-  }
-
-  @Test
-  @Disabled
-  public void testPlanTableScanWithCompletedStatusAndFileScanTask() throws IOException {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
-    assertBoundFileScanTasks(table, SPEC);
-  }
-
-  @Test
-  @Disabled
-  public void testPlanTableScanAndFetchPlanningResultWithSubmittedStatusAndFileScanTask()
-      throws IOException {
-    Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK);
-    assertBoundFileScanTasks(table, SPEC);
-  }
-
-  @Test
-  @Disabled
-  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndPlanTask()
-      throws IOException {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
-    assertBoundFileScanTasks(table, SPEC);
-  }
-
-  @Test
-  @Disabled
-  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks()
-      throws IOException {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
-    assertBoundFileScanTasks(table, SPEC);
-  }
-
-  public Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) throws IOException {
-    SessionCatalog.SessionContext context =
-        new SessionCatalog.SessionContext(
-            UUID.randomUUID().toString(),
-            "user",
-            ImmutableMap.of("credential", "user:12345"),
-            ImmutableMap.of());
-    RESTCatalog catalog =
-        new RESTCatalog(
-            context,
-            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED,
-            "true",
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            "credential",
-            "catalog:secret"));
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(tableIdentifier.namespace());
-    }
-
-    Table table =
-        catalog
-            .buildTable(tableIdentifier, SCHEMA)
-            .withProperty("table.rest-scan-planning", "true")
-            .withPartitionSpec(SPEC)
-            .create();
-
-    table.newAppend().appendFile(FILE_A).commit();
-    return table;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

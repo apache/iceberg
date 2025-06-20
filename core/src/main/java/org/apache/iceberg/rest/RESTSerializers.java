@@ -28,8 +28,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdateParser;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -145,7 +147,6 @@ public class RESTSerializers {
             FetchPlanningResultResponse.class, new FetchPlanningResultResponseDeserializer<>())
         .addSerializer(FetchScanTasksResponse.class, new FetchScanTaskResponseSerializer<>())
         .addDeserializer(FetchScanTasksResponse.class, new FetchScanTaskResponseDeserializer<>())
-        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>())
         .addSerializer(LoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
         .addSerializer(
             ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
@@ -544,7 +545,13 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) PlanTableScanResponseParser.fromJson(jsonNode);
+      // Retrieve injectable values
+      @SuppressWarnings("unchecked")
+      Map<Integer, PartitionSpec> specsById =
+          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+
+      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
+      return (T) PlanTableScanResponseParser.fromJson(jsonNode, specsById, caseSensitive);
     }
   }
 
@@ -562,7 +569,13 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) FetchPlanningResultResponseParser.fromJson(jsonNode);
+      // Retrieve injectable values
+      @SuppressWarnings("unchecked")
+      Map<Integer, PartitionSpec> specsById =
+          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+
+      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
+      return (T) FetchPlanningResultResponseParser.fromJson(jsonNode, specsById, caseSensitive);
     }
   }
 
@@ -580,7 +593,13 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) FetchScanTasksResponseParser.fromJson(jsonNode);
+      // Retrieve injectable values
+      @SuppressWarnings("unchecked")
+      Map<Integer, PartitionSpec> specsById =
+          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+
+      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
+      return (T) FetchScanTasksResponseParser.fromJson(jsonNode, specsById, caseSensitive);
     }
   }
 }

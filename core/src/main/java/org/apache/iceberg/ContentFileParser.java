@@ -27,7 +27,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class ContentFileParser {
+class ContentFileParser {
   private static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
@@ -51,97 +51,6 @@ public class ContentFileParser {
   private static final String CONTENT_SIZE = "content-size-in-bytes";
 
   private ContentFileParser() {}
-
-  public static void unboundContentFileToJson(
-      ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator) throws IOException {
-    Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
-    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
-    Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
-    Preconditions.checkArgument(
-        contentFile.specId() == spec.specId(),
-        "Invalid partition spec id from content file: expected = %s, actual = %s",
-        spec.specId(),
-        contentFile.specId());
-
-    generator.writeStartObject();
-    // ignore the ordinal position (ContentFile#pos) of the file in a manifest,
-    // as it isn't used and BaseFile constructor doesn't support it.
-
-    generator.writeNumberField(SPEC_ID, contentFile.specId());
-    generator.writeStringField(CONTENT, contentFile.content().name());
-    generator.writeStringField(FILE_PATH, contentFile.path().toString());
-    generator.writeStringField(FILE_FORMAT, contentFile.format().name());
-
-    if (contentFile.partition() != null) {
-      generator.writeFieldName(PARTITION);
-      SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
-    }
-
-    generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
-
-    metricsToJson(contentFile, generator);
-
-    if (contentFile.keyMetadata() != null) {
-      generator.writeFieldName(KEY_METADATA);
-      SingleValueParser.toJson(DataFile.KEY_METADATA.type(), contentFile.keyMetadata(), generator);
-    }
-
-    if (contentFile.splitOffsets() != null) {
-      JsonUtil.writeLongArray(SPLIT_OFFSETS, contentFile.splitOffsets(), generator);
-    }
-
-    if (contentFile.equalityFieldIds() != null) {
-      JsonUtil.writeIntegerArray(EQUALITY_IDS, contentFile.equalityFieldIds(), generator);
-    }
-
-    if (contentFile.sortOrderId() != null) {
-      generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
-    }
-
-    generator.writeEndObject();
-  }
-
-  public static ContentFile<?> unboundContentFileFromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
-
-    int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
-    FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
-    String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
-    FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
-
-    long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
-    Metrics metrics = metricsFromJson(jsonNode);
-    ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
-    List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
-    int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
-    Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
-
-    if (fileContent == FileContent.DATA) {
-      return new UnboundGenericDataFile(
-          specId,
-          filePath,
-          fileFormat,
-          jsonNode.get(PARTITION),
-          fileSizeInBytes,
-          metrics,
-          keyMetadata,
-          splitOffsets,
-          sortOrderId);
-    } else {
-      return new UnboundGenericDeleteFile(
-          specId,
-          fileContent,
-          filePath,
-          fileFormat,
-          jsonNode.get(PARTITION),
-          fileSizeInBytes,
-          metrics,
-          equalityFieldIds,
-          sortOrderId,
-          splitOffsets,
-          keyMetadata);
-    }
-  }
 
   private static boolean hasPartitionData(StructLike partitionData) {
     return partitionData != null && partitionData.size() > 0;
@@ -225,12 +134,11 @@ public class ContentFileParser {
     generator.writeEndObject();
   }
 
-  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+  static ContentFile<?> fromJson(JsonNode jsonNode, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
-    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
-
+    Preconditions.checkArgument(specsById != null, "Invalid partition spec: null");
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
@@ -238,7 +146,21 @@ public class ContentFileParser {
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = partitionDataFromRawValue(jsonNode.get(PARTITION), spec);
+      partitionData = new PartitionData(specsById.get(specId).partitionType());
+      StructLike structLike =
+          (StructLike)
+              SingleValueParser.fromJson(
+                  specsById.get(specId).partitionType(), jsonNode.get(PARTITION));
+      Preconditions.checkState(
+          partitionData.size() == structLike.size(),
+          "Invalid partition data size: expected = %s, actual = %s",
+          partitionData.size(),
+          structLike.size());
+      for (int pos = 0; pos < partitionData.size(); ++pos) {
+        Class<?> javaClass =
+            specsById.get(specId).partitionType().fields().get(pos).type().typeId().javaClass();
+        partitionData.set(pos, structLike.get(pos, javaClass));
+      }
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
@@ -281,27 +203,6 @@ public class ContentFileParser {
           contentOffset,
           contentSizeInBytes);
     }
-  }
-
-  static PartitionData partitionDataFromRawValue(JsonNode rawPartitionValue, PartitionSpec spec) {
-    if (rawPartitionValue == null) {
-      return null;
-    }
-
-    PartitionData partitionData = new PartitionData(spec.partitionType());
-    StructLike structLike =
-        (StructLike) SingleValueParser.fromJson(spec.partitionType(), rawPartitionValue);
-    Preconditions.checkState(
-        partitionData.size() == structLike.size(),
-        "Invalid partition data size: expected = %s, actual = %s",
-        partitionData.size(),
-        structLike.size());
-    for (int pos = 0; pos < partitionData.size(); ++pos) {
-      Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
-      partitionData.set(pos, structLike.get(pos, javaClass));
-    }
-
-    return partitionData;
   }
 
   private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)

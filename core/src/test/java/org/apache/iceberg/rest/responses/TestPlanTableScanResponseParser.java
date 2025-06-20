@@ -39,13 +39,16 @@ import org.apache.iceberg.rest.PlanStatus;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponseParser {
+
   @Test
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: planTableScanResponse null");
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(
+            () ->
+                PlanTableScanResponseParser.fromJson((JsonNode) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse planTableScan response from empty or null object");
   }
@@ -58,7 +61,8 @@ public class TestPlanTableScanResponseParser {
         .hasMessage("Invalid response: plan status must be defined");
 
     String emptyJson = "{ }";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(emptyJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(emptyJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse planTableScan response from empty or null object");
   }
@@ -66,7 +70,10 @@ public class TestPlanTableScanResponseParser {
   @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidStatusJson))
+    assertThatThrownBy(
+            () ->
+                PlanTableScanResponseParser.fromJson(
+                    invalidStatusJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid status name: someStatus");
   }
@@ -80,7 +87,8 @@ public class TestPlanTableScanResponseParser {
         .hasMessage("Invalid response: plan id should be defined when status is 'submitted'");
 
     String invalidJson = "{\"plan-status\":\"submitted\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: plan id should be defined when status is 'submitted'");
   }
@@ -93,7 +101,8 @@ public class TestPlanTableScanResponseParser {
         .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
 
     String invalidJson = "{\"plan-status\":\"cancelled\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
   }
@@ -116,7 +125,8 @@ public class TestPlanTableScanResponseParser {
             + "\"plan-id\":\"somePlanId\","
             + "\"plan-tasks\":[\"task1\",\"task2\"]}";
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
   }
@@ -135,7 +145,8 @@ public class TestPlanTableScanResponseParser {
 
     String invalidJson = "{\"plan-status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: plan id can only be returned in a 'submitted' status");
   }
@@ -162,7 +173,8 @@ public class TestPlanTableScanResponseParser {
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -205,20 +217,8 @@ public class TestPlanTableScanResponseParser {
     String json = PlanTableScanResponseParser.toJson(response);
     assertThat(json).isEqualTo(expectedToJson);
 
-    String expectedFromJson =
-        "{\"plan-status\":\"completed\","
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-            + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1}],"
-            + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{},"
-            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
-            + "\"delete-file-references\":[0],"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
-            + "}";
-
-    PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
+    PlanTableScanResponse fromResponse =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
     PlanTableScanResponse copyResponse =
         PlanTableScanResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
@@ -231,6 +231,6 @@ public class TestPlanTableScanResponseParser {
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
-    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedFromJson);
+    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
   }
 }

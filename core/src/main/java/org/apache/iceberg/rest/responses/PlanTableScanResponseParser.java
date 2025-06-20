@@ -22,8 +22,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.util.JsonUtil;
@@ -66,13 +69,19 @@ public class PlanTableScanResponseParser {
     gen.writeEndObject();
   }
 
-  public static PlanTableScanResponse fromJson(String json) {
+  public static PlanTableScanResponse fromJson(
+      String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null, "Cannot parse planTableScan response from empty or null object");
-    return JsonUtil.parse(json, PlanTableScanResponseParser::fromJson);
+    return JsonUtil.parse(
+        json,
+        node -> {
+          return PlanTableScanResponseParser.fromJson(node, specsById, caseSensitive);
+        });
   }
 
-  public static PlanTableScanResponse fromJson(JsonNode json) {
+  public static PlanTableScanResponse fromJson(
+      JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(),
         "Cannot parse planTableScan response from empty or null object");
@@ -80,9 +89,9 @@ public class PlanTableScanResponseParser {
     PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(PLAN_STATUS, json));
     String planId = JsonUtil.getStringOrNull(PLAN_ID, json);
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
-    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json);
+    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
-        TableScanResponseParser.parseFileScanTasks(json, deleteFiles);
+        TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
 
     return PlanTableScanResponse.builder()
         .withPlanId(planId)

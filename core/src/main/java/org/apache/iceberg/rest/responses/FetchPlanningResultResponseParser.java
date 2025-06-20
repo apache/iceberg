@@ -22,8 +22,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.util.JsonUtil;
@@ -61,21 +64,27 @@ public class FetchPlanningResultResponseParser {
     gen.writeEndObject();
   }
 
-  public static FetchPlanningResultResponse fromJson(String json) {
+  public static FetchPlanningResultResponse fromJson(
+      String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(json != null, "Invalid response: fetchPanningResultResponse null");
-    return JsonUtil.parse(json, FetchPlanningResultResponseParser::fromJson);
+    return JsonUtil.parse(
+        json,
+        node -> {
+          return fromJson(node, specsById, caseSensitive);
+        });
   }
 
-  public static FetchPlanningResultResponse fromJson(JsonNode json) {
+  public static FetchPlanningResultResponse fromJson(
+      JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(),
         "Invalid response: fetchPanningResultResponse null or empty");
 
     PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(PLAN_STATUS, json));
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
-    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json);
+    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
-        TableScanResponseParser.parseFileScanTasks(json, deleteFiles);
+        TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
     return FetchPlanningResultResponse.builder()
         .withPlanStatus(planStatus)
         .withPlanTasks(planTasks)

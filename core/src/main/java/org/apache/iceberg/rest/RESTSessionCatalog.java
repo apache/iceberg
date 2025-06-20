@@ -36,12 +36,10 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RESTTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -110,9 +108,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   // for backwards compatibility with older REST servers where it can be assumed that a particular
   // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
-  public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
-  private static final String REST_TABLE_SCAN_PLANNING_PROPERTY = "table.rest-scan-planning";
-
   static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final String REST_PAGE_SIZE = "rest-page-size";
 
@@ -160,7 +155,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
-  private boolean restServerPlanningEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
@@ -259,9 +253,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
-
-    this.restServerPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(mergedProps, REST_SERVER_PLANNING_ENABLED, false);
     super.initialize(name, mergedProps);
   }
 
@@ -461,12 +452,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
-
-    RESTTable restTable = tableSupportsRemoteScanPlanning(ops, finalIdentifier, tableClient);
-    if (restTable != null) {
-      return restTable;
-    }
-
     BaseTable table =
         new BaseTable(
             ops,
@@ -477,26 +462,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     return table;
-  }
-
-  private RESTTable tableSupportsRemoteScanPlanning(
-      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    if (ops.current().properties().containsKey(REST_TABLE_SCAN_PLANNING_PROPERTY)) {
-      boolean tableSupportsRemotePlanning =
-          ops.current().propertyAsBoolean(REST_TABLE_SCAN_PLANNING_PROPERTY, false);
-      if (tableSupportsRemotePlanning && restServerPlanningEnabled) {
-        return new RESTTable(
-            ops,
-            fullTableName(finalIdentifier),
-            metricsReporter(paths.metrics(finalIdentifier), restClient),
-            this.client,
-            paths.table(finalIdentifier),
-            Map::of,
-            finalIdentifier,
-            paths);
-      }
-    }
-    return null;
   }
 
   private void trackFileIO(RESTTableOperations ops) {
@@ -565,12 +530,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
-
-    RESTTable restTable = tableSupportsRemoteScanPlanning(ops, ident, tableClient);
-    if (restTable != null) {
-      return restTable;
-    }
-
     return new BaseTable(
         ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
   }
@@ -827,14 +786,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
               endpoints);
-
       trackFileIO(ops);
-
-      RESTTable restTable = tableSupportsRemoteScanPlanning(ops, ident, tableClient);
-      if (restTable != null) {
-        return restTable;
-      }
-
       return new BaseTable(
           ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
     }

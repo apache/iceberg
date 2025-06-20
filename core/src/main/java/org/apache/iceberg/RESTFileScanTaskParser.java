@@ -22,9 +22,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -48,7 +50,7 @@ public class RESTFileScanTaskParser {
 
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
-    ContentFileParser.unboundContentFileToJson(fileScanTask.file(), partitionSpec, generator);
+    ContentFileParser.toJson(fileScanTask.file(), partitionSpec, generator);
     if (deleteFileReferences != null) {
       JsonUtil.writeIntegerArray(DELETE_FILE_REFERENCES, deleteFileReferences, generator);
     }
@@ -60,23 +62,28 @@ public class RESTFileScanTaskParser {
     generator.writeEndObject();
   }
 
-  public static FileScanTask fromJson(JsonNode jsonNode, List<DeleteFile> allDeleteFiles) {
+  public static FileScanTask fromJson(
+      JsonNode jsonNode,
+      List<DeleteFile> allDeleteFiles,
+      Map<Integer, PartitionSpec> specsById,
+      boolean isCaseSensitive) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    UnboundGenericDataFile dataFile =
-        (UnboundGenericDataFile)
-            ContentFileParser.unboundContentFileFromJson(JsonUtil.get(DATA_FILE, jsonNode));
+    DataFile dataFile =
+        (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), specsById);
+    // specId from the dataFile
+    int specId = dataFile.specId();
 
-    UnboundGenericDeleteFile[] deleteFiles = null;
+    DeleteFile[] deleteFiles = null;
     Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
-      ImmutableList.Builder<UnboundGenericDeleteFile> builder = ImmutableList.builder();
+      ImmutableList.Builder<GenericDeleteFile> builder = ImmutableList.builder();
       deleteFileReferences.forEach(
-          delIdx -> builder.add((UnboundGenericDeleteFile) allDeleteFiles.get(delIdx)));
-      deleteFiles = builder.build().toArray(new UnboundGenericDeleteFile[0]);
+          delIdx -> builder.add((GenericDeleteFile) allDeleteFiles.get(delIdx)));
+      deleteFiles = builder.build().toArray(new GenericDeleteFile[0]);
     }
 
     Expression filter = null;
@@ -84,6 +91,11 @@ public class RESTFileScanTaskParser {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    return new UnboundBaseFileScanTask(dataFile, deleteFiles, filter);
+    String schemaString = SchemaParser.toJson(specsById.get(specId).schema());
+    String specString = PartitionSpecParser.toJson(specsById.get(specId));
+    ResidualEvaluator boundResidual =
+        ResidualEvaluator.of(specsById.get(specId), filter, isCaseSensitive);
+
+    return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, boundResidual);
   }
 }

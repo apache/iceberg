@@ -22,8 +22,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -56,18 +59,24 @@ public class FetchScanTasksResponseParser {
     gen.writeEndObject();
   }
 
-  public static FetchScanTasksResponse fromJson(String json) {
+  public static FetchScanTasksResponse fromJson(
+      String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(json != null, "Cannot parse fetchScanTasks response from null");
-    return JsonUtil.parse(json, FetchScanTasksResponseParser::fromJson);
+    return JsonUtil.parse(
+        json,
+        node -> {
+          return fromJson(node, specsById, caseSensitive);
+        });
   }
 
-  public static FetchScanTasksResponse fromJson(JsonNode json) {
+  public static FetchScanTasksResponse fromJson(
+      JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Invalid response: fetchScanTasksResponse null");
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
-    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json);
+    List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
-        TableScanResponseParser.parseFileScanTasks(json, deleteFiles);
+        TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
     return FetchScanTasksResponse.builder()
         .withPlanTasks(planTasks)
         .withFileScanTasks(fileScanTasks)
