@@ -62,8 +62,7 @@ public class Util {
     Set<String> locationSets = Sets.newHashSet();
     for (FileScanTask f : taskGroup.tasks()) {
       Path path = new Path(f.file().location());
-      try {
-        FileSystem fs = path.getFileSystem(conf);
+      try (FileSystem fs = path.getFileSystem(conf)) {
         for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
           locationSets.addAll(Arrays.asList(b.getHosts()));
         }
