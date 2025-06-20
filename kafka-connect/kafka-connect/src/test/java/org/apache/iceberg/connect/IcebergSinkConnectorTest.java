@@ -35,7 +35,12 @@ public class IcebergSinkConnectorTest {
   @Test
   public void testTaskConfigs() {
     SinkConnector connector = new IcebergSinkConnector();
-    connector.start(ImmutableMap.of("iceberg.catalog.catalog-impl", DummyCatalog.class.getName(), "iceberg.tables", "tables"));
+    connector.start(
+        ImmutableMap.of(
+            "iceberg.catalog.catalog-impl",
+            DummyCatalog.class.getName(),
+            "iceberg.tables",
+            "tables"));
     List<Map<String, String>> configs = connector.taskConfigs(3);
     assertThat(configs).hasSize(3);
     configs.forEach(
@@ -43,8 +48,7 @@ public class IcebergSinkConnectorTest {
   }
 
   public static class DummyCatalog implements Catalog {
-    public DummyCatalog() {
-    }
+    public DummyCatalog() {}
 
     @Override
     public List<TableIdentifier> listTables(Namespace namespace) {
@@ -57,9 +61,7 @@ public class IcebergSinkConnectorTest {
     }
 
     @Override
-    public void renameTable(TableIdentifier from, TableIdentifier to) {
-
-    }
+    public void renameTable(TableIdentifier from, TableIdentifier to) {}
 
     @Override
     public Table loadTable(TableIdentifier identifier) {
