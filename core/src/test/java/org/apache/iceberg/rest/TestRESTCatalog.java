@@ -91,6 +91,7 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -195,26 +196,32 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     .withHeaders(RESTUtil.configHeaders(config))
                     .build());
     catalog.setConf(conf);
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
-            "catalog-default-key1",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
-            "catalog-default-key2",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
-            "catalog-default-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
-            "catalog-override-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
-            "catalog-override-key4",
-            "credential",
-            "catalog:12345",
-            "header.test-header",
-            "test-value");
+    int port = ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
+    String oauth2ServerUri = "http://127.0.0.1:" + port + "/v1/oauth/tokens";
+
+    Map<String, String> properties = Maps.newHashMap();
+
+    properties.put(CatalogProperties.URI, "http://127.0.0.1:" + port);
+    properties.put("oauth2-server-uri", oauth2ServerUri);
+    properties.put("rest.auth.type", "oauth2");
+    properties.put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
+
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    properties.put(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
+
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4", "catalog-override-key4");
+
+    properties.put("credential", "catalog:12345");
+    properties.put("header.test-header", "test-value");
+
+    properties.put("oauth2-server-uri", oauth2ServerUri);
+    properties.put("rest.auth.type", "oauth2"); // optional but avoids warnings
+
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()
@@ -355,10 +362,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testDefaultHeadersPropagated() {
     RESTCatalog catalog = new RESTCatalog();
+    int port = ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
     Map<String, String> properties =
         Map.of(
             CatalogProperties.URI,
-            httpServer.getURI().toString(),
+            "http://127.0.0.1:" + port,
             OAuth2Properties.CREDENTIAL,
             "catalog:secret",
             "header.test-header",
