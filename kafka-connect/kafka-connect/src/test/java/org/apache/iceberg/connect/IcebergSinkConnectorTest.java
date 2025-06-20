@@ -22,6 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.junit.jupiter.api.Test;
@@ -31,10 +35,35 @@ public class IcebergSinkConnectorTest {
   @Test
   public void testTaskConfigs() {
     SinkConnector connector = new IcebergSinkConnector();
-    connector.start(ImmutableMap.of());
+    connector.start(ImmutableMap.of("iceberg.catalog.catalog-impl", DummyCatalog.class.getName(), "iceberg.tables", "tables"));
     List<Map<String, String>> configs = connector.taskConfigs(3);
     assertThat(configs).hasSize(3);
     configs.forEach(
         map -> assertThat(map).containsKey(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP));
+  }
+
+  public static class DummyCatalog implements Catalog {
+    public DummyCatalog() {
+    }
+
+    @Override
+    public List<TableIdentifier> listTables(Namespace namespace) {
+      return List.of();
+    }
+
+    @Override
+    public boolean dropTable(TableIdentifier identifier, boolean purge) {
+      return false;
+    }
+
+    @Override
+    public void renameTable(TableIdentifier from, TableIdentifier to) {
+
+    }
+
+    @Override
+    public Table loadTable(TableIdentifier identifier) {
+      return null;
+    }
   }
 }
