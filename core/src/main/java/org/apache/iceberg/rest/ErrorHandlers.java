@@ -91,19 +91,7 @@ public class ErrorHandlers {
         case 404:
           throw new NoSuchTableException("%s", error.message());
         case 409:
-          if (error.wasRetried()) {
-            // If a retried request finally fails with 409,
-            // the IRC service may have persisted the commit
-            // despite initial 5xx errors, resulting in a self-conflict on retry
-            // due to the base changing.
-            // Mark this failure as commit state unknown rather than failed to prevent file cleanup.
-            throw new CommitStateUnknownException(
-                new RESTException(
-                    "Commit status unknown, due to retries: %s: %s",
-                    error.code(), error.message()));
-          } else {
-            throw new CommitFailedException("Commit failed: %s", error.message());
-          }
+          throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:
         case 504:

@@ -79,11 +79,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
         maximumRetries > 0, "Cannot set retries to %s, the value must be positive", maximumRetries);
     this.maxRetries = maximumRetries;
     this.retriableCodes =
-        ImmutableSet.of(
-            HttpStatus.SC_TOO_MANY_REQUESTS,
-            HttpStatus.SC_SERVICE_UNAVAILABLE,
-            HttpStatus.SC_BAD_GATEWAY,
-            HttpStatus.SC_GATEWAY_TIMEOUT);
+        ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
@@ -118,20 +114,12 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     }
 
     // Retry if the request is considered idempotent
-    boolean shouldRetry = Method.isIdempotent(request.getMethod());
-    if (shouldRetry && context != null) {
-      context.setAttribute("was-retried", Boolean.TRUE);
-    }
-    return shouldRetry;
+    return Method.isIdempotent(request.getMethod());
   }
 
   @Override
   public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
-    boolean shouldRetry = execCount <= maxRetries && retriableCodes.contains(response.getCode());
-    if (shouldRetry && context != null) {
-      context.setAttribute("was-retried", Boolean.TRUE);
-    }
-    return shouldRetry;
+    return execCount <= maxRetries && retriableCodes.contains(response.getCode());
   }
 
   @Override
