@@ -19,14 +19,15 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
@@ -37,25 +38,26 @@ import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+public class ParquetReader<T> extends CloseableGroup implements FileReader<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+  private final Function<MessageType, ParquetValueReader<T>> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final NameMapping nameMapping;
+  private Map<String, String> meta;
 
   public ParquetReader(
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      Function<MessageType, ParquetValueReader<T>> readerFunc,
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive) {
+      boolean filterCaseSensitive) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -63,7 +65,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
     this.nameMapping = nameMapping;
   }
 
@@ -81,11 +83,14 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               null,
               nameMapping,
               reuseContainers,
-              caseSensitive,
+              filterCaseSensitive,
               null);
       this.conf = readConf.copy();
+      this.meta = readConf.reader().getFileMetaData().getKeyValueMetaData();
       return readConf;
     }
+
+    this.meta = conf.reader().getFileMetaData().getKeyValueMetaData();
     return conf;
   }
 
@@ -94,6 +99,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
+  }
+
+  @Override
+  public Map<String, String> meta() {
+    if (meta == null) {
+      init();
+    }
+
+    return meta;
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {

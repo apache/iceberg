@@ -28,8 +28,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
@@ -39,26 +39,27 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 
-public class VectorizedParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+public class VectorizedParquetReader<T> extends CloseableGroup implements FileReader<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
+  private final Function<MessageType, VectorizedReader<T>> batchReaderFunc;
   private final Expression filter;
   private final boolean reuseContainers;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
+  private Map<String, String> meta;
 
   public VectorizedParquetReader(
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
+      Function<MessageType, VectorizedReader<T>> readerFunc,
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive,
+      boolean filterCaseSensitive,
       int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
@@ -67,7 +68,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
   }
@@ -86,11 +87,14 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               batchReaderFunc,
               nameMapping,
               reuseContainers,
-              caseSensitive,
+              filterCaseSensitive,
               batchSize);
       this.conf = readConf.copy();
+      this.meta = readConf.reader().getFileMetaData().getKeyValueMetaData();
       return readConf;
     }
+
+    this.meta = conf.reader().getFileMetaData().getKeyValueMetaData();
     return conf;
   }
 
@@ -99,6 +103,15 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
+  }
+
+  @Override
+  public Map<String, String> meta() {
+    if (meta == null) {
+      init();
+    }
+
+    return meta;
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
