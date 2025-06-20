@@ -20,13 +20,14 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 
 /** A wrapper to convert {@link S3SeekableInputStream} to Iceberg {@link SeekableInputStream} */
-class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
+class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream implements RangeReadable {
 
   private final S3SeekableInputStream delegate;
   private final Counter readBytes;
@@ -60,6 +61,16 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
     }
     readOperations.increment();
     return bytesRead;
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    this.delegate.readFully(position, buffer, offset, length);
+  }
+
+  @Override
+  public int readTail(byte[] buffer, int offset, int length) throws IOException {
+    return this.delegate.readTail(buffer, offset, length);
   }
 
   @Override

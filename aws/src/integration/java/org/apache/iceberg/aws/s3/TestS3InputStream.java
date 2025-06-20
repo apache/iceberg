@@ -141,9 +141,6 @@ public class TestS3InputStream {
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
   public void testRangeRead(Map<String, String> aalProperties) throws Exception {
-    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
-    skipIfAnalyticsAcceleratorEnabled(
-        s3FileIOProperties, "Analytics Accelerator Library does not support range reads");
     testRangeRead(s3, s3Async, aalProperties);
   }
 
