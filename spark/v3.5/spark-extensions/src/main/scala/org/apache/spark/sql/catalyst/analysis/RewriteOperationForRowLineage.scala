@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.MetadataColumns
@@ -32,7 +31,8 @@ import org.apache.spark.sql.types.MetadataBuilder
 trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
 
   protected val ROW_ID_ATTRIBUTE_NAME = MetadataColumns.ROW_ID.name()
-  protected val LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()
+  protected val LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME =
+    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()
 
   // The plan should only be updated if the underlying Iceberg table supports row lineage AND
   // lineage attributes are not already on the output of operation which indicates the rule already ran
@@ -52,16 +52,17 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
   }
 
   protected def findRowLineageAttributes(
-    expressions: Seq[Expression]
-  ): Option[(AttributeReference, AttributeReference)] = {
+      expressions: Seq[Expression]): Option[(AttributeReference, AttributeReference)] = {
     val rowIdAttr = expressions.collectFirst {
       case attr: AttributeReference
-        if  isMetadataColumn(attr) && attr.name == ROW_ID_ATTRIBUTE_NAME => attr
+          if isMetadataColumn(attr) && attr.name == ROW_ID_ATTRIBUTE_NAME =>
+        attr
     }
 
     val lastUpdatedAttr = expressions.collectFirst {
       case attr: AttributeReference
-        if isMetadataColumn(attr) &&  attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME => attr
+          if isMetadataColumn(attr) && attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME =>
+        attr
     }
 
     // Treat row lineage columns as data columns by removing the metadata attribute
@@ -78,7 +79,8 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
     attr.withMetadata(
       new MetadataBuilder()
         .withMetadata(attr.metadata)
-        .remove(METADATA_COL_ATTR_KEY).build())
+        .remove(METADATA_COL_ATTR_KEY)
+        .build())
   }
 
   private def isMetadataColumn(attributeReference: AttributeReference): Boolean = {
