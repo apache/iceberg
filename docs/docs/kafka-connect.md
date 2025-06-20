@@ -62,6 +62,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | iceberg.tables                             | Comma-separated list of destination tables                                                                       |
 | iceberg.tables.dynamic-enabled             | Set to `true` to route to a table specified in `routeField` instead of using `routeRegex`, default is `false`    |
+| iceberg.tables.route-with                  | Class to use for routing records from topics to tables. (see below for details)                                  |
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
@@ -75,7 +76,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.table.\<table name\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
 | iceberg.table.\<table name\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
 | iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.\<table name\>.route-regex   | The regex used to match a record to a table                                                                      |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
@@ -88,9 +89,24 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.hadoop.*                           | Properties passed through to the Hadoop configuration                                                            |
 | iceberg.kafka.*                            | Properties passed through to control topic Kafka client initialization                                           |
 
-If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
-`iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
-contain the name of the table.
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$DynamicRecordRouter`,
+or `iceberg.tables.dynamic-enabled` is true, you must specify `iceberg.tables.route-field` which will contain the name
+of the table. Tables will be dynamically created and named using the value in the field specified in the route field.
+
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$StaticRecordRouter`,
+or `iceberg.tables.route-field` is specified but `iceberg.tables.dynamic-enabled` is false, you must specify
+`iceberg.tables` and `iceberg.table.\<table name\>.route-regex` for each table. Records will be routed only to a
+table whose route regex matches the value in the route field.
+
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter`,
+then you must specify `iceberg.tables` and `iceberg.table.\<table name\>.route-regex` for each table. Records will be
+routed to all tables whose route regex matches the record's topic.
+
+If `iceberg.tables.route-with` is unset and there is no `iceberg.tables.route-field` specified, records are routed to
+all the tables from all the topics.
+
+For backwards compatibility, setting `iceberg.tables.dynamic-enabled` to `true` will take precedence over the
+`iceberg.tables.route-with` configuration.
 
 ### Kafka configuration
 
@@ -364,6 +380,49 @@ See above for creating two tables.
 }
 ```
 
+### Topic based multi-table routing
+
+This assumes that the source topics `events_create` and `events_list` already exist and are named as such.
+
+This example writes to tables whose `route-regex` property matches the topic of the record. The records read from
+topic `events_create` are routed to the `default.events_create` table and records read from the topic `events_list`
+are routed to the `default.events_list` table. The regex based routing is particularly useful when the source topics
+of the connector are specified using `topic.regex` configuration.
+
+#### Create two destination tables
+
+See above for creating two tables.
+
+#### Connector config
+
+```json
+{
+  "name": "events-sink",
+  "config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events_create,events_list",
+    "iceberg.tables": "default.events_list,default.events_create",
+    "iceberg.tables.route-with": "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter",
+    "iceberg.table.default.events_list.route-regex": ".*_list",
+    "iceberg.table.default.events_create.route-regex": ".*_create",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+  }
+}
+```
+
+### Custom routing of records
+
+Routing records from Kafka to tables can be customized by providing your own implementation of the `RecordRouter`.
+Implementations must extend the `org.apache.iceberg.connect.data.RecordRouter` abstract class. To write a record to a
+table, implementations can call the `writeToTable` method of the `RecordRouter`. You can then set
+`iceberg.tables.route-with` to the class name of your plugin. Overload the existing the `iceberg.tables.route-field`
+and `iceberg.table.\<table name\>.route-regex` properties to pass any configuration to your router implementation.
+The class must be available at runtime to the Kafka connect workers.
+
 ## SMTs for the Apache Iceberg Sink Connector
 
 This project contains some SMTs that could be useful when transforming Kafka data for use by
@@ -530,3 +589,4 @@ easy processing of arrays by downstream clients.
 Value document will convert the array into a struct of structs in the similar way as done by BSON serialization.
 The main struct contains fields named _0, _1, _2 etc. where the name represents the index of the element in the array.
 Every element is then passed as the value for the given field.
+
