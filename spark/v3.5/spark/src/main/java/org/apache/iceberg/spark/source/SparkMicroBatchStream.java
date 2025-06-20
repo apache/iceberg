@@ -414,7 +414,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
             if (curPos >= startPosOfSnapOffset) {
               if ((curFilesAdded + 1) > getMaxFiles(limit)) {
                 // On including the file it might happen that we might exceed, the configured
-                // soft limit on the number of records, since this is a soft limit it acceptable.
+                // soft limit on the number of records, since this is a soft limit its acceptable.
                 shouldContinueReading = false;
                 break;
               }
@@ -422,9 +422,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
 
-              if (curRecordCount > getMaxRows(limit)) {
-                // we included the file, so increment the number of files
-                // read in the current snapshot.
+              // stop reading further for current micro-batch, if any of limits are hit.
+              if (curRecordCount >= getMaxRows(limit) || curFilesAdded >= getMaxFiles(limit)) {
                 ++curPos;
                 shouldContinueReading = false;
                 break;

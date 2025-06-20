@@ -225,7 +225,7 @@ spark.read
 | streaming-max-rows-per-micro-batch  | INT_MAX | Maximum number of rows per microbatch |
 
 !!! warning
-    streaming-max-rows-per-micro-batch option sets a “soft max”, meaning that a batch processes approximately this amount of records and may process more than the limit in order to make the streaming query move forward in cases when the smallest input unit is larger than this limit.
+    streaming-max-rows-per-micro-batch option sets a “soft max”, a batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft-max.
 
 
 
