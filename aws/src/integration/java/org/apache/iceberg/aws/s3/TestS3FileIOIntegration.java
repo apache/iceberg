@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -66,6 +67,7 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Permission;
 import software.amazon.awssdk.services.s3.model.PutBucketVersioningRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
@@ -508,6 +510,85 @@ public class TestS3FileIOIntegration {
     assertThat(response.serverSideEncryption()).isNull();
     assertThat(response.sseCustomerAlgorithm()).isEqualTo(ServerSideEncryption.AES256.toString());
     assertThat(response.sseCustomerKeyMD5()).isEqualTo(md5);
+  }
+
+  private S3FileIO getS3FileIOInstanceWithAnalyticsAcceleratorAndServerSideCustomEncryptionEnabled()
+      throws Exception {
+    // generate key
+    KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+    keyGenerator.init(256, new SecureRandom());
+    SecretKey secretKey = keyGenerator.generateKey();
+    Base64.Encoder encoder = Base64.getEncoder();
+    String encodedKey = new String(encoder.encode(secretKey.getEncoded()), StandardCharsets.UTF_8);
+    // generate md5
+    MessageDigest digest = MessageDigest.getInstance("MD5");
+    String md5 =
+        new String(encoder.encode(digest.digest(secretKey.getEncoded())), StandardCharsets.UTF_8);
+
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.SSE_TYPE,
+            S3FileIOProperties.SSE_TYPE_CUSTOM,
+            S3FileIOProperties.SSE_KEY,
+            encodedKey,
+            S3FileIOProperties.SSE_MD5,
+            md5));
+
+    return s3FileIO;
+  }
+
+  @Test
+  public void testServerSideCustomEncryptionWithAnalyticsAcceleratorEnabled() throws Exception {
+    requireKMSEncryptionSupport();
+    S3FileIO s3FileIO =
+        getS3FileIOInstanceWithAnalyticsAcceleratorAndServerSideCustomEncryptionEnabled();
+    write(s3FileIO);
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testCreateAndReadWithDifferentSSECKeyWithAnalyticsAcceleratorEnabled()
+      throws Exception {
+    requireKMSEncryptionSupport();
+    S3FileIO s3FileIO =
+        getS3FileIOInstanceWithAnalyticsAcceleratorAndServerSideCustomEncryptionEnabled();
+    write(s3FileIO);
+    S3FileIO s3FileIOWithDifferentKey =
+        getS3FileIOInstanceWithAnalyticsAcceleratorAndServerSideCustomEncryptionEnabled();
+
+    assertThatThrownBy(() -> validateRead(s3FileIOWithDifferentKey))
+        .isInstanceOf(S3Exception.class)
+        .hasMessageContaining("Forbidden")
+        .extracting("statusCode")
+        .isEqualTo(403);
+  }
+
+  @Test
+  public void testCreateAndReadWithEmptySSECKeyWithAnalyticsAcceleratorEnabled() throws Exception {
+    requireKMSEncryptionSupport();
+    S3FileIO s3FileIO =
+        getS3FileIOInstanceWithAnalyticsAcceleratorAndServerSideCustomEncryptionEnabled();
+    write(s3FileIO);
+    S3FileIO s3FileIOWithEmptyKey = new S3FileIO();
+    s3FileIOWithEmptyKey.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.SSE_TYPE,
+            S3FileIOProperties.SSE_TYPE_CUSTOM,
+            S3FileIOProperties.SSE_KEY,
+            "",
+            S3FileIOProperties.SSE_MD5,
+            ""));
+
+    assertThatThrownBy(() -> validateRead(s3FileIOWithEmptyKey))
+        .isInstanceOf(S3Exception.class)
+        .hasMessageContaining("Bad Request")
+        .extracting("statusCode")
+        .isEqualTo(400);
   }
 
   @Test
