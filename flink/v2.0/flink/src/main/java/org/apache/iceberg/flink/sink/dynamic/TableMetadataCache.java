@@ -20,7 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.util.LinkedHashMap;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -32,6 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,16 +48,24 @@ class TableMetadataCache {
   private static final int MAX_SCHEMA_COMPARISON_RESULTS_TO_CACHE = 10;
   private static final Tuple2<Boolean, Exception> EXISTS = Tuple2.of(true, null);
   private static final Tuple2<Boolean, Exception> NOT_EXISTS = Tuple2.of(false, null);
-  static final Tuple2<Schema, CompareSchemasVisitor.Result> NOT_FOUND =
-      Tuple2.of(null, CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  static final SchemaCompareInfo NOT_FOUND =
+      new SchemaCompareInfo(
+          null, CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED, DataConverter.identity());
 
   private final Catalog catalog;
   private final long refreshMs;
+  private final int inputSchemasPerTableCacheMaximumSize;
   private final Cache<TableIdentifier, CacheItem> cache;
 
   TableMetadataCache(Catalog catalog, int maximumSize, long refreshMs) {
+    this(catalog, maximumSize, refreshMs, MAX_SCHEMA_COMPARISON_RESULTS_TO_CACHE);
+  }
+
+  TableMetadataCache(
+      Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.cache = Caffeine.newBuilder().maximumSize(maximumSize).build();
   }
 
@@ -75,7 +84,7 @@ class TableMetadataCache {
     return branch(identifier, branch, true);
   }
 
-  Tuple2<Schema, CompareSchemasVisitor.Result> schema(TableIdentifier identifier, Schema input) {
+  SchemaCompareInfo schema(TableIdentifier identifier, Schema input) {
     return schema(identifier, input, true);
   }
 
@@ -86,7 +95,11 @@ class TableMetadataCache {
   void update(TableIdentifier identifier, Table table) {
     cache.put(
         identifier,
-        new CacheItem(true, table.refs().keySet(), new SchemaInfo(table.schemas()), table.specs()));
+        new CacheItem(
+            true,
+            table.refs().keySet(),
+            new SchemaInfo(table.schemas(), inputSchemasPerTableCacheMaximumSize),
+            table.specs()));
   }
 
   private String branch(TableIdentifier identifier, String branch, boolean allowRefresh) {
@@ -103,8 +116,7 @@ class TableMetadataCache {
     }
   }
 
-  private Tuple2<Schema, CompareSchemasVisitor.Result> schema(
-      TableIdentifier identifier, Schema input, boolean allowRefresh) {
+  private SchemaCompareInfo schema(TableIdentifier identifier, Schema input, boolean allowRefresh) {
     CacheItem cached = cache.getIfPresent(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
@@ -112,8 +124,7 @@ class TableMetadataCache {
       // and a new schema. Performance is paramount as this code is on the hot path. Every other
       // way for comparing 2 schemas were performing worse than the
       // {@link CompareByNameVisitor#visit(Schema, Schema, boolean)}, so caching was useless.
-      Tuple2<Schema, CompareSchemasVisitor.Result> lastResult =
-          cached.schema.lastResults.get(input);
+      SchemaCompareInfo lastResult = cached.schema.getLastResult(input);
       if (lastResult != null) {
         return lastResult;
       }
@@ -122,8 +133,11 @@ class TableMetadataCache {
         CompareSchemasVisitor.Result result =
             CompareSchemasVisitor.visit(input, tableSchema.getValue(), true);
         if (result == CompareSchemasVisitor.Result.SAME) {
-          Tuple2<Schema, CompareSchemasVisitor.Result> newResult =
-              Tuple2.of(tableSchema.getValue(), CompareSchemasVisitor.Result.SAME);
+          SchemaCompareInfo newResult =
+              new SchemaCompareInfo(
+                  tableSchema.getValue(),
+                  CompareSchemasVisitor.Result.SAME,
+                  DataConverter.identity());
           cached.schema.update(input, newResult);
           return newResult;
         } else if (compatible == null
@@ -137,8 +151,12 @@ class TableMetadataCache {
       refreshTable(identifier);
       return schema(identifier, input, false);
     } else if (compatible != null) {
-      Tuple2<Schema, CompareSchemasVisitor.Result> newResult =
-          Tuple2.of(compatible, CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+      SchemaCompareInfo newResult =
+          new SchemaCompareInfo(
+              compatible,
+              CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED,
+              DataConverter.get(
+                  FlinkSchemaUtil.convert(input), FlinkSchemaUtil.convert(compatible)));
       cached.schema.update(input, newResult);
       return newResult;
     } else if (cached != null && cached.tableExists) {
@@ -220,37 +238,59 @@ class TableMetadataCache {
    */
   static class SchemaInfo {
     private final Map<Integer, Schema> schemas;
-    private final Map<Schema, Tuple2<Schema, CompareSchemasVisitor.Result>> lastResults;
+    private final Cache<Schema, SchemaCompareInfo> lastResults;
 
-    private SchemaInfo(Map<Integer, Schema> schemas) {
+    private SchemaInfo(Map<Integer, Schema> schemas, int inputSchemaCacheMaximumSize) {
       this.schemas = schemas;
-      this.lastResults = new LimitedLinkedHashMap<>();
+      this.lastResults =
+          Caffeine.newBuilder()
+              .maximumSize(inputSchemaCacheMaximumSize)
+              .evictionListener(SchemaInfo::cacheEvictionListener)
+              .build();
     }
 
-    private void update(
-        Schema newLastSchema, Tuple2<Schema, CompareSchemasVisitor.Result> newLastResult) {
-      lastResults.put(newLastSchema, newLastResult);
-    }
-
-    @VisibleForTesting
-    Tuple2<Schema, CompareSchemasVisitor.Result> getLastResult(Schema schema) {
-      return lastResults.get(schema);
-    }
-  }
-
-  @SuppressWarnings("checkstyle:IllegalType")
-  private static class LimitedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
-    @Override
-    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-      boolean remove = size() > MAX_SCHEMA_COMPARISON_RESULTS_TO_CACHE;
-      if (remove) {
+    private static void cacheEvictionListener(
+        Schema inputSchema, SchemaCompareInfo schemaCompareInfo, RemovalCause cause) {
+      if (cause == RemovalCause.SIZE) {
         LOG.warn(
             "Performance degraded as records with different schema is generated for the same table. "
                 + "Likely the DynamicRecord.schema is not reused. "
                 + "Reuse the same instance if the record schema is the same to improve performance");
       }
+    }
 
-      return remove;
+    private void update(Schema newLastSchema, SchemaCompareInfo compareInfo) {
+      lastResults.put(newLastSchema, compareInfo);
+    }
+
+    @VisibleForTesting
+    SchemaCompareInfo getLastResult(Schema schema) {
+      return lastResults.getIfPresent(schema);
+    }
+  }
+
+  static class SchemaCompareInfo {
+    private final Schema tableSchema;
+    private final CompareSchemasVisitor.Result compareResult;
+    private final DataConverter converter;
+
+    SchemaCompareInfo(
+        Schema tableSchema, CompareSchemasVisitor.Result compareResult, DataConverter converter) {
+      this.tableSchema = tableSchema;
+      this.compareResult = compareResult;
+      this.converter = converter;
+    }
+
+    Schema tableSchema() {
+      return tableSchema;
+    }
+
+    CompareSchemasVisitor.Result compareResult() {
+      return compareResult;
+    }
+
+    DataConverter converter() {
+      return converter;
     }
   }
 
