@@ -90,14 +90,11 @@ public class SimpleDataUtil {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
-  /** Use {@link #FLINK_SCHEMA} instead */
-  @Deprecated
-  public static final TableSchema FLINK_TABLE_SCHEMA =
-      TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
-
   public static final ResolvedSchema FLINK_SCHEMA =
       ResolvedSchema.of(
           Column.physical("id", DataTypes.INT()), Column.physical("data", DataTypes.STRING()));
+
+  public static final TableSchema FLINK_TABLE_SCHEMA = TableSchema.fromResolvedSchema(FLINK_SCHEMA);
 
   public static final RowType ROW_TYPE =
       (RowType) FLINK_SCHEMA.toSourceRowDataType().getLogicalType();

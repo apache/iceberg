@@ -85,15 +85,28 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   @Parameter(index = 2)
   private int writeParallelism;
 
-  @Parameters(name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}")
+  @Parameter(index = 3)
+  private boolean isTableSchema;
+
+  @Parameters(
+      name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}, isTableSchema = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {1, true, 1},
-      {1, false, 1},
-      {2, true, 2},
-      {2, false, 2},
-      {1, true, 2},
-      {1, false, 2},
+      // Remove after the deprecation of TableSchema - BEGIN
+      {1, true, 1, true},
+      {1, false, 1, true},
+      {2, true, 2, true},
+      {2, false, 2, true},
+      {1, true, 2, true},
+      {1, false, 2, true},
+      // Remove after the deprecation of TableSchema - END
+
+      {1, true, 1, false},
+      {1, false, 1, false},
+      {2, true, 2, false},
+      {2, false, 2, false},
+      {1, true, 2, false},
+      {1, false, 2, false},
     };
   }
 
@@ -122,7 +135,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
+    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, isTableSchema);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -137,7 +150,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE, isTableSchema);
 
     if (parallelism > 1) {
       if (partitioned) {
@@ -154,7 +167,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, null);
+    testWriteRow(parallelism, null, null, isTableSchema);
 
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
@@ -165,61 +178,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testPartitionWriteMode() throws Exception {
-    testWriteRow(parallelism, null, DistributionMode.HASH);
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
-  public void testShuffleByPartitionWithTableSchema() throws Exception {
-    testWriteRowWithTableSchema(
-        parallelism, SimpleDataUtil.FLINK_TABLE_SCHEMA, DistributionMode.HASH);
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
-  public void testJobNoneDistributeModeWithTableSchema() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRowWithTableSchema(parallelism, null, DistributionMode.NONE);
-
-    if (parallelism > 1) {
-      if (partitioned) {
-        int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
-        assertThat(files).isGreaterThan(3);
-      }
-    }
-  }
-
-  @TestTemplate
-  public void testJobNullDistributionModeWithTableSchema() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRowWithTableSchema(parallelism, null, null);
-
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
-  public void testPartitionWriteModeWithTableSchema() throws Exception {
-    testWriteRowWithTableSchema(parallelism, null, DistributionMode.HASH);
+    testWriteRow(parallelism, null, DistributionMode.HASH, isTableSchema);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -236,11 +195,17 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism)
-            .setAll(newProps);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+                .setAll(newProps)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+                .setAll(newProps);
 
     assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
@@ -262,10 +227,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism);
 
     // Range distribution requires either sort order or partition spec defined
     assertThatThrownBy(builder::append)
@@ -289,10 +259,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism);
 
     // sort based on partition columns
     builder.append();
@@ -327,10 +302,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     DataStream<Row> dataStream =
         env.addSource(createRangeDistributionBoundedSource(charRows), ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism);
 
     // sort based on partition columns
     builder.append();
@@ -363,12 +343,21 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Map)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Map)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Map)
+          .append();
+    }
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -424,12 +413,21 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createIntRows(numOfCheckpoints, 1_000)),
             ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Sketch)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Sketch)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Sketch)
+          .append();
+    }
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -493,321 +491,21 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
     DataStream<Row> dataStream =
         env.addSource(createRangeDistributionBoundedSource(rowsPerCheckpoint), ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Auto)
-        .append();
-    env.execute(getClass().getSimpleName());
-
-    table.refresh();
-    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-    // only keep the snapshots with added data files
-    snapshots =
-        snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-            .collect(Collectors.toList());
-
-    // Sometimes we will have more checkpoints than the bounded source if we pass the
-    // auto checkpoint interval. Thus producing multiple snapshots.
-    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-
-    // It takes 2 checkpoint cycle for statistics collection and application
-    // of the globally aggregated statistics in the range partitioner.
-    // The last two checkpoints should have range shuffle applied
-    List<Snapshot> rangePartitionedCycles =
-        snapshots.subList(snapshots.size() - 2, snapshots.size());
-
-    // since the input has a single value for the data column,
-    // it is always the same partition. Hence there is no difference
-    // for partitioned or not
-    for (Snapshot snapshot : rangePartitionedCycles) {
-      List<DataFile> addedDataFiles =
-          Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
-      // each writer task should only write one file for non-partition sort column
-      // sometimes
-      assertThat(addedDataFiles).hasSize(writeParallelism);
-      // verify there is no overlap in min-max stats range
-      if (writeParallelism > 1) {
-        assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
-      }
-    }
-  }
-
-  @TestTemplate
-  public void testOverrideWriteConfigWithUnknownDistributionModeWithTableSchema() {
-    Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
-
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism)
-            .setAll(newProps);
-
-    assertThatThrownBy(builder::append)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
-  }
-
-  @TestTemplate
-  public void testRangeDistributionWithoutSortOrderUnpartitionedWithTableSchema() {
-    assumeThat(partitioned).isFalse();
-
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-
-    int numOfCheckpoints = 6;
-    DataStream<Row> dataStream =
-        env.addSource(
-            createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
-            ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
-
-    // Range distribution requires either sort order or partition spec defined
-    assertThatThrownBy(builder::append)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Invalid write distribution mode: range. Need to define sort order or partition spec.");
-  }
-
-  @TestTemplate
-  public void testRangeDistributionWithoutSortOrderPartitionedWithTableSchema() throws Exception {
-    assumeThat(partitioned).isTrue();
-
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-
-    int numOfCheckpoints = 6;
-    DataStream<Row> dataStream =
-        env.addSource(
-            createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
-            ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
-
-    // sort based on partition columns
-    builder.append();
-    env.execute(getClass().getSimpleName());
-
-    table.refresh();
-    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-    // only keep the snapshots with added data files
-    snapshots =
-        snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-            .collect(Collectors.toList());
-
-    // Sometimes we will have more checkpoints than the bounded source if we pass the
-    // auto checkpoint interval. Thus producing multiple snapshots.
-    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-  }
-
-  @TestTemplate
-  public void testRangeDistributionWithNullValueWithTableSchema() throws Exception {
-    assumeThat(partitioned).isTrue();
-
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-
-    int numOfCheckpoints = 6;
-    List<List<Row>> charRows = createCharRows(numOfCheckpoints, 10);
-    charRows.add(ImmutableList.of(Row.of(1, null)));
-    DataStream<Row> dataStream =
-        env.addSource(createRangeDistributionBoundedSource(charRows), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
-
-    // sort based on partition columns
-    builder.append();
-    env.execute(getClass().getSimpleName());
-
-    table.refresh();
-    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-    // only keep the snapshots with added data files
-    snapshots =
-        snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-            .collect(Collectors.toList());
-
-    // Sometimes we will have more checkpoints than the bounded source if we pass the
-    // auto checkpoint interval. Thus producing multiple snapshots.
-    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-  }
-
-  @TestTemplate
-  public void testRangeDistributionWithSortOrderWithTableSchema() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-    table.replaceSortOrder().asc("data").commit();
-
-    int numOfCheckpoints = 6;
-    DataStream<Row> dataStream =
-        env.addSource(
-            createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
-            ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Map)
-        .append();
-    env.execute(getClass().getSimpleName());
-
-    table.refresh();
-    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-    // only keep the snapshots with added data files
-    snapshots =
-        snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-            .collect(Collectors.toList());
-
-    // Sometimes we will have more checkpoints than the bounded source if we pass the
-    // auto checkpoint interval. Thus producing multiple snapshots.
-    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-
-    // It takes 2 checkpoint cycle for statistics collection and application
-    // of the globally aggregated statistics in the range partitioner.
-    // The last two checkpoints should have range shuffle applied
-    List<Snapshot> rangePartitionedCycles =
-        snapshots.subList(snapshots.size() - 2, snapshots.size());
-
-    if (partitioned) {
-      for (Snapshot snapshot : rangePartitionedCycles) {
-        List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
-        // up to 26 partitions
-        assertThat(addedDataFiles).hasSizeLessThanOrEqualTo(26);
-      }
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Auto)
+          .append();
     } else {
-      for (Snapshot snapshot : rangePartitionedCycles) {
-        List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
-        // each writer task should only write one file for non-partition sort column
-        assertThat(addedDataFiles).hasSize(writeParallelism);
-        // verify there is no overlap in min-max stats range
-        if (parallelism > 1) {
-          assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
-        }
-      }
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Auto)
+          .append();
     }
-  }
-
-  @TestTemplate
-  public void testRangeDistributionSketchWithSortOrderWithTableSchema() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-    table.replaceSortOrder().asc("id").commit();
-
-    int numOfCheckpoints = 6;
-    DataStream<Row> dataStream =
-        env.addSource(
-            createRangeDistributionBoundedSource(createIntRows(numOfCheckpoints, 1_000)),
-            ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Sketch)
-        .append();
-    env.execute(getClass().getSimpleName());
-
-    table.refresh();
-    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-    // only keep the snapshots with added data files
-    snapshots =
-        snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-            .collect(Collectors.toList());
-
-    // Sometimes we will have more checkpoints than the bounded source if we pass the
-    // auto checkpoint interval. Thus producing multiple snapshots.
-    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-
-    // It takes 2 checkpoint cycle for statistics collection and application
-    // of the globally aggregated statistics in the range partitioner.
-    // The last two checkpoints should have range shuffle applied
-    List<Snapshot> rangePartitionedCycles =
-        snapshots.subList(snapshots.size() - 2, snapshots.size());
-
-    // since the input has a single value for the data column,
-    // it is always the same partition. Hence there is no difference
-    // for partitioned or not
-    for (Snapshot snapshot : rangePartitionedCycles) {
-      List<DataFile> addedDataFiles =
-          Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
-      // each writer task should only write one file for non-partition sort column
-      assertThat(addedDataFiles).hasSize(writeParallelism);
-      // verify there is no overlap in min-max stats range
-      if (writeParallelism > 2) {
-        assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
-      }
-    }
-  }
-
-  /** Test migration from Map stats to Sketch stats */
-  @TestTemplate
-  public void testRangeDistributionStatisticsMigrationWithTableSchema() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
-        .commit();
-    table.replaceSortOrder().asc("id").commit();
-
-    int numOfCheckpoints = 4;
-    List<List<Row>> rowsPerCheckpoint = Lists.newArrayListWithCapacity(numOfCheckpoints);
-    for (int checkpointId = 0; checkpointId < numOfCheckpoints; ++checkpointId) {
-      // checkpointId 2 would emit 11_000 records which is larger than
-      // the OPERATOR_SKETCH_SWITCH_THRESHOLD of 10_000.
-      // This should trigger the stats migration.
-      int maxId = checkpointId < 1 ? 1_000 : 11_000;
-      List<Row> rows = Lists.newArrayListWithCapacity(maxId);
-      for (int j = 0; j < maxId; ++j) {
-        // fixed value "a" for the data (possible partition column)
-        rows.add(Row.of(j, "a"));
-      }
-
-      rowsPerCheckpoint.add(rows);
-    }
-
-    DataStream<Row> dataStream =
-        env.addSource(createRangeDistributionBoundedSource(rowsPerCheckpoint), ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Auto)
-        .append();
     env.execute(getClass().getSimpleName());
 
     table.refresh();

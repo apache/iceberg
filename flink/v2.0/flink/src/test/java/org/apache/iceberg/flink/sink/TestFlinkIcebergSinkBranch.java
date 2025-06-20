@@ -60,15 +60,25 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
   @Parameter(index = 1)
   private String branch;
 
+  @Parameter(index = 2)
+  private boolean isTableSchema;
+
   private TableLoader tableLoader;
 
-  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  @Parameters(name = "formatVersion = {0}, branch = {1}, isTableSchema = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"1", "main"},
-      {"1", "testBranch"},
-      {"2", "main"},
-      {"2", "testBranch"}
+      // Remove after the deprecation of TableSchema - BEGIN
+      {"1", "main", true},
+      {"1", "testBranch", true},
+      {"2", "main", true},
+      {"2", "testBranch", true},
+      // Remove after the deprecation of TableSchema - END
+
+      {"1", "main", false},
+      {"1", "testBranch", false},
+      {"2", "main", false},
+      {"2", "testBranch", false},
     };
   }
 
@@ -97,53 +107,33 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   public void testWriteRowWithFlinkSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE, isTableSchema);
     verifyOtherBranchUnmodified();
   }
 
-  private void testWriteRow(ResolvedSchema resolvedSchema, DistributionMode distributionMode)
+  private void testWriteRow(
+      ResolvedSchema resolvedSchema, DistributionMode distributionMode, boolean isTableSchema)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .resolvedSchema(resolvedSchema)
-        .toBranch(branch)
-        .distributionMode(distributionMode)
-        .append();
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream.");
-
-    SimpleDataUtil.assertTableRows(table, convertToRowData(rows), branch);
-    SimpleDataUtil.assertTableRows(
-        table,
-        ImmutableList.of(),
-        branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH);
-
-    verifyOtherBranchUnmodified();
-  }
-
-  @TestTemplate
-  public void testWriteRowWithFlinkTableSchema() throws Exception {
-    testWriteRowWithTableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA, DistributionMode.NONE);
-    verifyOtherBranchUnmodified();
-  }
-
-  private void testWriteRowWithTableSchema(
-      TableSchema tableSchema, DistributionMode distributionMode) throws Exception {
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .toBranch(branch)
-        .distributionMode(distributionMode)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .tableSchema(TableSchema.fromResolvedSchema(resolvedSchema))
+          .toBranch(branch)
+          .distributionMode(distributionMode)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .resolvedSchema(resolvedSchema)
+          .toBranch(branch)
+          .distributionMode(distributionMode)
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");

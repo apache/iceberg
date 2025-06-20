@@ -94,38 +94,32 @@ public class TestFlinkIcebergSinkBase {
   }
 
   protected void testWriteRow(
-      int writerParallelism, ResolvedSchema resolvedSchema, DistributionMode distributionMode)
+      int writerParallelism,
+      ResolvedSchema resolvedSchema,
+      DistributionMode distributionMode,
+      boolean isTableSchema)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .resolvedSchema(resolvedSchema)
-        .writeParallelism(writerParallelism)
-        .distributionMode(distributionMode)
-        .append();
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream.");
-
-    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
-  }
-
-  protected void testWriteRowWithTableSchema(
-      int writerParallelism, TableSchema tableSchema, DistributionMode distributionMode)
-      throws Exception {
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .writeParallelism(writerParallelism)
-        .distributionMode(distributionMode)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .tableSchema(
+              resolvedSchema != null ? TableSchema.fromResolvedSchema(resolvedSchema) : null)
+          .writeParallelism(writerParallelism)
+          .distributionMode(distributionMode)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .resolvedSchema(resolvedSchema)
+          .writeParallelism(writerParallelism)
+          .distributionMode(distributionMode)
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");

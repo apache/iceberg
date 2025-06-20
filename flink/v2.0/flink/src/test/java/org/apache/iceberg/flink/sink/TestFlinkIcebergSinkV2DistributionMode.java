@@ -122,7 +122,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
 
   @TestTemplate
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
+    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, false);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -137,7 +137,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE, false);
 
     if (parallelism > 1) {
       if (partitioned) {
@@ -154,7 +154,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, null);
+    testWriteRow(parallelism, null, null, false);
 
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
@@ -165,7 +165,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
 
   @TestTemplate
   public void testPartitionWriteMode() throws Exception {
-    testWriteRow(parallelism, null, DistributionMode.HASH);
+    testWriteRow(parallelism, null, DistributionMode.HASH, false);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
