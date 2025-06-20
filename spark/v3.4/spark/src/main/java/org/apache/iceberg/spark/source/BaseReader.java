@@ -137,6 +137,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
           this.currentIterator = open(currentTask);
         } else {
           this.currentIterator.close();
+          this.current = null;
+          this.currentIterator = null;
           return false;
         }
       }
@@ -159,9 +161,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   @Override
   public void close() throws IOException {
     InputFileBlockHolder.unset();
-
-    // close the current iterator
-    this.currentIterator.close();
+    if (currentIterator != null) {
+      // close the current iterator
+      this.currentIterator.close();
+    }
 
     // exhaust the task iterator
     while (tasks.hasNext()) {
