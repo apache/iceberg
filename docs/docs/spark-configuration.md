@@ -38,6 +38,10 @@ If Hive Metastore uses Kerberos authentication, set the following parameter on t
 # replace hive/_HOST@REALM.COM with actual Hive service principal
 spark.sql.catalog.hive_prod.hive.metastore.kerberos.principal = hive/_HOST@REALM.COM
 ```
+Disable delegation token renewal for each Hive catalog by setting the following configuration parameter:
+```plain
+spark.sql.catalog.hive_prod.delegation.token.renewal.enable = false
+```
 
 Below is an example for a REST catalog named `rest_prod` that loads tables from REST URL `http://localhost:8080`:
 
