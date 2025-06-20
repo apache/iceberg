@@ -422,8 +422,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
 
-              // stop reading further for current micro-batch, if any of limits are hit.
-              if (curRecordCount >= getMaxRows(limit) || curFilesAdded >= getMaxFiles(limit)) {
+              if (curRecordCount > getMaxRows(limit)) {
+                // we included the file, so increment the number of files
+                // read in the current snapshot.
                 ++curPos;
                 shouldContinueReading = false;
                 break;
