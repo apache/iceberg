@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,11 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.ContentFileParser;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -36,22 +31,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
-class TableScanResponseParser {
+public class TableScanResponseParser {
 
   private TableScanResponseParser() {}
 
   static final String FILE_SCAN_TASKS = "file-scan-tasks";
   static final String DELETE_FILES = "delete-files";
 
-  public static List<DeleteFile> parseDeleteFiles(JsonNode node) {
+  public static List<DeleteFile> parseDeleteFiles(
+      JsonNode node, Map<Integer, PartitionSpec> specsById) {
     if (node.has(DELETE_FILES)) {
       JsonNode deleteFiles = JsonUtil.get(DELETE_FILES, node);
       Preconditions.checkArgument(
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
       ImmutableList.Builder<DeleteFile> deleteFilesBuilder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deleteFiles) {
-        DeleteFile deleteFile =
-            (DeleteFile) ContentFileParser.unboundContentFileFromJson(deleteFileNode);
+        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, specsById);
         deleteFilesBuilder.add(deleteFile);
       }
       return deleteFilesBuilder.build();
@@ -60,14 +55,22 @@ class TableScanResponseParser {
     return null;
   }
 
-  public static List<FileScanTask> parseFileScanTasks(JsonNode node, List<DeleteFile> deleteFiles) {
+  public static List<FileScanTask> parseFileScanTasks(
+      JsonNode node,
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
+    // TODO: add assertions in the code to make sure all these are set
+    // before we start parsing.
     if (node.has(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
           scanTasks.isArray(), "Cannot parse file scan tasks from non-array: %s", scanTasks);
       List<FileScanTask> fileScanTaskList = Lists.newArrayList();
       for (JsonNode fileScanTaskNode : scanTasks) {
-        FileScanTask fileScanTask = RESTFileScanTaskParser.fromJson(fileScanTaskNode, deleteFiles);
+        FileScanTask fileScanTask =
+            RESTFileScanTaskParser.fromJson(
+                fileScanTaskNode, deleteFiles, specsById, caseSensitive);
         fileScanTaskList.add(fileScanTask);
       }
 
@@ -91,8 +94,7 @@ class TableScanResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.unboundContentFileToJson(
-            deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }

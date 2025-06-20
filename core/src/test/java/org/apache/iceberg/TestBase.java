@@ -102,7 +102,7 @@ public class TestBase {
           .withContentSizeInBytes(6)
           .build();
   // Equality delete files.
-  public static final DeleteFile FILE_A2_DELETES =
+  static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-a2-deletes.parquet")
