@@ -358,6 +358,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
           .rangeDistributionStatisticsType(StatisticsType.Map)
           .append();
     }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -428,6 +429,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
           .rangeDistributionStatisticsType(StatisticsType.Sketch)
           .append();
     }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -506,6 +508,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
           .rangeDistributionStatisticsType(StatisticsType.Auto)
           .append();
     }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();

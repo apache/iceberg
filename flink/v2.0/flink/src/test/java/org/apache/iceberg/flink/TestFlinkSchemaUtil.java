@@ -383,6 +383,8 @@ public class TestFlinkSchemaUtil {
       LogicalType flinkType,
       Type icebergExpectedType) {
     assertThat(FlinkSchemaUtil.convert(icebergType)).isEqualTo(flinkExpectedType);
+    assertThat(FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct())
+        .isEqualTo(Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)));
     assertThat(
             FlinkSchemaUtil.convert(FlinkSchemaUtil.toResolvedSchema(RowType.of(flinkType)))
                 .asStruct())
@@ -417,6 +419,7 @@ public class TestFlinkSchemaUtil {
               UniqueConstraint.primaryKey("pk", List.of("int")));
       convertedSchema = FlinkSchemaUtil.convert(baseSchema, flinkSchema);
     }
+
     assertThat(convertedSchema.asStruct()).isEqualTo(baseSchema.asStruct());
     assertThat(convertedSchema.identifierFieldIds()).containsExactly(101);
   }
