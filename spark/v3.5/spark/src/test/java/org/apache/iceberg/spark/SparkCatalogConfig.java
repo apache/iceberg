@@ -29,7 +29,8 @@ public enum SparkCatalogConfig {
       SparkCatalog.class.getName(),
       ImmutableMap.of(
           "type", "hive",
-          "default-namespace", "default")),
+          "default-namespace", "default",
+          "unique-table-location", "true")),
   HADOOP(
       "testhadoop",
       SparkCatalog.class.getName(),
@@ -37,7 +38,10 @@ public enum SparkCatalogConfig {
   REST(
       "testrest",
       SparkCatalog.class.getName(),
-      ImmutableMap.of("type", "rest", "cache-enabled", "false")),
+      ImmutableMap.of(
+          "type", "rest",
+          "cache-enabled", "false",
+          "unique-table-location", "true")),
   SPARK(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),
@@ -45,6 +49,7 @@ public enum SparkCatalogConfig {
           "type", "hive",
           "default-namespace", "default",
           "parquet-enabled", "true",
+          "unique-table-location", "true",
           "cache-enabled",
               "false" // Spark will delete tables using v1, leaving the cache out of sync
           )),

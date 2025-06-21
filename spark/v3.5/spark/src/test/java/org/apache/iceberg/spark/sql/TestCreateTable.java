@@ -34,6 +34,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -453,5 +455,42 @@ public class TestCreateTable extends CatalogTestBase {
         .cause()
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v2 table to v1");
+  }
+
+  @TestTemplate
+  public void testCreateTableAfterRename() throws Exception {
+    assumeThat(uniqueTableLocation()).isTrue();
+
+    assumeThat(validationCatalog)
+        .as("Hadoop catalog does not support rename")
+        .isNotInstanceOf(HadoopCatalog.class);
+
+    TableIdentifier renamedIdent = TableIdentifier.of(Namespace.of("default"), "table2");
+    try {
+      assertThat(validationCatalog.tableExists(tableIdent))
+          .as("Table should not already exist")
+          .isFalse();
+      assertThat(validationCatalog.tableExists(renamedIdent))
+          .as("Table should not already exist")
+          .isFalse();
+
+      sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+
+      sql("ALTER TABLE %s RENAME TO %s", tableName, renamedIdent);
+
+      sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+
+      Table table = validationCatalog.loadTable(tableIdent);
+      assertThat(table).as("Should load the new table").isNotNull();
+
+      Table renamedTable = validationCatalog.loadTable(renamedIdent);
+      assertThat(renamedTable).as("Should load the new table").isNotNull();
+
+      assertThat(table.location())
+          .as("Should have a different table location")
+          .isNotEqualTo(renamedTable.location());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", renamedIdent);
+    }
   }
 }
