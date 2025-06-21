@@ -247,10 +247,11 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
 
+    leftTable.refresh();
+    rightTable.refresh();
+
     SimpleDataUtil.assertTableRows(leftTable, convertToRowData(leftRows));
     SimpleDataUtil.assertTableRows(rightTable, convertToRowData(rightRows));
-
-    leftTable.refresh();
 
     assertThat(leftTable.currentSnapshot().summary().get("flink.test")).isNull();
     assertThat(leftTable.currentSnapshot().summary().get("direction")).isNull();
