@@ -25,19 +25,21 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-import java.util.Vector;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -82,20 +84,30 @@ public class HadoopFileIOTest {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
+    final String parentString = parent.toUri().toString();
+    final List<FileInfo> files =
+        Streams.stream(hadoopFileIO.listPrefix(parentString)).collect(Collectors.toList());
+    assertThat(files.size())
+        .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
+
+    final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
+    hadoopFileIO.deleteFiles(() -> locations);
+
+    assertThat(Streams.stream(hadoopFileIO.listPrefix(parentString)).count())
+        .describedAs("Files found under %s after bulk delete", parentString)
+        .isEqualTo(0);
   }
 
   @Test
   public void testFileExists() throws IOException {
     Path parent = new Path(tempDir.toURI());
-    Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID());
-    fs.createNewFile(randomFilePath);
+    Path randomFilePath = file(new Path(parent, "random-file-" + UUID.randomUUID()));
 
     // check existence of the created file
-    assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
+    assertPathExists(randomFilePath);
     fs.delete(randomFilePath, false);
-    assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
+    assertPathDoesNotExist(randomFilePath);
   }
 
   @Test
@@ -132,17 +144,82 @@ public class HadoopFileIOTest {
     List<Path> filesCreated = createRandomFiles(parent, 10);
     hadoopFileIO.deleteFiles(
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
-    filesCreated.forEach(
-        file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+    filesCreated.forEach(this::assertPathDoesNotExist);
   }
 
   @Test
   public void testDeleteFilesErrorHandling() {
+    Path parent = new Path(tempDir.toURI());
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
+    filesCreated.add(new Path(parent, "file-not-exist").toUri().toString());
+    Path file = file(new Path(parent, "file-which-exists-" + UUID.randomUUID()));
+    filesCreated.add(file.toUri().toString());
+
     assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesCreated))
+        .describedAs("Exception raised by deleteFiles()")
         .isInstanceOf(BulkDeletionFailureException.class)
-        .hasMessage("Failed to delete 2 files");
+        .hasMessage("Failed to delete 2 files")
+        .matches(
+            (e) -> ((BulkDeletionFailureException) e).numberFailedObjects() == 2,
+            "Wrong number of failures");
+    assertPathDoesNotExist(file);
+  }
+
+  @Test
+  public void testBulkDeleteEmptyList() {
+    hadoopFileIO.deleteFiles(Lists.newArrayList());
+  }
+
+  @Test
+  public void testBulkDeleteEmptyDirectory() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+    final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
+    fs.mkdirs(dir);
+    final Path file = file(new Path(parent, "file-" + UUID.randomUUID()));
+    List<String> paths = Lists.newArrayList(dir.toUri().toString(), file.toUri().toString());
+    hadoopFileIO.deleteFiles(paths);
+    assertPathDoesNotExist(file);
+    assertPathDoesNotExist(dir);
+  }
+
+  @Test
+  public void testBulkDeleteNonEmptyDirectory() {
+    Path parent = new Path(tempDir.toURI());
+    final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
+    final Path file = file(new Path(parent, "file-" + UUID.randomUUID()));
+    final Path child = file(new Path(dir, "file-" + UUID.randomUUID()));
+    List<String> paths = Lists.newArrayList(dir.toUri().toString(), file.toUri().toString());
+    assertThatThrownBy(() -> hadoopFileIO.deleteFiles(paths))
+        .describedAs("Exception raised by deleteFiles()")
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessageContaining("Failed")
+        .matches(
+            e -> ((BulkDeletionFailureException) e).numberFailedObjects() == 1,
+            "Wrong number of failures");
+    assertPathDoesNotExist(file);
+    assertPathExists(child);
+  }
+
+  @Test
+  public void testDeleteEmptyDirectory() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+    final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
+    fs.mkdirs(dir);
+    hadoopFileIO.deleteFile(dir.toUri().toString());
+    assertPathDoesNotExist(dir);
+  }
+
+  @Test
+  public void testDeleteNonEmptyDirectory() {
+    Path parent = new Path(tempDir.toURI());
+    final Path dir = new Path(parent, "dir-" + UUID.randomUUID());
+    final Path file = file(new Path(dir, "file"));
+    assertThatThrownBy(() -> hadoopFileIO.deleteFile(dir.toUri().toString()))
+        .describedAs("Exception raised by deleteFile(%s)", dir)
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Failed to delete file:");
+    assertPathExists(file);
   }
 
   @ParameterizedTest
@@ -218,21 +295,38 @@ public class HadoopFileIOTest {
     }
   }
 
+  /**
+   * Create a zero byte file at a path, overwriting any file which is there.
+   *
+   * @param path path
+   * @return the path of the file
+   */
+  Path file(Path path) {
+    try {
+      hadoopFileIO.newOutputFile(path.toString()).createOrOverwrite().close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return path;
+  }
+
   private List<Path> createRandomFiles(Path parent, int count) {
-    Vector<Path> paths = new Vector<>();
-    random
+    return random
         .ints(count)
         .parallel()
-        .forEach(
-            i -> {
-              try {
-                Path path = new Path(parent, "file-" + i);
-                paths.add(path);
-                fs.createNewFile(path);
-              } catch (IOException e) {
-                throw new UncheckedIOException(e);
-              }
-            });
-    return paths;
+        .mapToObj(i -> file(new Path(parent, "file-" + i)))
+        .collect(Collectors.toList());
+  }
+
+  private void assertPathDoesNotExist(Path path) {
+    assertThat(hadoopFileIO.newInputFile(path.toUri().toString()).exists())
+        .describedAs("File %s must not exist", path)
+        .isFalse();
+  }
+
+  private void assertPathExists(Path path) {
+    assertThat(hadoopFileIO.newInputFile(path.toUri().toString()).exists())
+        .describedAs("File %s must exist", path)
+        .isTrue();
   }
 }
