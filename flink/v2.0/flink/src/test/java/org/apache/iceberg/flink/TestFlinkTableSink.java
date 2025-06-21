@@ -142,7 +142,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
             "sourceTable",
             getTableEnv()
                 .fromValues(
-                    SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
                     Expressions.row(1, "hello"),
                     Expressions.row(2, "world"),
                     Expressions.row(3, (String) null),

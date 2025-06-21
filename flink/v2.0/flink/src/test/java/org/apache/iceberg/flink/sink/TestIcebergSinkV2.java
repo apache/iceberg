@@ -158,13 +158,13 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheck() {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =
         IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)
             .upsert(true);
 
@@ -240,7 +240,7 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
 
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
