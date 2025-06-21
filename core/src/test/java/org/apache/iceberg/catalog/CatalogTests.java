@@ -63,6 +63,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
@@ -964,10 +965,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testLoadTableWithMissingMetadatafile() {
     C catalog = catalog();
 
-    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
-    assertThatThrownBy(() -> catalog.loadTable(TBL))
-        .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: ns.tbl");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    // Create the table first
+    catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    // Get the metadata file location and delete it
+    Table table = catalog.loadTable(TBL);
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    ((HasTableOperations) table).operations().io().deleteFile(metadataFileLocation);
+
+    // Now loading the table should throw NotFoundException because metadata file is missing
+    assertThatThrownBy(() -> catalog.loadTable(TBL)).isInstanceOf(NotFoundException.class);
   }
 
   @Test
