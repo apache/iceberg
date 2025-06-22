@@ -35,6 +35,7 @@ COPY --chown=iceberg:iceberg open-api/build/libs/iceberg-open-api-test-fixtures-
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite:file::memory:?cache=shared
+ENV CATALOG_CLIENTS=1
 ENV CATALOG_JDBC_USER=user
 ENV CATALOG_JDBC_PASSWORD=password
 ENV REST_PORT=8181
