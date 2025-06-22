@@ -35,7 +35,8 @@ COPY --chown=iceberg:iceberg open-api/build/libs/iceberg-open-api-test-fixtures-
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite::memory:
-ENV CATALOG_CLIENTS=1  # Use a single connection to ensure consistent access to the in-memory SQLite database
+# Use a single connection to ensure consistent access to the in-memory SQLite database
+ENV CATALOG_CLIENTS=1
 ENV CATALOG_JDBC_USER=user
 ENV CATALOG_JDBC_PASSWORD=password
 ENV REST_PORT=8181
