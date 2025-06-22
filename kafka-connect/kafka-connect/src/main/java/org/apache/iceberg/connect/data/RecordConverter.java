@@ -475,6 +475,38 @@ class RecordConverter {
   }
 
   @SuppressWarnings("JavaUtilDate")
+  private OffsetDateTime convertOffsetDateTimeNano(Object value) {
+    if (value instanceof Number) {
+      long nanos = ((Number) value).longValue();
+      return DateTimeUtil.timestamptzFromNanos(nanos);
+    } else if (value instanceof String) {
+      return parseOffsetDateTimeNano((String) value);
+    } else if (value instanceof OffsetDateTime) {
+      return (OffsetDateTime) value;
+    } else if (value instanceof LocalDateTime) {
+      return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
+    } else if (value instanceof Date) {
+      return DateTimeUtil.timestamptzFromNanos(((Date) value).getTime() * 1000);
+    }
+    throw new ConnectException(
+        "Cannot convert timestamptz-nano: " + value + ", type: " + value.getClass());
+  }
+
+  private OffsetDateTime parseOffsetDateTimeNano(String str) {
+    try {
+      return OffsetDateTime.parse(str);
+    } catch (DateTimeParseException e) {
+      try {
+        String tsStr = ensureTimestampFormat(str);
+        return LocalDateTime.parse(tsStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            .atOffset(ZoneOffset.UTC);
+      } catch (DateTimeParseException ex) {
+        return parseOffsetDateTime(str);
+      }
+    }
+  }
+
+  @SuppressWarnings("JavaUtilDate")
   private OffsetDateTime convertOffsetDateTime(Object value) {
     if (value instanceof Number) {
       long millis = ((Number) value).longValue();
