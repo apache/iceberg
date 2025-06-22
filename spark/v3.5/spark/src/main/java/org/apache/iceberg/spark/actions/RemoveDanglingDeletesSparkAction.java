@@ -90,6 +90,7 @@ class RemoveDanglingDeletesSparkAction
 
   Result doExecute() {
     RewriteFiles rewriteFiles = table.newRewrite();
+    long baseSnapshotId = table.currentSnapshot().snapshotId();
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
     danglingDeletes.addAll(findDanglingDeletes());
     danglingDeletes.addAll(findDanglingDvs());
@@ -99,7 +100,10 @@ class RemoveDanglingDeletesSparkAction
       rewriteFiles.deleteFile(deleteFile);
     }
 
-    if (!danglingDeletes.isEmpty()) {
+    table.refresh();
+    if (table.currentSnapshot().snapshotId() != baseSnapshotId) {
+      LOG.warn("Skip committing dangling delete files because the base snapshot has changed");
+    } else if (!danglingDeletes.isEmpty()) {
       commit(rewriteFiles);
     }
 
