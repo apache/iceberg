@@ -78,7 +78,8 @@ public class RESTCatalogServer {
     // Fallback to a JDBCCatalog impl if one is not set
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
     catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
-    catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
+    // Use a single connection to ensure consistent access to the in-memory SQLite database
+    catalogProperties.putIfAbsent(CatalogProperties.CLIENT_POOL_SIZE, "1");
     catalogProperties.putIfAbsent("jdbc.schema-version", "V1");
 
     // Configure a default location if one is not specified
