@@ -20,36 +20,79 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
 
-/** Interface for value decoding that supports vectorized (aka batched) decoding. */
+/**
+ * Interface for value decoding that supports vectorized (aka batched) decoding.
+ * Implementations are expected to be {@link ValuesReader} instances, and this interface
+ * "extends" that abstract class by overriding the salient methods.
+ */
 interface VectorizedValuesReader {
+
+  /**
+   * Read a single boolean
+   */
   boolean readBoolean();
 
+  /**
+   * Read a single byte
+   */
   byte readByte();
 
+  /**
+   * Read a single short
+   */
   short readShort();
 
+  /**
+   * Read a single integer
+   */
   int readInteger();
 
+  /**
+   * Read a single long
+   */
   long readLong();
 
+  /**
+   * Read a single float
+   */
   float readFloat();
 
+  /**
+   * Read a single double
+   */
   double readDouble();
 
+  /**
+   * Read binary data of some length
+   * @param len The number of bytes to read
+   */
   Binary readBinary(int len);
 
-  /*
-   * Reads `total` values into `vec` start at `vec[rowId]`
+  /**
+   * Read `total` integers into `vec` starting at `vec[rowId]`
    */
   void readIntegers(int total, FieldVector vec, int rowId);
 
+  /**
+   * Read `total` longs into `vec` starting at `vec[rowId]`
+   */
   void readLongs(int total, FieldVector vec, int rowId);
 
+  /**
+   * Read `total` floats into `vec` starting at `vec[rowId]`
+   */
   void readFloats(int total, FieldVector vec, int rowId);
 
+  /**
+   * Read `total` doubles into `vec` starting at `vec[rowId]`
+   */
   void readDoubles(int total, FieldVector vec, int rowId);
 
+  /**
+   * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int, ByteBufferInputStream)}.
+   */
   void initFromPage(int valueCount, ByteBufferInputStream in);
 }
