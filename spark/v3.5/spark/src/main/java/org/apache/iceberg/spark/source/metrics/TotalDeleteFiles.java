@@ -16,30 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.metrics;
+package org.apache.iceberg.spark.source.metrics;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class InMemoryMetricsReporter implements MetricsReporter {
+public class TotalDeleteFiles extends CustomSumMetric {
 
-  private MetricsReport metricsReport;
+  static final String NAME = "totalDeleteFiles";
 
   @Override
-  public void report(MetricsReport report) {
-    this.metricsReport = report;
+  public String name() {
+    return NAME;
   }
 
-  public ScanReport scanReport() {
-    Preconditions.checkArgument(
-        metricsReport == null || metricsReport instanceof ScanReport,
-        "Metrics report is not a scan report");
-    return (ScanReport) metricsReport;
-  }
-
-  public CommitReport commitReport() {
-    Preconditions.checkArgument(
-        metricsReport == null || metricsReport instanceof CommitReport,
-        "Metrics report is not a commit report");
-    return (CommitReport) metricsReport;
+  @Override
+  public String description() {
+    return "total number of delete files";
   }
 }
