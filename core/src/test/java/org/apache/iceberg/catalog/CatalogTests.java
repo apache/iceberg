@@ -26,6 +26,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -962,25 +965,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testLoadTableWithMissingMetadatafile() {
+  public void testLoadTableWithMissingMetadatafile() throws IOException {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TBL.namespace());
     }
 
-    // Create the table first
     catalog.buildTable(TBL, SCHEMA).create();
     assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
 
-    // Get the metadata file location and delete it
     Table table = catalog.loadTable(TBL);
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
-    ((HasTableOperations) table).operations().io().deleteFile(metadataFileLocation);
+    Files.move(
+        Paths.get(metadataFileLocation), Paths.get("tmp.json"), StandardCopyOption.ATOMIC_MOVE);
 
-    // Now loading the table should throw NotFoundException because metadata file is missing
     assertThatThrownBy(() -> catalog.loadTable(TBL)).isInstanceOf(NotFoundException.class);
+
+    Files.move(
+        Paths.get("tmp.json"), Paths.get(metadataFileLocation), StandardCopyOption.ATOMIC_MOVE);
   }
 
   @Test
