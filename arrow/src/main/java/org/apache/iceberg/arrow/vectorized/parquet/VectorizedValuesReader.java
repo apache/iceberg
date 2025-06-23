@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
+import java.io.IOException;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
@@ -74,5 +75,5 @@ interface VectorizedValuesReader {
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
    * ByteBufferInputStream)}.
    */
-  void initFromPage(int valueCount, ByteBufferInputStream in);
+  void initFromPage(int valueCount, ByteBufferInputStream in) throws IOException;
 }
