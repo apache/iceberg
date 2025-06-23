@@ -107,12 +107,11 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   public void testWriteRowWithFlinkSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE, isTableSchema);
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
     verifyOtherBranchUnmodified();
   }
 
-  private void testWriteRow(
-      ResolvedSchema resolvedSchema, DistributionMode distributionMode, boolean isTableSchema)
+  private void testWriteRow(ResolvedSchema resolvedSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);

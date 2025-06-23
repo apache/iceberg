@@ -134,7 +134,7 @@ public class TestFlinkSchemaUtil {
                 "multiset",
                 Types.MapType.ofRequired(28, 29, Types.StringType.get(), Types.IntegerType.get())));
 
-    checkSchema(flinkSchema, icebergSchema, isTableSchema);
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @TestTemplate
@@ -203,7 +203,7 @@ public class TestFlinkSchemaUtil {
                             Types.ListType.ofOptional(13, Types.StringType.get()),
                             "doc - array")))));
 
-    checkSchema(flinkSchema, icebergSchema, isTableSchema);
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @TestTemplate
@@ -261,7 +261,7 @@ public class TestFlinkSchemaUtil {
                         Types.MapType.ofOptional(
                             9, 10, Types.IntegerType.get(), Types.IntegerType.get())))));
 
-    checkSchema(flinkSchema, icebergSchema, isTableSchema);
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @TestTemplate
@@ -323,11 +323,10 @@ public class TestFlinkSchemaUtil {
                             Types.NestedField.optional(
                                 8, "field_0", Types.IntegerType.get(), "doc - int"))))));
 
-    checkSchema(flinkSchema, icebergSchema, isTableSchema);
+    checkSchema(flinkSchema, icebergSchema);
   }
 
-  private void checkSchema(
-      ResolvedSchema flinkSchema, Schema icebergSchema, boolean isTableSchema) {
+  private void checkSchema(ResolvedSchema flinkSchema, Schema icebergSchema) {
     if (isTableSchema) {
       assertThat(FlinkSchemaUtil.convert(TableSchema.fromResolvedSchema(flinkSchema)).asStruct())
           .isEqualTo(icebergSchema.asStruct());
