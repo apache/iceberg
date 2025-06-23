@@ -131,7 +131,14 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             out::collect);
         for (String remainingSubDir : remainingSubDirs) {
           FileSystemWalker.listDirRecursivelyWithHadoop(
-              remainingSubDir, predicate, configuration, filter, out::collect);
+              remainingSubDir,
+              predicate,
+              configuration,
+              Integer.MAX_VALUE,
+              Integer.MAX_VALUE,
+              Lists.newArrayList(),
+              filter,
+              out::collect);
         }
       }
     } catch (Exception e) {

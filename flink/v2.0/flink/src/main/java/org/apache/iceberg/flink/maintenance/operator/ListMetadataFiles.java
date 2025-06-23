@@ -35,8 +35,8 @@ import org.slf4j.LoggerFactory;
 
 /** Lists the metadata files referenced by the table. */
 @Internal
-public class ListMetadataFilesProcess extends ProcessFunction<Trigger, String> {
-  private static final Logger LOG = LoggerFactory.getLogger(ListMetadataFilesProcess.class);
+public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
+  private static final Logger LOG = LoggerFactory.getLogger(ListMetadataFiles.class);
 
   private final String taskName;
   private final int taskIndex;
@@ -44,7 +44,7 @@ public class ListMetadataFilesProcess extends ProcessFunction<Trigger, String> {
   private final TableLoader tableLoader;
   private transient Table table;
 
-  public ListMetadataFilesProcess(String taskName, int taskIndex, TableLoader tableLoader) {
+  public ListMetadataFiles(String taskName, int taskIndex, TableLoader tableLoader) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should no be null");
     this.tableLoader = tableLoader;

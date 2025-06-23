@@ -29,15 +29,15 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.flink.maintenance.operator.AntiJoin;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
-import org.apache.iceberg.flink.maintenance.operator.FileUriConverter;
+import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
+import org.apache.iceberg.flink.maintenance.operator.FileUriCheck;
+import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
-import org.apache.iceberg.flink.maintenance.operator.ListMetadataFilesProcess;
+import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
 import org.apache.iceberg.flink.maintenance.operator.TablePlanner;
-import org.apache.iceberg.flink.maintenance.operator.TableReader;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -59,6 +59,8 @@ public class DeleteOrphanFiles {
   static final String PLANNER_TASK_NAME = "Table Planner";
   static final String READER_TASK_NAME = "Files Reader";
   static final String FILESYSTEM_FILES_TASK_NAME = "Filesystem Files";
+  static final String FILE_URI_CHECK_TASK_NAME = "FileUri Check";
+  static final String ALL_FILE_URI_CHECK_TASK_NAME = "All Fs FileUri Check";
   static final String METADATA_FILES_TASK_NAME = "List metadata Files";
   static final String DELETE_FILES_TASK_NAME = "Delete File";
   static final String AGGREGATOR_TASK_NAME = "Orphan Files Aggregator";
@@ -115,7 +117,8 @@ public class DeleteOrphanFiles {
     }
 
     /**
-     * The maximum number of direct subdirectories to list in a single directory.
+     * The maximum number of direct subdirectories to list in a single directory. This parameter is
+     * not used when {@link #usePrefixListing(boolean)} is set to true.
      *
      * @param newMaxListingDirectSubDirs the maximum number of direct sub-directories to list
      * @return for chained calls
@@ -126,7 +129,8 @@ public class DeleteOrphanFiles {
     }
 
     /**
-     * The maximum depth to recurse when listing files from the file system.
+     * The maximum depth to recurse when listing files from the file system. This parameter is not
+     * used when {@link #usePrefixListing(boolean)} is set to true.
      *
      * @param newMaxListingDepth the maximum depth to recurse
      * @return for chained calls
@@ -200,7 +204,7 @@ public class DeleteOrphanFiles {
     }
 
     /**
-     * The number of file to delete .
+     * Size of the batch used to deleting the files.
      *
      * @param newDeleteBatchSize number of batch file
      * @return for chained calls
@@ -224,6 +228,7 @@ public class DeleteOrphanFiles {
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       tableLoader().open();
+      String tableName = tableLoader().loadTable().name();
 
       // Collect all data files
       SingleOutputStreamOperator<TablePlanner.SplitInfo> splits =
@@ -247,7 +252,7 @@ public class DeleteOrphanFiles {
           splits
               .rebalance()
               .process(
-                  new TableReader(
+                  new FileNameReader(
                       taskName(), index(), tableLoader(), FILE_PATH_SCHEMA, caseSensitive))
               .name(operatorName(READER_TASK_NAME))
               .uid(READER_TASK_NAME + uidSuffix())
@@ -257,7 +262,7 @@ public class DeleteOrphanFiles {
       // Collect all meta data files
       SingleOutputStreamOperator<String> tableMetadataFiles =
           trigger
-              .process(new ListMetadataFilesProcess(taskName(), index(), tableLoader()))
+              .process(new ListMetadataFiles(taskName(), index(), tableLoader()))
               .name(operatorName(METADATA_FILES_TASK_NAME))
               .uid(METADATA_FILES_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
@@ -284,13 +289,24 @@ public class DeleteOrphanFiles {
       SingleOutputStreamOperator<String> filesToDelete =
           tableMetadataFiles
               .union(tableDataFiles)
-              .map(new FileUriConverter(equalSchemes, equalAuthorities))
-              .keyBy(FileURI::getPath)
+              .process(
+                  new FileUriCheck(equalSchemes, equalAuthorities, tableName, taskName(), index()))
+              .name(operatorName(FILE_URI_CHECK_TASK_NAME))
+              .uid(FILE_URI_CHECK_TASK_NAME + uidSuffix())
+              .slotSharingGroup(slotSharingGroup())
+              .setParallelism(parallelism())
+              .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities))
               .connect(
                   allFsFiles
-                      .map(new FileUriConverter(equalSchemes, equalAuthorities))
-                      .keyBy(FileURI::getPath))
-              .process(new AntiJoin(prefixMismatchMode))
+                      .process(
+                          new FileUriCheck(
+                              equalSchemes, equalAuthorities, tableName, taskName(), index()))
+                      .name(operatorName(ALL_FILE_URI_CHECK_TASK_NAME))
+                      .uid(ALL_FILE_URI_CHECK_TASK_NAME + uidSuffix())
+                      .slotSharingGroup(slotSharingGroup())
+                      .setParallelism(parallelism())
+                      .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
+              .process(new AntiJoin(prefixMismatchMode, equalSchemes, equalAuthorities))
               .slotSharingGroup(slotSharingGroup())
               .name(operatorName(FILTER_FILES_TASK_NAME))
               .uid(FILTER_FILES_TASK_NAME + uidSuffix())

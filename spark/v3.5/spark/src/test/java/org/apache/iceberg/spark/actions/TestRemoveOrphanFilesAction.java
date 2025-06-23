@@ -1172,7 +1172,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
                   anyInt(),
                   anyList(),
                   any(PathFilter.class),
-                  anyList()));
+                  any()));
     }
   }
 

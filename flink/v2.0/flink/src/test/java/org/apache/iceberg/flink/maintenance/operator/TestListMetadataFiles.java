@@ -27,7 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.junit.jupiter.api.Test;
 
-class TestListMetadataFilesProcess extends OperatorTestBase {
+class TestListMetadataFiles extends OperatorTestBase {
 
   @Test
   void testMetadataFilesWithTable() throws Exception {
@@ -37,7 +37,7 @@ class TestListMetadataFilesProcess extends OperatorTestBase {
     insert(table, 3, "c");
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListMetadataFilesProcess(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+            new ListMetadataFiles(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -59,7 +59,7 @@ class TestListMetadataFilesProcess extends OperatorTestBase {
     insertPartitioned(table, 4, "p2");
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListMetadataFilesProcess(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+            new ListMetadataFiles(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -76,7 +76,7 @@ class TestListMetadataFilesProcess extends OperatorTestBase {
     createTable();
     try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListMetadataFilesProcess(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+            new ListMetadataFiles(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

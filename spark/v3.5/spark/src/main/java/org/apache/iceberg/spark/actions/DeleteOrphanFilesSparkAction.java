@@ -316,9 +316,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       Predicate<org.apache.iceberg.io.FileInfo> predicate =
           fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
-      matchingFiles =
-          FileSystemWalker.listDirRecursivelyWithFileIO(
-              (SupportsPrefixOperations) table.io(), location, predicate, pathFilter);
+      FileSystemWalker.listDirRecursivelyWithFileIO(
+          (SupportsPrefixOperations) table.io(),
+          location,
+          predicate,
+          pathFilter,
+          matchingFiles::add);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -334,7 +337,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
           subDirs,
           pathFilter,
-          matchingFiles);
+          matchingFiles::add);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
@@ -433,7 +436,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS,
             subDirs,
             pathFilter,
-            files);
+            files::add);
       }
 
       if (!subDirs.isEmpty()) {

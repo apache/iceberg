@@ -83,7 +83,7 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
     Table tableOri = tableLoader.loadTable();
     this.table = MetadataTableUtils.createMetadataTableInstance(tableOri, metadataTableType);
     this.workerPool =
-        ThreadPools.newFixedThreadPool(table.name() + "-table--planner", workerPoolSize);
+        ThreadPools.newFixedThreadPool(table.name() + "-table-planner", workerPoolSize);
     this.splitSerializer = new IcebergSourceSplitSerializer(caseSensitive);
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableOri.name(), taskName, taskIndex)
