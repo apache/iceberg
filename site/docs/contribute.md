@@ -422,49 +422,6 @@ Use `this` when assigning values to instance variables, making it clear when the
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 
-#### Block Spacing
-
-To improve readability and maintain consistency, always place a newline after control blocks (if, for, while, switch, etc.). 
-This helps separate logical sections of the code, making it easier to read and debug.
-
-```java
-  // BAD: No newline separator after `if` block
-  public static WriteBuilder write(OutputFile file) {
-     if (file instanceof EncryptedOutputFile) {
-        return write((EncryptedOutputFile) file);
-     }
-     return new WriteBuilder(file);
-  }
-
-  // GOOD: newline separator after `if` block
-  public static WriteBuilder write(OutputFile file) {
-     if (file instanceof EncryptedOutputFile) {
-        return write((EncryptedOutputFile) file);
-     }
-     
-     return new WriteBuilder(file);
-  }
-
-  // BAD: No newline separator after `for` block
-  public static Schema convert(Schema schema) {
-     ImmutableList.Builder<Field> fields = ImmutableList.builder();
-     for (NestedField f : schema.columns()) {
-        fields.add(convert(f));
-     }
-     return new Schema(fields.build());
-  }
-
-  // GOOD: newline separator after `for` block
-  public static Schema convert(Schema schema) {
-     ImmutableList.Builder<Field> fields = ImmutableList.builder();
-     for (NestedField f : schema.columns()) {
-        fields.add(convert(f));
-     }
-
-     return new Schema(fields.build());
-  }
-```
-
 ## Testing
 
 ### AssertJ
