@@ -104,7 +104,12 @@ public class VectorizedPageIterator extends BasePageIterator {
                 + dataEncoding
                 + ". Disable vectorized reads to read this table/file");
       }
-      valuesReader.initFromPage(valueCount, in);
+      try {
+        valuesReader.initFromPage(valueCount, in);
+      } catch (IOException e) {
+        throw new ParquetDecodingException(
+            "could not read page " + valueCount + " in col " + desc, e);
+      }
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding)
