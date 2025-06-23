@@ -36,26 +36,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestAntiJoin extends OperatorTestBase {
-  private static Map<String, String> equalSchemes =
+  private static final Map<String, String> equalSchemes =
       Maps.newHashMap(
           ImmutableMap.of(
               "s3n", "s3",
               "s3a", "s3"));
-  private static Map<String, String> equalAuthorities = Maps.newHashMap();
-  private static final FileURI SCHEME_FILE_1 =
+  private static final Map<String, String> equalAuthorities = Maps.newHashMap();
+  private static final String SCHEME_FILE_1 = "s3:/fileName1";
+  private static final FileURI SCHEME_FILE_1_FILE_URI =
       new FileURI("s3:/fileName1", equalSchemes, equalAuthorities);
-  private static final FileURI SCHEME_FILE_2 =
-      new FileURI("s3:/fileName2", equalSchemes, equalAuthorities);
-  private static final FileURI AUTHORITY_FILE_1 =
-      new FileURI("s3://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
-  private static final FileURI ONE_AUTHORITY_SCHEME_FILE_1 =
-      new FileURI("s3a://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
-  private static final FileURI TWO_AUTHORITY_SCHEME_FILE_1 =
-      new FileURI("s3b://HDFS1002060/fileName1", equalSchemes, equalAuthorities);
+  private static final String AUTHORITY_FILE_1 = "s3://HDFS1002060/fileName1";
+  private static final String ONE_AUTHORITY_SCHEME_FILE_1 = "s3a://HDFS1002060/fileName1";
+  private static final String TWO_AUTHORITY_SCHEME_FILE_1 = "s3b://HDFS1002060/fileName1";
 
   @Test
   void testFileSystemFirst() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -72,7 +68,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testTableFirst() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -89,7 +85,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testOnlyFileSystem() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -97,15 +93,14 @@ public class TestAntiJoin extends OperatorTestBase {
       testHarness.processElement2(SCHEME_FILE_1, EVENT_TIME);
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
-      assertThat(testHarness.extractOutputValues())
-          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.getUriAsString()));
+      assertThat(testHarness.extractOutputValues()).isEqualTo(ImmutableList.of(SCHEME_FILE_1));
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
     }
   }
 
   @Test
   void testOnlyTable() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -119,7 +114,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testFileSystemWithAuthority() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -134,7 +129,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testTableWithAuthority() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -154,7 +149,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testDiffScheme() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -169,7 +164,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testUnRegisterScheme() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness()) {
       testHarness.open();
 
@@ -189,7 +184,7 @@ public class TestAntiJoin extends OperatorTestBase {
 
   @Test
   void testPrefixMismatchModeDelete() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.DELETE)) {
       testHarness.open();
 
@@ -197,15 +192,14 @@ public class TestAntiJoin extends OperatorTestBase {
       testHarness.processElement2(SCHEME_FILE_1, EVENT_TIME);
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
-      assertThat(testHarness.extractOutputValues())
-          .isEqualTo(ImmutableList.of(SCHEME_FILE_1.getUriAsString()));
+      assertThat(testHarness.extractOutputValues()).isEqualTo(ImmutableList.of(SCHEME_FILE_1));
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
     }
   }
 
   @Test
   void testPrefixMismatchModeIgnore() throws Exception {
-    try (KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String> testHarness =
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
         testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.IGNORE)) {
       testHarness.open();
 
@@ -218,18 +212,33 @@ public class TestAntiJoin extends OperatorTestBase {
     }
   }
 
-  private static KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String>
-      testHarness(
-          org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode)
-          throws Exception {
+  @Test
+  void testMultiAuthority() throws Exception {
+    try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
+        testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.IGNORE)) {
+      testHarness.open();
+
+      testHarness.processElement1(TWO_AUTHORITY_SCHEME_FILE_1, EVENT_TIME);
+      testHarness.processElement1(ONE_AUTHORITY_SCHEME_FILE_1, EVENT_TIME);
+      testHarness.processElement2(AUTHORITY_FILE_1, EVENT_TIME);
+      assertThat(testHarness.extractOutputValues()).isEmpty();
+      testHarness.processBothWatermarks(WATERMARK);
+      assertThat(testHarness.extractOutputValues()).isEmpty();
+      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+    }
+  }
+
+  private static KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness(
+      org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode)
+      throws Exception {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
-        new AntiJoin(prefixMismatchMode),
-        (KeySelector<FileURI, String>) t -> t.getPath(),
-        (KeySelector<FileURI, String>) t -> t.getPath(),
+        new AntiJoin(prefixMismatchMode, equalSchemes, equalAuthorities),
+        (KeySelector<String, String>) t -> new FileURI(t, equalSchemes, equalAuthorities).getPath(),
+        (KeySelector<String, String>) t -> new FileURI(t, equalSchemes, equalAuthorities).getPath(),
         BasicTypeInfo.STRING_TYPE_INFO);
   }
 
-  private static KeyedTwoInputStreamOperatorTestHarness<String, FileURI, FileURI, String>
+  private static KeyedTwoInputStreamOperatorTestHarness<String, String, String, String>
       testHarness() throws Exception {
     return testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }

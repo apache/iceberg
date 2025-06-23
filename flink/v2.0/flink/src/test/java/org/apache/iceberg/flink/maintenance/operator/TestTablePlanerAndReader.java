@@ -60,7 +60,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
 
     try (OneInputStreamOperatorTestHarness<TablePlanner.SplitInfo, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new TableReader(
+            new FileNameReader(
                 OperatorTestBase.DUMMY_TASK_NAME, 0, tableLoader(), FILE_PATH_SCHEMA, false))) {
       testHarness.open();
       for (TablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {
@@ -98,7 +98,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
 
     try (OneInputStreamOperatorTestHarness<TablePlanner.SplitInfo, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new TableReader(
+            new FileNameReader(
                 OperatorTestBase.DUMMY_TASK_NAME, 0, tableLoader(), FILE_PATH_SCHEMA, false))) {
       testHarness.open();
       for (TablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {

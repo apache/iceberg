@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 
 /** Reads the records from the metadata table splits. */
 @Internal
-public class TableReader extends ProcessFunction<TablePlanner.SplitInfo, String> {
+public abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R> {
   private static final Logger LOG = LoggerFactory.getLogger(TableReader.class);
 
   private final TableLoader tableLoader;
@@ -91,15 +91,16 @@ public class TableReader extends ProcessFunction<TablePlanner.SplitInfo, String>
   }
 
   @Override
-  public void processElement(TablePlanner.SplitInfo splitInfo, Context ctx, Collector<String> out)
+  public void processElement(TablePlanner.SplitInfo splitInfo, Context ctx, Collector<R> out)
       throws Exception {
     IcebergSourceSplit split =
         splitSerializer.deserialize(splitInfo.getVersion(), splitInfo.getSplit());
     try (DataIterator<RowData> iterator = rowDataReaderFunction.createDataIterator(split)) {
       iterator.forEachRemaining(
           rowData -> {
-            if (rowData != null && rowData.getString(0) != null) {
-              out.collect(rowData.getString(0).toString());
+            R result = extract(rowData);
+            if (result != null) {
+              out.collect(result);
             }
           });
     } catch (Exception e) {
@@ -114,4 +115,12 @@ public class TableReader extends ProcessFunction<TablePlanner.SplitInfo, String>
     super.close();
     tableLoader.close();
   }
+
+  /**
+   * Extracts the desired data from the given RowData.
+   *
+   * @param rowData the RowData from which to extract
+   * @return the extracted data, or null if no data should be emitted for this row
+   */
+  abstract R extract(RowData rowData);
 }

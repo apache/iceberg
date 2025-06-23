@@ -41,7 +41,13 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, () -> true, true);
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        false /*generateFailure */,
+        () -> true /* waitForCondition */,
+        true /* resultSuccess */);
   }
 
   void runAndWaitForSuccess(
@@ -68,7 +74,13 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, true, () -> true, true);
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        true /*generateFailure */,
+        () -> true /* waitForCondition */,
+        true /* resultSuccess */);
   }
 
   void runAndWaitForResult(

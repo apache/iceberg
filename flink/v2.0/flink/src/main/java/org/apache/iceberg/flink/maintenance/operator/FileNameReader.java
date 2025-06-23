@@ -18,27 +18,29 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.Map;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.iceberg.actions.FileURI;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.TableLoader;
 
 @Internal
-public class FileUriConverter implements MapFunction<String, FileURI> {
+public class FileNameReader extends TableReader<String> {
 
-  private final Map<String, String> equalSchemes;
-  private final Map<String, String> equalAuthorities;
-
-  public FileUriConverter(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-    Preconditions.checkNotNull(equalSchemes, "equalSchemes should no be null");
-    Preconditions.checkNotNull(equalAuthorities, "equalAuthorities should no be null");
-    this.equalSchemes = equalSchemes;
-    this.equalAuthorities = equalAuthorities;
+  public FileNameReader(
+      String taskName,
+      int taskIndex,
+      TableLoader tableLoader,
+      Schema projectedSchema,
+      boolean caseSensitive) {
+    super(taskName, taskIndex, tableLoader, projectedSchema, caseSensitive);
   }
 
   @Override
-  public FileURI map(String value) throws Exception {
-    return new FileURI(value, equalSchemes, equalAuthorities);
+  String extract(RowData rowData) {
+    if (rowData != null && rowData.getString(0) != null) {
+      return rowData.getString(0).toString();
+    } else {
+      return null;
+    }
   }
 }
