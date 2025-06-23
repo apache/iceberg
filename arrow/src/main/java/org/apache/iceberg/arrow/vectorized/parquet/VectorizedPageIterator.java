@@ -95,6 +95,8 @@ public class VectorizedPageIterator extends BasePageIterator {
     } else {
       if (dataEncoding == Encoding.PLAIN) {
         valuesReader = new VectorizedPlainValuesReader();
+      } else if (dataEncoding == Encoding.DELTA_BINARY_PACKED) {
+        valuesReader = new VectorizedDeltaEncodedValuesReader();
       } else {
         throw new UnsupportedOperationException(
             "Cannot support vectorized reads for column "
