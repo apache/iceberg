@@ -602,4 +602,20 @@ public class ExpressionVisitors {
       }
     }
   }
+
+  public abstract static class FindsResidualVisitor extends BoundExpressionVisitor<Expression> {
+    protected static final Expression ROWS_CANNOT_MATCH = Expressions.alwaysFalse();
+    protected static final Expression ROWS_ALL_MATCH = Expressions.alwaysTrue();
+    protected static final Expression ROWS_MIGHT_MATCH = null;
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      Expression result = super.predicate(pred);
+      if (result == ROWS_CANNOT_MATCH || result == ROWS_ALL_MATCH) {
+        return result;
+      }
+
+      return pred;
+    }
+  }
 }
