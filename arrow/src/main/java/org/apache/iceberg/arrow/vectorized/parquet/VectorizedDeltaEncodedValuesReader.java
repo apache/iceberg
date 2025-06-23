@@ -71,9 +71,7 @@ public class VectorizedDeltaEncodedValuesReader
 
     private ByteBufferInputStream in;
 
-    // temporary buffers used by readByte, readShort, readInteger, and readLong
-    private byte byteVal;
-    private short shortVal;
+    // temporary buffers used by readInteger and readLong
     private int intVal;
     private long longVal;
 
@@ -99,22 +97,24 @@ public class VectorizedDeltaEncodedValuesReader
 
     @Override
     public byte readByte() {
-        return 0;
+        throw new UnsupportedOperationException("readByte is not supported");
     }
 
     @Override
     public short readShort() {
-        return 0;
+        throw new UnsupportedOperationException("readShort is not supported");
     }
 
     @Override
     public int readInteger() {
-        return -1;
+        readValues(1, null, 0, INT_SIZE, (b, v) -> intVal = (int) v);
+        return intVal;
     }
 
     @Override
     public long readLong() {
-        return -1;
+        readValues(1, null, 0, LONG_SIZE, (b, v) -> longVal = (int) v);
+        return longVal;
     }
 
     @Override
