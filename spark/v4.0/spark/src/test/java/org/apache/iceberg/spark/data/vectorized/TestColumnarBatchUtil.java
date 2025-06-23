@@ -183,7 +183,7 @@ public class TestColumnarBatchUtil {
   }
 
   @Test
-  void testBuildIsDeletedWithDeletedRange() {
+  void testBuildIsDeletedPositionDeletes() {
     PositionDeleteIndex deletedRowPos = mock(PositionDeleteIndex.class);
     when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
 
@@ -201,7 +201,55 @@ public class TestColumnarBatchUtil {
     }
 
     for (int i = 0; i < 98; i++) {
-      assertThat(isDeleted[97]).isFalse();
+      assertThat(isDeleted[i]).isFalse();
+    }
+  }
+
+  @Test
+  void testBuildIsDeletedEqualityDeletes() {
+    // Define raw equality delete predicate — delete rows where value == 42 or 43
+    Predicate<InternalRow> rawEqDelete = row -> row.getInt(0) == 42 || row.getInt(0) == 43;
+
+    // Mimic real eqDeletedRowFilter(): keep row only if it does NOT match delete condition
+    Predicate<InternalRow> eqDeletePredicate =
+        Stream.of(rawEqDelete).map(Predicate::negate).reduce(Predicate::and).orElse(t -> true);
+    when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeletePredicate);
+
+    var isDeleted = ColumnarBatchUtil.buildIsDeleted(columnVectors, deleteFilter, 0, 5);
+
+    for (int i = 0; i < isDeleted.length; i++) {
+      if (i == 2 || i == 3) { // 42 and 43
+        assertThat(isDeleted[i]).isTrue();
+      } else {
+        assertThat(isDeleted[i]).isFalse();
+      }
+    }
+  }
+
+  @Test
+  void testBuildIsDeletedPositionAndEqualityDeletes() {
+    // Define raw equality delete predicate — delete rows where value == 42
+    Predicate<InternalRow> rawEqDelete = row -> row.getInt(0) == 42;
+
+    // Mimic real eqDeletedRowFilter(): keep row only if it does NOT match delete condition
+    Predicate<InternalRow> eqDeletePredicate =
+        Stream.of(rawEqDelete).map(Predicate::negate).reduce(Predicate::and).orElse(t -> true);
+    when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeletePredicate);
+
+    PositionDeleteIndex deletedRowPos = mock(PositionDeleteIndex.class);
+    when(deletedRowPos.isDeleted(1)).thenReturn(true); // 41
+    when(deletedRowPos.isDeleted(4)).thenReturn(true); // 44
+    when(deleteFilter.hasPosDeletes()).thenReturn(true);
+    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+
+    var isDeleted = ColumnarBatchUtil.buildIsDeleted(columnVectors, deleteFilter, 0, 5);
+
+    for (int i = 0; i < isDeleted.length; i++) {
+      if (i == 0 || i == 3) {
+        assertThat(isDeleted[i]).isFalse();
+      } else {
+        assertThat(isDeleted[i]).isTrue(); // 42, 41, 44 are deleted
+      }
     }
   }
 
