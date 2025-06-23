@@ -26,7 +26,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
@@ -85,6 +87,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -965,7 +968,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testLoadTableWithMissingMetadatafile() throws IOException {
+  public void testLoadTableWithMissingMetadatafile(@TempDir Path tempDir) throws IOException {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -978,13 +981,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.loadTable(TBL);
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
-    Files.move(
-        Paths.get(metadataFileLocation), Paths.get("tmp.json"), StandardCopyOption.ATOMIC_MOVE);
+    Path renamedMetadataFile = tempDir.resolve("tmp.json");
+    renamedMetadataFile.toFile().deleteOnExit();
+    Files.writeString(renamedMetadataFile, "metadata");
+    Path metadataFilePath =
+        metadataFileLocation.startsWith("file:")
+            ? Paths.get(URI.create(metadataFileLocation))
+            : Paths.get(metadataFileLocation);
+    Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
 
     assertThatThrownBy(() -> catalog.loadTable(TBL)).isInstanceOf(NotFoundException.class);
-
-    Files.move(
-        Paths.get("tmp.json"), Paths.get(metadataFileLocation), StandardCopyOption.ATOMIC_MOVE);
+    Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
   }
 
   @Test
