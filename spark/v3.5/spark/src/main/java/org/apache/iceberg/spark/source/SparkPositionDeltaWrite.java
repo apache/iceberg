@@ -277,6 +277,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
     }
 
+    @Override
+    public String toString() {
+      return String.format("IcebergDeltaWrite(table=%s)", table);
+    }
+
     private Expression conflictDetectionFilter(SparkBatchQueryScan queryScan) {
       Expression filter = Expressions.alwaysTrue();
 
