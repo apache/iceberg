@@ -328,7 +328,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           readBuilder
               .project(readSchema)
               .split(currentTask.start(), currentTask.length())
-              .filter(currentTask.residual(), caseSensitive)
+              .caseSensitive(caseSensitive)
+              .filter(currentTask.residual())
               .build(),
           currentTask.residual(),
           readSchema);

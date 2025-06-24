@@ -55,10 +55,10 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
   B fileSchema(Schema newSchema);
 
   /**
-   * Sets the data schema for the input. Used by the {@link WriteBuilder#build()} to configure the
-   * converters.
+   * Sets the object model schema for the input. Used by the {@link WriteBuilder#build()} to
+   * configure the converters.
    */
-  B dataSchema(E dataSchema);
+  B modelSchema(E modelSchema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.

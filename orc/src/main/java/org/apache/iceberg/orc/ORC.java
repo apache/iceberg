@@ -253,8 +253,8 @@ public class ORC {
     }
 
     @Override
-    public WriteBuilderImpl<E, D> dataSchema(E newEngineSchema) {
-      this.engineSchema = newEngineSchema;
+    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
+      this.engineSchema = newModelSchema;
       return this;
     }
 
@@ -887,7 +887,7 @@ public class ORC {
     }
 
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      impl.filter(impl.filter, newCaseSensitive);
+      impl.caseSensitive(newCaseSensitive);
       return this;
     }
 
@@ -960,6 +960,7 @@ public class ORC {
     private Expression filter = null;
     private boolean filterCaseSensitive = true;
     private NameMapping nameMapping = null;
+    private boolean reuseContainers = false;
 
     private Function<TypeDescription, OrcRowReader<D>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<D>> batchedReaderFunc;
@@ -1025,9 +1026,20 @@ public class ORC {
     }
 
     @Override
-    public ReadBuilderImpl<D> filter(Expression newFilter, boolean newFilterCaseSensitive) {
+    public ReadBuilderImpl<D> reuseContainers() {
+      this.reuseContainers = true;
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> caseSensitive(boolean newFilterCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newFilterCaseSensitive);
       this.filterCaseSensitive = newFilterCaseSensitive;
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> filter(Expression newFilter) {
       this.filter = newFilter;
       return this;
     }
@@ -1047,6 +1059,7 @@ public class ORC {
     @Override
     public FileReader<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(reuseContainers, "Reuse containers is required for ORC read");
       Function<TypeDescription, OrcRowReader<D>> reader =
           readerFunc != null
               ? readerFunc

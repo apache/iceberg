@@ -372,8 +372,8 @@ public class Parquet {
     }
 
     @Override
-    public WriteBuilderImpl<E, D> dataSchema(E newEngineSchema) {
-      this.engineSchema = newEngineSchema;
+    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
+      this.engineSchema = newModelSchema;
       return this;
     }
 
@@ -1393,7 +1393,7 @@ public class Parquet {
     }
 
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      impl.filter(impl.filter, newCaseSensitive);
+      impl.caseSensitive(newCaseSensitive);
       return this;
     }
 
@@ -1403,7 +1403,7 @@ public class Parquet {
     }
 
     public ReadBuilder filter(Expression newFilter) {
-      impl.filter(newFilter, impl.filterCaseSensitive);
+      impl.filter(newFilter);
       return this;
     }
 
@@ -1601,9 +1601,14 @@ public class Parquet {
     }
 
     @Override
-    public ReadBuilderImpl<D, F> filter(Expression newFilter, boolean newFilterCaseSensitive) {
-      this.filter = newFilter;
+    public ReadBuilderImpl<D, F> caseSensitive(boolean newFilterCaseSensitive) {
       this.filterCaseSensitive = newFilterCaseSensitive;
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D, F> filter(Expression newFilter) {
+      this.filter = newFilter;
       return this;
     }
 

@@ -48,7 +48,7 @@ public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder
    * records being deleted.
    *
    * <p>The row values provided to the writer should match the structure specified via {@link
-   * #dataSchema(Object)} in the writer's native input data format. These values will be converted
+   * #modelSchema(Object)} in the writer's native input data format. These values will be converted
    * to the Iceberg schema defined here for storage in the delete file's 'row' column.
    *
    * <p>If not configured, position delete files will contain only the path and position information

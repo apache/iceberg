@@ -129,7 +129,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
               .project(schema)
               .constantFieldAccessors(idToConstant)
               .split(task.start(), task.length())
-              .filter(task.residual(), filterCaseSensitive)
+              .caseSensitive(filterCaseSensitive)
+              .filter(task.residual())
               .reuseContainers()
               .build();
     }

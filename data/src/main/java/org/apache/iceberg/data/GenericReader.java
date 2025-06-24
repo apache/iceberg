@@ -99,7 +99,8 @@ class GenericReader implements Serializable {
         .project(fileProjection)
         .constantFieldAccessors(partition)
         .split(task.start(), task.length())
-        .filter(task.residual(), filterCaseSensitive)
+        .caseSensitive(filterCaseSensitive)
+        .filter(task.residual())
         .build();
   }
 

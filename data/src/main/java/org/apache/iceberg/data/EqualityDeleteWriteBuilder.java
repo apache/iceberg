@@ -56,7 +56,7 @@ public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder
    * based on field equality, generating proper {@link DeleteFile} metadata on completion.
    *
    * <p>The writer accepts input records matching the input schema specified via {@link
-   * #dataSchema(Object)} and converts them to the target Iceberg schema specified via {@link
+   * #modelSchema(Object)} and converts them to the target Iceberg schema specified via {@link
    * #rowSchema(Schema)} for deletion.
    *
    * @return a fully configured {@link EqualityDeleteWriter} instance

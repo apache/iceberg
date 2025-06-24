@@ -63,19 +63,10 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityDeleteSortOrder,
         positionDeleteRowSchema,
         writeProperties,
-        dataSparkType == null
-            ? dataSchema == null ? null : SparkSchemaUtil.convert(dataSchema)
-            : dataSparkType,
-        equalityDeleteSparkType == null
-            ? equalityDeleteRowSchema == null
-                ? null
-                : SparkSchemaUtil.convert(equalityDeleteRowSchema)
-            : equalityDeleteSparkType,
-        positionDeleteSparkType == null
-            ? positionDeleteRowSchema == null
-                ? null
-                : SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema))
-            : positionDeleteSparkType);
+        calculateSparkType(dataSparkType, dataSchema),
+        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema),
+        calculateSparkType(
+            positionDeleteSparkType, DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema)));
   }
 
   static Builder builderFor(Table table) {
@@ -192,6 +183,16 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
           positionDeleteRowSchema,
           positionDeleteSparkType,
           writeProperties);
+    }
+  }
+
+  private static StructType calculateSparkType(StructType sparkType, Schema schema) {
+    if (sparkType != null) {
+      return sparkType;
+    } else if (schema != null) {
+      return SparkSchemaUtil.convert(schema);
+    } else {
+      return null;
     }
   }
 }

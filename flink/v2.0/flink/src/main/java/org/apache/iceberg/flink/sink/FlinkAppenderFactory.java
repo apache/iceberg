@@ -107,7 +107,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               FlinkObjectModels.FLINK_OBJECT_MODEL,
               EncryptedFiles.plainAsEncryptedOutput(outputFile));
       return builder
-          .dataSchema(flinkSchema)
+          .modelSchema(flinkSchema)
           .set(props)
           .fileSchema(schema)
           .metricsConfig(metricsConfig)
@@ -127,7 +127,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           FileAccessFactoryRegistry.dataWriteBuilder(
               format, FlinkObjectModels.FLINK_OBJECT_MODEL, file);
       return builder
-          .dataSchema(flinkSchema)
+          .modelSchema(flinkSchema)
           .set(props)
           .fileSchema(schema)
           .metricsConfig(metricsConfig)
@@ -160,7 +160,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
-          .dataSchema(lazyEqDeleteFlinkSchema())
+          .modelSchema(lazyEqDeleteFlinkSchema())
           .partition(partition)
           .rowSchema(eqDeleteRowSchema)
           .spec(spec)
@@ -184,7 +184,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
-          .dataSchema(lazyPosDeleteFlinkSchema())
+          .modelSchema(lazyPosDeleteFlinkSchema())
           .partition(partition)
           .rowSchema(posDeleteRowSchema)
           .spec(spec)
