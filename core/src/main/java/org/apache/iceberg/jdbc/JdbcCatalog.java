@@ -192,7 +192,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             conn.prepareStatement(sqlCommand).execute();
             return true;
           } catch (SQLException e) {
-            // see if table was created by another thread.
+            // see if table was created by another thread or process.
             if (tableExists.test(tableName)) {
               return true;
             }
