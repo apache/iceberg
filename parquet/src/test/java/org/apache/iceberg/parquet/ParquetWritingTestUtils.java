@@ -37,8 +37,6 @@ import org.apache.parquet.schema.MessageType;
 
 /** Utilities for tests that need to write Parquet files. */
 class ParquetWritingTestUtils {
-  static final String META_KEY = "test-meta";
-  static final String META_VALUE = "test-value";
 
   private ParquetWritingTestUtils() {}
 
@@ -80,7 +78,6 @@ class ParquetWritingTestUtils {
             .schema(schema)
             .setAll(properties)
             .createWriterFunc(createWriterFunc)
-            .meta(META_KEY, META_VALUE)
             .build();
 
     try (Closeable toClose = writer) {

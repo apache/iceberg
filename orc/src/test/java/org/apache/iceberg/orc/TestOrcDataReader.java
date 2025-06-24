@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.orc;
 
-import static org.apache.iceberg.Files.localInput;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,8 +58,6 @@ public class TestOrcDataReader implements WithAssertions {
           Types.NestedField.optional(3, "binary", Types.BinaryType.get()),
           Types.NestedField.required(
               4, "array", Types.ListType.ofOptional(5, Types.IntegerType.get())));
-  private static final String META_KEY = "test-meta";
-  private static final String META_VALUE = "test-value";
   private static DataFile dataFile;
   private static OutputFile outputFile;
 
@@ -94,7 +88,6 @@ public class TestOrcDataReader implements WithAssertions {
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
-            .meta(META_KEY, META_VALUE)
             .build();
 
     try {
@@ -115,17 +108,6 @@ public class TestOrcDataReader implements WithAssertions {
     assertThat(dataFile.recordCount()).isEqualTo(5);
     assertThat(dataFile.partition().size()).isEqualTo(0);
     assertThat(dataFile.keyMetadata()).isNull();
-  }
-
-  @Test
-  public void testMeta() {
-    assertThat(
-            new ORCFileAccessFactory<>("test", null, null, null)
-                .readBuilder(localInput(dataFile.location()))
-                .project(SCHEMA)
-                .build()
-                .meta())
-        .contains(entry(META_KEY, META_VALUE));
   }
 
   private void validateAllRecords(List<Record> records) {

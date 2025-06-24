@@ -19,15 +19,14 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
@@ -38,7 +37,7 @@ import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ParquetReader<T> extends CloseableGroup implements FileReader<T> {
+public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
@@ -47,7 +46,6 @@ public class ParquetReader<T> extends CloseableGroup implements FileReader<T> {
   private final boolean reuseContainers;
   private final boolean filterCaseSensitive;
   private final NameMapping nameMapping;
-  private Map<String, String> meta;
 
   public ParquetReader(
       InputFile input,
@@ -86,11 +84,8 @@ public class ParquetReader<T> extends CloseableGroup implements FileReader<T> {
               filterCaseSensitive,
               null);
       this.conf = readConf.copy();
-      this.meta = readConf.reader().getFileMetaData().getKeyValueMetaData();
       return readConf;
     }
-
-    this.meta = conf.reader().getFileMetaData().getKeyValueMetaData();
     return conf;
   }
 
@@ -99,15 +94,6 @@ public class ParquetReader<T> extends CloseableGroup implements FileReader<T> {
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
-  }
-
-  @Override
-  public Map<String, String> meta() {
-    if (meta == null) {
-      init();
-    }
-
-    return meta;
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {

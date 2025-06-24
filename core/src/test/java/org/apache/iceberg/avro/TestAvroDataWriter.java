@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.avro;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -50,8 +48,6 @@ public class TestAvroDataWriter {
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
-  private static final String META_KEY = "test-meta";
-  private static final String META_VALUE = "test-value";
 
   private List<Record> records;
 
@@ -113,35 +109,5 @@ public class TestAvroDataWriter {
     }
 
     assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
-  }
-
-  @Test
-  public void testMeta() throws IOException {
-    OutputFile file = Files.localOutput(temp.toFile());
-
-    DataWriter<Record> dataWriter =
-        Avro.writeData(file)
-            .schema(SCHEMA)
-            .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
-            .overwrite()
-            .meta(META_KEY, META_VALUE)
-            .withSpec(PartitionSpec.unpartitioned())
-            .build();
-
-    try {
-      for (Record record : records) {
-        dataWriter.write(record);
-      }
-    } finally {
-      dataWriter.close();
-    }
-
-    assertThat(
-            new AvroFileAccessFactory<>("test", null, null, null)
-                .readBuilder(localInput(temp.toFile()))
-                .project(SCHEMA)
-                .build()
-                .meta())
-        .contains(entry(META_KEY, META_VALUE));
   }
 }

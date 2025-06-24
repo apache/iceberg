@@ -19,21 +19,18 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileReader;
 import org.apache.parquet.hadoop.ParquetReader;
 
-public class ParquetIterable<T> extends CloseableGroup implements FileReader<T> {
+public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final ParquetReader.Builder<T> builder;
-  private final Map<String, String> meta;
 
-  ParquetIterable(ParquetReader.Builder<T> builder, Map<String, String> meta) {
+  ParquetIterable(ParquetReader.Builder<T> builder) {
     this.builder = builder;
-    this.meta = meta;
   }
 
   @Override
@@ -45,11 +42,6 @@ public class ParquetIterable<T> extends CloseableGroup implements FileReader<T> 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet reader");
     }
-  }
-
-  @Override
-  public Map<String, String> meta() {
-    return meta;
   }
 
   private static class ParquetIterator<T> implements CloseableIterator<T> {
