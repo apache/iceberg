@@ -1060,7 +1060,10 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeVariantArray() {
-    Expression bound = Binder.bind(STRUCT, equal("var", Variant.of(VariantMetadata.empty(), VariantTestUtil.createMixedArray())));
+    Expression bound =
+        Binder.bind(
+            STRUCT,
+            equal("var", Variant.of(VariantMetadata.empty(), VariantTestUtil.createMixedArray())));
     assertEquals(
         Expressions.equal(
             "var",
