@@ -45,7 +45,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
         env,
         triggerSource,
         collectingSink,
-        false /*generateFailure */,
+        false /* generateFailure */,
         () -> true /* waitForCondition */,
         true /* resultSuccess */);
   }
@@ -78,7 +78,7 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
         env,
         triggerSource,
         collectingSink,
-        true /*generateFailure */,
+        true /* generateFailure */,
         () -> true /* waitForCondition */,
         true /* resultSuccess */);
   }
