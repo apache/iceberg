@@ -157,6 +157,14 @@ class ReadConf<T> {
     return newReader;
   }
 
+  InputFile file() {
+    return file;
+  }
+
+  MessageType projection() {
+    return projection;
+  }
+
   ParquetValueReader<T> model() {
     return model;
   }
