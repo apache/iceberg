@@ -41,8 +41,8 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -105,11 +105,11 @@ class TestDynamicCommitter {
             committerMetrics);
 
     WriteTarget writeTarget1 =
-        new WriteTarget(TABLE1, "branch", 42, 0, true, Lists.newArrayList(1, 2));
+        new WriteTarget(TABLE1, "branch", 42, 0, true, Sets.newHashSet(1, 2));
     WriteTarget writeTarget2 =
-        new WriteTarget(TABLE1, "branch2", 43, 0, true, Lists.newArrayList(1, 2));
+        new WriteTarget(TABLE1, "branch2", 43, 0, true, Sets.newHashSet(1, 2));
     WriteTarget writeTarget3 =
-        new WriteTarget(TABLE2, "branch2", 43, 0, true, Lists.newArrayList(1, 2));
+        new WriteTarget(TABLE2, "branch2", 43, 0, true, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
@@ -120,21 +120,21 @@ class TestDynamicCommitter {
     byte[] deltaManifest1 =
         aggregator.writeToManifest(
             writeTarget1,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget1, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             0);
     byte[] deltaManifest2 =
         aggregator.writeToManifest(
             writeTarget2,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget2, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             0);
     byte[] deltaManifest3 =
         aggregator.writeToManifest(
             writeTarget3,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget3, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             0);
@@ -155,7 +155,7 @@ class TestDynamicCommitter {
         new MockCommitRequest<>(
             new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId));
 
-    dynamicCommitter.commit(Lists.newArrayList(commitRequest1, commitRequest2, commitRequest3));
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
 
     table1.refresh();
     assertThat(table1.snapshots()).hasSize(2);
@@ -238,7 +238,7 @@ class TestDynamicCommitter {
             committerMetrics);
 
     WriteTarget writeTarget =
-        new WriteTarget(TABLE1, "branch", 42, 0, false, Lists.newArrayList(1, 2));
+        new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
@@ -253,7 +253,7 @@ class TestDynamicCommitter {
     byte[] deltaManifest =
         aggregator.writeToManifest(
             writeTarget,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             checkpointId);
@@ -262,7 +262,7 @@ class TestDynamicCommitter {
         new MockCommitRequest<>(
             new DynamicCommittable(writeTarget, deltaManifest, jobId, operatorId, checkpointId));
 
-    dynamicCommitter.commit(Lists.newArrayList(commitRequest));
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest));
 
     CommitRequest<DynamicCommittable> oldCommitRequest =
         new MockCommitRequest<>(
@@ -270,7 +270,7 @@ class TestDynamicCommitter {
                 writeTarget, deltaManifest, jobId, operatorId, checkpointId - 1));
 
     // Old commits requests shouldn't affect the result
-    dynamicCommitter.commit(Lists.newArrayList(oldCommitRequest));
+    dynamicCommitter.commit(Sets.newHashSet(oldCommitRequest));
 
     table1.refresh();
     assertThat(table1.snapshots()).hasSize(1);
@@ -315,7 +315,7 @@ class TestDynamicCommitter {
             committerMetrics);
 
     WriteTarget writeTarget =
-        new WriteTarget(TABLE1, "branch", 42, 0, false, Lists.newArrayList(1, 2));
+        new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
         new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
@@ -330,7 +330,7 @@ class TestDynamicCommitter {
     byte[] deltaManifest =
         aggregator.writeToManifest(
             writeTarget,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             checkpointId);
@@ -339,12 +339,12 @@ class TestDynamicCommitter {
         new MockCommitRequest<>(
             new DynamicCommittable(writeTarget, deltaManifest, jobId, operatorId, checkpointId));
 
-    dynamicCommitter.commit(Lists.newArrayList(commitRequest));
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest));
 
     byte[] overwriteManifest =
         aggregator.writeToManifest(
             writeTarget,
-            Lists.newArrayList(
+            Sets.newHashSet(
                 new DynamicWriteResult(
                     writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
             checkpointId + 1);
@@ -354,7 +354,7 @@ class TestDynamicCommitter {
             new DynamicCommittable(
                 writeTarget, overwriteManifest, jobId, operatorId, checkpointId + 1));
 
-    dynamicCommitter.commit(Lists.newArrayList(overwriteRequest));
+    dynamicCommitter.commit(Sets.newHashSet(overwriteRequest));
 
     table1.refresh();
     assertThat(table1.snapshots()).hasSize(2);

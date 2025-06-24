@@ -718,6 +718,7 @@ project(':iceberg-gcp') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 }
 

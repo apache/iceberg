@@ -386,6 +386,7 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
 
 #### Partition evolution
 You change the partitioning schema using the following commands:
+
 * Change the partitioning schema to new identity partitions:
 ```sql
 ALTER TABLE default.customers SET PARTITION SPEC (last_name);
@@ -394,6 +395,7 @@ ALTER TABLE default.customers SET PARTITION SPEC (last_name);
 ```sql
 ALTER TABLE order SET PARTITION SPEC (month(ts));
 ```
+
 #### Table migration
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:
 ```sql

@@ -406,7 +406,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
 | `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
 | `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
-| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
+| `min-input-files` | 5 | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files) |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
@@ -495,7 +495,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
 
 #### Examples
 

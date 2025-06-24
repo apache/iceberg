@@ -31,9 +31,11 @@ import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -240,6 +242,90 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
                 StructLike partition = entry.file().partition();
                 assertThat(partition.get(0, Object.class)).isNull();
               });
+    }
+  }
+
+  @TestTemplate
+  public void testPartitionSpecEvolutionNullValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "company_id", Types.IntegerType.get()),
+            required(2, "dept_id", Types.IntegerType.get()),
+            required(3, "team_id", Types.IntegerType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "nulltest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("company_id").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(new Object[] {null}))).commit();
+
+    table.updateSpec().addField("dept_id").commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null))).commit();
+
+    table.updateSpec().addField("team_id").commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null, null))).commit();
+
+    assertPartitions(
+        "company_id=null",
+        "company_id=null/dept_id=null",
+        "company_id=null/dept_id=null/team_id=null");
+  }
+
+  @TestTemplate
+  public void testPartitionSpecRenameFields() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "data", Types.StringType.get()),
+            required(2, "category", Types.StringType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "renametest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("data").identity("category").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+    table
+        .newFastAppend()
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
+        .commit();
+
+    table.updateSpec().renameField("category", "category_another_name").commit();
+    table
+        .newFastAppend()
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
+        .commit();
+
+    assertPartitions("data=c1/category_another_name=d1", "data=c2/category_another_name=d2");
+  }
+
+  private void assertPartitions(String... expected) throws IOException {
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = partitionsTable.newScan().planFiles()) {
+      List<String> partitions =
+          FluentIterable.from(fileScanTasks)
+              .transformAndConcat(task -> task.asDataTask().rows())
+              .transform(
+                  row -> {
+                    StructLike data = row.get(0, StructProjection.class);
+                    PartitionSpec spec = table.specs().get(row.get(1, Integer.class));
+
+                    PartitionData keyTemplate = new PartitionData(spec.partitionType());
+                    return spec.partitionToPath(keyTemplate.copyFor((data)));
+                  })
+              .toList();
+
+      assertThat(partitions).containsExactlyInAnyOrder(expected);
     }
   }
 

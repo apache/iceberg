@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -31,6 +25,8 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
@@ -151,7 +147,7 @@ public class IcebergSink
   private final RowType flinkRowType;
   private final SerializableSupplier<Table> tableSupplier;
   private final transient FlinkWriteConf flinkWriteConf;
-  private final List<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsertMode;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
@@ -162,7 +158,7 @@ public class IcebergSink
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
-  private final List<String> equalityFieldColumns = null;
+  private final Set<String> equalityFieldColumns = null;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -173,7 +169,7 @@ public class IcebergSink
       RowType flinkRowType,
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
-      List<Integer> equalityFieldIds,
+      Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
       FlinkMaintenanceConfig flinkMaintenanceConfig) {
@@ -616,7 +612,7 @@ public class IcebergSink
       boolean overwriteMode = flinkWriteConf.overwriteMode();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
@@ -646,7 +642,7 @@ public class IcebergSink
           table,
           snapshotSummary,
           uidSuffix,
-          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
+          SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, table),
           toFlinkRowType(table.schema(), tableSchema),
           tableSupplier,
           flinkWriteConf,
@@ -675,9 +671,7 @@ public class IcebergSink
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
       // The following parallelism will be propagated to all of the above operators.
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
-      }
+      rowDataDataStreamSink.setParallelism(sink.resolveWriterParallelism(rowDataInput));
       return rowDataDataStreamSink;
     }
   }
@@ -725,47 +719,6 @@ public class IcebergSink
     } else {
       return FlinkSchemaUtil.convert(schema);
     }
-  }
-
-  /**
-   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
-   * write.
-   *
-   * @param table The table to get the table level settings
-   * @param format The FileFormat to use
-   * @param conf The write configuration
-   * @return The properties to use for writing
-   */
-  private static Map<String, String> writeProperties(
-      Table table, FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
-
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
-
-    return writeProperties;
   }
 
   private DataStream<RowData> distributeDataStream(DataStream<RowData> input) {
@@ -829,16 +782,19 @@ public class IcebergSink
     }
   }
 
+  private int resolveWriterParallelism(DataStream<RowData> input) {
+    // if the writeParallelism is not specified, we set the default to the input parallelism to
+    // encourage chaining.
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
+  }
+
   private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
       DataStream<RowData> input,
       Schema iSchema,
       PartitionSpec partitionSpec,
       SortOrder sortOrderParam) {
 
-    int writerParallelism =
-        flinkWriteConf.writeParallelism() == null
-            ? input.getParallelism()
-            : flinkWriteConf.writeParallelism();
+    int writerParallelism = resolveWriterParallelism(input);
 
     // needed because of checkStyle not allowing us to change the value of an argument
     SortOrder sortOrder = sortOrderParam;

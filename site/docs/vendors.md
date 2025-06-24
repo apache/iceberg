@@ -78,6 +78,14 @@ A low-latency, high-fidelity data movement platform, Estuary lets developers qui
 
 Estuary's catalog of pre-built data connectors provides integrations with databases, APIs, event logs, and more. [Apache Iceberg](https://estuary.dev/solutions/technology/apache-iceberg/) is a primary destination option with two configurable materializations: one that [merges](https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/) new updates and one that simply [appends](https://docs.estuary.dev/reference/Connectors/materialization-connectors/amazon-s3-iceberg/) them.
 
+### [Firebolt](https://www.firebolt.io)
+
+[Firebolt](https://www.firebolt.io) is a cloud data warehouse built to power data-intensive applications that demand low latency and high concurrency. It is optimized for reading Apache Iceberg tables with sub-second performance and integrates seamlessly with major Iceberg catalogs.
+
+Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-core), a free, self-hosted edition of its distributed query engine.
+
+Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
+
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
 [IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
