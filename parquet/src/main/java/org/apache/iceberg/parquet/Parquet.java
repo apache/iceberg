@@ -1185,6 +1185,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private boolean isComet;
     private Class<? extends StructLike> rootType = null;
     private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
 
@@ -1378,6 +1379,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder enableComet(boolean enableComet) {
+      this.isComet = enableComet;
+      return this;
+    }
+
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
@@ -1389,7 +1395,7 @@ public class Parquet {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity", "MethodLength"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -1442,16 +1448,35 @@ public class Parquet {
         }
 
         if (batchedReaderFunc != null) {
-          return new VectorizedParquetReader<>(
-              file,
-              schema,
-              options,
-              batchedReaderFunc,
-              mapping,
-              filter,
-              reuseContainers,
-              caseSensitive,
-              maxRecordsPerBatch);
+          if (isComet) {
+            LOG.info("Comet enabled");
+            return new CometVectorizedParquetReader<>(
+                file,
+                schema,
+                options,
+                batchedReaderFunc,
+                mapping,
+                filter,
+                reuseContainers,
+                caseSensitive,
+                maxRecordsPerBatch,
+                properties,
+                start,
+                length,
+                fileEncryptionKey,
+                fileAADPrefix);
+          } else {
+            return new VectorizedParquetReader<>(
+                file,
+                schema,
+                options,
+                batchedReaderFunc,
+                mapping,
+                filter,
+                reuseContainers,
+                caseSensitive,
+                maxRecordsPerBatch);
+          }
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
               readerFunction
