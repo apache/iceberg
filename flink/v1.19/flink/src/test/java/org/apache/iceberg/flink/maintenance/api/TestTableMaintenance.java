@@ -66,11 +66,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class TestTableMaintenance extends OperatorTestBase {
+  private static final String MAINTENANCE_TASK_NAME = "TestTableMaintenance";
   private static final String[] TASKS =
-      new String[] {
-        MaintenanceTaskBuilderForTest.class.getSimpleName() + " [0]",
-        MaintenanceTaskBuilderForTest.class.getSimpleName() + " [1]"
-      };
+      new String[] {MAINTENANCE_TASK_NAME + " [0]", MAINTENANCE_TASK_NAME + " [1]"};
   private static final TableChange DUMMY_CHANGE = TableChange.builder().commitCount(1).build();
   private static final List<Trigger> PROCESSED =
       Collections.synchronizedList(Lists.newArrayListWithCapacity(1));
@@ -321,8 +319,7 @@ class TestTableMaintenance extends OperatorTestBase {
     // Choose an operator from the maintenance task part of the graph
     Transformation<?> scheduledTransformation =
         env.getTransformations().stream()
-            .filter(
-                t -> t.getName().startsWith(MaintenanceTaskBuilderForTest.class.getSimpleName()))
+            .filter(t -> t.getName().startsWith(MAINTENANCE_TASK_NAME))
             .findFirst()
             .orElseThrow();
     assertThat(scheduledTransformation.getUid()).contains(anotherUid);
@@ -417,6 +414,11 @@ class TestTableMaintenance extends OperatorTestBase {
       this.success = success;
       this.id = counter;
       ++counter;
+    }
+
+    @Override
+    String maintenanceTaskName() {
+      return MAINTENANCE_TASK_NAME;
     }
 
     @Override

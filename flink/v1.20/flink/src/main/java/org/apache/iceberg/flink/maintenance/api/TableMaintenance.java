@@ -305,8 +305,7 @@ public class TableMaintenance {
     }
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
-      return String.format(
-          Locale.ROOT, "%s [%d]", streamBuilder.getClass().getSimpleName(), taskIndex);
+      return String.format(Locale.ROOT, "%s [%d]", streamBuilder.maintenanceTaskName(), taskIndex);
     }
   }
 

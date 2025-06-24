@@ -47,6 +47,11 @@ public class ExpireSnapshots {
     private Integer planningWorkerPoolSize;
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
 
+    @Override
+    String maintenanceTaskName() {
+      return "ExpireSnapshots";
+    }
+
     /**
      * The snapshots older than this age will be removed.
      *
