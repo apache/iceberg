@@ -540,7 +540,8 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
       IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
           .table(table)
           .tableLoader(tableLoader)
-          .tableSchema(TableSchema.fromResolvedSchema(resolvedSchema))
+          .tableSchema(
+              resolvedSchema == null ? null : TableSchema.fromResolvedSchema(resolvedSchema))
           .writeParallelism(parallelism)
           .distributionMode(distributionMode)
           .append();
