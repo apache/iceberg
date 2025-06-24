@@ -234,7 +234,8 @@ public class TestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
-                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+                        && (Files.getFileExtension(name).equalsIgnoreCase("avro") ||
+                            Files.getFileExtension(name).equalsIgnoreCase("parquet"))));
   }
 
   List<File> listManifestLists(File tableDirToList) {
@@ -273,7 +274,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve("input.m0.avro").toFile();
+    File manifestFile = temp.resolve(manifestExtension("input.m0")).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -295,7 +296,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(snapshotId, "input.m0.avro", entries);
+    return writeManifest(snapshotId, manifestExtension("input.m0"), entries);
   }
 
   @SuppressWarnings("unchecked")
@@ -346,7 +347,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve(name + ".avro").toFile();
+    File manifestFile = temp.resolve(name).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -738,6 +739,14 @@ public class TestBase {
       for (String location : locations) {
         move(location + "_temp", location);
       }
+    }
+  }
+
+  protected String manifestExtension(String filename) {
+    if (formatVersion >= 4) {
+      return FileFormat.PARQUET.addExtension(filename);
+    } else {
+      return FileFormat.AVRO.addExtension(filename);
     }
   }
 
