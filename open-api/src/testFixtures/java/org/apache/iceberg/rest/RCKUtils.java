@@ -53,7 +53,7 @@ class RCKUtils {
    *
    * <pre><code>
    *     CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog -> catalog-impl=org.apache.iceberg.jdbc.JdbcCatalog
-   *     CATALOG_URI=jdbc:sqlite:memory: -> uri=jdbc:sqlite:memory:
+   *     CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db -> uri=jdbc:sqlite:/tmp/iceberg_catalog.db
    *     CATALOG_WAREHOUSE=test_warehouse -> warehouse=test_warehouse
    *     CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO -> io-impl=org.apache.iceberg.aws.s3.S3FileIO
    *     CATALOG_JDBC_USER=ice_user -> jdbc.user=ice_user
