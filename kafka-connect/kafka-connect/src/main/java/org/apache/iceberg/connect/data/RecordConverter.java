@@ -486,7 +486,9 @@ class RecordConverter {
     } else if (value instanceof LocalDateTime) {
       return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
     } else if (value instanceof Date) {
-      return DateTimeUtil.timestamptzFromNanos(((Date) value).getTime() * 1000);
+      // Date only has millisecond precision, so convert to nanoseconds but truncate to milliseconds
+      long millis = ((Date) value).getTime();
+      return DateTimeUtil.timestamptzFromNanos(millis * 1_000_000L);
     }
     throw new ConnectException(
         "Cannot convert timestamptz-nano: " + value + ", type: " + value.getClass());
