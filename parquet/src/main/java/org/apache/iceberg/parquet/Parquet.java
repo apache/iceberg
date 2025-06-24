@@ -90,7 +90,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -1666,7 +1665,7 @@ public class Parquet {
 
     @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
-    public FileReader<D> build() {
+    public CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
         byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
@@ -1710,23 +1709,20 @@ public class Parquet {
         builder.set(entry.getKey(), entry.getValue());
       }
 
-      // TODO: should not need to get the metadata and schema to push down before opening the file.
-      // Parquet should allow setting a filter inside its read support, and return metadata too
-      ParquetReadOptions decryptOptions =
-          ParquetReadOptions.builder(new PlainParquetConfiguration())
-              .withDecryption(fileDecryptionProperties)
-              .build();
-      MessageType type;
-      Map<String, String> meta;
-      try (ParquetFileReader schemaReader =
-          ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
-        meta = schemaReader.getFileMetaData().getKeyValueMetaData();
-        type = schemaReader.getFileMetaData().getSchema();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
-      }
-
       if (filter != null) {
+        // TODO: should not need to get the schema to push down before opening the file.
+        // Parquet should allow setting a filter inside its read support
+        ParquetReadOptions decryptOptions =
+            ParquetReadOptions.builder(new PlainParquetConfiguration())
+                .withDecryption(fileDecryptionProperties)
+                .build();
+        MessageType type;
+        try (ParquetFileReader schemaReader =
+            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
+          type = schemaReader.getFileMetaData().getSchema();
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
+        }
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder
             .useStatsFilter()
@@ -1759,10 +1755,10 @@ public class Parquet {
         builder.withDecryption(fileDecryptionProperties);
       }
 
-      return new ParquetIterable<>(builder, meta);
+      return new ParquetIterable<>(builder);
     }
 
-    private FileReader<D> buildFunctionBasedReader(ParquetReadOptions options) {
+    private CloseableIterable<D> buildFunctionBasedReader(ParquetReadOptions options) {
       NameMapping mapping;
       if (nameMapping != null) {
         mapping = nameMapping;

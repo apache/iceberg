@@ -19,9 +19,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
@@ -30,12 +27,11 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -43,7 +39,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.orc.storage.ql.io.sarg.SearchArgument;
 
 /** Iterable used to read rows from ORC. */
-class OrcIterable<T> extends CloseableGroup implements FileReader<T> {
+class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Configuration config;
   private final Schema schema;
   private final InputFile file;
@@ -55,7 +51,6 @@ class OrcIterable<T> extends CloseableGroup implements FileReader<T> {
   private final Function<TypeDescription, OrcBatchReader<T>> batchReaderFunction;
   private final int recordsPerBatch;
   private NameMapping nameMapping;
-  private Map<String, String> meta;
 
   OrcIterable(
       InputFile file,
@@ -82,39 +77,10 @@ class OrcIterable<T> extends CloseableGroup implements FileReader<T> {
     this.recordsPerBatch = recordsPerBatch;
   }
 
-  @Override
-  public Map<String, String> meta() {
-    if (meta == null) {
-      try (Reader reader = ORC.newFileReader(file, config)) {
-        initMeta(reader);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file.location());
-      }
-    }
-
-    return meta;
-  }
-
-  private void initMeta(Reader reader) {
-    if (meta == null) {
-      this.meta = Maps.newHashMap();
-      reader
-          .getMetadataKeys()
-          .forEach(
-              key -> {
-                ByteBuffer buf = reader.getMetadataValue(key);
-                byte[] arr = new byte[buf.remaining()];
-                buf.get(arr);
-                meta.put(key, new String(arr, StandardCharsets.UTF_8));
-              });
-    }
-  }
-
   @SuppressWarnings("unchecked")
   @Override
   public CloseableIterator<T> iterator() {
     Reader orcFileReader = ORC.newFileReader(file, config);
-    initMeta(orcFileReader);
     addCloseable(orcFileReader);
 
     TypeDescription fileSchema = orcFileReader.getSchema();

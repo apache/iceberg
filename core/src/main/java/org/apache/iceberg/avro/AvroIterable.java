@@ -28,12 +28,13 @@ import org.apache.avro.file.FileReader;
 import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class AvroIterable<D> extends CloseableGroup implements org.apache.iceberg.io.FileReader<D> {
+public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;
   private final DatumReader<D> reader;
   private final Long start;
@@ -58,11 +59,6 @@ public class AvroIterable<D> extends CloseableGroup implements org.apache.iceber
       }
     }
     return metadataReader;
-  }
-
-  @Override
-  public Map<String, String> meta() {
-    return getMetadata();
   }
 
   public Map<String, String> getMetadata() {
