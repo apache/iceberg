@@ -77,7 +77,7 @@ public class RESTCatalogServer {
 
     // Fallback to a JDBCCatalog impl if one is not set
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
-    catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite:/tmp/iceberg_catalog.db");
+    catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
     catalogProperties.putIfAbsent("jdbc.schema-version", "V1");
 
     // Configure a default location if one is not specified
