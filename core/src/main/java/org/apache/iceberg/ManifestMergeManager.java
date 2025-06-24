@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -37,8 +38,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class ManifestMergeManager<F extends ContentFile<F>> {
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestMergeManager.class);
   private final long targetSizeBytes;
   private final int minCountToMerge;
   private final boolean mergeEnabled;
@@ -127,6 +131,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     List<ManifestFile>[] binResults =
         (List<ManifestFile>[]) Array.newInstance(List.class, bins.size());
 
+    AtomicBoolean manifestsMerged = new AtomicBoolean(false);
     Tasks.range(bins.size())
         .stopOnFailure()
         .throwFailureWhenFinished()
@@ -154,9 +159,13 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
               } else {
                 // merge the group
                 outputManifests.add(createManifest(specId, bin));
+                manifestsMerged.set(true);
               }
             });
 
+    if (manifestsMerged.get()) {
+      LOG.info("Manifests will be automatically merged during this commit for specId: {}!", specId);
+    }
     return Iterables.concat(binResults);
   }
 
