@@ -219,17 +219,6 @@ public class DeleteOrphanFiles {
       return this;
     }
 
-    /**
-     * Table is case-sensitive or not.
-     *
-     * @param newCaseSensitive case-sensitive or not
-     * @return for chained calls
-     */
-    public Builder caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
-      return this;
-    }
-
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       tableLoader().open();
@@ -245,8 +234,7 @@ public class DeleteOrphanFiles {
                       tableLoader(),
                       FILE_PATH_SCAN_CONTEXT,
                       MetadataTableType.ALL_FILES,
-                      planningWorkerPoolSize,
-                      caseSensitive))
+                      planningWorkerPoolSize))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())

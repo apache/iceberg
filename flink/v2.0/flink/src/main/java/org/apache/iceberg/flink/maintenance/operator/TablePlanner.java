@@ -52,7 +52,6 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
   private transient ExecutorService workerPool;
   private transient Counter errorCounter;
   private transient Table table;
-  private final boolean caseSensitive;
   private transient IcebergSourceSplitSerializer splitSerializer;
   private final MetadataTableType metadataTableType;
 
@@ -62,8 +61,7 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
       TableLoader tableLoader,
       ScanContext scanContext,
       MetadataTableType metadataTableType,
-      int workerPoolSize,
-      boolean caseSensitive) {
+      int workerPoolSize) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table should no be null");
     Preconditions.checkArgument(scanContext.isStreaming(), "Streaming should be set to true");
@@ -73,7 +71,6 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.workerPoolSize = workerPoolSize;
-    this.caseSensitive = caseSensitive;
     this.metadataTableType = metadataTableType;
   }
 
@@ -84,7 +81,7 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
     this.table = MetadataTableUtils.createMetadataTableInstance(tableOri, metadataTableType);
     this.workerPool =
         ThreadPools.newFixedThreadPool(table.name() + "-table-planner", workerPoolSize);
-    this.splitSerializer = new IcebergSourceSplitSerializer(caseSensitive);
+    this.splitSerializer = new IcebergSourceSplitSerializer(scanContext.caseSensitive());
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableOri.name(), taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
