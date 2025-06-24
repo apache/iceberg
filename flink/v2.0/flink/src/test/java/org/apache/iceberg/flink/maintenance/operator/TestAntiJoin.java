@@ -36,15 +36,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestAntiJoin extends OperatorTestBase {
-  private static final Map<String, String> equalSchemes =
+  private static final Map<String, String> EQUAL_SCHEMES =
       Maps.newHashMap(
           ImmutableMap.of(
               "s3n", "s3",
               "s3a", "s3"));
-  private static final Map<String, String> equalAuthorities = Maps.newHashMap();
+  private static final Map<String, String> EQUAL_AUTHORITIES = Maps.newHashMap();
   private static final String SCHEME_FILE_1 = "s3:/fileName1";
   private static final FileURI SCHEME_FILE_1_FILE_URI =
-      new FileURI("s3:/fileName1", equalSchemes, equalAuthorities);
+      new FileURI("s3:/fileName1", EQUAL_SCHEMES, EQUAL_AUTHORITIES);
   private static final String AUTHORITY_FILE_1 = "s3://HDFS1002060/fileName1";
   private static final String ONE_AUTHORITY_SCHEME_FILE_1 = "s3a://HDFS1002060/fileName1";
   private static final String TWO_AUTHORITY_SCHEME_FILE_1 = "s3b://HDFS1002060/fileName1";
@@ -232,9 +232,11 @@ public class TestAntiJoin extends OperatorTestBase {
       org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode)
       throws Exception {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
-        new AntiJoin(prefixMismatchMode, equalSchemes, equalAuthorities),
-        (KeySelector<String, String>) t -> new FileURI(t, equalSchemes, equalAuthorities).getPath(),
-        (KeySelector<String, String>) t -> new FileURI(t, equalSchemes, equalAuthorities).getPath(),
+        new AntiJoin(prefixMismatchMode, EQUAL_SCHEMES, EQUAL_AUTHORITIES),
+        (KeySelector<String, String>)
+            t -> new FileURI(t, EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
+        (KeySelector<String, String>)
+            t -> new FileURI(t, EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
         BasicTypeInfo.STRING_TYPE_INFO);
   }
 

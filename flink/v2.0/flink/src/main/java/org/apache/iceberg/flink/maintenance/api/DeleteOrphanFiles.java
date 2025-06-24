@@ -93,6 +93,11 @@ public class DeleteOrphanFiles {
     private org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode =
         org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.ERROR;
 
+    @Override
+    String maintenanceTaskName() {
+      return "DeleteOrphanFiles";
+    }
+
     /**
      * The location to start the recursive listing the candidate files for removal. By default, the
      * {@link Table#location()} is used.
