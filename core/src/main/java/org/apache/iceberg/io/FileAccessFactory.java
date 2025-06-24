@@ -19,7 +19,6 @@
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 
 /**
@@ -33,20 +32,8 @@ import org.apache.iceberg.deletes.PositionDelete;
  * Together, these provide a consistent API for consuming data files while optimizing for specific
  * processing engines.
  *
- * <p>Iceberg provides these built-in object models:
- *
- * <ul>
- *   <li><strong>generic</strong> - for {@link Record} objects (engine-agnostic)
- *   <li><strong>spark</strong> - for Apache Spark InternalRow objects
- *   <li><strong>spark-vectorized</strong> - for columnar batch processing in Spark (not supported
- *       with {@link FileFormat#AVRO})
- *   <li><strong>flink</strong> - for Apache Flink RowData objects
- *   <li><strong>arrow</strong> - for Apache Arrow columnar format (only supported with {@link
- *       FileFormat#PARQUET})
- * </ul>
- *
- * <p>Processing engines can implement custom object models to integrate with Iceberg's file reading
- * and writing capabilities.
+ * <p>Iceberg provides these built-in object models and processing engines can implement custom
+ * object models to integrate with Iceberg's file reading and writing capabilities.
  *
  * @param <E> input schema type used when converting input data to the file format
  * @param <D> output type used for reading data, and input type for writing data and deletes
@@ -58,10 +45,10 @@ public interface FileAccessFactory<E, D> {
   /**
    * Returns the unique identifier for the object model implementation processed by this factory.
    *
-   * <p>The object model names (such as "generic", "spark", "spark-vectorized", "flink", "arrow")
-   * act as a contract specifying the expected data structures for both reading (converting file
-   * formats into output objects) and writing (converting input objects into file formats). This
-   * ensures proper integration between Iceberg's storage layer and processing engines.
+   * <p>The object model names (for example: "generic", "spark", "spark-vectorized", "flink",
+   * "arrow") act as a contract specifying the expected data structures for both reading (converting
+   * file formats into output objects) and writing (converting input objects into file formats).
+   * This ensures proper integration between Iceberg's storage layer and processing engines.
    *
    * @return string identifier for this object model implementation
    */

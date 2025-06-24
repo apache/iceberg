@@ -114,10 +114,10 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * <p>While the Iceberg schema defines the expected output structure, the input schema provides
    * the exact input format details needed for proper type conversion.
    *
-   * @param newDataSchema the native schema representation from the input (Spark, Flink, etc.)
+   * @param newModelSchema the native schema representation from the input (Spark, Flink, etc.)
    * @return this builder for method chaining
    */
-  B dataSchema(E newDataSchema);
+  B modelSchema(E newModelSchema);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   FileAppender<D> build() throws IOException;

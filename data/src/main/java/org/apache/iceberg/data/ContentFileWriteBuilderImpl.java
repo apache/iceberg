@@ -115,8 +115,8 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C dataSchema(E dataSchema) {
-    writeBuilder.dataSchema(dataSchema);
+  public C modelSchema(E modelSchema) {
+    writeBuilder.modelSchema(modelSchema);
     return (C) this;
   }
 

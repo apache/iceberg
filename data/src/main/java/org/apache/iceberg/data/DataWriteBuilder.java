@@ -42,7 +42,7 @@ public interface DataWriteBuilder<B extends DataWriteBuilder<B, E, D>, E, D>
    *
    * <p>The returned {@link DataWriter} produces files that conform to the Iceberg table format,
    * generating proper {@link DataFile} metadata on completion. The writer accepts input records
-   * matching the input schema specified via {@link #dataSchema(Object)} and converts them to the
+   * matching the input schema specified via {@link #modelSchema(Object)} and converts them to the
    * target Iceberg schema specified via {@link #fileSchema(Schema)} for writing.
    *
    * @return a fully configured {@link DataWriter} instance
