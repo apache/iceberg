@@ -102,10 +102,10 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two ways to encode a row-level delete:
-
-* [_Position deletes_](#position-delete-files) mark a row deleted by data file path and the row position in the data file
-* [_Equality deletes_](#equality-delete-files) mark a row deleted by one or more column values, like `id = 5`
+There are three ways to encode a row-level delete:
+* [_Deletion vectors_](#deletion-vectors) mark a row deleted within a single referenced data file by position in a bitmap
+* [_Position delete files_](#position-delete-files) mark a row deleted by data file path and the row position in the data file
+* [_Equality delete_files](#equality-delete-files) mark a row deleted by one or more column values, like `id = 5`
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
