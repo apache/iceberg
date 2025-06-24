@@ -22,6 +22,8 @@ import java.io.IOException;
 import org.apache.comet.CometSchemaImporter;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
+import org.apache.comet.parquet.ParquetColumnSpec;
+import org.apache.comet.parquet.RowGroupReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
 import org.apache.comet.shaded.arrow.memory.RootAllocator;
@@ -30,7 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -48,6 +51,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
   private boolean initialized = false;
   private int batchSize = DEFAULT_BATCH_SIZE;
   private CometSchemaImporter importer;
+  private ParquetColumnSpec spec;
 
   CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
     this.sparkType = sparkType;
@@ -92,7 +96,26 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
     }
 
     this.importer = new CometSchemaImporter(new RootAllocator());
-    this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
+
+    String[] path = descriptor.getPath();
+    PrimitiveType primitiveType = descriptor.getPrimitiveType();
+    String physicalType = primitiveType.getPrimitiveTypeName().name();
+
+    int typeLength =
+        primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
+            ? primitiveType.getTypeLength()
+            : 0;
+    boolean isRepeated = primitiveType.getRepetition() == Type.Repetition.REPEATED;
+    spec =
+        new ParquetColumnSpec(
+            path,
+            physicalType,
+            typeLength,
+            isRepeated,
+            descriptor.getMaxDefinitionLevel(),
+            descriptor.getMaxRepetitionLevel());
+
+    this.delegate = Utils.getColumnReader(sparkType, spec, importer, batchSize, true, false);
     this.initialized = true;
   }
 
@@ -111,9 +134,9 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
    * <p>NOTE: this should be called before reading a new Parquet column chunk, and after {@link
    * CometColumnReader#reset} is called.
    */
-  public void setPageReader(PageReader pageReader) throws IOException {
+  public void setPageReader(RowGroupReader pageStore) throws IOException {
     Preconditions.checkState(initialized, "Invalid state: 'reset' should be called first");
-    ((ColumnReader) delegate).setPageReader(pageReader);
+    ((ColumnReader) delegate).setRowGroupReader(pageStore, spec);
   }
 
   @Override

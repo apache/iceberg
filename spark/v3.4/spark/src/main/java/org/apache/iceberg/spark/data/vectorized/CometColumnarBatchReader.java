@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.BatchReader;
+import org.apache.comet.parquet.RowGroupReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -79,7 +80,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader(pageStore.getPageReader(readers[i].descriptor()));
+          readers[i].setPageReader((RowGroupReader) pageStore);
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
@@ -91,7 +92,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
 
     this.rowStartPosInBatch =
-        pageStore
+        ((RowGroupReader) pageStore)
             .getRowIndexOffset()
             .orElseThrow(
                 () ->
