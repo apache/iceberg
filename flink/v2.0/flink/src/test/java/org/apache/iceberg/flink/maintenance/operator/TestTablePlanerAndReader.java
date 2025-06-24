@@ -50,8 +50,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 tableLoader(),
                 FILE_PATH_SCAN_CONTEXT,
                 MetadataTableType.ALL_FILES,
-                1,
-                false))) {
+                1))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
       icebergSourceSplits = testHarness.extractOutputValues();
@@ -88,8 +87,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 tableLoader(),
                 FILE_PATH_SCAN_CONTEXT,
                 MetadataTableType.ALL_FILES,
-                1,
-                false))) {
+                1))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
       icebergSourceSplits = testHarness.extractOutputValues();
