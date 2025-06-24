@@ -54,9 +54,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
   private final Map<String, String> writeProperties;
-  private final S rowSchemaType;
-  private final S equalityDeleteSchemaType;
-  private final S positionalDeleteSchemaType;
+  private final S modelSchema;
+  private final S equalityDeleteModelSchema;
+  private final S positionalDeleteModelSchema;
 
   protected RegistryBasedFileWriterFactory(
       Table table,
@@ -70,9 +70,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
       Map<String, String> writeProperties,
-      S rowSchemaType,
-      S equalityDeleteSchemaType,
-      S positionalDeleteSchemaType) {
+      S modelSchema,
+      S equalityDeleteModelSchema,
+      S positionalDeleteModelSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.inputType = inputType;
@@ -84,21 +84,21 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
-    this.rowSchemaType = rowSchemaType;
-    this.equalityDeleteSchemaType = equalityDeleteSchemaType;
-    this.positionalDeleteSchemaType = positionalDeleteSchemaType;
+    this.modelSchema = modelSchema;
+    this.equalityDeleteModelSchema = equalityDeleteModelSchema;
+    this.positionalDeleteModelSchema = positionalDeleteModelSchema;
   }
 
-  protected S rowSchemaType() {
-    return rowSchemaType;
+  protected S modelSchema() {
+    return modelSchema;
   }
 
-  protected S equalityDeleteRowSchemaType() {
-    return equalityDeleteSchemaType;
+  protected S equalityDeleteModelSchema() {
+    return equalityDeleteModelSchema;
   }
 
-  protected S positionDeleteRowSchemaType() {
-    return positionalDeleteSchemaType;
+  protected S positionDeleteModelSchema() {
+    return positionalDeleteModelSchema;
   }
 
   @Override
@@ -116,7 +116,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .dataSchema(rowSchemaType())
+          .modelSchema(modelSchema())
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)
@@ -142,7 +142,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .dataSchema(equalityDeleteRowSchemaType())
+          .modelSchema(equalityDeleteModelSchema())
           .rowSchema(equalityDeleteRowSchema)
           .equalityFieldIds(equalityFieldIds)
           .spec(spec)
@@ -170,7 +170,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .dataSchema(positionDeleteRowSchemaType())
+          .modelSchema(positionDeleteModelSchema())
           .rowSchema(positionDeleteRowSchema)
           .spec(spec)
           .partition(partition)

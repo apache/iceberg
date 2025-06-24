@@ -49,20 +49,17 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    */
   B split(long newStart, long newLength);
 
-  /** Read only the given columns. */
+  /** Set the projection schema. */
   B project(Schema newSchema);
 
   /**
-   * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
-   * records. Some readers might not be able to filter some parts of the expression. In this case
-   * the reader might return unfiltered or partially filtered rows. It is the caller's
-   * responsibility to apply the filter again.
+   * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
+   * must respect this setting.
    *
-   * @param newFilter the filter to set
-   * @param filterCaseSensitive whether the filtering is case-sensitive or not
+   * @param newCaseSensitive indicates if filtering is case-sensitive
    */
-  default B filter(Expression newFilter, boolean filterCaseSensitive) {
-    // Skip filtering if not available
+  default B caseSensitive(boolean newCaseSensitive) {
+    // Skip if filtering is not available
     return (B) this;
   }
 
@@ -75,31 +72,23 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    * @param newFilter the filter to set
    */
   default B filter(Expression newFilter) {
-    return filter(newFilter, true);
+    // Skip if filtering is not available
+    return (B) this;
   }
 
   /**
    * Sets configuration key/value pairs for the reader. Reader builders should ignore configuration
    * keys not known for them.
    */
-  default B set(String key, String value) {
-    // Skip configuration if not applicable
-    return (B) this;
-  }
+  B set(String key, String value);
 
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
     return (B) this;
   }
 
-  /**
-   * Enables reusing the containers returned by the reader. Decreases pressure on GC. Readers could
-   * decide to ignore the user-provided setting if it is not supported by them.
-   */
-  default B reuseContainers() {
-    // Skip container reuse configuration if not applicable
-    return (B) this;
-  }
+  /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
+  B reuseContainers();
 
   /**
    * Accessors for constant field values. Used for calculating values in the result which are coming

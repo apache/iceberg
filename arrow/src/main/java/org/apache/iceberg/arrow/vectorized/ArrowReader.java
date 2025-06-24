@@ -351,7 +351,8 @@ public class ArrowReader extends CloseableGroup {
                 .project(expectedSchema)
                 .split(task.start(), task.length())
                 .set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(batchSize))
-                .filter(task.residual(), filterCaseSensitive)
+                .caseSensitive(filterCaseSensitive)
+                .filter(task.residual())
                 .build();
       } else {
         throw new UnsupportedOperationException(

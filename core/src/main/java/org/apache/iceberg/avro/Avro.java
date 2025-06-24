@@ -274,8 +274,8 @@ public class Avro {
     }
 
     @Override
-    public WriteBuilderImpl<E, D> dataSchema(E newEngineSchema) {
-      this.engineSchema = newEngineSchema;
+    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
+      this.engineSchema = newModelSchema;
       return this;
     }
 
