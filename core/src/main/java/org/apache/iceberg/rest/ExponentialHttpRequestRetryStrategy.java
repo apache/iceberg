@@ -60,9 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
- *   <li>SC_BAD_GATEWAY (502)
  *   <li>SC_SERVICE_UNAVAILABLE (503)
- *   <li>SC_GATEWAY_TIMEOUT (504)
  * </ul>
  *
  * Most code and behavior is taken from {@link
