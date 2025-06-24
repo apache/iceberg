@@ -567,7 +567,7 @@ class RecordConverter {
     } else if (value instanceof OffsetDateTime) {
       return ((OffsetDateTime) value).toLocalDateTime();
     } else if (value instanceof Date) {
-      return DateTimeUtil.timestampFromNanos(((Date) value).getTime() * 1000);
+      return DateTimeUtil.timestampFromNanos(((Date) value).getTime() * 1_000_000L);
     }
     throw new ConnectException(
         "Cannot convert timestamp-nano: " + value + ", type: " + value.getClass());

@@ -73,6 +73,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Decimal;
@@ -619,6 +620,77 @@ public class RecordConverterTest {
           Temporal ts = converter.convertTimestampValue(input, type);
           assertThat(ts).isEqualTo(expected);
         });
+  }
+
+  @Test
+  public void testTimestampNanoWithZoneConversion() {
+    OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T11:22:33Z");
+    long expectedNanos = expected.toInstant().toEpochMilli() * 1_000_000L + expected.getNano() % 1_000_000L;
+    assertTimestampNanoConvert(expected, expectedNanos, TimestampNanoType.withZone());
+
+    // zone should be respected
+    expected = OffsetDateTime.parse("2023-05-18T03:22:33-08:00");
+    List<Object> additionalInput =
+            ImmutableList.of(
+                    "2023-05-18T03:22:33-08",
+                    "2023-05-18 03:22:33-08",
+                    "2023-05-18T03:22:33-08:00",
+                    "2023-05-18 03:22:33-08:00",
+                    "2023-05-18T03:22:33-0800",
+                    "2023-05-18 03:22:33-0800");
+    assertTimestampNanoConvert(expected, additionalInput, TimestampNanoType.withZone());
+  }
+
+  @Test
+  public void testTimestampNanoWithoutZoneConversion() {
+    LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
+    long expectedNanos = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli() * 1_000_000L + expected.getNano() % 1_000_000L;
+    assertTimestampNanoConvert(expected, expectedNanos, TimestampNanoType.withoutZone());
+
+    // zone should be ignored
+    List<Object> additionalInput =
+            ImmutableList.of(
+                    "2023-05-18T11:22:33-08",
+                    "2023-05-18 11:22:33-08",
+                    "2023-05-18T11:22:33-08:00",
+                    "2023-05-18 11:22:33-08:00",
+                    "2023-05-18T11:22:33-0800",
+                    "2023-05-18 11:22:33-0800");
+    assertTimestampNanoConvert(expected, additionalInput, TimestampNanoType.withoutZone());
+  }
+
+  private void assertTimestampNanoConvert(Temporal expected, long expectedNanos, TimestampNanoType type) {
+    List<Object> inputList =
+            Lists.newArrayList(
+                    "2023-05-18T11:22:33Z",
+                    "2023-05-18 11:22:33Z",
+                    "2023-05-18T11:22:33+00",
+                    "2023-05-18 11:22:33+00",
+                    "2023-05-18T11:22:33+00:00",
+                    "2023-05-18 11:22:33+00:00",
+                    "2023-05-18T11:22:33+0000",
+                    "2023-05-18 11:22:33+0000",
+                    "2023-05-18T11:22:33",
+                    "2023-05-18 11:22:33",
+                    expectedNanos,
+                    new Date(expectedNanos/1_000_000L),
+                    OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedNanos/1_000_000L), ZoneOffset.UTC),
+                    LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedNanos/1_000_000L), ZoneOffset.UTC));
+
+    assertTimestampNanoConvert(expected, inputList, type);
+  }
+
+  private void assertTimestampNanoConvert(
+          Temporal expected, List<Object> inputList, TimestampNanoType type) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    inputList.forEach(
+            input -> {
+              Temporal ts = converter.convertTimestampNanoValue(input, type);
+              assertThat(ts).isEqualTo(expected);
+            });
   }
 
   @Test
