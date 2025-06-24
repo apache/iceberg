@@ -1162,6 +1162,9 @@ public class Parquet {
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
 
+    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
+    private Class<? extends StructLike> rootType = null;
+
     private ReadBuilder(InputFile file) {
       this.file = file;
     }
@@ -1222,6 +1225,10 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFuncWithSchema == null,
           "Cannot set reader function: 2-argument reader function already set");
+      Preconditions.checkArgument(
+        this.rootType == null || this.typeMap.isEmpty(),
+        "CONFLICT TODO FIX MESSAGE"
+      );
       this.readerFunc = newReaderFunction;
       return this;
     }
@@ -1235,6 +1242,10 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set 2-argument reader function: batched reader function already set");
       this.readerFuncWithSchema = newReaderFunction;
+      Preconditions.checkArgument(
+        this.rootType == null || this.typeMap.isEmpty(),
+        "CONFLICT TODO FIX MESSAGE"
+      );
       return this;
     }
 
@@ -1281,12 +1292,14 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      this.rootType = rootClass;
+      return this;
     }
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      this.typeMap.put(fieldId, structClass);
+      return this;
     }
 
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {

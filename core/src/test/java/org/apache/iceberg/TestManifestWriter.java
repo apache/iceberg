@@ -118,7 +118,7 @@ public class TestManifestWriter extends TestBase {
 
     ManifestFile manifest =
         writeManifest(
-            "manifest.avro",
+            manifestExtension("manifest"),
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file1),
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file2));
 

@@ -19,8 +19,10 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.HasMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -37,7 +39,7 @@ import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T>, HasMetadata {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
@@ -94,6 +96,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
+  }
+
+  @Override
+  public Map<String, String> getMetadata() {
+    // TODO Clean this up - Currently just open the file and reader the footer
+    try(ParquetReader.FileIterator reader = new FileIterator<>(init())) {
+      return reader.reader.getFileMetaData().getKeyValueMetaData();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
