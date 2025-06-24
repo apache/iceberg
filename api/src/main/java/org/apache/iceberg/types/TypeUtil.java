@@ -399,7 +399,8 @@ public class TypeUtil {
     return visit(type, new FindTypeVisitor(predicate));
   }
 
-  public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
+  public static boolean isPromotionAllowed(
+      Type from, Type.PrimitiveType to, boolean referenceBySourceId) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
     if (from.equals(to)) {
@@ -424,6 +425,9 @@ public class TypeUtil {
             && fromDecimal.precision() <= toDecimal.precision();
 
       case DATE:
+        if (referenceBySourceId) {
+          return false;
+        }
         if (to.typeId() == Type.TypeID.TIMESTAMP) {
           Types.TimestampType toTimestamp = (Types.TimestampType) to;
           return Types.TimestampType.withoutZone().equals(toTimestamp);
