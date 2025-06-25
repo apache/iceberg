@@ -18,19 +18,15 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 
 /**
  * An optional operator to perform table updates for tables (e.g. schema update) in a non-concurrent
@@ -44,20 +40,19 @@ class DynamicTableUpdateOperator
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
-  private final int inputSchemaCacheMaximumSize;
+  private final int inputSchemasPerTableCacheMaximumSize;
 
   private transient TableUpdater updater;
-  private transient Cache<Schema, DataConverter> converterCache;
 
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemaCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
-    this.inputSchemaCacheMaximumSize = inputSchemaCacheMaximumSize;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
   }
 
   @Override
@@ -66,29 +61,23 @@ class DynamicTableUpdateOperator
     Catalog catalog = catalogLoader.loadCatalog();
     this.updater =
         new TableUpdater(
-            new TableMetadataCache(catalog, cacheMaximumSize, cacheRefreshMs), catalog);
-    this.converterCache = Caffeine.newBuilder().maximumSize(inputSchemaCacheMaximumSize).build();
+            new TableMetadataCache(
+                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
+            catalog);
   }
 
   @Override
   public DynamicRecordInternal map(DynamicRecordInternal data) throws Exception {
-    Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> newData =
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
         updater.update(
             TableIdentifier.parse(data.tableName()), data.branch(), data.schema(), data.spec());
+    TableMetadataCache.ResolvedSchemaInfo compareInfo = newData.f0;
 
-    data.setSchema(newData.f0);
-    data.setSpec(newData.f2);
+    data.setSchema(compareInfo.resolvedTableSchema());
+    data.setSpec(newData.f1);
 
-    if (newData.f1 == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
-      DataConverter converter =
-          converterCache.get(
-              data.schema(),
-              dataSchema ->
-                  DataConverter.get(
-                      FlinkSchemaUtil.convert(dataSchema), FlinkSchemaUtil.convert(newData.f0)));
-      RowData newRowData = (RowData) converter.convert(data.rowData());
-      data.setRowData(newRowData);
-    }
+    RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
+    data.setRowData(newRowData);
 
     return data;
   }
