@@ -212,9 +212,6 @@ public class TestS3FileIOIntegration {
   public void testCrossRegionAccessEnabled() throws Exception {
     Map<String, String> properties =
         ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
-    skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(properties),
-        "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access");
     clientFactory.initialize(properties);
     S3Client s3Client = clientFactory.s3();
     String crossBucketObjectKey = String.format("%s/%s", prefix, UUID.randomUUID());
@@ -228,7 +225,7 @@ public class TestS3FileIOIntegration {
               .build(),
           RequestBody.fromBytes(contentBytes));
       // make a copy in cross-region bucket
-      S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, clientFactory::s3Async);
       validateRead(s3FileIO, crossBucketObjectUri);
     } finally {
       AwsIntegTestUtil.cleanS3GeneralPurposeBucket(
