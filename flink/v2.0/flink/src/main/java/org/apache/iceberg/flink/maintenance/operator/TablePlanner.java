@@ -119,20 +119,12 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
       this.split = split;
     }
 
-    public int getVersion() {
+    public int version() {
       return version;
     }
 
-    public void setVersion(int version) {
-      this.version = version;
-    }
-
-    public byte[] getSplit() {
+    public byte[] split() {
       return split;
-    }
-
-    public void setSplit(byte[] split) {
-      this.split = split;
     }
   }
 }

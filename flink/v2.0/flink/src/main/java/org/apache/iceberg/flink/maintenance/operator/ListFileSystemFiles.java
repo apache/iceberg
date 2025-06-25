@@ -28,10 +28,8 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -107,7 +105,6 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
   public void processElement(Trigger trigger, Context ctx, Collector<String> out) throws Exception {
     long olderThanTimestamp = trigger.timestamp() - minAgeMs;
     try {
-      PathFilter filter = PartitionAwareHiddenPathFilter.forSpecs(specs);
       if (usePrefixListing) {
         Predicate<FileInfo> predicate = fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
         Preconditions.checkArgument(
@@ -116,28 +113,28 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             io);
 
         FileSystemWalker.listDirRecursivelyWithFileIO(
-            (SupportsPrefixOperations) io, location, predicate, filter, out::collect);
+            (SupportsPrefixOperations) io, location, specs, predicate, out::collect);
       } else {
         Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
         List<String> remainingSubDirs = Lists.newArrayList();
         FileSystemWalker.listDirRecursivelyWithHadoop(
             location,
+            specs,
             predicate,
             configuration,
             maxListingDepth,
             maxListingDirectSubDirs,
             remainingSubDirs,
-            filter,
             out::collect);
         for (String remainingSubDir : remainingSubDirs) {
           FileSystemWalker.listDirRecursivelyWithHadoop(
               remainingSubDir,
+              specs,
               predicate,
               configuration,
               Integer.MAX_VALUE,
               Integer.MAX_VALUE,
               Lists.newArrayList(),
-              filter,
               out::collect);
         }
       }

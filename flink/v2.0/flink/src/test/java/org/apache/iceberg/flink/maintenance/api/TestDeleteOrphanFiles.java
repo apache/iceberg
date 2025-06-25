@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
-import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ALL_FILE_URI_CHECK_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.DELETE_FILES_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.FILESYSTEM_FILES_TASK_NAME;
-import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.FILE_URI_CHECK_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.METADATA_FILES_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.PLANNER_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.READER_TASK_NAME;
@@ -99,22 +97,6 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
             .put(
                 ImmutableList.of(
                     FILESYSTEM_FILES_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    FILE_URI_CHECK_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    ALL_FILE_URI_CHECK_TASK_NAME + "[0]",
                     table.name(),
                     DUMMY_TASK_NAME,
                     "0",
@@ -203,22 +185,6 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
                 0L)
             .put(
                 ImmutableList.of(
-                    FILE_URI_CHECK_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    ALL_FILE_URI_CHECK_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
                     DELETE_FILES_TASK_NAME + "[0]",
                     table.name(),
                     DUMMY_TASK_NAME,
@@ -267,7 +233,7 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
         infra.source(),
         infra.sink(),
         () -> checkDeleteFinished(table.name(), 0L),
-        false);
+        false /* resultSuccess*/);
 
     // An error occurred; the file should not be deleted. And the job should not be failed.
     assertThat(inMetadata).exists();
@@ -295,22 +261,6 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
             .put(
                 ImmutableList.of(
                     METADATA_FILES_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    FILE_URI_CHECK_TASK_NAME + "[0]",
-                    table.name(),
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    ALL_FILE_URI_CHECK_TASK_NAME + "[0]",
                     table.name(),
                     DUMMY_TASK_NAME,
                     "0",

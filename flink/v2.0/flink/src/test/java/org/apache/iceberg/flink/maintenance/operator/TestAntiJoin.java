@@ -43,8 +43,6 @@ public class TestAntiJoin extends OperatorTestBase {
               "s3a", "s3"));
   private static final Map<String, String> EQUAL_AUTHORITIES = Maps.newHashMap();
   private static final String SCHEME_FILE_1 = "s3:/fileName1";
-  private static final FileURI SCHEME_FILE_1_FILE_URI =
-      new FileURI("s3:/fileName1", EQUAL_SCHEMES, EQUAL_AUTHORITIES);
   private static final String AUTHORITY_FILE_1 = "s3://HDFS1002060/fileName1";
   private static final String ONE_AUTHORITY_SCHEME_FILE_1 = "s3a://HDFS1002060/fileName1";
   private static final String TWO_AUTHORITY_SCHEME_FILE_1 = "s3b://HDFS1002060/fileName1";

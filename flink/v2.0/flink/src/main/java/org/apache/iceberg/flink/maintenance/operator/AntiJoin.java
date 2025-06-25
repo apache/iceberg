@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -41,8 +42,9 @@ import org.slf4j.LoggerFactory;
 public class AntiJoin extends KeyedCoProcessFunction<String, String, String, String> {
   private static final Logger LOG = LoggerFactory.getLogger(AntiJoin.class);
 
-  private transient ListState<String> foundInTable;
+  private transient MapState<String, Boolean> foundInTable;
   private transient ValueState<String> foundInFileSystem;
+  private transient ValueState<Boolean> hasUriError;
   private final DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode;
   private final Map<String, String> equalSchemes;
   private final Map<String, String> equalAuthorities;
@@ -61,7 +63,10 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
     super.open(openContext);
     foundInTable =
         getRuntimeContext()
-            .getListState(new ListStateDescriptor<>("antiJoinFoundInTable", Types.STRING));
+            .getMapState(
+                new MapStateDescriptor<>("antiJoinFoundInTable", Types.STRING, Types.BOOLEAN));
+    hasUriError =
+        getRuntimeContext().getState(new ValueStateDescriptor<>("antiJoinUriError", Types.BOOLEAN));
     foundInFileSystem =
         getRuntimeContext()
             .getState(new ValueStateDescriptor<>("antiJoinFoundInFileSystem", Types.STRING));
@@ -70,21 +75,30 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
   @Override
   public void processElement1(String value, Context context, Collector<String> collector)
       throws Exception {
-    foundInTable.add(value);
-    context.timerService().registerEventTimeTimer(context.timestamp());
+    shouldSkipElement(value, context);
+    if (!foundInTable.contains(value)) {
+      foundInTable.put(value, true);
+      context.timerService().registerEventTimeTimer(context.timestamp());
+    }
   }
 
   @Override
   public void processElement2(String value, Context context, Collector<String> collector)
       throws Exception {
+    shouldSkipElement(value, context);
     foundInFileSystem.update(value);
     context.timerService().registerEventTimeTimer(context.timestamp());
   }
 
   @Override
   public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
+    if (Boolean.TRUE.equals(hasUriError.value())) {
+      clearState();
+      return;
+    }
+
     List<FileURI> foundInTablesList = Lists.newArrayList();
-    for (String uri : foundInTable.get()) {
+    for (String uri : foundInTable.keys()) {
       foundInTablesList.add(new FileURI(uri, equalSchemes, equalAuthorities));
     }
 
@@ -93,15 +107,7 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
       out.collect(fileURI.getUriAsString());
     } else if (foundInFileSystem.value() != null && !foundInTablesList.isEmpty()) {
       FileURI actual = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
-      boolean found = true;
-      for (FileURI valid : foundInTablesList) {
-        if (valid.schemeMatch(actual) && valid.authorityMatch(actual)) {
-          found = false;
-          break;
-        }
-      }
-
-      if (found) {
+      if (hasMismatch(actual, foundInTablesList)) {
         if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
           out.collect(foundInFileSystem.value());
         } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
@@ -112,10 +118,10 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
                       + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
                       + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
                       + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-                      + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
+                      + "authorities/schemes or to 'DELETE' if you are ABSOLUTELY confident that remaining conflicting "
                       + "authorities/schemes are different. It will be impossible to recover deleted files. "
                       + "Conflicting authorities/schemes");
-          LOG.error(
+          LOG.warn(
               "Unable to determine whether certain files are orphan. Found in filesystem: {} and in table: {}",
               actual,
               StringUtils.join(foundInTablesList, ","),
@@ -127,6 +133,36 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
       }
     }
 
+    clearState();
+  }
+
+  private boolean hasMismatch(FileURI actual, List<FileURI> foundInTablesList) {
+    for (FileURI valid : foundInTablesList) {
+      if (valid.schemeMatch(actual) && valid.authorityMatch(actual)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean shouldSkipElement(String value, Context context) throws IOException {
+    if (Boolean.TRUE.equals(hasUriError.value())) {
+      return true;
+    }
+
+    if (FileUriKeySelector.INVALID_URI.equals(context.getCurrentKey())) {
+      context.output(
+          org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
+          new RuntimeException("Invalid URI format detected: " + value));
+      hasUriError.update(true);
+      return true;
+    }
+
+    return false;
+  }
+
+  private void clearState() {
+    hasUriError.clear();
     foundInTable.clear();
     foundInFileSystem.clear();
   }
