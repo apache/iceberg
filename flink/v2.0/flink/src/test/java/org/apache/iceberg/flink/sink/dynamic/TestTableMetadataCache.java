@@ -89,8 +89,6 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10);
 
-    // Cleanup routine doesn't run after every write
-    cache.getInternalCache().cleanUp();
-    assertThat(cache.getInternalCache().estimatedSize()).isEqualTo(0);
+    assertThat(cache.getInternalCache()).isEmpty();
   }
 }
