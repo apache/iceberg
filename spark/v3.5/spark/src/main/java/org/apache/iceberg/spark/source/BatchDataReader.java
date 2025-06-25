@@ -46,7 +46,6 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
-  private final boolean cacheDeleteFilesOnExecutors;
 
   BatchDataReader(
       SparkInputPartition partition,
@@ -73,10 +72,17 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
       boolean cacheDeleteFilesOnExecutors) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, parquetConf, orcConf);
+    super(
+        table,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        parquetConf,
+        orcConf,
+        cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
-    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
@@ -109,7 +115,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         task.deletes().isEmpty()
             ? null
             : new SparkDeleteFilter(
-                filePath, task.deletes(), counter(), false, cacheDeleteFilesOnExecutors);
+                filePath, task.deletes(), counter(), false, cacheDeleteFilesOnExecutors());
 
     return newBatchIterable(
             inputFile,
