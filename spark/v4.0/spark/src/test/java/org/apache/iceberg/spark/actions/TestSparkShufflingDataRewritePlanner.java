@@ -77,7 +77,7 @@ public class TestSparkShufflingDataRewritePlanner extends TestBase {
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 SparkShufflingDataRewritePlanner.MAX_FILES_TO_REWRITE,
                 SparkShufflingDataRewritePlanner.MAX_BYTES_TO_REWRITE,
-                    SparkShufflingDataRewritePlanner.MAX_BYTES_TO_REWRITE));
+                SparkShufflingDataRewritePlanner.MAX_BYTES_TO_REWRITE));
   }
 
   @Test
