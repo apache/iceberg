@@ -98,9 +98,9 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
     }
 
     List<FileURI> foundInTablesList = Lists.newArrayList();
-    for (String uri : foundInTable.keys()) {
-      foundInTablesList.add(new FileURI(uri, equalSchemes, equalAuthorities));
-    }
+    foundInTable
+        .keys()
+        .forEach(uri -> foundInTablesList.add(new FileURI(uri, equalSchemes, equalAuthorities)));
 
     if (foundInFileSystem.value() != null && foundInTablesList.isEmpty()) {
       FileURI fileURI = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
@@ -137,12 +137,8 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
   }
 
   private boolean hasMismatch(FileURI actual, List<FileURI> foundInTablesList) {
-    for (FileURI valid : foundInTablesList) {
-      if (valid.schemeMatch(actual) && valid.authorityMatch(actual)) {
-        return false;
-      }
-    }
-    return true;
+    return foundInTablesList.stream()
+        .noneMatch(valid -> valid.schemeMatch(actual) && valid.authorityMatch(actual));
   }
 
   private boolean shouldSkipElement(String value, Context context) throws IOException {
