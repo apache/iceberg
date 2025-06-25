@@ -48,13 +48,14 @@ import org.apache.spark.unsafe.types.UTF8String;
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
 
-  ChangelogRowReader(SparkInputPartition partition) {
+  ChangelogRowReader(SparkInputPartition partition, boolean cacheDeleteFilesOnExecutors) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive());
+        partition.isCaseSensitive(),
+        cacheDeleteFilesOnExecutors);
   }
 
   ChangelogRowReader(
@@ -62,13 +63,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
         taskGroup,
         tableSchema,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
-        caseSensitive);
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
   }
 
   @Override
