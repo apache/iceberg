@@ -73,7 +73,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
   }
 
   private void assertGetNext(SplitAssigner assigner, Long expectedSequenceNumber) {
-    GetSplitResult result = assigner.getNext(null);
+    GetSplitResult result = assigner.getNext(null, 0, -1);
     ContentFile file = result.split().task().files().iterator().next().file();
     Assert.assertEquals(expectedSequenceNumber, file.fileSequenceNumber());
   }

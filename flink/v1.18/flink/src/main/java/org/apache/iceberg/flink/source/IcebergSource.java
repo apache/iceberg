@@ -28,15 +28,22 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.api.connector.source.Source;
 import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
@@ -51,6 +58,7 @@ import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.PartitionAwareSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
@@ -65,6 +73,7 @@ import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
+import org.apache.iceberg.flink.source.reader.RowDataConverter;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
@@ -72,6 +81,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ThreadPools;
@@ -95,6 +105,24 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final SerializableRecordEmitter<T> emitter;
   private final String tableName;
 
+  // cache the discovered splits by planSplitsForBatch, which can be called twice. And they come
+  // from two different threads: (1) source/stream construction by main thread (2) enumerator
+  // creation. Hence need volatile here. When Storage Partition Join Optimization is enabled
+  // for Batch Execution, will be called on in main thread within IcebergTableSource
+  // as needed to notify Flink Planner to determine whether we can apply it to the table sources
+  private volatile List<IcebergSourceSplit> batchSplits;
+
+  // if Storage Partition Join (SPJ) is enabled on the Flink Engine side AND the Planner decided
+  // that
+  // SPJ can be used
+  private final boolean shouldApplyPartitionedRead;
+  // TODO -- remove once Flink changes are landed and we can use this property from
+  // OptimizerConfigOptions
+  static final ConfigOption<Boolean> TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED =
+      ConfigOptions.key("table.optimizer.storage-partition-join-enabled")
+          .booleanType()
+          .defaultValue(false);
+
   IcebergSource(
       TableLoader tableLoader,
       ScanContext scanContext,
@@ -102,7 +130,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
-      SerializableRecordEmitter<T> emitter) {
+      SerializableRecordEmitter<T> emitter,
+      boolean shouldApplyPartitionedRead,
+      List<IcebergSourceSplit> batchSplits) {
     Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
     Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     Preconditions.checkNotNull(assignerFactory, "assignerFactory is required.");
@@ -114,6 +144,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     this.splitComparator = splitComparator;
     this.emitter = emitter;
     this.tableName = table.name();
+    this.shouldApplyPartitionedRead = shouldApplyPartitionedRead;
+    this.batchSplits = batchSplits;
   }
 
   String name() {
@@ -130,16 +162,44 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     return tableName + "-" + UUID.randomUUID();
   }
 
+  /**
+   * Cache the enumerated splits for batch execution to avoid double planning as there are two code
+   * paths obtaining splits: (1) infer parallelism (2) enumerator creation.
+   */
   private List<IcebergSourceSplit> planSplitsForBatch(String threadName) {
+    if (batchSplits != null) {
+      return batchSplits;
+    }
+
     ExecutorService workerPool =
         ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      List<IcebergSourceSplit> splits =
-          FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
+      if (shouldApplyPartitionedRead) {
+        // FlinkSplitPlanner.planIcebergPartitionAwareSourceSplits is called by IcebergTableSource
+        // as a requirement to notify the Flink Planner. So batchSplits should have already been
+        // called
+        // this is ideally checked in outputPartitioning() so this should never occur. We should
+        // only
+        // get partitionAware splits in Batch execution mode
+        Preconditions.checkArgument(
+            !scanContext.isStreaming(), "partition-awareness is only available in batch mode");
+        Preconditions.checkArgument(
+            batchSplits != null,
+            "Batch splits should have already been called on by IcebergTableSource");
+        // TODO -- see above comment and remove
+        this.batchSplits =
+            FlinkSplitPlanner.planIcebergPartitionAwareSourceSplits(
+                loader.loadTable(), scanContext, workerPool);
+      } else {
+        this.batchSplits =
+            FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
+      }
       LOG.info(
-          "Discovered {} splits from table {} during job initialization", splits.size(), tableName);
-      return splits;
+          "Discovered {} splits from table {} during job initialization",
+          batchSplits.size(),
+          tableName);
+      return batchSplits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close table loader", e);
     } finally {
@@ -203,8 +263,31 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     } else {
       List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
       assigner.onDiscoveredSplits(splits);
+      // clear the cached splits after enumerator creation as they won't be needed anymore
+      this.batchSplits = null;
       return new StaticIcebergEnumerator(enumContext, assigner);
     }
+  }
+
+  private boolean shouldInferParallelism() {
+    return !scanContext.isStreaming();
+  }
+
+  private int inferParallelism(ReadableConfig flinkConf, StreamExecutionEnvironment env) {
+    int parallelism =
+        SourceUtil.inferParallelism(
+            flinkConf,
+            scanContext.limit(),
+            () -> {
+              List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
+              return splits.size();
+            });
+
+    if (env.getMaxParallelism() > 0) {
+      parallelism = Math.min(parallelism, env.getMaxParallelism());
+    }
+
+    return parallelism;
   }
 
   public static <T> Builder<T> builder() {
@@ -221,10 +304,14 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
+    private RowDataConverter<T> converter;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
     private Boolean exposeLocality;
+
+    private boolean shouldApplyPartitionedRead;
+    private List<IcebergSourceSplit> batchSplits;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
 
@@ -467,6 +554,36 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * Sets the splitAssigner to PartitionAwareSplitAssigner when true. If Storage Partition Join
+     * (SPJ) is enabled on the Flink Engine side AND the Planner decided that SPJ can be used, we
+     * should use PartitionAwareSplitAssigner to enabled ensure file locality and reduce unnecessary
+     * shuffle.
+     *
+     * <p>Ensure that `table.optimizer.storage-partition-join-enabled` is set to true to enable the
+     * Flink Planner to consider whether it can use SPJ See {@link
+     * org.apache.iceberg.flink.source.assigner.PartitionAwareSplitAssigner}
+     */
+    public Builder<T> applyPartitionedRead(boolean applyPartitionedRead) {
+      this.shouldApplyPartitionedRead = applyPartitionedRead;
+      return this;
+    }
+
+    /**
+     * Sets pre-computed batch splits to avoid expensive recomputation during execution.
+     *
+     * <p>This method is used to pass splits that have already been computed by {@code
+     * IcebergTableSource.outputPartitioning()} for partition discovery. Without this, splits would
+     * be computed twice: once for output partitioning and once for execution.
+     *
+     * @param splits pre-computed splits from partition-aware planning
+     * @return this builder for method chaining
+     */
+    public Builder<T> batchSplits(List<IcebergSourceSplit> splits) {
+      this.batchSplits = splits;
+      return this;
+    }
+
     public IcebergSource<T> build() {
       if (table == null) {
         try (TableLoader loader = tableLoader) {
@@ -521,6 +638,16 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
+      if (shouldApplyPartitionedRead) {
+        // TODO -- should be replaced by
+        // OptimizerConfigOptions.TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED once
+        // flink configs are landed
+        Preconditions.checkArgument(
+            flinkConfig.get(TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED),
+            "can only use PartitionAwareSplitAssigner if Storage Partition Join is enabled");
+        splitAssignerFactory = new PartitionAwareSplitAssignerFactory();
+      }
+
       if (splitAssignerFactory == null) {
         if (splitComparator == null) {
           splitAssignerFactory = new SimpleSplitAssignerFactory();
@@ -537,7 +664,44 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitAssignerFactory,
           splitComparator,
           table,
-          emitter);
+          emitter,
+          shouldApplyPartitionedRead,
+          batchSplits);
+    }
+
+    /**
+     * Build the {@link IcebergSource} and create a {@link DataStream} from the source. Watermark
+     * strategy is set to {@link WatermarkStrategy#noWatermarks()}.
+     *
+     * @return data stream from the Iceberg source
+     */
+    public DataStream<T> buildStream(StreamExecutionEnvironment env) {
+      // buildStream should only be called with RowData or Converter paths.
+      Preconditions.checkState(
+          readerFunction == null,
+          "Cannot set reader function when building a data stream from the source");
+      IcebergSource<T> source = build();
+      TypeInformation<T> outputTypeInfo =
+          outputTypeInfo(converter, table.schema(), source.scanContext.project());
+      DataStreamSource<T> stream =
+          env.fromSource(source, WatermarkStrategy.noWatermarks(), source.name(), outputTypeInfo);
+      if (source.shouldInferParallelism()) {
+        stream = stream.setParallelism(source.inferParallelism(flinkConfig, env));
+      }
+
+      return stream;
+    }
+
+    private static <T> TypeInformation<T> outputTypeInfo(
+        RowDataConverter<T> converter, Schema tableSchema, Schema projected) {
+      if (converter != null) {
+        return converter.getProducedType();
+      } else {
+        // output type is RowData
+        Schema readSchema = projected != null ? projected : tableSchema;
+        return (TypeInformation<T>)
+            FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(readSchema));
+      }
     }
   }
 }

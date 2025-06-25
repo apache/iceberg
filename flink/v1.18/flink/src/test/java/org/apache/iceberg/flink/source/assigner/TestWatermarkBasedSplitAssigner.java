@@ -108,7 +108,7 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
   }
 
   private void assertGetNext(SplitAssigner assigner, IcebergSourceSplit split) {
-    GetSplitResult result = assigner.getNext(null);
+    GetSplitResult result = assigner.getNext(null, 0, -1);
     Assert.assertEquals(result.split(), split);
   }
 
