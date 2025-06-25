@@ -35,12 +35,11 @@ import java.util.function.Predicate;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
-import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
@@ -306,8 +305,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
-    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
-
     if (usePrefixListing) {
       Preconditions.checkArgument(
           table.io() instanceof SupportsPrefixOperations,
@@ -319,8 +316,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       FileSystemWalker.listDirRecursivelyWithFileIO(
           (SupportsPrefixOperations) table.io(),
           location,
+          table.specs(),
           predicate,
-          pathFilter,
           matchingFiles::add);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
@@ -331,12 +328,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
       FileSystemWalker.listDirRecursivelyWithHadoop(
           location,
+          table.specs(),
           predicate,
           hadoopConf.value(),
           MAX_DRIVER_LISTING_DEPTH,
           MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
           subDirs,
-          pathFilter,
           matchingFiles::add);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
@@ -349,7 +346,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
       Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-      ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
+      ListDirsRecursively listDirs =
+          new ListDirsRecursively(conf, olderThanTimestamp, table.specs());
       JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
 
       JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
@@ -408,16 +406,16 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     private final Broadcast<SerializableConfiguration> hadoopConf;
     private final long olderThanTimestamp;
-    private final PathFilter pathFilter;
+    private final Map<Integer, PartitionSpec> specs;
 
     ListDirsRecursively(
         Broadcast<SerializableConfiguration> hadoopConf,
         long olderThanTimestamp,
-        PathFilter pathFilter) {
+        Map<Integer, PartitionSpec> specs) {
 
       this.hadoopConf = hadoopConf;
       this.olderThanTimestamp = olderThanTimestamp;
-      this.pathFilter = pathFilter;
+      this.specs = specs;
     }
 
     @Override
@@ -430,12 +428,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       while (dirs.hasNext()) {
         FileSystemWalker.listDirRecursivelyWithHadoop(
             dirs.next(),
+            specs,
             predicate,
             hadoopConf.value().value(),
             MAX_EXECUTOR_LISTING_DEPTH,
             MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS,
             subDirs,
-            pathFilter,
             files::add);
       }
 

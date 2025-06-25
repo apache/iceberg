@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.util.Collector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.TableLoader;
 
@@ -36,11 +37,9 @@ public class FileNameReader extends TableReader<String> {
   }
 
   @Override
-  String extract(RowData rowData) {
+  void extract(RowData rowData, Collector<String> out) {
     if (rowData != null && rowData.getString(0) != null) {
-      return rowData.getString(0).toString();
-    } else {
-      return null;
+      out.collect(rowData.getString(0).toString());
     }
   }
 }

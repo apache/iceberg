@@ -32,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.AntiJoin;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
-import org.apache.iceberg.flink.maintenance.operator.FileUriCheck;
 import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
@@ -59,8 +58,6 @@ public class DeleteOrphanFiles {
   static final String PLANNER_TASK_NAME = "Table Planner";
   static final String READER_TASK_NAME = "Files Reader";
   static final String FILESYSTEM_FILES_TASK_NAME = "Filesystem Files";
-  static final String FILE_URI_CHECK_TASK_NAME = "FileUri Check";
-  static final String ALL_FILE_URI_CHECK_TASK_NAME = "All Fs FileUri Check";
   static final String METADATA_FILES_TASK_NAME = "List metadata Files";
   static final String DELETE_FILES_TASK_NAME = "Delete File";
   static final String AGGREGATOR_TASK_NAME = "Orphan Files Aggregator";
@@ -222,7 +219,6 @@ public class DeleteOrphanFiles {
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       tableLoader().open();
-      String tableName = tableLoader().loadTable().name();
 
       // Collect all data files
       SingleOutputStreamOperator<TablePlanner.SplitInfo> splits =
@@ -282,23 +278,8 @@ public class DeleteOrphanFiles {
       SingleOutputStreamOperator<String> filesToDelete =
           tableMetadataFiles
               .union(tableDataFiles)
-              .process(
-                  new FileUriCheck(equalSchemes, equalAuthorities, tableName, taskName(), index()))
-              .name(operatorName(FILE_URI_CHECK_TASK_NAME))
-              .uid(FILE_URI_CHECK_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .setParallelism(parallelism())
               .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities))
-              .connect(
-                  allFsFiles
-                      .process(
-                          new FileUriCheck(
-                              equalSchemes, equalAuthorities, tableName, taskName(), index()))
-                      .name(operatorName(ALL_FILE_URI_CHECK_TASK_NAME))
-                      .uid(ALL_FILE_URI_CHECK_TASK_NAME + uidSuffix())
-                      .slotSharingGroup(slotSharingGroup())
-                      .setParallelism(parallelism())
-                      .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
+              .connect(allFsFiles.keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
               .process(new AntiJoin(prefixMismatchMode, equalSchemes, equalAuthorities))
               .slotSharingGroup(slotSharingGroup())
               .name(operatorName(FILTER_FILES_TASK_NAME))

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
@@ -40,8 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Reads the records from the metadata table splits. */
-@Internal
-public abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R> {
+abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R> {
   private static final Logger LOG = LoggerFactory.getLogger(TableReader.class);
 
   private final TableLoader tableLoader;
@@ -54,7 +52,7 @@ public abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitI
   private transient MetaDataReaderFunction rowDataReaderFunction;
   private transient Counter errorCounter;
 
-  public TableReader(
+  TableReader(
       String taskName,
       int taskIndex,
       TableLoader tableLoader,
@@ -93,15 +91,11 @@ public abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitI
   @Override
   public void processElement(TablePlanner.SplitInfo splitInfo, Context ctx, Collector<R> out)
       throws Exception {
-    IcebergSourceSplit split =
-        splitSerializer.deserialize(splitInfo.getVersion(), splitInfo.getSplit());
+    IcebergSourceSplit split = splitSerializer.deserialize(splitInfo.version(), splitInfo.split());
     try (DataIterator<RowData> iterator = rowDataReaderFunction.createDataIterator(split)) {
       iterator.forEachRemaining(
           rowData -> {
-            R result = extract(rowData);
-            if (result != null) {
-              out.collect(result);
-            }
+            extract(rowData, out);
           });
     } catch (Exception e) {
       LOG.error("Exception processing split {} at {}", split, ctx.timestamp(), e);
@@ -120,7 +114,7 @@ public abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitI
    * Extracts the desired data from the given RowData.
    *
    * @param rowData the RowData from which to extract
-   * @return the extracted data, or null if no data should be emitted for this row
+   * @param out the Collector to which to output the extracted data
    */
-  abstract R extract(RowData rowData);
+  abstract void extract(RowData rowData, Collector<R> out);
 }

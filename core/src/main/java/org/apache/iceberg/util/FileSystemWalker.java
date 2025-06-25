@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
@@ -28,6 +29,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -39,6 +42,26 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class FileSystemWalker {
 
   private FileSystemWalker() {}
+
+  /**
+   * Recursively lists files in the specified directory that satisfy the given conditions. Use
+   * {@link PartitionAwareHiddenPathFilter} to filter out hidden paths.
+   *
+   * @param io File system interface supporting prefix operations
+   * @param dir Base directory to start recursive listing
+   * @param specs Map of {@link PartitionSpec partition specs} for this table.
+   * @param predicate Additional filter condition for files
+   * @param consumer Consumer to accept matching file locations
+   */
+  public static void listDirRecursivelyWithFileIO(
+      SupportsPrefixOperations io,
+      String dir,
+      Map<Integer, PartitionSpec> specs,
+      Predicate<FileInfo> predicate,
+      Consumer<String> consumer) {
+    PathFilter filter = PartitionAwareHiddenPathFilter.forSpecs(specs);
+    listDirRecursivelyWithFileIO(io, dir, predicate, filter, consumer);
+  }
 
   /**
    * Recursively lists files in the specified directory that satisfy the given conditions.
@@ -67,6 +90,42 @@ public class FileSystemWalker {
         consumer.accept(file.location());
       }
     }
+  }
+
+  /**
+   * Recursively traverses the specified directory using Hadoop API to collect file paths that meet
+   * the conditions.
+   *
+   * <p>This method provides depth control and subdirectory quantity limitation:
+   *
+   * <ul>
+   *   <li>Stops traversal when maximum recursion depth is reached and adds current directory to
+   *       pending list
+   *   <li>Stops traversal when number of direct subdirectories exceeds threshold and adds
+   *       subdirectories to pending list
+   * </ul>
+   *
+   * @param dir The starting directory path to traverse
+   * @param specs Map of {@link PartitionSpec partition specs} for this table.
+   * @param predicate File filter condition, only files satisfying this condition will be collected
+   * @param conf Hadoop conf
+   * @param maxDepth Maximum recursion depth limit
+   * @param maxDirectSubDirs Upper limit of subdirectories that can be processed directly
+   * @param remainingSubDirs Output parameter for storing unprocessed directory paths
+   * @param consumer Consumer for collecting qualified file paths
+   */
+  public static void listDirRecursivelyWithHadoop(
+      String dir,
+      Map<Integer, PartitionSpec> specs,
+      Predicate<FileStatus> predicate,
+      Configuration conf,
+      int maxDepth,
+      int maxDirectSubDirs,
+      List<String> remainingSubDirs,
+      Consumer<String> consumer) {
+    PathFilter filter = PartitionAwareHiddenPathFilter.forSpecs(specs);
+    listDirRecursivelyWithHadoop(
+        dir, predicate, conf, maxDepth, maxDirectSubDirs, remainingSubDirs, filter, consumer);
   }
 
   /**
@@ -148,7 +207,7 @@ public class FileSystemWalker {
    * @param pathFilter Filter used to evaluate path visibility
    * @return {@code true} if the path is hidden, {@code false} otherwise
    */
-  public static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
+  private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
     boolean isHiddenPath = false;
     Path currentPath = path;
     while (currentPath.getParent().toString().contains(baseDir)) {

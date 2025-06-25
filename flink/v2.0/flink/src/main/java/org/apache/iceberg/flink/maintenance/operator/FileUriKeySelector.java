@@ -22,9 +22,14 @@ import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.iceberg.actions.FileURI;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Internal
 public class FileUriKeySelector implements KeySelector<String, String> {
+  private static final Logger LOG = LoggerFactory.getLogger(FileUriKeySelector.class);
+
+  static final String INVALID_URI = "__INVALID_URI__";
 
   private final Map<String, String> equalSchemes;
   private final Map<String, String> equalAuthorities;
@@ -37,7 +42,12 @@ public class FileUriKeySelector implements KeySelector<String, String> {
 
   @Override
   public String getKey(String value) throws Exception {
-    FileURI fileUri = new FileURI(value, equalSchemes, equalAuthorities);
-    return fileUri.getPath();
+    try {
+      FileURI fileUri = new FileURI(value, equalSchemes, equalAuthorities);
+      return fileUri.getPath();
+    } catch (Exception e) {
+      LOG.error("Uri convert to FileURI error! Uri is {}.", value, e);
+      return INVALID_URI;
+    }
   }
 }

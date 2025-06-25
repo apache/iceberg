@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 
 import java.io.File;
@@ -49,7 +50,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
@@ -1166,12 +1166,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
           () ->
               FileSystemWalker.listDirRecursivelyWithHadoop(
                   anyString(),
+                  anyMap(),
                   any(Predicate.class),
                   any(Configuration.class),
                   anyInt(),
                   anyInt(),
                   anyList(),
-                  any(PathFilter.class),
                   any()));
     }
   }
