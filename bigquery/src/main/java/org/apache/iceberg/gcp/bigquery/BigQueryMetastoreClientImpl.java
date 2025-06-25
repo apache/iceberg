@@ -488,8 +488,11 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       // distinguish Iceberg
       // tables for us to filter out those results since invoking `getTable` on them would
       // correctly raise a `NoSuchIcebergTableException` for being inoperable by this plugin.
+
+      List<Tables> allTables = tablesStream.collect(Collectors.toList());
+
       if (!listAllTables) {
-        List<Tables> allTables = tablesStream.collect(Collectors.toList());
+
         List<Tables> validTables = Collections.synchronizedList(Lists.newArrayList());
 
         Tasks.foreach(allTables)
@@ -509,7 +512,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
         return validTables;
       } else {
-        return tablesStream.collect(Collectors.toList());
+        return allTables;
       }
     } catch (IOException e) {
       throw new RuntimeIOException("%s", e);

@@ -231,7 +231,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(writeSchemaAndSpec);
+    return Boolean.hashCode(writeSchemaAndSpec);
   }
 
   @Override

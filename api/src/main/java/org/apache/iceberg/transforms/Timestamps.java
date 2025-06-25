@@ -42,6 +42,11 @@ enum Timestamps implements Transform<Long, Integer> {
   NANOS_TO_DAY(ChronoUnit.DAYS, "day", TimestampUnit.NANOS),
   NANOS_TO_HOUR(ChronoUnit.HOURS, "hour", TimestampUnit.NANOS);
 
+  enum TimestampUnit {
+    MICROS,
+    NANOS
+  }
+
   @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit granularity;
@@ -72,7 +77,6 @@ enum Timestamps implements Transform<Long, Integer> {
             default:
               throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
           }
-
         case NANOS:
           switch (granularity) {
             case YEARS:
@@ -90,11 +94,6 @@ enum Timestamps implements Transform<Long, Integer> {
           throw new UnsupportedOperationException("Unsupported time unit: " + timestampUnit);
       }
     }
-  }
-
-  enum TimestampUnit {
-    MICROS,
-    NANOS
   }
 
   private final ChronoUnit granularity;
