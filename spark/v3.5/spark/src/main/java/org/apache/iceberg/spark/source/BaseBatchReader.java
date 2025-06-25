@@ -24,12 +24,12 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
-import org.apache.iceberg.parquet.ParquetFileAccessFactory;
+import org.apache.iceberg.parquet.ParquetObjectModelFactory;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -63,7 +63,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<?, ColumnarBatch> readBuilder =
-        FileAccessFactoryRegistry.readBuilder(
+        ObjectModelRegistry.readBuilder(
             format, SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL, inputFile);
     if (parquetConf != null) {
       readBuilder =
@@ -77,8 +77,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
           readBuilder.set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(orcConf.batchSize()));
     }
 
-    if (readBuilder instanceof ParquetFileAccessFactory.SupportsDeleteFilter<?>) {
-      ((ParquetFileAccessFactory.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder)
+    if (readBuilder instanceof ParquetObjectModelFactory.SupportsDeleteFilter<?>) {
+      ((ParquetObjectModelFactory.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder)
           .deleteFilter(deleteFilter);
     }
 

@@ -23,25 +23,25 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.avro.AvroFileAccessFactory;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
-import org.apache.iceberg.orc.ORCFileAccessFactory;
-import org.apache.iceberg.parquet.ParquetFileAccessFactory;
+import org.apache.iceberg.avro.AvroObjectModelFactory;
+import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.orc.ORCObjectModelFactory;
+import org.apache.iceberg.parquet.ParquetObjectModelFactory;
 
 public class FlinkObjectModels {
   public static final String FLINK_OBJECT_MODEL = "flink";
 
   public static void register() {
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ParquetFileAccessFactory<RowData, Object, RowType>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ParquetObjectModelFactory<RowData, Object, RowType>(
             FLINK_OBJECT_MODEL,
             FlinkParquetReaders::buildReader,
             (engineType, unused, messageType) ->
                 FlinkParquetWriters.buildWriter(engineType, messageType),
             path -> StringData.fromString(path.toString())));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new AvroFileAccessFactory<RowType, RowData>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new AvroObjectModelFactory<RowType, RowData>(
             FLINK_OBJECT_MODEL,
             FlinkPlannedAvroReader::create,
             (unused, rowType) -> new FlinkAvroWriter(rowType),
@@ -50,8 +50,8 @@ public class FlinkObjectModels {
                     (RowType)
                         rowType.getTypeAt(rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ORCFileAccessFactory<RowType, RowData>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ORCObjectModelFactory<RowType, RowData>(
             FLINK_OBJECT_MODEL,
             FlinkOrcReader::new,
             (schema, messageType, nativeSchema) -> FlinkOrcWriter.buildWriter(nativeSchema, schema),

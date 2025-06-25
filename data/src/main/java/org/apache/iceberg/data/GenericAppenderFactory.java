@@ -128,7 +128,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       WriteBuilder<?, ?, Record> builder =
-          FileAccessFactoryRegistry.writeBuilder(
+          ObjectModelRegistry.writeBuilder(
               fileFormat, GenericObjectModels.GENERIC_OBJECT_MODEL, encryptedOutputFile);
       return builder
           .fileSchema(schema)
@@ -148,7 +148,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
       DataWriteBuilder<?, ?, Record> builder =
-          FileAccessFactoryRegistry.dataWriteBuilder(
+          ObjectModelRegistry.dataWriteBuilder(
               format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
       return builder
           .fileSchema(schema)
@@ -178,7 +178,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       EqualityDeleteWriteBuilder<?, ?, Record> builder =
-          FileAccessFactoryRegistry.equalityDeleteWriteBuilder(
+          ObjectModelRegistry.equalityDeleteWriteBuilder(
               format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
       return builder
           .fileSchema(schema)
@@ -206,7 +206,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       PositionDeleteWriteBuilder<?, ?, Record> builder =
-          FileAccessFactoryRegistry.positionDeleteWriteBuilder(
+          ObjectModelRegistry.positionDeleteWriteBuilder(
               format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
       return builder
           .fileSchema(schema)

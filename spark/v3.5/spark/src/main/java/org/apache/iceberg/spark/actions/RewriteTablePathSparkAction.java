@@ -48,8 +48,8 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.data.GenericObjectModels;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.data.PositionDeleteWriteBuilder;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -676,7 +676,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
     ReadBuilder<?, Record> builder =
-        FileAccessFactoryRegistry.readBuilder(
+        ObjectModelRegistry.readBuilder(
             format, GenericObjectModels.GENERIC_OBJECT_MODEL, inputFile);
     return builder.project(deleteSchema).reuseContainers().build();
   }
@@ -689,7 +689,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Schema rowSchema)
       throws IOException {
     PositionDeleteWriteBuilder<?, ?, Record> builder =
-        FileAccessFactoryRegistry.positionDeleteWriteBuilder(
+        ObjectModelRegistry.positionDeleteWriteBuilder(
             format,
             GenericObjectModels.GENERIC_OBJECT_MODEL,
             EncryptedFiles.plainAsEncryptedOutput(outputFile));

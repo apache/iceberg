@@ -54,6 +54,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -95,7 +96,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -107,7 +109,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -115,7 +118,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
@@ -423,8 +427,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -432,8 +436,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -441,8 +445,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -538,9 +542,10 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -548,9 +553,10 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -558,9 +564,10 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {
@@ -793,7 +800,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -801,7 +809,8 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {

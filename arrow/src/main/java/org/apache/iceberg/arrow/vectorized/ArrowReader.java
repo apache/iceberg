@@ -37,7 +37,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -48,7 +48,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.ParquetFileAccessFactory;
+import org.apache.iceberg.parquet.ParquetObjectModelFactory;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -126,8 +126,8 @@ public class ArrowReader extends CloseableGroup {
   private static final String ARROW_OBJECT_MODEL = "arrow";
 
   public static void register() {
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ParquetFileAccessFactory<>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ParquetObjectModelFactory<>(
             ARROW_OBJECT_MODEL,
             (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
                 VectorizedCombinedScanIterator.buildReader(
@@ -337,7 +337,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<?, ColumnarBatch> builder =
-            FileAccessFactoryRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location);
+            ObjectModelRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location);
 
         if (reuseContainers) {
           builder.reuseContainers();

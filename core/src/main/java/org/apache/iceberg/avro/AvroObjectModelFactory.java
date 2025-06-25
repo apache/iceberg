@@ -27,15 +27,16 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ObjectModelFactory;
 import org.apache.iceberg.io.OutputFile;
 
-public class AvroFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAccessFactory<E, D> {
+public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
   private final String objectModelName;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
   private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction;
   private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> deleteRowWriterFunction;
 
-  public AvroFileAccessFactory(
+  public AvroObjectModelFactory(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction,
@@ -46,7 +47,7 @@ public class AvroFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAc
     this.deleteRowWriterFunction = deleteRowWriterFunction;
   }
 
-  public AvroFileAccessFactory(
+  public AvroObjectModelFactory(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction) {

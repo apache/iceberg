@@ -61,6 +61,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -108,7 +109,8 @@ public class ORC {
   private ORC() {}
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -116,7 +118,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -126,7 +129,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder {
@@ -201,7 +205,7 @@ public class ORC {
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private ORCFileAccessFactory.WriterFunction<E> writerFunction;
+    private ORCObjectModelFactory.WriterFunction<E> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -221,7 +225,7 @@ public class ORC {
     }
 
     WriteBuilderImpl<E, D> writerFunction(
-        ORCFileAccessFactory.WriterFunction<E> newWriterFunction) {
+        ORCObjectModelFactory.WriterFunction<E> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -519,8 +523,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -528,8 +532,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -539,8 +543,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -642,9 +646,10 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -652,9 +657,10 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -664,9 +670,10 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {
@@ -847,7 +854,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -858,7 +866,8 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder {
@@ -963,8 +972,8 @@ public class ORC {
 
     private Function<TypeDescription, OrcRowReader<D>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<D>> batchedReaderFunc;
-    private ORCFileAccessFactory.ReaderFunction<D> readerFunction;
-    private ORCFileAccessFactory.BatchReaderFunction<D> batchReaderFunction;
+    private ORCObjectModelFactory.ReaderFunction<D> readerFunction;
+    private ORCObjectModelFactory.BatchReaderFunction<D> batchReaderFunction;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     protected ReadBuilderImpl(InputFile file) {
@@ -981,7 +990,7 @@ public class ORC {
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
-    ReadBuilderImpl<D> readerFunction(ORCFileAccessFactory.ReaderFunction<D> newReaderFunction) {
+    ReadBuilderImpl<D> readerFunction(ORCObjectModelFactory.ReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && batchReaderFunction == null,
           "Cannot set multiple read builder functions");
@@ -990,7 +999,7 @@ public class ORC {
     }
 
     ReadBuilderImpl<D> batchReaderFunction(
-        ORCFileAccessFactory.BatchReaderFunction<D> newReaderFunction) {
+        ORCObjectModelFactory.BatchReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && readerFunction == null,
           "Cannot set multiple read builder functions");

@@ -32,7 +32,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.DataWriteBuilder;
 import org.apache.iceberg.data.EqualityDeleteWriteBuilder;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.data.PositionDeleteWriteBuilder;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -102,7 +102,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       WriteBuilder<?, RowType, RowData> builder =
-          FileAccessFactoryRegistry.writeBuilder(
+          ObjectModelRegistry.writeBuilder(
               format,
               FlinkObjectModels.FLINK_OBJECT_MODEL,
               EncryptedFiles.plainAsEncryptedOutput(outputFile));
@@ -124,8 +124,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       DataWriteBuilder<?, RowType, RowData> builder =
-          FileAccessFactoryRegistry.dataWriteBuilder(
-              format, FlinkObjectModels.FLINK_OBJECT_MODEL, file);
+          ObjectModelRegistry.dataWriteBuilder(format, FlinkObjectModels.FLINK_OBJECT_MODEL, file);
       return builder
           .modelSchema(flinkSchema)
           .set(props)
@@ -154,7 +153,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       EqualityDeleteWriteBuilder<?, RowType, RowData> builder =
-          FileAccessFactoryRegistry.equalityDeleteWriteBuilder(
+          ObjectModelRegistry.equalityDeleteWriteBuilder(
               format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile);
       return builder
           .overwrite()
@@ -178,7 +177,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
       PositionDeleteWriteBuilder<?, RowType, RowData> builder =
-          FileAccessFactoryRegistry.positionDeleteWriteBuilder(
+          ObjectModelRegistry.positionDeleteWriteBuilder(
               format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile);
       return builder
           .overwrite()
