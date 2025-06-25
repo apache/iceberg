@@ -25,20 +25,20 @@ import org.apache.iceberg.deletes.PositionDelete;
  * Interface that provides a unified abstraction for converting between data file formats and
  * input/output data representations.
  *
- * <p>FileAccessFactory serves as a bridge between storage formats ({@link FileFormat}) and expected
- * input/output data structures, optimizing performance through direct conversion without
+ * <p>{@link ObjectModelFactory} serves as a bridge between storage formats ({@link FileFormat}) and
+ * expected input/output data structures, optimizing performance through direct conversion without
  * intermediate representations. File format implementations handle the low-level parsing details
  * while the object model determines the in-memory representation used for the parsed data.
  * Together, these provide a consistent API for consuming data files while optimizing for specific
  * processing engines.
  *
- * <p>Iceberg provides these built-in object models and processing engines can implement custom
+ * <p>Iceberg provides some built-in object models and processing engines can implement custom
  * object models to integrate with Iceberg's file reading and writing capabilities.
  *
  * @param <E> input schema type used when converting input data to the file format
  * @param <D> output type used for reading data, and input type for writing data and deletes
  */
-public interface FileAccessFactory<E, D> {
+public interface ObjectModelFactory<E, D> {
   /** The file format which is read/written by the object model. */
   FileFormat format();
 

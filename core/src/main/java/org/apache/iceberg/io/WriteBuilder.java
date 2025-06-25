@@ -26,7 +26,7 @@ import org.apache.iceberg.Schema;
 
 /**
  * Builder interface for creating file writers across supported data file formats. The {@link
- * FileAccessFactory} implementations provide the appropriate {@link WriteBuilder} instances.
+ * ObjectModelFactory} implementations provide the appropriate {@link WriteBuilder} instances.
  *
  * <p>The {@link WriteBuilder} follows the builder pattern to configure and create {@link
  * FileAppender} instances that write data to the target output files.

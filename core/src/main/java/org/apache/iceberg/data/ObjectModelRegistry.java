@@ -30,9 +30,9 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAccessFactory;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ObjectModelFactory;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -42,7 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A registry that manages file-format-specific readers and writers through a unified file access
+ * A registry that manages file-format-specific readers and writers through a unified object model
  * factory interface.
  *
  * <p>This registry provides access to {@link ReadBuilder}s for data consumption and various writer
@@ -57,47 +57,47 @@ import org.slf4j.LoggerFactory;
  *
  * The appropriate builder is selected based on {@link FileFormat} and object model name.
  *
- * <p>File access factories are registered through {@link
- * #registerFileAccessFactory(FileAccessFactory)} and used for creating readers and writers. Read
+ * <p>{@link ObjectModelFactory} objects are registered through {@link
+ * #registerObjectModelFactory(ObjectModelFactory)} and used for creating readers and writers. Read
  * builders are returned directly from the factory. Write builders may be wrapped in specialized
  * content file writer implementations depending on the requested builder type.
  */
-public final class FileAccessFactoryRegistry {
-  private static final Logger LOG = LoggerFactory.getLogger(FileAccessFactoryRegistry.class);
+public final class ObjectModelRegistry {
+  private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
-  private static final Map<Pair<FileFormat, String>, FileAccessFactory<?, ?>>
-      FILE_ACCESS_FACTORIES = Maps.newConcurrentMap();
+  private static final Map<Pair<FileFormat, String>, ObjectModelFactory<?, ?>>
+      OBJECT_MODEL_FACTORIES = Maps.newConcurrentMap();
 
   /**
-   * Registers a file access factory with this registry.
+   * Registers an {@link ObjectModelFactory} in this registry.
    *
-   * <p>File access factories create readers and writers for specific combinations of file formats
-   * (Parquet, ORC, Avro) and object models ("generic", "spark", "flink", etc.). Registering custom
-   * factories allows integration of new data processing engines for the supported file formats with
-   * Iceberg's file access mechanisms.
+   * <p>The {@link ObjectModelFactory} creates readers and writers for a specific combinations of
+   * file format (Parquet, ORC, Avro) and object model (for example: "generic", "spark", "flink",
+   * etc.). Registering custom factories allows integration of new data processing engines for the
+   * supported file formats with Iceberg's file access mechanisms.
    *
    * <p>Each factory must be uniquely identified by its combination of file format and object model
    * name. This uniqueness constraint prevents ambiguity when selecting factories for read and write
    * operations.
    *
-   * @param fileAccessFactory the factory implementation to register
+   * @param objectModelFactory the factory implementation to register
    * @throws IllegalArgumentException if a factory is already registered for the combination of
-   *     {@link FileAccessFactory#format()} and {@link FileAccessFactory#objectModelName()}
+   *     {@link ObjectModelFactory#format()} and {@link ObjectModelFactory#objectModelName()}
    */
   @SuppressWarnings("CatchBlockLogException")
-  public static void registerFileAccessFactory(FileAccessFactory<?, ?> fileAccessFactory) {
+  public static void registerObjectModelFactory(ObjectModelFactory<?, ?> objectModelFactory) {
     Pair<FileFormat, String> key =
-        Pair.of(fileAccessFactory.format(), fileAccessFactory.objectModelName());
-    if (FILE_ACCESS_FACTORIES.containsKey(key)) {
+        Pair.of(objectModelFactory.format(), objectModelFactory.objectModelName());
+    if (OBJECT_MODEL_FACTORIES.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
-              "File access factory %s clashes with %s. Both serves %s",
-              fileAccessFactory.getClass(), FILE_ACCESS_FACTORIES.get(key), key));
+              "Object model factory %s clashes with %s. Both serves %s",
+              objectModelFactory.getClass(), OBJECT_MODEL_FACTORIES.get(key), key));
     }
 
-    FILE_ACCESS_FACTORIES.put(key, fileAccessFactory);
+    OBJECT_MODEL_FACTORIES.put(key, objectModelFactory);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -117,7 +117,7 @@ public final class FileAccessFactoryRegistry {
     registerSupportedFormats();
   }
 
-  private FileAccessFactoryRegistry() {}
+  private ObjectModelRegistry() {}
 
   /**
    * Returns a reader builder for the specified file format and object model.
@@ -135,7 +135,7 @@ public final class FileAccessFactoryRegistry {
    */
   public static <D> ReadBuilder<?, D> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    FileAccessFactory<?, D> factory = factoryFor(format, objectModelName);
+    ObjectModelFactory<?, D> factory = factoryFor(format, objectModelName);
     return factory.readBuilder(inputFile);
   }
 
@@ -155,7 +155,7 @@ public final class FileAccessFactoryRegistry {
    */
   public static <E, D> WriteBuilder<?, E, D> writeBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
     return factory.dataWriteBuilder(outputFile.encryptingOutputFile());
   }
 
@@ -176,7 +176,7 @@ public final class FileAccessFactoryRegistry {
    */
   public static <E, D> DataWriteBuilder<?, E, D> dataWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
     WriteBuilder<?, E, D> writeBuilder =
         factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forDataFile(
@@ -200,7 +200,7 @@ public final class FileAccessFactoryRegistry {
    */
   public static <E, D> EqualityDeleteWriteBuilder<?, E, D> equalityDeleteWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
     WriteBuilder<?, E, D> writeBuilder =
         factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forEqualityDelete(
@@ -225,7 +225,7 @@ public final class FileAccessFactoryRegistry {
    */
   public static <E, D> PositionDeleteWriteBuilder<?, E, D> positionDeleteWriteBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    FileAccessFactory<E, D> factory = factoryFor(format, objectModelName);
+    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
     WriteBuilder<?, E, PositionDelete<D>> writeBuilder =
         factory.positionDeleteWriteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forPositionDelete(
@@ -233,8 +233,9 @@ public final class FileAccessFactoryRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static <E, D> FileAccessFactory<E, D> factoryFor(
+  private static <E, D> ObjectModelFactory<E, D> factoryFor(
       FileFormat format, String objectModelName) {
-    return ((FileAccessFactory<E, D>) FILE_ACCESS_FACTORIES.get(Pair.of(format, objectModelName)));
+    return ((ObjectModelFactory<E, D>)
+        OBJECT_MODEL_FACTORIES.get(Pair.of(format, objectModelName)));
   }
 }
