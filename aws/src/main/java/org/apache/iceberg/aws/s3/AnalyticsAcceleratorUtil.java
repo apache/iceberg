@@ -22,8 +22,10 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,5 +110,18 @@ class AnalyticsAcceleratorUtil {
   public static void cleanupCache(
       S3AsyncClient asyncClient, S3FileIOProperties s3FileIOProperties) {
     STREAM_FACTORY_CACHE.invalidate(Pair.of(asyncClient, s3FileIOProperties));
+  }
+
+  /** Initialize analytics accelerator properties ensuring userAgent is always set. */
+  public static Map<String, String> initAnalyticsAcceleratorProperties(
+      Map<String, String> properties, String userAgent) {
+    Map<String, String> result = Maps.newHashMap(properties);
+    result.compute(
+        ObjectClientConfiguration.USER_AGENT_PREFIX_KEY,
+        (key, existingAgent) ->
+            existingAgent == null || existingAgent.isEmpty()
+                ? userAgent
+                : existingAgent + "," + userAgent);
+    return result;
   }
 }

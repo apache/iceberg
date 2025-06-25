@@ -21,14 +21,14 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.s3accessgrants.plugin.S3AccessGrantsPlugin;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 
 class S3AccessGrantsPluginConfigurations {
   private boolean isS3AccessGrantsFallbackToIamEnabled;
 
   private S3AccessGrantsPluginConfigurations() {}
 
-  public <T extends S3ClientBuilder> void configureS3ClientBuilder(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void configureS3ClientBuilder(T builder) {
     S3AccessGrantsPlugin s3AccessGrantsPlugin =
         S3AccessGrantsPlugin.builder().enableFallback(isS3AccessGrantsFallbackToIamEnabled).build();
     builder.addPlugin(s3AccessGrantsPlugin);
