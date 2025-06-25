@@ -20,9 +20,11 @@
 String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
 
-if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
-  throw new GradleException("Build with Spark 4.0 support requires minimum JDK version 17, found JDK version: " +
-          JavaVersion.current())
+def currentJavaVersion = JavaVersion.current()
+
+if (!(currentJavaVersion.is(JavaVersion.VERSION_17) || currentJavaVersion.is(JavaVersion.VERSION_21))) {
+  throw new GradleException("Build with Spark 4.0 support requires JDK version 17 / 21, found JDK version: " +
+          currentJavaVersion)
 }
 
 def sparkProjects = [
