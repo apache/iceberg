@@ -50,7 +50,6 @@ import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -99,18 +98,7 @@ public class S3FileIOProperties implements Serializable {
   /** This property is used to specify if the S3 Async clients should be created using CRT. */
   public static final String S3_CRT_ENABLED = "s3.crt.enabled";
 
-  public static final boolean S3_CRT_ENABLED_DEFAULT = true;
-
-  /** This property is used to specify the max concurrency for S3 CRT clients. */
-  public static final String S3_CRT_MAX_CONCURRENCY = "s3.crt.max-concurrency";
-
-  /**
-   * To fully benefit from the analytics-accelerator-s3 library where this S3 CRT client is used, it
-   * is recommended to initialize with higher concurrency.
-   *
-   * <p>For more details, see: https://github.com/awslabs/analytics-accelerator-s3
-   */
-  public static final int S3_CRT_MAX_CONCURRENCY_DEFAULT = 500;
+  public static final boolean S3_CRT_ENABLED_DEFAULT = false;
 
   /**
    * The fallback-to-iam property allows users to customize whether or not they would like their
@@ -527,7 +515,6 @@ public class S3FileIOProperties implements Serializable {
   private final boolean isS3AnalyticsAcceleratorEnabled;
   private final Map<String, String> s3AnalyticsacceleratorProperties;
   private final boolean isS3CRTEnabled;
-  private final int s3CrtMaxConcurrency;
   private String writeStorageClass;
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
@@ -575,7 +562,6 @@ public class S3FileIOProperties implements Serializable {
     this.isS3AnalyticsAcceleratorEnabled = S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT;
     this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
-    this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -695,9 +681,6 @@ public class S3FileIOProperties implements Serializable {
         PropertyUtil.propertiesWithPrefix(properties, S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX);
     this.isS3CRTEnabled =
         PropertyUtil.propertyAsBoolean(properties, S3_CRT_ENABLED, S3_CRT_ENABLED_DEFAULT);
-    this.s3CrtMaxConcurrency =
-        PropertyUtil.propertyAsInt(
-            properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -822,10 +805,6 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isS3CRTEnabled() {
     return isS3CRTEnabled;
-  }
-
-  public int s3CrtMaxConcurrency() {
-    return s3CrtMaxConcurrency;
   }
 
   public String endpoint() {
@@ -976,16 +955,17 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Configure services settings for an S3 client. The settings include: s3DualStack,
-   * crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   * Configure services settings for S3 sync and S3 async clients. The settings include:
+   * s3DualStack, crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(isDualStackEnabled)
         .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
@@ -998,15 +978,33 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Configure a signer for an S3 client.
+   * Configure services settings for an S3 CRT client. The settings include:
+   * crossRegionAccessEnabled, s3PathStyleAccess, and s3Acceleration
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyServiceConfigurations(T builder) {
+    builder
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
+        .forcePathStyle(isPathStyleAccess)
+        .accelerate(isAccelerationEnabled);
+  }
+
+  /**
+   * Configure a signer for S3 sync and S3 async clients.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
       ClientOverrideConfiguration.Builder configBuilder =
           null != builder.overrideConfiguration()
@@ -1052,15 +1050,16 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the retry configurations for an S3 client.
+   * Override the retry configurations for S3 sync and async clients.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyRetryConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()
             ? builder.overrideConfiguration().toBuilder()
@@ -1117,15 +1116,16 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Add the S3 Access Grants Plugin for an S3 client.
+   * Add the S3 Access Grants Plugin for S3 sync and async clients.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyS3AccessGrantsConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyS3AccessGrantsConfigurations(T builder) {
     if (isS3AccessGrantsEnabled) {
       S3AccessGrantsPluginConfigurations s3AccessGrantsPluginConfigurations =
           loadSdkPluginConfigurations(
@@ -1134,7 +1134,7 @@ public class S3FileIOProperties implements Serializable {
     }
   }
 
-  public <T extends S3ClientBuilder> void applyUserAgentConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyUserAgentConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()
             ? builder.overrideConfiguration().toBuilder()
@@ -1143,10 +1143,6 @@ public class S3FileIOProperties implements Serializable {
         configBuilder
             .putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, S3_FILE_IO_USER_AGENT)
             .build());
-  }
-
-  public S3CrtAsyncClientBuilder applyS3CrtConfigurations(S3CrtAsyncClientBuilder builder) {
-    return builder.maxConcurrency(s3CrtMaxConcurrency());
   }
 
   /**

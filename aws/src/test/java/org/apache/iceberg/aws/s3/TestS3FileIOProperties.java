@@ -126,9 +126,6 @@ public class TestS3FileIOProperties {
 
     assertThat(Collections.emptyMap()).isEqualTo(s3FileIOProperties.bucketToAccessPointMapping());
 
-    assertThat(S3FileIOProperties.S3_CRT_MAX_CONCURRENCY_DEFAULT)
-        .isEqualTo(s3FileIOProperties.s3CrtMaxConcurrency());
-
     assertThat(S3FileIOProperties.S3_CRT_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isS3CRTEnabled());
 
@@ -278,11 +275,6 @@ public class TestS3FileIOProperties {
             String.valueOf(s3FileIOProperties.isRemoteSigningEnabled()));
 
     assertThat(map).containsEntry(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
-
-    assertThat(map)
-        .containsEntry(
-            S3FileIOProperties.S3_CRT_MAX_CONCURRENCY,
-            String.valueOf(s3FileIOProperties.s3CrtMaxConcurrency()));
 
     assertThat(map)
         .containsEntry(
@@ -439,7 +431,6 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
     map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
-    map.put(S3FileIOProperties.S3_CRT_MAX_CONCURRENCY, "200");
     map.put(S3FileIOProperties.S3_CRT_ENABLED, "false");
     map.put(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, "true");
     return map;
@@ -541,17 +532,6 @@ public class TestS3FileIOProperties {
 
     Mockito.verify(mockS3ClientBuilder)
         .overrideConfiguration(Mockito.any(ClientOverrideConfiguration.class));
-  }
-
-  @Test
-  public void testApplyS3CrtConfigurations() {
-    Map<String, String> properties = Maps.newHashMap();
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-    S3CrtAsyncClientBuilder mockS3CrtAsyncClientBuilder =
-        Mockito.mock(S3CrtAsyncClientBuilder.class);
-    s3FileIOProperties.applyS3CrtConfigurations(mockS3CrtAsyncClientBuilder);
-
-    Mockito.verify(mockS3CrtAsyncClientBuilder).maxConcurrency(Mockito.any(Integer.class));
   }
 
   @Test

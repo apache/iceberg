@@ -180,21 +180,6 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
-   * Configure the credential provider for S3 CRT clients.
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
-   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyClientCredentialConfigurations)
-   * </pre>
-   */
-  public <T extends S3CrtAsyncClientBuilder> void applyClientCredentialConfigurations(T builder) {
-    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
-      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
-    }
-  }
-
-  /**
    * Returns a credentials provider instance. If {@link #refreshCredentialsEndpoint} is set, an
    * instance of {@link VendedCredentialsProvider} is returned. If params were set, we return a new
    * credentials instance. If none of the params are set, we try to dynamically load the provided

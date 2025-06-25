@@ -95,7 +95,7 @@ public class TestAwsClientFactories {
   }
 
   @Test
-  public void testS3AsyncClientDefaultIsCrt() {
+  public void testS3AsyncClientDefaultIsNotCrt() {
     assertThat(
             AwsClientFactories.from(
                     ImmutableMap.of(
@@ -106,7 +106,7 @@ public class TestAwsClientFactories {
                         AwsClientProperties.CLIENT_REGION,
                         "us-east-1"))
                 .s3Async())
-        .isInstanceOf(DefaultS3CrtAsyncClient.class);
+        .isNotInstanceOf(DefaultS3CrtAsyncClient.class);
   }
 
   @Test
