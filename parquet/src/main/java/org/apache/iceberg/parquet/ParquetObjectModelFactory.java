@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.orc;
+package org.apache.iceberg.parquet;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -25,21 +25,22 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ObjectModelFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.orc.TypeDescription;
+import org.apache.parquet.schema.MessageType;
 
-public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAccessFactory<E, D> {
+public class ParquetObjectModelFactory<D, F, E> implements ObjectModelFactory<E, D> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
-  private final BatchReaderFunction<D> batchReaderFunction;
-  private final WriterFunction<E> writerFunction;
+  private final BatchReaderFunction<D, F> batchReaderFunction;
+  private final WriterFunction<D, E> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
-  private ORCFileAccessFactory(
+  private ParquetObjectModelFactory(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction<E> writerFunction,
+      BatchReaderFunction<D, F> batchReaderFunction,
+      WriterFunction<D, E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
@@ -48,21 +49,22 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
     this.pathTransformFunc = pathTransformFunc;
   }
 
-  public ORCFileAccessFactory(
+  public ParquetObjectModelFactory(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      WriterFunction<E> writerFunction,
+      WriterFunction<D, E> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
   }
 
-  public ORCFileAccessFactory(String objectModelName, BatchReaderFunction<D> batchReaderFunction) {
+  public ParquetObjectModelFactory(
+      String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
     this(objectModelName, null, batchReaderFunction, null, null);
   }
 
   @Override
   public FileFormat format() {
-    return FileFormat.ORC;
+    return FileFormat.PARQUET;
   }
 
   @Override
@@ -74,14 +76,15 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
   public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataWriteBuilder(
       OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.DATA).writerFunction(writerFunction);
+        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.DATA)
+            .writerFunction(writerFunction);
   }
 
   @Override
   public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteWriteBuilder(
       OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.EQUALITY_DELETES)
+        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.EQUALITY_DELETES)
             .writerFunction(writerFunction);
   }
 
@@ -89,7 +92,7 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
   public <B extends org.apache.iceberg.io.WriteBuilder<B, E, PositionDelete<D>>>
       B positionDeleteWriteBuilder(OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.POSITION_DELETES)
+        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.POSITION_DELETES)
             .writerFunction(writerFunction)
             .pathTransformFunc(pathTransformFunc);
   }
@@ -97,23 +100,32 @@ public class ORCFileAccessFactory<E, D> implements org.apache.iceberg.io.FileAcc
   @Override
   public <B extends org.apache.iceberg.io.ReadBuilder<B, D>> B readBuilder(InputFile inputFile) {
     if (batchReaderFunction != null) {
-      return (B) new ORC.ReadBuilderImpl<D>(inputFile).batchReaderFunction(batchReaderFunction);
+      return (B)
+          new Parquet.ReadBuilderImpl<D, F>(inputFile).batchReaderFunction(batchReaderFunction);
     } else {
-      return (B) new ORC.ReadBuilderImpl<D>(inputFile).readerFunction(readerFunction);
+      return (B) new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
     }
   }
 
-  public interface WriterFunction<E> {
-    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
-  }
-
   public interface ReaderFunction<D> {
-    OrcRowReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
+    ParquetValueReader<D> read(
+        Schema schema, MessageType messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
-  public interface BatchReaderFunction<D> {
-    OrcBatchReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
+  public interface SupportsDeleteFilter<F> {
+    void deleteFilter(F deleteFilter);
+  }
+
+  public interface BatchReaderFunction<D, F> {
+    VectorizedReader<D> read(
+        Schema schema,
+        MessageType messageType,
+        Map<Integer, ?> constantFieldAccessors,
+        F deleteFilter,
+        Map<String, String> config);
+  }
+
+  public interface WriterFunction<D, E> {
+    ParquetValueWriter<D> write(E engineSchema, Schema icebergSchema, MessageType messageType);
   }
 }

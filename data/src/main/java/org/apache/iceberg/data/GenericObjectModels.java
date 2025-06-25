@@ -19,15 +19,15 @@
 package org.apache.iceberg.data;
 
 import java.util.function.Function;
-import org.apache.iceberg.avro.AvroFileAccessFactory;
+import org.apache.iceberg.avro.AvroObjectModelFactory;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.orc.ORCFileAccessFactory;
-import org.apache.iceberg.parquet.ParquetFileAccessFactory;
+import org.apache.iceberg.orc.ORCObjectModelFactory;
+import org.apache.iceberg.parquet.ParquetObjectModelFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +47,8 @@ public class GenericObjectModels {
   private static void registerParquet() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FileAccessFactoryRegistry.registerFileAccessFactory(
-                new ParquetFileAccessFactory<>(
+            ObjectModelRegistry.registerObjectModelFactory(
+                new ParquetObjectModelFactory<>(
                     GENERIC_OBJECT_MODEL,
                     GenericParquetReaders::buildReader,
                     (nativeSchema, icebergSchema, messageType) ->
@@ -59,8 +59,8 @@ public class GenericObjectModels {
   private static void registerAvro() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FileAccessFactoryRegistry.registerFileAccessFactory(
-                new AvroFileAccessFactory<>(
+            ObjectModelRegistry.registerObjectModelFactory(
+                new AvroObjectModelFactory<>(
                     GENERIC_OBJECT_MODEL,
                     PlannedDataReader::create,
                     (avroSchema, unused) -> DataWriter.create(avroSchema))));
@@ -69,8 +69,8 @@ public class GenericObjectModels {
   private static void registerOrc() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FileAccessFactoryRegistry.registerFileAccessFactory(
-                new ORCFileAccessFactory<>(
+            ObjectModelRegistry.registerObjectModelFactory(
+                new ORCObjectModelFactory<>(
                     GENERIC_OBJECT_MODEL,
                     GenericOrcReader::buildReader,
                     (schema, messageType, nativeSchema) ->

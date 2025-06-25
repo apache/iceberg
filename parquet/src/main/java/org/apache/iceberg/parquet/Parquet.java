@@ -75,6 +75,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -142,7 +143,8 @@ public class Parquet {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -154,7 +156,8 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -169,7 +172,8 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
@@ -320,7 +324,7 @@ public class Parquet {
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private ParquetFileAccessFactory.WriterFunction<D, E> writerFunction = null;
+    private ParquetObjectModelFactory.WriterFunction<D, E> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -339,7 +343,7 @@ public class Parquet {
     }
 
     WriteBuilderImpl<E, D> writerFunction(
-        ParquetFileAccessFactory.WriterFunction<D, E> newWriterFunction) {
+        ParquetObjectModelFactory.WriterFunction<D, E> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -914,8 +918,8 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -923,8 +927,8 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -939,8 +943,8 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use FileAccessFactoryRegistry.writeBuilder
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -1058,9 +1062,10 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -1068,9 +1073,10 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -1085,9 +1091,10 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.positionDeleteWriteBuilder and
-   *     FileAccessFactoryRegistry.equalityDeleteWriteBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {
@@ -1338,10 +1345,8 @@ public class Parquet {
   }
 
   /**
-   * Old reader API.
-   *
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
-   *     FileAccessFactoryRegistry.readerBuilder instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -1356,9 +1361,8 @@ public class Parquet {
   }
 
   /**
-   * Old reader API.
-   *
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
+   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {
@@ -1528,7 +1532,7 @@ public class Parquet {
   static class ReadBuilderImpl<D, F>
       implements InternalData.ReadBuilder,
           org.apache.iceberg.io.ReadBuilder<ReadBuilderImpl<D, F>, D>,
-          ParquetFileAccessFactory.SupportsDeleteFilter<F> {
+          ParquetObjectModelFactory.SupportsDeleteFilter<F> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1539,8 +1543,8 @@ public class Parquet {
     private Function<MessageType, VectorizedReader<D>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<D>> readerFunc = null;
     private BiFunction<Schema, MessageType, ParquetValueReader<D>> readerFuncWithSchema = null;
-    private ParquetFileAccessFactory.BatchReaderFunction<D, F> batchReaderFunction = null;
-    private ParquetFileAccessFactory.ReaderFunction<D> readerFunction = null;
+    private ParquetObjectModelFactory.BatchReaderFunction<D, F> batchReaderFunction = null;
+    private ParquetObjectModelFactory.ReaderFunction<D> readerFunction = null;
     private boolean filterRecords = true;
     private boolean filterCaseSensitive = true;
     private boolean callInit = false;
@@ -1556,7 +1560,7 @@ public class Parquet {
     }
 
     ReadBuilderImpl<D, F> readerFunction(
-        ParquetFileAccessFactory.ReaderFunction<D> newReaderFunction) {
+        ParquetObjectModelFactory.ReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null
               && readerFuncWithSchema == null
@@ -1568,7 +1572,7 @@ public class Parquet {
     }
 
     ReadBuilderImpl<D, F> batchReaderFunction(
-        ParquetFileAccessFactory.BatchReaderFunction<D, F> func) {
+        ParquetObjectModelFactory.BatchReaderFunction<D, F> func) {
       Preconditions.checkState(
           readerFunc == null
               && readerFuncWithSchema == null

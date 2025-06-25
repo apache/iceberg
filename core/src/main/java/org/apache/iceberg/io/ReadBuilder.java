@@ -26,7 +26,7 @@ import org.apache.iceberg.mapping.NameMapping;
 
 /**
  * Builder interface for creating file readers across supported data file formats. The {@link
- * FileAccessFactory} implementations provides appropriate {@link ReadBuilder} instances
+ * ObjectModelFactory} implementations provides appropriate {@link ReadBuilder} instances
  *
  * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link
  * CloseableIterable} instances that read data from source files. Configuration options include

@@ -20,11 +20,11 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
-import org.apache.iceberg.avro.AvroFileAccessFactory;
+import org.apache.iceberg.avro.AvroObjectModelFactory;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.data.FileAccessFactoryRegistry;
-import org.apache.iceberg.orc.ORCFileAccessFactory;
-import org.apache.iceberg.parquet.ParquetFileAccessFactory;
+import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.orc.ORCObjectModelFactory;
+import org.apache.iceberg.parquet.ParquetObjectModelFactory;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -43,8 +43,8 @@ public class SparkObjectModels {
   public static final String SPARK_VECTORIZED_OBJECT_MODEL = "spark-vectorized";
 
   public static void register() {
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new AvroFileAccessFactory<StructType, InternalRow>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new AvroObjectModelFactory<StructType, InternalRow>(
             SPARK_OBJECT_MODEL,
             SparkPlannedAvroReader::create,
             (schema, engineSchema) -> new SparkAvroWriter(engineSchema),
@@ -52,27 +52,27 @@ public class SparkObjectModels {
                 new SparkAvroWriter(
                     (StructType) engineSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ParquetFileAccessFactory<InternalRow, DeleteFilter<InternalRow>, StructType>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ParquetObjectModelFactory<InternalRow, DeleteFilter<InternalRow>, StructType>(
             SPARK_OBJECT_MODEL,
             SparkParquetReaders::buildReader,
             (engineSchema, icebergSchema, messageType) ->
                 SparkParquetWriters.buildWriter(engineSchema, messageType),
             path -> UTF8String.fromString(path.toString())));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ParquetFileAccessFactory<ColumnarBatch, DeleteFilter<InternalRow>, StructType>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ParquetObjectModelFactory<ColumnarBatch, DeleteFilter<InternalRow>, StructType>(
             SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkParquetReaders::buildReader));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ORCFileAccessFactory<StructType, InternalRow>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ORCObjectModelFactory<StructType, InternalRow>(
             SPARK_OBJECT_MODEL,
             SparkOrcReader::new,
             (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType),
             path -> UTF8String.fromString(path.toString())));
 
-    FileAccessFactoryRegistry.registerFileAccessFactory(
-        new ORCFileAccessFactory<StructType, ColumnarBatch>(
+    ObjectModelRegistry.registerObjectModelFactory(
+        new ORCObjectModelFactory<StructType, ColumnarBatch>(
             SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkOrcReaders::buildReader));
   }
 
