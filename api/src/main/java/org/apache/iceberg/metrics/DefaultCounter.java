@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
@@ -109,6 +110,11 @@ public class DefaultCounter implements Counter {
     }
 
     @Override
+    public Optional<Integer> count() {
+      return Optional.of(value());
+    }
+
+    @Override
     public Integer value() {
       long value = counter.longValue();
       if (value > Integer.MAX_VALUE) {
@@ -133,6 +139,11 @@ public class DefaultCounter implements Counter {
     @Override
     public void increment(Long amount) {
       DefaultCounter.this.increment(amount);
+    }
+
+    @Override
+    public Optional<Long> count() {
+      return Optional.of(value());
     }
 
     @Override

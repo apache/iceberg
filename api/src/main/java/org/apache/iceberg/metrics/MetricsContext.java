@@ -21,6 +21,7 @@ package org.apache.iceberg.metrics;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -70,6 +71,17 @@ public interface MetricsContext extends Serializable {
      * @param amount to be incremented
      */
     void increment(T amount);
+
+    /**
+     * Reporting count is optional if the counter is reporting externally.
+     *
+     * @return current count if available
+     * @deprecated Use {@link Counter#value()}
+     */
+    @Deprecated
+    default Optional<T> count() {
+      return Optional.empty();
+    }
 
     /**
      * Reports the current count.
