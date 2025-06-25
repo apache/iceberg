@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.comet.parquet.SupportsComet;
 import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -37,6 +38,7 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -95,7 +97,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkScan implements Scan, SupportsReportStatistics {
+abstract class SparkScan implements Scan, SupportsReportStatistics, SupportsComet {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
   private static final String NDV_KEY = "ndv";
 
@@ -249,6 +251,16 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount, colStatsMap);
+  }
+
+  @Override
+  public boolean isCometEnabled() {
+    if (readConf.parquetReaderType() == ParquetReaderType.COMET) {
+      SparkBatch batch = (SparkBatch) this.toBatch();
+      return batch.useParquetBatchReads();
+    }
+
+    return false;
   }
 
   private long totalRecords(Snapshot snapshot) {
