@@ -44,6 +44,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
 
   private final long numSplits;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   RowDataReader(SparkInputPartition partition, boolean cacheDeleteFilesOnExecutors) {
     this(
@@ -63,10 +64,10 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
 
-    super(
-        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
 
     numSplits = taskGroup.tasks().size();
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
@@ -87,7 +88,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(
+            filePath, task.deletes(), counter(), true, cacheDeleteFilesOnExecutors);
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
@@ -116,6 +118,10 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
           readSchema,
           idToConstant);
     }
+  }
+
+  protected boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
