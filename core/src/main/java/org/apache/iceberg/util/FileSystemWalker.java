@@ -59,25 +59,7 @@ public class FileSystemWalker {
       Map<Integer, PartitionSpec> specs,
       Predicate<FileInfo> predicate,
       Consumer<String> consumer) {
-    PathFilter filter = PartitionAwareHiddenPathFilter.forSpecs(specs);
-    listDirRecursivelyWithFileIO(io, dir, predicate, filter, consumer);
-  }
-
-  /**
-   * Recursively lists files in the specified directory that satisfy the given conditions.
-   *
-   * @param io File system interface supporting prefix operations
-   * @param dir Base directory to start recursive listing
-   * @param predicate Additional filter condition for files
-   * @param pathFilter Filter to identify hidden paths
-   * @param consumer Consumer to accept matching file locations
-   */
-  public static void listDirRecursivelyWithFileIO(
-      SupportsPrefixOperations io,
-      String dir,
-      Predicate<FileInfo> predicate,
-      PathFilter pathFilter,
-      Consumer<String> consumer) {
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
     String listPath = dir;
     if (!dir.endsWith("/")) {
       listPath = dir + "/";
@@ -123,43 +105,7 @@ public class FileSystemWalker {
       int maxDirectSubDirs,
       List<String> remainingSubDirs,
       Consumer<String> consumer) {
-    PathFilter filter = PartitionAwareHiddenPathFilter.forSpecs(specs);
-    listDirRecursivelyWithHadoop(
-        dir, predicate, conf, maxDepth, maxDirectSubDirs, remainingSubDirs, filter, consumer);
-  }
-
-  /**
-   * Recursively traverses the specified directory using Hadoop API to collect file paths that meet
-   * the conditions.
-   *
-   * <p>This method provides depth control and subdirectory quantity limitation:
-   *
-   * <ul>
-   *   <li>Stops traversal when maximum recursion depth is reached and adds current directory to
-   *       pending list
-   *   <li>Stops traversal when number of direct subdirectories exceeds threshold and adds
-   *       subdirectories to pending list
-   * </ul>
-   *
-   * @param dir The starting directory path to traverse
-   * @param predicate File filter condition, only files satisfying this condition will be collected
-   * @param conf Hadoop conf
-   * @param maxDepth Maximum recursion depth limit
-   * @param maxDirectSubDirs Upper limit of subdirectories that can be processed directly
-   * @param remainingSubDirs Output parameter for storing unprocessed directory paths
-   * @param pathFilter Path filter for excluding special directories (e.g. hidden paths)
-   * @param consumer Consumer for collecting qualified file paths
-   */
-  public static void listDirRecursivelyWithHadoop(
-      String dir,
-      Predicate<FileStatus> predicate,
-      Configuration conf,
-      int maxDepth,
-      int maxDirectSubDirs,
-      List<String> remainingSubDirs,
-      PathFilter pathFilter,
-      Consumer<String> consumer) {
-
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
     if (maxDepth <= 0) {
       remainingSubDirs.add(dir);
       return;
@@ -186,12 +132,12 @@ public class FileSystemWalker {
       for (String subDir : subDirs) {
         listDirRecursivelyWithHadoop(
             subDir,
+            specs,
             predicate,
             conf,
             maxDepth - 1,
             maxDirectSubDirs,
             remainingSubDirs,
-            pathFilter,
             consumer);
       }
     } catch (IOException e) {
