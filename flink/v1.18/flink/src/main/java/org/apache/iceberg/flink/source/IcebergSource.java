@@ -36,6 +36,8 @@ import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
@@ -56,6 +58,7 @@ import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.PartitionAwareSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
@@ -104,8 +107,21 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   // cache the discovered splits by planSplitsForBatch, which can be called twice. And they come
   // from two different threads: (1) source/stream construction by main thread (2) enumerator
-  // creation. Hence need volatile here.
+  // creation. Hence need volatile here. When Storage Partition Join Optimization is enabled
+  // for Batch Execution, will be called on in main thread within IcebergTableSource
+  // as needed to notify Flink Planner to determine whether we can apply it to the table sources
   private volatile List<IcebergSourceSplit> batchSplits;
+
+  // if Storage Partition Join (SPJ) is enabled on the Flink Engine side AND the Planner decided
+  // that
+  // SPJ can be used
+  private final boolean shouldApplyPartitionedRead;
+  // TODO -- remove once Flink changes are landed and we can use this property from
+  // OptimizerConfigOptions
+  static final ConfigOption<Boolean> TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED =
+      ConfigOptions.key("table.optimizer.storage-partition-join-enabled")
+          .booleanType()
+          .defaultValue(false);
 
   IcebergSource(
       TableLoader tableLoader,
@@ -114,7 +130,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
-      SerializableRecordEmitter<T> emitter) {
+      SerializableRecordEmitter<T> emitter,
+      boolean shouldApplyPartitionedRead,
+      List<IcebergSourceSplit> batchSplits) {
     Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
     Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     Preconditions.checkNotNull(assignerFactory, "assignerFactory is required.");
@@ -126,6 +144,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     this.splitComparator = splitComparator;
     this.emitter = emitter;
     this.tableName = table.name();
+    this.shouldApplyPartitionedRead = shouldApplyPartitionedRead;
+    this.batchSplits = batchSplits;
   }
 
   String name() {
@@ -155,8 +175,26 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      this.batchSplits =
-          FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
+      if (shouldApplyPartitionedRead) {
+        // FlinkSplitPlanner.planIcebergPartitionAwareSourceSplits is called by IcebergTableSource
+        // as a requirement to notify the Flink Planner. So batchSplits should have already been
+        // called
+        // this is ideally checked in outputPartitioning() so this should never occur. We should
+        // only
+        // get partitionAware splits in Batch execution mode
+        Preconditions.checkArgument(
+            !scanContext.isStreaming(), "partition-awareness is only available in batch mode");
+        Preconditions.checkArgument(
+            batchSplits != null,
+            "Batch splits should have already been called on by IcebergTableSource");
+        // TODO -- see above comment and remove
+        this.batchSplits =
+            FlinkSplitPlanner.planIcebergPartitionAwareSourceSplits(
+                loader.loadTable(), scanContext, workerPool);
+      } else {
+        this.batchSplits =
+            FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
+      }
       LOG.info(
           "Discovered {} splits from table {} during job initialization",
           batchSplits.size(),
@@ -271,6 +309,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
     private Boolean exposeLocality;
+
+    private boolean shouldApplyPartitionedRead;
+    private List<IcebergSourceSplit> batchSplits;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
 
@@ -513,6 +554,36 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * Sets the splitAssigner to PartitionAwareSplitAssigner when true. If Storage Partition Join
+     * (SPJ) is enabled on the Flink Engine side AND the Planner decided that SPJ can be used, we
+     * should use PartitionAwareSplitAssigner to enabled ensure file locality and reduce unnecessary
+     * shuffle.
+     *
+     * <p>Ensure that `table.optimizer.storage-partition-join-enabled` is set to true to enable the
+     * Flink Planner to consider whether it can use SPJ See {@link
+     * org.apache.iceberg.flink.source.assigner.PartitionAwareSplitAssigner}
+     */
+    public Builder<T> applyPartitionedRead(boolean applyPartitionedRead) {
+      this.shouldApplyPartitionedRead = applyPartitionedRead;
+      return this;
+    }
+
+    /**
+     * Sets pre-computed batch splits to avoid expensive recomputation during execution.
+     *
+     * <p>This method is used to pass splits that have already been computed by {@code
+     * IcebergTableSource.outputPartitioning()} for partition discovery. Without this, splits would
+     * be computed twice: once for output partitioning and once for execution.
+     *
+     * @param splits pre-computed splits from partition-aware planning
+     * @return this builder for method chaining
+     */
+    public Builder<T> batchSplits(List<IcebergSourceSplit> splits) {
+      this.batchSplits = splits;
+      return this;
+    }
+
     public IcebergSource<T> build() {
       if (table == null) {
         try (TableLoader loader = tableLoader) {
@@ -567,6 +638,16 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
+      if (shouldApplyPartitionedRead) {
+        // TODO -- should be replaced by
+        // OptimizerConfigOptions.TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED once
+        // flink configs are landed
+        Preconditions.checkArgument(
+            flinkConfig.get(TABLE_OPTIMIZER_STORAGE_PARTITION_JOIN_ENABLED),
+            "can only use PartitionAwareSplitAssigner if Storage Partition Join is enabled");
+        splitAssignerFactory = new PartitionAwareSplitAssignerFactory();
+      }
+
       if (splitAssignerFactory == null) {
         if (splitComparator == null) {
           splitAssignerFactory = new SimpleSplitAssignerFactory();
@@ -583,7 +664,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitAssignerFactory,
           splitComparator,
           table,
-          emitter);
+          emitter,
+          shouldApplyPartitionedRead,
+          batchSplits);
     }
 
     /**

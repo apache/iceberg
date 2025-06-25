@@ -20,13 +20,19 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -37,6 +43,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 
 @Internal
@@ -67,6 +75,69 @@ public class FlinkSplitPlanner {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process tasks iterable", e);
     }
+  }
+
+  /** This returns partition-aware splits for the FLIP-27 source */
+  public static List<IcebergSourceSplit> planIcebergPartitionAwareSourceSplits(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    Preconditions.checkArgument(table != null, "Table must be initialized");
+    Collection<PartitionSpec> specs = table.specs().values();
+    Types.StructType groupingKeyType = null;
+    try {
+      groupingKeyType = Partitioning.groupingKeyType(null, specs);
+      // when groupingKeyType().fields().isEmpty() then Flink could not find a way to group the
+      // partitions
+      // PartitionAwareSplitAssignment should not be used and should have fallen back to default
+      // Split Assignment
+      Preconditions.checkArgument(
+          !groupingKeyType.fields().isEmpty(),
+          "Currently only Partitions that are able to be grouped are supported");
+    } catch (Exception ve) {
+      throw new RuntimeException(
+          "Currently only Partitions that are able to be grouped are supported: ", ve);
+    }
+
+    List<FileScanTask> fileTasks;
+    try (CloseableIterable<FileScanTask> filesIterable = planFiles(table, context, workerPool)) {
+      fileTasks = Lists.newArrayList(filesIterable);
+      List<ScanTaskGroup<FileScanTask>> taskGroups =
+          TableScanUtil.planTaskGroups(
+              fileTasks,
+              context.splitSize(),
+              context.splitLookback(),
+              context.splitOpenFileCost(),
+              groupingKeyType);
+      return taskGroups.stream()
+          .map(
+              taskGroup ->
+                  IcebergSourceSplit.fromCombinedScanTask(
+                      new BaseCombinedScanTask(Lists.newArrayList(taskGroup.tasks()))))
+          .collect(Collectors.toList());
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to plan files: ", e);
+    }
+  }
+
+  // similar logic as planTasks, this is inspired from Spark's tasks() methods adapted for Flink
+  static CloseableIterable<FileScanTask> planFiles(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    ScanMode scanMode = checkScanMode(context);
+    Preconditions.checkArgument(
+        scanMode == ScanMode.BATCH,
+        "planFiles is implemented for Batch execution mode only. Current mode:  " + scanMode);
+    TableScan scan = table.newScan();
+    scan = refineScanWithBaseConfigs(scan, context, workerPool);
+    if (context.snapshotId() != null) {
+      scan = scan.useSnapshot(context.snapshotId());
+    } else if (context.tag() != null) {
+      scan = scan.useRef(context.tag());
+    } else if (context.branch() != null) {
+      scan = scan.useRef(context.branch());
+    }
+    if (context.asOfTimestamp() != null) {
+      scan = scan.asOfTime(context.asOfTimestamp());
+    }
+    return scan.planFiles();
   }
 
   /** This returns splits for the FLIP-27 source */

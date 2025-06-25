@@ -55,7 +55,8 @@ public class DefaultSplitAssigner implements SplitAssigner {
   }
 
   @Override
-  public synchronized GetSplitResult getNext(@Nullable String hostname) {
+  public synchronized GetSplitResult getNext(
+      @Nullable String hostname, int subtaskId, int numRegisteredTasks) {
     if (pendingSplits.isEmpty()) {
       return GetSplitResult.unavailable();
     } else {

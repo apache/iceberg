@@ -122,7 +122,8 @@ abstract class AbstractIcebergEnumerator
 
       int awaitingSubtask = nextAwaiting.getKey();
       String hostname = nextAwaiting.getValue();
-      GetSplitResult getResult = assigner.getNext(hostname);
+      GetSplitResult getResult =
+          assigner.getNext(hostname, awaitingSubtask, enumeratorContext.currentParallelism());
       if (getResult.status() == GetSplitResult.Status.AVAILABLE) {
         LOG.info("Assign split to subtask {}: {}", awaitingSubtask, getResult.split());
         enumeratorContext.assignSplit(getResult.split(), awaitingSubtask);

@@ -64,8 +64,13 @@ public interface SplitAssigner extends Closeable {
    *
    * <p>If enumerator wasn't able to assign the split (e.g., reader disconnected), enumerator should
    * call {@link SplitAssigner#onUnassignedSplits} to return the split.
+   *
+   * @param hostname the hostname of the requesting reader
+   * @param subtaskId the subtask ID of the requesting reader
+   * @param numRegisteredTasks the total number of registered tasks
+   * @return the split assignment result
    */
-  GetSplitResult getNext(@Nullable String hostname);
+  GetSplitResult getNext(@Nullable String hostname, int subtaskId, int numRegisteredTasks);
 
   /** Add new splits discovered by enumerator */
   void onDiscoveredSplits(Collection<IcebergSourceSplit> splits);

@@ -100,7 +100,7 @@ public abstract class SplitAssignerTestBase {
   }
 
   protected void assertGetNext(SplitAssigner assigner, GetSplitResult.Status expectedStatus) {
-    GetSplitResult result = assigner.getNext(null);
+    GetSplitResult result = assigner.getNext(null, 0, -1);
     Assert.assertEquals(expectedStatus, result.status());
     switch (expectedStatus) {
       case AVAILABLE:
