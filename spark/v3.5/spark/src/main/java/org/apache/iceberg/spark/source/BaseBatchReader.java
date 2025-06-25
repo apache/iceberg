@@ -51,10 +51,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf,
-      boolean cacheDeleteFilesOnExecutors) {
-    super(
-        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+      OrcBatchReadConf orcConf) {
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
   }
