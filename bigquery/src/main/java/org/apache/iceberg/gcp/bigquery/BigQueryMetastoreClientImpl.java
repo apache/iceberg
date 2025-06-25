@@ -492,9 +492,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       List<Tables> allTables = tablesStream.collect(Collectors.toList());
 
       if (!listAllTables) {
-
         List<Tables> validTables = Collections.synchronizedList(Lists.newArrayList());
-
         Tasks.foreach(allTables)
             .executeWith(ThreadPools.getWorkerPool())
             .noRetry()
