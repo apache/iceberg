@@ -29,6 +29,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -80,14 +83,12 @@ public class TestKeyManagementClient {
     }
   }
 
-  @Test
-  public void testKeyGeneration() {
-    testKeyGenerationWithDataKeySpec(null);
-    testKeyGenerationWithDataKeySpec(DataKeySpec.AES_128);
-    testKeyGenerationWithDataKeySpec(DataKeySpec.AES_256);
-  }
-
-  private void testKeyGenerationWithDataKeySpec(DataKeySpec dataKeySpec) {
+  @ParameterizedTest
+  @NullSource
+  @EnumSource(
+      value = DataKeySpec.class,
+      names = {"AES_128", "AES_256"})
+  public void testKeyGeneration(DataKeySpec dataKeySpec) {
     AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient();
     try {
       Map<String, String> properties =
@@ -98,10 +99,17 @@ public class TestKeyManagementClient {
       KeyManagementClient.KeyGenerationResult result = keyManagementClient.generateKey(keyId);
 
       assertThat(keyManagementClient.unwrapKey(result.wrappedKey(), keyId)).isEqualTo(result.key());
-      assertThat(result.key().limit())
-          .isEqualTo(DataKeySpec.AES_128.equals(dataKeySpec) ? 128 / 8 : 256 / 8);
+      assertThat(result.key().limit()).isEqualTo(expectedLength(dataKeySpec));
     } finally {
       keyManagementClient.close();
+    }
+  }
+
+  private static int expectedLength(DataKeySpec spec) {
+    if (DataKeySpec.AES_128.equals(spec)) {
+      return 128 / 8;
+    } else {
+      return 256 / 8;
     }
   }
 
