@@ -201,18 +201,6 @@ public class SparkExecutorCache {
           .parse();
     }
 
-    public boolean executorCacheEnabledForDeletes() {
-      return cacheEnabled() && executorCacheEnabledForDeletesInternal();
-    }
-
-    public boolean executorCacheEnabledForDeletesInternal() {
-      return confParser
-          .booleanConf()
-          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED)
-          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT)
-          .parse();
-    }
-
     public Duration timeout() {
       return confParser
           .durationConf()

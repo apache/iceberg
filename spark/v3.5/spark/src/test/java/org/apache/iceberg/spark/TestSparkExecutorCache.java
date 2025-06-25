@@ -134,7 +134,6 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         () -> {
           Conf conf = new Conf();
           assertThat(conf.cacheEnabled()).isTrue();
-          assertThat(conf.cacheEnabled()).isTrue();
         });
 
     withSQLConf(
