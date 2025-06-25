@@ -52,8 +52,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive(),
-        cacheDeleteFilesOnExecutors);
+        partition.isCaseSensitive());
   }
 
   PositionDeletesRowReader(
@@ -61,11 +60,9 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
       ScanTaskGroup<PositionDeletesScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean caseSensitive) {
 
-    super(
-        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());
