@@ -133,37 +133,15 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true"),
         () -> {
           Conf conf = new Conf();
-          assertThat(conf.cacheEnabled(true)).isTrue();
-          assertThat(conf.cacheEnabled(false)).isTrue();
+          assertThat(conf.cacheEnabled()).isTrue();
+          assertThat(conf.cacheEnabled()).isTrue();
         });
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false"),
         () -> {
           Conf conf = new Conf();
-          assertThat(conf.cacheEnabled(true)).isFalse();
-          assertThat(conf.cacheEnabled(false)).isFalse();
-        });
-
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
-            SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED, "false"),
-        () -> {
-          Conf conf = new Conf();
-          assertThat(conf.cacheEnabled(false)).isTrue();
-          assertThat(conf.cacheEnabled(true)).isFalse(); // delete caching disabled
-        });
-
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
-            SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED, "true"),
-        () -> {
-          Conf conf = new Conf();
-          assertThat(conf.cacheEnabled(false)).isFalse();
-          assertThat(conf.cacheEnabled(true))
-              .isFalse(); // cache is disabled, so ignore delete cache
+          assertThat(conf.cacheEnabled()).isFalse();
         });
   }
 
@@ -206,7 +184,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testConcurrentAccess() throws InterruptedException {
-    SparkExecutorCache cache = SparkExecutorCache.getOrCreate(false);
+    SparkExecutorCache cache = SparkExecutorCache.getOrCreate();
 
     String table1 = "table1";
     String table2 = "table2";

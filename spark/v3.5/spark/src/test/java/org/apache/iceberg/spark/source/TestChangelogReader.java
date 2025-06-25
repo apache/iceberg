@@ -105,7 +105,7 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false, true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -136,7 +136,7 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false, true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -170,7 +170,7 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false, true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -197,7 +197,7 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false, true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }

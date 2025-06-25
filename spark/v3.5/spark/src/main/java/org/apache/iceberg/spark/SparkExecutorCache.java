@@ -70,10 +70,10 @@ public class SparkExecutorCache {
    *
    * <p>Note this method returns null if caching is disabled.
    */
-  public static SparkExecutorCache getOrCreate(boolean forDeletes) {
+  public static SparkExecutorCache getOrCreate() {
     if (instance == null) {
       Conf conf = new Conf();
-      if (conf.cacheEnabled(forDeletes)) {
+      if (conf.cacheEnabled()) {
         synchronized (SparkExecutorCache.class) {
           if (instance == null) {
             SparkExecutorCache.instance = new SparkExecutorCache(conf);
@@ -193,14 +193,7 @@ public class SparkExecutorCache {
   static class Conf {
     private final SparkConfParser confParser = new SparkConfParser();
 
-    public boolean cacheEnabled(boolean forDeletes) {
-      if (forDeletes) {
-        return executorCacheEnabledForDeletes() && executorCacheEnabled();
-      }
-      return executorCacheEnabled();
-    }
-
-    public boolean executorCacheEnabled() {
+    public boolean cacheEnabled() {
       return confParser
           .booleanConf()
           .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_ENABLED)
@@ -209,10 +202,14 @@ public class SparkExecutorCache {
     }
 
     public boolean executorCacheEnabledForDeletes() {
+      return cacheEnabled() && executorCacheEnabledForDeletesInternal();
+    }
+
+    public boolean executorCacheEnabledForDeletesInternal() {
       return confParser
           .booleanConf()
-          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED)
-          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED_DEFAULT)
+          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED)
+          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT)
           .parse();
     }
 
