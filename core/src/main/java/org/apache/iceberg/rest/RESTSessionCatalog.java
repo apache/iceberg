@@ -403,6 +403,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       if (metadataType != null) {
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+        if (!baseIdent.hasNamespace()) {
+          throw original;
+        }
+
         try {
           response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;

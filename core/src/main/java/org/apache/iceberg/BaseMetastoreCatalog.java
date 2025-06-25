@@ -103,7 +103,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       TableOperations ops = newTableOps(baseTableIdentifier);
       if (ops.current() == null) {
-        throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
+        throw new NoSuchTableException(
+            "Tables do not exist: %s, %s", identifier, baseTableIdentifier);
       }
 
       return MetadataTableUtils.createMetadataTableInstance(
