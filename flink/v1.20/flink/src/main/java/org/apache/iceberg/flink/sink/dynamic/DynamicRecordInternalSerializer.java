@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
