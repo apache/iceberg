@@ -20,6 +20,11 @@
 String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
 
+if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
+  throw new GradleException("Build with Spark 4.0 support requires minimum JDK version 17, found JDK version: " +
+          JavaVersion.current())
+}
+
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
