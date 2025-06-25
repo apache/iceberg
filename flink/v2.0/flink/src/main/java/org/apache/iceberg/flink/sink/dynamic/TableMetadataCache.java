@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -53,18 +51,18 @@ class TableMetadataCache {
   private final Catalog catalog;
   private final long refreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
-  private final Cache<TableIdentifier, CacheItem> cache;
+  private final LRUCache<TableIdentifier, CacheItem> tableCache;
 
   TableMetadataCache(
       Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
-    this.cache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+    this.tableCache = new LRUCache<>(maximumSize, ignored -> {});
   }
 
   Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
-    CacheItem cached = cache.getIfPresent(identifier);
+    CacheItem cached = tableCache.get(identifier);
     if (cached != null && Boolean.TRUE.equals(cached.tableExists)) {
       return EXISTS;
     } else if (needsRefresh(cached, true)) {
@@ -87,7 +85,7 @@ class TableMetadataCache {
   }
 
   void update(TableIdentifier identifier, Table table) {
-    cache.put(
+    tableCache.put(
         identifier,
         new CacheItem(
             true,
@@ -98,7 +96,7 @@ class TableMetadataCache {
   }
 
   private String branch(TableIdentifier identifier, String branch, boolean allowRefresh) {
-    CacheItem cached = cache.getIfPresent(identifier);
+    CacheItem cached = tableCache.get(identifier);
     if (cached != null && cached.tableExists && cached.branches.contains(branch)) {
       return branch;
     }
@@ -113,7 +111,7 @@ class TableMetadataCache {
 
   private ResolvedSchemaInfo schema(
       TableIdentifier identifier, Schema input, boolean allowRefresh) {
-    CacheItem cached = cache.getIfPresent(identifier);
+    CacheItem cached = tableCache.get(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
       // This only works if the {@link Schema#equals(Object)} returns true for the old schema
@@ -164,7 +162,7 @@ class TableMetadataCache {
   }
 
   private PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec, boolean allowRefresh) {
-    CacheItem cached = cache.getIfPresent(identifier);
+    CacheItem cached = tableCache.get(identifier);
     if (cached != null && cached.tableExists) {
       for (PartitionSpec tableSpec : cached.specs.values()) {
         if (PartitionSpecEvolution.checkCompatibility(tableSpec, spec)) {
@@ -188,7 +186,7 @@ class TableMetadataCache {
       return EXISTS;
     } catch (NoSuchTableException e) {
       LOG.debug("Table doesn't exist {}", identifier, e);
-      cache.put(identifier, new CacheItem(false, null, null, null, 1));
+      tableCache.put(identifier, new CacheItem(false, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
@@ -199,7 +197,7 @@ class TableMetadataCache {
   }
 
   public void invalidate(TableIdentifier identifier) {
-    cache.invalidate(identifier);
+    tableCache.remove(identifier);
   }
 
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
@@ -268,7 +266,7 @@ class TableMetadataCache {
   }
 
   @VisibleForTesting
-  Cache<TableIdentifier, CacheItem> getInternalCache() {
-    return cache;
+  LRUCache<TableIdentifier, CacheItem> getInternalCache() {
+    return tableCache;
   }
 }
