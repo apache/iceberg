@@ -67,6 +67,7 @@ public final class FileAccessFactoryRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER =
       ImmutableList.of(
+          "org.apache.iceberg.data.GenericObjectModels",
           "org.apache.iceberg.arrow.vectorized.ArrowReader",
           "org.apache.iceberg.flink.data.FlinkObjectModels",
           "org.apache.iceberg.spark.source.SparkObjectModels");
@@ -106,8 +107,6 @@ public final class FileAccessFactoryRegistry {
 
   @SuppressWarnings("CatchBlockLogException")
   private static void registerSupportedFormats() {
-    GenericObjectModels.register();
-
     // Uses dynamic methods to call the `register` for the listed classes
     for (String classToRegister : CLASSES_TO_REGISTER) {
       try {
