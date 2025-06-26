@@ -33,12 +33,10 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
 
 @Internal
-class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
-    implements Collector<DynamicRecord> {
+class DynamicRecordProcessor extends ProcessFunction<DynamicRecord, DynamicRecordInternal> {
   @VisibleForTesting
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
 
-  private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
   private final boolean immediateUpdate;
   private final int cacheMaximumSize;
@@ -48,16 +46,12 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
-  private transient Collector<DynamicRecordInternal> collector;
-  private transient Context context;
 
   DynamicRecordProcessor(
-      DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
       boolean immediateUpdate,
       int cacheMaximumSize,
       long cacheRefreshMs) {
-    this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
@@ -80,20 +74,12 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
               DYNAMIC_TABLE_UPDATE_STREAM,
               new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
-
-    generator.open(openContext);
   }
 
   @Override
-  public void processElement(T element, Context ctx, Collector<DynamicRecordInternal> out)
+  public void processElement(
+      DynamicRecord data, Context context, Collector<DynamicRecordInternal> collector)
       throws Exception {
-    this.context = ctx;
-    this.collector = out;
-    generator.generate(element, this);
-  }
-
-  @Override
-  public void collect(DynamicRecord data) {
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
@@ -158,14 +144,5 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             writerKey,
             data.upsertMode(),
             DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema)));
-  }
-
-  @Override
-  public void close() {
-    try {
-      super.close();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 }

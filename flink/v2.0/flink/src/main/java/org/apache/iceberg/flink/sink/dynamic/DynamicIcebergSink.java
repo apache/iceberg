@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.flink.annotation.Experimental;
-import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
@@ -44,14 +43,12 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPreWriteTopology;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
-import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -177,9 +174,8 @@ public class DynamicIcebergSink
     return new DynamicWriteResultSerializer();
   }
 
-  public static class Builder<T> {
-    private DataStream<T> input;
-    private DynamicRecordGenerator<T> generator;
+  public static class Builder {
+    private DataStream<DynamicRecord> input;
     private CatalogLoader catalogLoader;
     private String uidPrefix = null;
     private final Map<String, String> writeOptions = Maps.newHashMap();
@@ -191,13 +187,8 @@ public class DynamicIcebergSink
 
     Builder() {}
 
-    public Builder<T> forInput(DataStream<T> inputStream) {
+    public Builder forInput(DataStream<DynamicRecord> inputStream) {
       this.input = inputStream;
-      return this;
-    }
-
-    public Builder<T> generator(DynamicRecordGenerator<T> inputGenerator) {
-      this.generator = inputGenerator;
       return this;
     }
 
@@ -209,7 +200,7 @@ public class DynamicIcebergSink
      * @param newCatalogLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder<T> catalogLoader(CatalogLoader newCatalogLoader) {
+    public Builder catalogLoader(CatalogLoader newCatalogLoader) {
       this.catalogLoader = newCatalogLoader;
       return this;
     }
@@ -218,7 +209,7 @@ public class DynamicIcebergSink
      * Set the write properties for IcebergSink. View the supported properties in {@link
      * FlinkWriteOptions}
      */
-    public Builder<T> set(String property, String value) {
+    public Builder set(String property, String value) {
       writeOptions.put(property, value);
       return this;
     }
@@ -227,17 +218,17 @@ public class DynamicIcebergSink
      * Set the write properties for IcebergSink. View the supported properties in {@link
      * FlinkWriteOptions}
      */
-    public Builder<T> setAll(Map<String, String> properties) {
+    public Builder setAll(Map<String, String> properties) {
       writeOptions.putAll(properties);
       return this;
     }
 
-    public Builder<T> overwrite(boolean newOverwrite) {
+    public Builder overwrite(boolean newOverwrite) {
       writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
-    public Builder<T> flinkConf(ReadableConfig config) {
+    public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
     }
@@ -248,7 +239,7 @@ public class DynamicIcebergSink
      * @param newWriteParallelism the number of parallel iceberg stream writer.
      * @return {@link DynamicIcebergSink.Builder} to connect the iceberg table.
      */
-    public Builder<T> writeParallelism(int newWriteParallelism) {
+    public Builder writeParallelism(int newWriteParallelism) {
       writeOptions.put(
           FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
       return this;
@@ -278,39 +269,39 @@ public class DynamicIcebergSink
      * @param newPrefix prefix for Flink sink operator uid and name
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder<T> uidPrefix(String newPrefix) {
+    public Builder uidPrefix(String newPrefix) {
       this.uidPrefix = newPrefix;
       return this;
     }
 
-    public Builder<T> snapshotProperties(Map<String, String> properties) {
+    public Builder snapshotProperties(Map<String, String> properties) {
       snapshotSummary.putAll(properties);
       return this;
     }
 
-    public Builder<T> setSnapshotProperty(String property, String value) {
+    public Builder setSnapshotProperty(String property, String value) {
       snapshotSummary.put(property, value);
       return this;
     }
 
-    public Builder<T> toBranch(String branch) {
+    public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
     }
 
-    public Builder<T> immediateTableUpdate(boolean newImmediateUpdate) {
+    public Builder immediateTableUpdate(boolean newImmediateUpdate) {
       this.immediateUpdate = newImmediateUpdate;
       return this;
     }
 
     /** Maximum size of the caches used in Dynamic Sink for table data and serializers. */
-    public Builder<T> cacheMaxSize(int maxSize) {
+    public Builder cacheMaxSize(int maxSize) {
       this.cacheMaximumSize = maxSize;
       return this;
     }
 
     /** Maximum interval for cache items renewals. */
-    public Builder<T> cacheRefreshMs(long refreshMs) {
+    public Builder cacheRefreshMs(long refreshMs) {
       this.cacheRefreshMs = refreshMs;
       return this;
     }
@@ -319,12 +310,7 @@ public class DynamicIcebergSink
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    private DynamicIcebergSink build() {
-
-      Preconditions.checkArgument(
-          generator != null, "Please use withGenerator() to convert the input DataStream.");
-      Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
-
+    private DynamicIcebergSink buildSink() {
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
       Map<String, String> writeProperties =
           SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, null);
@@ -333,8 +319,7 @@ public class DynamicIcebergSink
       return instantiateSink(writeProperties, flinkWriteConf);
     }
 
-    @VisibleForTesting
-    DynamicIcebergSink instantiateSink(
+    protected DynamicIcebergSink instantiateSink(
         Map<String, String> writeProperties, FlinkWriteConf flinkWriteConf) {
       return new DynamicIcebergSink(
           catalogLoader,
@@ -351,18 +336,21 @@ public class DynamicIcebergSink
      * @return {@link DataStreamSink} for sink.
      */
     public DataStreamSink<DynamicRecordInternal> append() {
+      Preconditions.checkArgument(input != null, "Input DataStream shouldn't be null.");
+      Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
+
       DynamicRecordInternalType type =
           new DynamicRecordInternalType(catalogLoader, false, cacheMaximumSize);
-      DynamicIcebergSink sink = build();
       SingleOutputStreamOperator<DynamicRecordInternal> converted =
           input
               .process(
-                  new DynamicRecordProcessor<>(
-                      generator, catalogLoader, immediateUpdate, cacheMaximumSize, cacheRefreshMs))
-              .uid(prefixIfNotNull(uidPrefix, "-generator"))
-              .name(operatorName("generator"))
+                  new DynamicRecordProcessor(
+                      catalogLoader, immediateUpdate, cacheMaximumSize, cacheRefreshMs))
+              .uid(prefixIfNotNull(uidPrefix, "-record-processor"))
+              .name(operatorName("record-processor"))
               .returns(type);
 
+      DynamicIcebergSink sink = buildSink();
       DataStreamSink<DynamicRecordInternal> rowDataDataStreamSink =
           converted
               .getSideOutput(
@@ -394,13 +382,13 @@ public class DynamicIcebergSink
   }
 
   /**
-   * Initialize a {@link IcebergSink.Builder} to export the data from input data stream with {@link
-   * RowData}s into iceberg table.
+   * Initialize a {@link DynamicIcebergSink.Builder} to export input {@code
+   * DataStream<DynamicRecord>} into an Iceberg table.
    *
-   * @param input the source input data stream with {@link RowData}s.
-   * @return {@link IcebergSink.Builder} to connect the iceberg table.
+   * @param input the input data stream.
+   * @return {@link DynamicIcebergSink.Builder} to connect an Iceberg table.
    */
-  public static <T> Builder<T> forInput(DataStream<T> input) {
-    return new Builder<T>().forInput(input);
+  public static Builder forInput(DataStream<DynamicRecord> input) {
+    return new Builder().forInput(input);
   }
 }
