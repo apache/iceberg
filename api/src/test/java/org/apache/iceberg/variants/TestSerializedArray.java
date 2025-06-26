@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedArray {
   private static final VariantMetadata EMPTY_METADATA = SerializedMetadata.EMPTY_V1_METADATA;
@@ -75,16 +77,11 @@ public class TestSerializedArray {
 
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(array.numElements()).isEqualTo(5);
-    assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(0).asPrimitive().get()).isEqualTo("a");
-    assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(1).asPrimitive().get()).isEqualTo("b");
-    assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(2).asPrimitive().get()).isEqualTo("c");
-    assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(3).asPrimitive().get()).isEqualTo("d");
-    assertThat(array.get(4).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(4).asPrimitive().get()).isEqualTo("e");
+    VariantTestUtil.assertVariantString(array.get(0), "a");
+    VariantTestUtil.assertVariantString(array.get(1), "b");
+    VariantTestUtil.assertVariantString(array.get(2), "c");
+    VariantTestUtil.assertVariantString(array.get(3), "d");
+    VariantTestUtil.assertVariantString(array.get(4), "e");
 
     assertThatThrownBy(() -> array.get(5))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
@@ -98,18 +95,12 @@ public class TestSerializedArray {
 
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(array.numElements()).isEqualTo(6);
-    assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(0).asPrimitive().get()).isEqualTo("a");
-    assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(1).asPrimitive().get()).isEqualTo("b");
-    assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(2).asPrimitive().get()).isEqualTo("c");
-    assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(3).asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(array.get(4).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(4).asPrimitive().get()).isEqualTo("d");
-    assertThat(array.get(5).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(5).asPrimitive().get()).isEqualTo("e");
+    VariantTestUtil.assertVariantString(array.get(0), "a");
+    VariantTestUtil.assertVariantString(array.get(1), "b");
+    VariantTestUtil.assertVariantString(array.get(2), "c");
+    VariantTestUtil.assertVariantString(array.get(3), "iceberg");
+    VariantTestUtil.assertVariantString(array.get(4), "d");
+    VariantTestUtil.assertVariantString(array.get(5), "e");
 
     assertThatThrownBy(() -> array.get(6))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
@@ -131,14 +122,11 @@ public class TestSerializedArray {
     assertThat(array.get(0).asPrimitive().get()).isEqualTo(17396);
     assertThat(array.get(1).type()).isEqualTo(PhysicalType.INT8);
     assertThat(array.get(1).asPrimitive().get()).isEqualTo((byte) 34);
-    assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(2).asPrimitive().get()).isEqualTo("iceberg");
+    VariantTestUtil.assertVariantString(array.get(2), "iceberg");
     assertThat(array.get(3).type()).isEqualTo(PhysicalType.NULL);
     assertThat(array.get(3).asPrimitive().get()).isEqualTo(null);
-    assertThat(array.get(4).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(4).asPrimitive().get()).isEqualTo("e");
-    assertThat(array.get(5).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(5).asPrimitive().get()).isEqualTo("b");
+    VariantTestUtil.assertVariantString(array.get(4), "e");
+    VariantTestUtil.assertVariantString(array.get(5), "b");
     assertThat(array.get(6).type()).isEqualTo(PhysicalType.BOOLEAN_FALSE);
     assertThat(array.get(6).asPrimitive().get()).isEqualTo(false);
     assertThat(array.get(8).type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
@@ -153,22 +141,25 @@ public class TestSerializedArray {
     assertThat(array.get(7).type()).isEqualTo(PhysicalType.ARRAY);
     SerializedArray actualNested = (SerializedArray) array.get(7);
     assertThat(actualNested.numElements()).isEqualTo(3);
-    assertThat(actualNested.get(0).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(actualNested.get(0).asPrimitive().get()).isEqualTo("a");
-    assertThat(actualNested.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(actualNested.get(1).asPrimitive().get()).isEqualTo("c");
-    assertThat(actualNested.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(actualNested.get(2).asPrimitive().get()).isEqualTo("d");
+    VariantTestUtil.assertVariantString(actualNested.get(0), "a");
+    VariantTestUtil.assertVariantString(actualNested.get(1), "c");
+    VariantTestUtil.assertVariantString(actualNested.get(2), "d");
 
     assertThatThrownBy(() -> actualNested.get(3))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
         .hasMessage("Index 3 out of bounds for length 3");
   }
 
-  @Test
-  public void testTwoByteOffsets() {
-    // a string larger than 255 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(300, random);
+  @ParameterizedTest
+  @ValueSource(
+      ints = {
+        300, // a big string larger than 255 bytes to push the value offset size above 1 byte to
+        // test TwoByteOffsets
+        70_000 // a really-big string larger than 65535 bytes to push the value offset size above 1
+        // byte to test ThreeByteOffsets
+      })
+  public void testMultiByteOffsets(int multiByteOffset) {
+    String randomString = RandomUtil.generateString(multiByteOffset, random);
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     ByteBuffer buffer = VariantTestUtil.createArray(bigString, A, B, C);
@@ -176,39 +167,10 @@ public class TestSerializedArray {
 
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(array.numElements()).isEqualTo(4);
-    assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(0).asPrimitive().get()).isEqualTo(randomString);
-    assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(1).asPrimitive().get()).isEqualTo("a");
-    assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(2).asPrimitive().get()).isEqualTo("b");
-    assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(3).asPrimitive().get()).isEqualTo("c");
-
-    assertThatThrownBy(() -> array.get(4))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
-        .hasMessage("Index 4 out of bounds for length 4");
-  }
-
-  @Test
-  public void testThreeByteOffsets() {
-    // a string larger than 65535 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(70_000, random);
-    SerializedPrimitive reallyBigString = VariantTestUtil.createString(randomString);
-
-    ByteBuffer buffer = VariantTestUtil.createArray(reallyBigString, A, B, C);
-    SerializedArray array = SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
-
-    assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(array.numElements()).isEqualTo(4);
-    assertThat(array.get(0).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(0).asPrimitive().get()).isEqualTo(randomString);
-    assertThat(array.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(1).asPrimitive().get()).isEqualTo("a");
-    assertThat(array.get(2).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(2).asPrimitive().get()).isEqualTo("b");
-    assertThat(array.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(array.get(3).asPrimitive().get()).isEqualTo("c");
+    VariantTestUtil.assertVariantString(array.get(0), randomString);
+    VariantTestUtil.assertVariantString(array.get(1), "a");
+    VariantTestUtil.assertVariantString(array.get(2), "b");
+    VariantTestUtil.assertVariantString(array.get(3), "c");
 
     assertThatThrownBy(() -> array.get(4))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
