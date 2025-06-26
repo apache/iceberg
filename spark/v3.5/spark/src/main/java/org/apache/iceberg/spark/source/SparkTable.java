@@ -343,7 +343,8 @@ public class SparkTable
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       StrictMetricsEvaluator metricsEvaluator =
-          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), branch), deleteExpr);
+          new StrictMetricsEvaluator(
+              SnapshotUtil.schemaFor(table(), branch), deleteExpr, caseSensitive);
 
       return Iterables.all(
           tasks,
@@ -355,7 +356,8 @@ public class SparkTable
                     spec.specId(),
                     specId ->
                         new Evaluator(
-                            spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
+                            spec.partitionType(),
+                            Projections.strict(spec, caseSensitive).project(deleteExpr)));
             return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
           });
 
