@@ -279,11 +279,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Override
-  protected boolean supportsEmptyNamespace() {
-    return true;
-  }
-
-  @Override
   protected boolean requiresNamespaceCreate() {
     return true;
   }
@@ -2721,6 +2716,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // simulate a legacy server that doesn't send back supported endpoints, thus the
     // client relies on the default endpoints
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
+  }
+
+  @Test
+  @Override
+  public void testLoadMissingTableWithMetadataName() {
+    super.testLoadMissingTableWithMetadataName(true);
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
