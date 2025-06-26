@@ -30,12 +30,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -100,9 +95,6 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,165 +106,44 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
-  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
-  @TempDir public Path temp;
-
-  private RESTCatalog restCatalog;
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
-  private RESTCatalogAdapter adapterForRESTServer;
+  @TempDir protected Path temp;
+  protected RESTCatalogTestInfrastructure infrastructure = new RESTCatalogTestInfrastructure();
+  // Expose infrastructure components as protected fields for backward compatibility with tests
+  protected RESTCatalog restCatalog;
+  protected InMemoryCatalog backendCatalog;
+  protected Server httpServer;
+  protected RESTCatalogAdapter adapterForRESTServer;
 
   @BeforeEach
-  public void createCatalog() throws Exception {
-    File warehouse = temp.toFile();
-
-    this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
-
-    HTTPHeaders catalogHeaders =
-        HTTPHeaders.of(
-            Map.of(
-                "Authorization",
-                "Bearer client-credentials-token:sub=catalog",
-                "test-header",
-                "test-value"));
-    HTTPHeaders contextHeaders =
-        HTTPHeaders.of(
-            Map.of(
-                "Authorization",
-                "Bearer client-credentials-token:sub=user",
-                "test-header",
-                "test-value"));
-
-    adapterForRESTServer =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders) {
-                // this doesn't use a Mockito spy because this is used for catalog tests, which have
-                // different method calls
-                if (!ResourcePaths.tokens().equals(request.path())) {
-                  if (ResourcePaths.config().equals(request.path())) {
-                    assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
-                  } else {
-                    assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
-                  }
-                }
-                Object body = roundTripSerialize(request.body(), "request");
-                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
-                T response = super.execute(req, responseType, errorHandler, responseHeaders);
-                T responseAfterSerialization = roundTripSerialize(response, "response");
-                return responseAfterSerialization;
-              }
-            });
-
-    ServletContextHandler servletContext =
-        new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.addServlet(
-        new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
-    servletContext.setHandler(new GzipHandler());
-
-    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-    httpServer.setHandler(servletContext);
-    httpServer.start();
-
-    this.restCatalog = initCatalog("prod", ImmutableMap.of());
-  }
-
-  @Override
-  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
-    Configuration conf = new Configuration();
-    SessionCatalog.SessionContext context =
-        new SessionCatalog.SessionContext(
-            UUID.randomUUID().toString(),
-            "user",
-            ImmutableMap.of("credential", "user:12345"),
-            ImmutableMap.of());
-
-    RESTCatalog catalog =
-        new RESTCatalog(
-            context,
-            (config) ->
-                HTTPClient.builder(config)
-                    .uri(config.get(CatalogProperties.URI))
-                    .withHeaders(RESTUtil.configHeaders(config))
-                    .build());
-    catalog.setConf(conf);
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
-            "catalog-default-key1",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
-            "catalog-default-key2",
-            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
-            "catalog-default-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
-            "catalog-override-key3",
-            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
-            "catalog-override-key4",
-            "credential",
-            "catalog:12345",
-            "header.test-header",
-            "test-value");
-    catalog.initialize(
-        catalogName,
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(additionalProperties)
-            .build());
-    return catalog;
-  }
-
-  @SuppressWarnings("unchecked")
-  public static <T> T roundTripSerialize(T payload, String description) {
-    if (payload != null) {
-      try {
-        if (payload instanceof RESTMessage) {
-          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), payload.getClass());
-        } else {
-          // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
-          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
-        }
-      } catch (JsonProcessingException e) {
-        throw new RuntimeException(
-            String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
-      }
-    }
-    return null;
+  public void setupCatalogs() throws Exception {
+    infrastructure.before(temp);
+    // Update references for backward compatibility
+    this.restCatalog = infrastructure.catalog();
+    this.backendCatalog = infrastructure.backendCatalog();
+    this.httpServer = infrastructure.httpServer();
+    this.adapterForRESTServer = infrastructure.adapter();
   }
 
   @AfterEach
-  public void closeCatalog() throws Exception {
-    if (restCatalog != null) {
-      restCatalog.close();
-    }
-
-    if (backendCatalog != null) {
-      backendCatalog.close();
-    }
-
-    if (httpServer != null) {
-      httpServer.stop();
-      httpServer.join();
-    }
+  public void teardownCatalogs() throws Exception {
+    infrastructure.after();
   }
 
   @Override
   protected RESTCatalog catalog() {
-    return restCatalog;
+    return infrastructure.catalog();
+  }
+
+  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    return infrastructure.initCatalog(catalogName, additionalProperties);
+  }
+
+  @SuppressWarnings("unchecked")
+  public <T> T roundTripSerialize(T payload, String description) {
+    return infrastructure.roundTripSerialize(payload, description);
   }
 
   @Override
