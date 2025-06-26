@@ -279,6 +279,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Override
+  protected boolean supportsEmptyNamespace() {
+    return true;
+  }
+
+  @Override
   protected boolean requiresNamespaceCreate() {
     return true;
   }

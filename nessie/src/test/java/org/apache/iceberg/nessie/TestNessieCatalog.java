@@ -190,4 +190,10 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + "/"
                 + TABLE.name());
   }
+
+  @Test
+  @Override
+  public void testLoadMissingTableWithMetadataName() {
+    super.testLoadMissingTableWithMetadataName(true);
+  }
 }
