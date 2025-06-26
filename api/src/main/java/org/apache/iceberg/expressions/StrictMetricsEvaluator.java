@@ -82,7 +82,8 @@ public class StrictMetricsEvaluator {
         columnName = "";
       }
       if (!columnName.isEmpty()) {
-        if (this.struct.field(columnName) != null && this.struct.field(columnName).fieldId() > maxFieldId) {
+        if (this.struct.field(columnName) != null
+            && this.struct.field(columnName).fieldId() > maxFieldId) {
           return ROWS_MIGHT_NOT_MATCH;
         }
       }
