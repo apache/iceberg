@@ -149,10 +149,16 @@ public abstract class BaseHTTPClient implements RESTClient {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders);
 
-  protected abstract <T extends RESTResponse> T execute(
+  protected <T extends RESTResponse> T execute(
       HTTPRequest request,
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders,
-      ParserContext parserContext);
+      ParserContext parserContext) {
+    if (null != parserContext) {
+      throw new UnsupportedOperationException("Parser context is not supported");
+    }
+
+    return execute(request, responseType, errorHandler, responseHeaders);
+  }
 }

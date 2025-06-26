@@ -36,7 +36,7 @@ azuresdk-bom = "1.2.31"
 awssdk-s3accessgrants = "2.3.0"
 bson-ver = "4.11.5"
 caffeine = "2.9.3"
-calcite = "1.39.0"
+calcite = "1.40.0"
 comet = "0.8.1"
 datasketches = "6.2.0"
 delta-standalone = "3.3.2"
@@ -85,7 +85,7 @@ spark34 = "3.4.4"
 spark35 = "3.5.6"
 spark40 = "4.0.0"
 sqlite-jdbc = "3.50.1.0"
-testcontainers = "1.21.1"
+testcontainers = "1.21.2"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
