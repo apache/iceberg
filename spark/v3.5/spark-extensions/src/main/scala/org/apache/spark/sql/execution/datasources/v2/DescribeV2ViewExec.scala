@@ -66,6 +66,7 @@ case class DescribeV2ViewExec(
     // part of SHOW CREATE TABLE and can result in weird formatting in the DESCRIBE output
     toCatalystRow("# Detailed View Information", "", "") ::
       toCatalystRow("Comment", view.properties.getOrDefault(ViewCatalog.PROP_COMMENT, ""), "") ::
+      toCatalystRow("Owner", view.properties.getOrDefault(ViewCatalog.PROP_OWNER, ""), "") ::
       toCatalystRow("View Catalog and Namespace", viewCatalogAndNamespace.quoted, "") ::
       toCatalystRow("View Query Output Columns", outputColumns, "") ::
       toCatalystRow("View Properties", viewProperties, "") ::
