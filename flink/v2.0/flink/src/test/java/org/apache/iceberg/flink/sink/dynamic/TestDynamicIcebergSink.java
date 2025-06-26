@@ -42,6 +42,7 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -176,10 +177,13 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
-  private static class Generator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
-
+  private static class DynamicRecordConverter
+      extends ProcessFunction<DynamicIcebergDataImpl, DynamicRecord> {
     @Override
-    public void generate(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
+    public void processElement(
+        DynamicIcebergDataImpl row,
+        ProcessFunction<DynamicIcebergDataImpl, DynamicRecord>.Context ctx,
+        Collector<DynamicRecord> out) {
       TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, row.tableName);
       String branch = row.branch;
       Schema schema = row.schemaProvided;
@@ -646,14 +650,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook)
       throws Exception {
-    DataStream<DynamicIcebergDataImpl> dataStream =
-        env.addSource(createBoundedSource(dynamicData), TypeInformation.of(new TypeHint<>() {}));
+    DataStream<DynamicRecord> dataStream =
+        env.addSource(createBoundedSource(dynamicData), TypeInformation.of(new TypeHint<>() {}))
+            .process(new DynamicRecordConverter());
     env.setParallelism(parallelism);
 
     if (commitHook != null) {
       new CommitHookEnabledDynamicIcebergSink(commitHook)
           .forInput(dataStream)
-          .generator(new Generator())
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
@@ -661,7 +665,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .append();
     } else {
       DynamicIcebergSink.forInput(dataStream)
-          .generator(new Generator())
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
@@ -672,7 +675,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     env.execute("Test Iceberg DataStream");
   }
 
-  static class CommitHookEnabledDynamicIcebergSink<T> extends DynamicIcebergSink.Builder<T> {
+  static class CommitHookEnabledDynamicIcebergSink extends DynamicIcebergSink.Builder {
     private final CommitHook commitHook;
 
     CommitHookEnabledDynamicIcebergSink(CommitHook commitHook) {
@@ -680,7 +683,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     @Override
-    DynamicIcebergSink instantiateSink(
+    protected DynamicIcebergSink instantiateSink(
         Map<String, String> writeProperties, FlinkWriteConf flinkWriteConf) {
       return new CommitHookDynamicIcebergSink(
           commitHook,

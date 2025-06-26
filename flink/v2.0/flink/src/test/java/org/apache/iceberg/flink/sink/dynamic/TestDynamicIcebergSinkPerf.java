@@ -31,6 +31,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.util.Collector;
@@ -161,10 +162,13 @@ class TestDynamicIcebergSinkPerf {
     }
   }
 
-  private static class IdBasedGenerator implements DynamicRecordGenerator<Integer> {
-
+  private static class IdBasedConverter extends ProcessFunction<Integer, DynamicRecord> {
     @Override
-    public void generate(Integer id, Collector<DynamicRecord> out) {
+    public void processElement(
+        Integer id,
+        ProcessFunction<Integer, DynamicRecord>.Context ctx,
+        Collector<DynamicRecord> out)
+        throws Exception {
       out.collect(rows.get(id % SAMPLE_SIZE));
     }
   }
@@ -176,8 +180,8 @@ class TestDynamicIcebergSinkPerf {
     env.setParallelism(PARALLELISM * TABLE_NUM * 2);
     runTest(
         s -> {
-          DynamicIcebergSink.forInput(s)
-              .generator(new IdBasedGenerator())
+          DataStream<DynamicRecord> dataStream = s.process(new IdBasedConverter());
+          DynamicIcebergSink.forInput(dataStream)
               .immediateTableUpdate(true)
               .catalogLoader(CATALOG_EXTENSION.catalogLoader())
               .append();
