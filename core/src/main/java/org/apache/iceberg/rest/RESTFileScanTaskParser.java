@@ -87,7 +87,7 @@ class RESTFileScanTaskParser {
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       List<Integer> indices = JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode);
       Preconditions.checkArgument(
-          Collections.max(indices) < allDeleteFiles.size(),
+          indices.isEmpty() || Collections.max(indices) < allDeleteFiles.size(),
           "Invalid delete file references: %s, expected indices < %s",
           indices,
           allDeleteFiles.size());

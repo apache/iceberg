@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.catalog.CatalogTests.TABLE_COMPLETED_WITH_FILE_SCAN_TASK;
+import static org.apache.iceberg.catalog.CatalogTests.TABLE_COMPLETED_WITH_NESTED_PLAN_TASK;
+import static org.apache.iceberg.catalog.CatalogTests.TABLE_COMPLETED_WITH_PLAN_TASK;
+import static org.apache.iceberg.catalog.CatalogTests.TABLE_SUBMITTED_WITH_FILE_SCAN_TASK;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -25,13 +30,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
@@ -52,8 +60,11 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -61,6 +72,8 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -68,8 +81,15 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -98,12 +118,16 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
+  private final Map<String, List<FileScanTask>> planToFileScanTasks;
+  private final Map<String, String> planToPlanTasks;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
+    this.planToFileScanTasks = Maps.newConcurrentMap();
+    this.planToPlanTasks = Maps.newConcurrentMap();
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -292,6 +316,170 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
+        }
+
+      case PLAN_TABLE_SCAN:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
+          Table table = catalog.loadTable(ident);
+          TableScan tableScan = table.newScan();
+
+          if (request.snapshotId() != null) {
+            tableScan = tableScan.useSnapshot(request.snapshotId());
+          }
+          if (request.select() != null) {
+            tableScan = tableScan.select(request.select());
+          }
+          if (request.filter() != null) {
+            tableScan = tableScan.filter(request.filter());
+          }
+          if (request.statsFields() != null) {
+            tableScan = tableScan.includeColumnStats(request.statsFields());
+          }
+          tableScan = tableScan.caseSensitive(request.caseSensitive());
+
+          List<FileScanTask> fileScanTasks = Lists.newArrayList();
+          CloseableIterable<FileScanTask> returnedTasks = tableScan.planFiles();
+          returnedTasks.forEach(task -> fileScanTasks.add(task));
+
+          if (ident.equals(TABLE_COMPLETED_WITH_FILE_SCAN_TASK)) {
+            return castResponse(
+                responseType,
+                PlanTableScanResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withFileScanTasks(fileScanTasks)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+
+          if (ident.equals(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK)) {
+            // this is the case where we return a plan-id, then call fetchPlanningResult to get the
+            // tasks at a later point
+            String planId = "plan-id-" + UUID.randomUUID();
+            planToFileScanTasks.put(planId, fileScanTasks);
+            return castResponse(
+                responseType,
+                PlanTableScanResponse.builder()
+                    .withPlanId(planId)
+                    .withPlanStatus(PlanStatus.SUBMITTED)
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+
+          if (ident.equals(TABLE_COMPLETED_WITH_PLAN_TASK)) {
+            // this is the case where we return a list of plan-task, and then call fetchScanTasks
+            // for each
+            List<String> planTasks =
+                List.of("plan-task-" + UUID.randomUUID(), "plan-task-" + UUID.randomUUID());
+            planTasks.forEach(
+                task -> planToFileScanTasks.put(task, Lists.newArrayList(fileScanTasks)));
+            return castResponse(
+                responseType,
+                PlanTableScanResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withPlanTasks(planTasks)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+
+          if (ident.equals(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK)) {
+            // this is the case where our plan tasks, can return additional plan tasks, and those
+            // can return file scan tasks.
+            List<String> outerPlanTasks =
+                List.of(
+                    "outer-plan-task-" + UUID.randomUUID(), "outer-plan-task-" + UUID.randomUUID());
+            List<String> innerPlanTasks =
+                List.of(
+                    "inner-plan-task-" + UUID.randomUUID(), "inner-plan-task-" + UUID.randomUUID());
+
+            for (int i = 0; i < outerPlanTasks.size(); i++) {
+              planToPlanTasks.put(outerPlanTasks.get(i), innerPlanTasks.get(i));
+              planToFileScanTasks.put(innerPlanTasks.get(i), Lists.newArrayList(fileScanTasks));
+            }
+
+            return castResponse(
+                responseType,
+                PlanTableScanResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
+                    .withPlanTasks(outerPlanTasks)
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+          break;
+        }
+
+      case FETCH_PLANNING_RESULT:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          Table table = catalog.loadTable(ident);
+          if (ident.equals(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK)) {
+            String planId = planIDFromPathVars(vars);
+            return castResponse(
+                responseType,
+                FetchPlanningResultResponse.builder()
+                    .withPlanStatus(PlanStatus.fromName("completed"))
+                    .withFileScanTasks(planToFileScanTasks.get(planId))
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+          break;
+        }
+
+      case FETCH_SCAN_TASKS:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          Table table = catalog.loadTable(ident);
+          FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
+          if (ident.equals(TABLE_COMPLETED_WITH_PLAN_TASK)) {
+            return castResponse(
+                responseType,
+                FetchScanTasksResponse.builder()
+                    .withFileScanTasks(planToFileScanTasks.get(request.planTask()))
+                    .withSpecsById(table.specs())
+                    .build());
+          }
+
+          if (ident.equals(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK)) {
+            // this is the case where we return another round of nested plan tasks
+            if (planToPlanTasks.containsKey(request.planTask())) {
+              String innerPlanTask = planToPlanTasks.get(request.planTask());
+              return castResponse(
+                  responseType,
+                  FetchScanTasksResponse.builder()
+                      .withPlanTasks(List.of(innerPlanTask))
+                      .withSpecsById(table.specs())
+                      .build());
+            }
+
+            if (planToFileScanTasks.containsKey(request.planTask())) {
+              // this is the case where we get from nested plan tasks the file scan tasks
+              List<FileScanTask> fileScanTasksFromPlanTask =
+                  planToFileScanTasks.get(request.planTask());
+              return castResponse(
+                  responseType,
+                  FetchScanTasksResponse.builder()
+                      .withFileScanTasks(fileScanTasksFromPlanTask)
+                      .withSpecsById(table.specs())
+                      .build());
+            }
+          }
+          break;
         }
 
       case REGISTER_TABLE:
@@ -590,6 +778,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static String planIDFromPathVars(Map<String, String> pathVars) {
+    return RESTUtil.decodeString(pathVars.get("plan-id"));
   }
 
   private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {

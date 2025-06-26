@@ -241,6 +241,101 @@ public class TestParallelIterable {
     void run() throws Exception;
   }
 
+  @Test
+  public void testDynamicIterableAddition() {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      // Create ParallelIterable with empty initial list
+      ParallelIterable<Integer> parallelIterable =
+          new ParallelIterable<>(Lists.newArrayList(), executor);
+
+      // Add iterables dynamically
+      parallelIterable.addIterable(Lists.newArrayList(1, 2, 3));
+
+      // Signal that no more iterables will be added
+      parallelIterable.finishAdding();
+
+      // Collect all values
+      Multiset<Integer> actualValues = HashMultiset.create();
+      try (CloseableIterator<Integer> iterator = parallelIterable.iterator()) {
+        int count = 0;
+        while (iterator.hasNext() && count < 10) { // Prevent infinite loops in testing
+          actualValues.add(iterator.next());
+          count++;
+        }
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to close iterator", e);
+      }
+
+      Multiset<Integer> expectedValues = ImmutableMultiset.of(1, 2, 3);
+
+      assertThat(actualValues)
+          .as("All dynamically added iterables should be processed")
+          .isEqualTo(expectedValues);
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  @Test
+  public void testAddIterableAfterFinishAddingThrowsException() {
+    ExecutorService executor = Executors.newFixedThreadPool(1);
+    try {
+      ParallelIterable<Integer> parallelIterable =
+          new ParallelIterable<>(Lists.newArrayList(), executor);
+
+      parallelIterable.finishAdding();
+
+      // This should throw an exception
+      try {
+        parallelIterable.addIterable(Lists.newArrayList(1, 2, 3));
+        assertThat(false).as("Expected IllegalStateException").isTrue();
+      } catch (IllegalStateException e) {
+        assertThat(e.getMessage())
+            .contains("No more iterables can be added after finishAdding() is called");
+      }
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  @Test
+  public void testMixedStaticAndDynamicIterables() {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      // Create with some initial iterables
+      List<Iterable<Integer>> initialIterables =
+          Lists.newArrayList(Lists.newArrayList(1, 2), Lists.newArrayList(3, 4));
+
+      ParallelIterable<Integer> parallelIterable =
+          new ParallelIterable<>(initialIterables, executor);
+
+      // Add more iterables dynamically
+      parallelIterable.addIterable(Lists.newArrayList(5, 6));
+      parallelIterable.addIterable(Lists.newArrayList(7, 8));
+
+      parallelIterable.finishAdding();
+
+      // Collect all values
+      Multiset<Integer> actualValues = HashMultiset.create();
+      try (CloseableIterator<Integer> iterator = parallelIterable.iterator()) {
+        while (iterator.hasNext()) {
+          actualValues.add(iterator.next());
+        }
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to close iterator", e);
+      }
+
+      Multiset<Integer> expectedValues = ImmutableMultiset.of(1, 2, 3, 4, 5, 6, 7, 8);
+
+      assertThat(actualValues)
+          .as("Both initial and dynamically added iterables should be processed")
+          .isEqualTo(expectedValues);
+    } finally {
+      executor.shutdown();
+    }
+  }
+
   private void queueHasElements(ParallelIterator<Integer> iterator) {
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
