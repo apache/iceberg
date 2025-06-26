@@ -450,6 +450,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
     BaseTable table =
         new BaseTable(
             ops,
@@ -528,6 +529,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
     return new BaseTable(
         ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
   }
@@ -784,7 +786,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
               endpoints);
+
       trackFileIO(ops);
+
       return new BaseTable(
           ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
     }
