@@ -21,15 +21,22 @@ package org.apache.iceberg.aws.s3;
 import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.IntFunction;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.ParquetObjectRange;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MinIOContainer;
@@ -228,6 +235,136 @@ public class TestS3InputStream {
       s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
     } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // don't do anything
+    }
+  }
+
+  @Test
+  public void testVectoredRead() throws Exception {
+    testVectoredRead(s3, s3Async);
+  }
+
+  protected void testVectoredRead(S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
+    assumeThat(s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()).isTrue();
+
+    S3URI uri = new S3URI("s3://bucket/path/to/vectored-read.dat");
+    int dataSize = 1024 * 1024 * 10;
+    byte[] data = randomData(dataSize);
+
+    writeS3Data(uri, data);
+
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+      assertThat(in.readVectoredAvailable(allocate)).isTrue();
+
+      List<ParquetObjectRange> ranges = Lists.newArrayList();
+      CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future3 = new CompletableFuture<>();
+
+      // First range: first 1024 bytes
+      int range1Offset = 0;
+      int range1Length = 1024;
+      ranges.add(new ParquetObjectRange(future1, range1Offset, range1Length));
+
+      // Second range: middle 2048 bytes
+      int range2Offset = dataSize / 2;
+      int range2Length = 2048;
+      ranges.add(new ParquetObjectRange(future2, range2Offset, range2Length));
+
+      // Third range: last 1024 bytes
+      int range3Offset = dataSize - 1024;
+      int range3Length = 1024;
+      ranges.add(new ParquetObjectRange(future3, range3Offset, range3Length));
+
+      in.readVectored(ranges, allocate);
+
+
+      ByteBuffer buffer1 = future1.get();
+      ByteBuffer buffer2 = future2.get();
+      ByteBuffer buffer3 = future3.get();
+
+
+      assertThat(future1.isDone()).isTrue();
+      assertThat(future2.isDone()).isTrue();
+      assertThat(future3.isDone()).isTrue();
+
+      assertThat(buffer1.limit()).isEqualTo(range1Length);
+      assertThat(buffer2.limit()).isEqualTo(range2Length);
+      assertThat(buffer3.limit()).isEqualTo(range3Length);
+
+      byte[] range1Data = new byte[range1Length];
+      byte[] range2Data = new byte[range2Length];
+      byte[] range3Data = new byte[range3Length];
+
+      buffer1.get(range1Data);
+      buffer2.get(range2Data);
+      buffer3.get(range3Data);
+
+      assertThat(range1Data)
+          .isEqualTo(Arrays.copyOfRange(data, range1Offset, range1Offset + range1Length));
+      assertThat(range2Data)
+          .isEqualTo(Arrays.copyOfRange(data, range2Offset, range2Offset + range2Length));
+      assertThat(range3Data)
+          .isEqualTo(Arrays.copyOfRange(data, range3Offset, range3Offset + range3Length));
+    }
+  }
+
+  @Test
+  public void testVectoredReadWithNonNonContinuousRanges() throws Exception {
+    testVectoredReadWithNonContinuousRanges(s3, s3Async);
+  }
+
+  protected void testVectoredReadWithNonContinuousRanges(
+      S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
+    assumeThat(s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()).isTrue();
+
+    S3URI uri = new S3URI("s3://bucket/path/to/vectored-read-overlapping.dat");
+    int dataSize = 1024 * 1024;
+    byte[] data = randomData(dataSize);
+
+    writeS3Data(uri, data);
+
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+      List<ParquetObjectRange> ranges = Lists.newArrayList();
+      CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
+
+      // First range: 0-1024
+      int range1Offset = 0;
+      int range1Length = 1024;
+      ranges.add(new ParquetObjectRange(future1, range1Offset, range1Length));
+
+      // Second range: 2000-3400
+      int range2Offset = 2000;
+      int range2Length = 3400;
+      ranges.add(new ParquetObjectRange(future2, range2Offset, range2Length));
+
+      // Call readVectored
+      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+      in.readVectored(ranges, allocate);
+
+      // Verify the buffers have the expected content
+      ByteBuffer buffer1 = future1.get();
+      ByteBuffer buffer2 = future2.get();
+
+      // Verify the futures were completed
+      assertThat(future1.isDone()).isTrue();
+      assertThat(future2.isDone()).isTrue();
+
+      assertThat(buffer1.limit()).isEqualTo(range1Length);
+      assertThat(buffer2.limit()).isEqualTo(range2Length);
+
+      // Verify the buffer content matches the original data
+      byte[] range1Data = new byte[range1Length];
+      byte[] range2Data = new byte[range2Length];
+
+      buffer1.get(range1Data);
+      buffer2.get(range2Data);
+
+      assertThat(range1Data)
+          .isEqualTo(Arrays.copyOfRange(data, range1Offset, range1Offset + range1Length));
+      assertThat(range2Data)
+          .isEqualTo(Arrays.copyOfRange(data, range2Offset, range2Offset + range2Length));
     }
   }
 
