@@ -35,7 +35,7 @@ import org.apache.iceberg.util.JsonUtil;
 public class RESTFileScanTaskParser {
   private static final String DATA_FILE = "data-file";
   private static final String DELETE_FILE_REFERENCES = "delete-file-references";
-  private static final String RESIDUAL = "residual-filter";
+  private static final String RESIDUAL_FILTER = "residual-filter";
 
   private RESTFileScanTaskParser() {}
 
@@ -56,7 +56,7 @@ public class RESTFileScanTaskParser {
     }
 
     if (fileScanTask.residual() != null) {
-      generator.writeFieldName(RESIDUAL);
+      generator.writeFieldName(RESIDUAL_FILTER);
       ExpressionParser.toJson(fileScanTask.residual(), generator);
     }
     generator.writeEndObject();
@@ -73,7 +73,6 @@ public class RESTFileScanTaskParser {
 
     DataFile dataFile =
         (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), specsById);
-    // specId from the dataFile
     int specId = dataFile.specId();
 
     DeleteFile[] deleteFiles = null;
@@ -87,8 +86,8 @@ public class RESTFileScanTaskParser {
     }
 
     Expression filter = null;
-    if (jsonNode.has(RESIDUAL)) {
-      filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
+    if (jsonNode.has(RESIDUAL_FILTER)) {
+      filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL_FILTER));
     }
 
     String schemaString = SchemaParser.toJson(specsById.get(specId).schema());

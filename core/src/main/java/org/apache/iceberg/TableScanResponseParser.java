@@ -60,8 +60,6 @@ public class TableScanResponseParser {
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
-    // TODO: add assertions in the code to make sure all these are set
-    // before we start parsing.
     if (node.has(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
