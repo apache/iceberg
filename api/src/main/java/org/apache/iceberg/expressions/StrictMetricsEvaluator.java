@@ -51,6 +51,8 @@ import org.apache.iceberg.util.NaNUtil;
 public class StrictMetricsEvaluator {
   private final StructType struct;
   private final Expression expr;
+  private static final boolean ROWS_MUST_MATCH = true;
+  private static final boolean ROWS_MIGHT_NOT_MATCH = false;
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -69,12 +71,22 @@ public class StrictMetricsEvaluator {
    *     otherwise.
    */
   public boolean eval(ContentFile<?> file) {
-    // TODO: detect the case where a column is missing from the file using file's max field id.
+    int maxFieldId = file.valueCounts().keySet().stream().mapToInt(i -> i).max().orElse(0);
+    String columnName;
+    if (this.expr instanceof Bound) {
+      columnName = ((Bound<?>) this.expr).ref().name();
+    } else if (this.expr instanceof Unbound) {
+      columnName = ((Unbound<?, ?>) this.expr).ref().name();
+    } else {
+      columnName = "";
+    }
+    if (!columnName.isEmpty()) {
+      if (this.struct.field(columnName).fieldId() > maxFieldId) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+    }
     return new MetricsEvalVisitor().eval(file);
   }
-
-  private static final boolean ROWS_MUST_MATCH = true;
-  private static final boolean ROWS_MIGHT_NOT_MATCH = false;
 
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;

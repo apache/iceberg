@@ -297,6 +297,27 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  public void testMissingColumnFromFile() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, equal("always_5", INT_MIN_VALUE - 25)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should match: always_5 column exists in the file with value as 5")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, equal("always_5", INT_MIN_VALUE - 25)).eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should not match: always_5 column does not exists in the file")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, equal("always_5", INT_MIN_VALUE - 25)).eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not match: always_5 column does not exists in the file")
+        .isFalse();
+  }
+
+  @Test
   public void testMissingStats() {
     DataFile missingStats = new TestDataFile("file.parquet", Row.of(), 50);
 
