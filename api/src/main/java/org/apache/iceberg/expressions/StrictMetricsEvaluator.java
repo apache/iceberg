@@ -71,18 +71,20 @@ public class StrictMetricsEvaluator {
    *     otherwise.
    */
   public boolean eval(ContentFile<?> file) {
-    int maxFieldId = file.valueCounts().keySet().stream().mapToInt(i -> i).max().orElse(0);
-    String columnName;
-    if (this.expr instanceof Bound) {
-      columnName = ((Bound<?>) this.expr).ref().name();
-    } else if (this.expr instanceof Unbound) {
-      columnName = ((Unbound<?, ?>) this.expr).ref().name();
-    } else {
-      columnName = "";
-    }
-    if (!columnName.isEmpty()) {
-      if (this.struct.field(columnName).fieldId() > maxFieldId) {
-        return ROWS_MIGHT_NOT_MATCH;
+    if (file.valueCounts() != null) {
+      int maxFieldId = file.valueCounts().keySet().stream().mapToInt(i -> i).max().orElse(0);
+      String columnName;
+      if (this.expr instanceof Bound) {
+        columnName = ((Bound<?>) this.expr).ref().name();
+      } else if (this.expr instanceof Unbound) {
+        columnName = ((Unbound<?, ?>) this.expr).ref().name();
+      } else {
+        columnName = "";
+      }
+      if (!columnName.isEmpty()) {
+        if (this.struct.field(columnName) != null && this.struct.field(columnName).fieldId() > maxFieldId) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
       }
     }
     return new MetricsEvalVisitor().eval(file);
