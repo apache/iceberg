@@ -260,6 +260,7 @@ project(':iceberg-bundled-guava') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
       exclude group: 'com.google.j2objc'
+      exclude group: 'org.jspecify'
     }
   }
 
@@ -718,6 +719,7 @@ project(':iceberg-gcp') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 }
 

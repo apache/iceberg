@@ -57,6 +57,11 @@ public class RewriteDataFiles {
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
 
+    @Override
+    String maintenanceTaskName() {
+      return "RewriteDataFiles";
+    }
+
     /**
      * Allows committing compacted data files in batches. See {@link
      * org.apache.iceberg.actions.RewriteDataFiles#PARTIAL_PROGRESS_ENABLED} for more details.
