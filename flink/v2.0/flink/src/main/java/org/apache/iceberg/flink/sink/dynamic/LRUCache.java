@@ -30,7 +30,7 @@ import java.util.function.Consumer;
  * configured Caffeine caches, making it ideal for hot path operations.
  *
  * <p>This implementation extends {@link LinkedHashMap} with access-order traversal and automated
- * removal of least recently used entries when the maximum size is reached. 
+ * removal of least recently used entries when the maximum size is reached.
  */
 @SuppressWarnings("checkstyle:IllegalType")
 class LRUCache<K, V> extends LinkedHashMap<K, V> {
