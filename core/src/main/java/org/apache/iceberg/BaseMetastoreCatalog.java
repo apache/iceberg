@@ -26,7 +26,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -71,23 +70,35 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   }
 
   @Override
-  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
     Preconditions.checkArgument(
         identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
     Preconditions.checkArgument(
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
-    // Throw an exception if this table already exists in the catalog.
-    if (tableExists(identifier)) {
+    // If the table already exists and overwriting is disabled, throw an exception.
+    if (tableExists(identifier) && !overwrite) {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
     }
 
     TableOperations ops = newTableOps(identifier);
-    InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
-    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
-    ops.commit(null, metadata);
+    TableMetadata newMetadata =
+        TableMetadataParser.read(ops.io(), ops.io().newInputFile(metadataFileLocation));
 
+    TableMetadata existing = ops.current();
+    if (existing != null && overwrite) {
+      if (existing.metadataFileLocation().equals(metadataFileLocation)) {
+        LOG.info(
+            "The requested metadata matches the existing metadata. No changes will be committed.");
+        return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+      }
+      dropTable(identifier, false /* Keep all data and metadata files */);
+      // Reload table operations after the drop to avoid stale current in ops.commit
+      ops = newTableOps(identifier);
+    }
+    ops.commit(null, newMetadata);
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
