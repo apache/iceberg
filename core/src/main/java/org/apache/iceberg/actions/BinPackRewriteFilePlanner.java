@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,7 +105,7 @@ public class BinPackRewriteFilePlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
   private Integer maxFilesToRewrite;
-  private Long maxRewriteBytes = Long.MAX_VALUE;
+  private Long maxBytesToRewrite = Long.MAX_VALUE;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -159,7 +160,7 @@ public class BinPackRewriteFilePlanner
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
     this.maxFilesToRewrite = maxFilesToRewrite(options);
-    this.maxRewriteBytes = maxBytesToRewrite(options);
+    this.maxBytesToRewrite = maxBytesToRewrite(options);
   }
 
   private int deleteFileThreshold(Map<String, String> options) {
@@ -270,16 +271,38 @@ public class BinPackRewriteFilePlanner
             });
 
     List<RewriteFileGroup> prunedRewriteFileGroupsBySize = Lists.newArrayList();
-    AtomicLong fileScanTaskSizeCountRunner = new AtomicLong();
+    AtomicLong fileSizeRunner = new AtomicLong();
 
     selectedFileGroups.stream()
-        .sorted(RewriteFileGroup.comparator(rewriteJobOrder))
         .forEach(
             rewriteFileGroup -> {
-              long fileScanTaskSize = rewriteFileGroup.inputFilesSizeInBytes();
-              if (fileScanTaskSize + fileScanTaskSizeCountRunner.get() <= maxRewriteBytes) {
-                prunedRewriteFileGroupsBySize.add(rewriteFileGroup);
-                fileScanTaskSizeCountRunner.getAndAdd(fileScanTaskSize);
+              if (fileSizeRunner.get() < maxBytesToRewrite) {
+                List<FileScanTask> fileScanTasks = rewriteFileGroup.fileScanTasks();
+                StructLike partition = rewriteFileGroup.info().partition();
+                List<FileScanTask> fileScanTasksPruned =
+                    fileScanTasks.stream()
+                        .sorted(Comparator.comparingLong(FileScanTask::sizeBytes))
+                        .takeWhile(
+                            fileScanTask -> {
+                              long fileScanTaskSize = fileScanTask.sizeBytes();
+                              if (fileSizeRunner.get() + fileScanTaskSize <= maxBytesToRewrite) {
+                                fileSizeRunner.getAndAdd(fileScanTaskSize);
+                                return true;
+                              }
+                              return false;
+                            })
+                        .collect(Collectors.toList());
+                long inputSize = inputSize(fileScanTasksPruned);
+
+                RewriteFileGroup prunedRewriteGroup =
+                    newRewriteGroup(
+                        ctx,
+                        partition,
+                        fileScanTasksPruned,
+                        inputSplitSize(inputSize),
+                        expectedOutputFiles(inputSize));
+
+                prunedRewriteFileGroupsBySize.add(prunedRewriteGroup);
               }
             });
 

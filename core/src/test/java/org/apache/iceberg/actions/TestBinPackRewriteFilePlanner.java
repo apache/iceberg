@@ -547,6 +547,98 @@ class TestBinPackRewriteFilePlanner {
     assertThat(fileScanTasks).isLessThanOrEqualTo(numFiles).isLessThanOrEqualTo(500);
   }
 
+  @Test
+  public void testRewriteMaxBytesRewriteOption() {
+    addFiles();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    Map<String, String> options =
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+            "10",
+            BinPackRewriteFilePlanner.REWRITE_ALL,
+            "true");
+    planner.init(options);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    Long totalSize =
+        groups.stream()
+            .flatMapToLong(k -> k.fileScanTasks().stream().mapToLong(FileScanTask::sizeBytes))
+            .sum();
+    assertThat(totalSize).isLessThanOrEqualTo(Long.MAX_VALUE).isEqualTo(10L);
+  }
+
+  @Test
+  public void testRewriteMaxBytesRewriteGreaterThanTotalFiles() {
+    addFiles();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    Map<String, String> options =
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+            "103",
+            BinPackRewriteFilePlanner.REWRITE_ALL,
+            "true");
+    planner.init(options);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    Long totalSize =
+        groups.stream()
+            .flatMapToLong(k -> k.fileScanTasks().stream().mapToLong(FileScanTask::sizeBytes))
+            .sum();
+    assertThat(totalSize).isLessThanOrEqualTo(Long.MAX_VALUE).isLessThan(103L).isEqualTo(102L);
+  }
+
+  @Test
+  public void testRewriteMaxBytesRewriteInequality() {
+    addFiles();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    Map<String, String> options =
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+            "31",
+            BinPackRewriteFilePlanner.REWRITE_ALL,
+            "true");
+    planner.init(options);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    Long totalSize =
+        groups.stream()
+            .flatMapToLong(k -> k.fileScanTasks().stream().mapToLong(FileScanTask::sizeBytes))
+            .sum();
+    assertThat(totalSize).isLessThanOrEqualTo(Long.MAX_VALUE).isLessThan(31L);
+
+    Integer fileScanTasks =
+        groups.stream()
+            .map(RewriteGroupBase::fileScanTasks)
+            .map(List::size)
+            .reduce(0, Integer::sum);
+    assertThat(fileScanTasks).isLessThanOrEqualTo(3);
+  }
+
+  @Test
+  public void testInvalidMaxBytesRewriteParam() {
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    Map<String, String> invalidMaxBytesToDeleteOption =
+        ImmutableMap.of(BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE, "0");
+    assertThatThrownBy(() -> planner.init(invalidMaxBytesToDeleteOption))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set max-bytes-to-rewrite to 0, the value must be positive integer.");
+
+    Map<String, String> negativeMaxBytesToDeleteOption =
+        ImmutableMap.of(BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE, "-2");
+    assertThatThrownBy(() -> planner.init(negativeMaxBytesToDeleteOption))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set max-bytes-to-rewrite to -2, the value must be positive integer.");
+
+    Map<String, String> tooHighMaxBytesToDeleteOption =
+        ImmutableMap.of(BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE, "9223372036854775810");
+    assertThatThrownBy(() -> planner.init(tooHighMaxBytesToDeleteOption))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessage("For input string: \"9223372036854775810\"");
+  }
+
   private void addFiles() {
     table
         .newAppend()
