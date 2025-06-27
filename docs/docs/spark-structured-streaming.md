@@ -20,11 +20,11 @@ title: "Structured Streaming"
 
 # Spark Structured Streaming
 
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+Spark Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 ## Streaming Reads
 
-Iceberg supports processing incremental data in spark structured streaming jobs which starts from a historical timestamp:
+Spark Iceberg supports processing incremental data in spark structured streaming jobs which starts from a historical timestamp:
 
 ```scala
 val df = spark.readStream
@@ -34,7 +34,7 @@ val df = spark.readStream
 ```
 
 !!! warning
-    Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
+    Spark Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
 ## Streaming Writes
 
