@@ -26,17 +26,17 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.ObjectModelFactory;
 import org.apache.iceberg.io.OutputFile;
 
-public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
+public class AvroFormatModel<E, D> implements FormatModel<E, D> {
   private final String objectModelName;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
   private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction;
   private final BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> deleteRowWriterFunction;
 
-  public AvroObjectModelFactory(
+  public AvroFormatModel(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction,
@@ -47,7 +47,7 @@ public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
     this.deleteRowWriterFunction = deleteRowWriterFunction;
   }
 
-  public AvroObjectModelFactory(
+  public AvroFormatModel(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<org.apache.avro.Schema, E, DatumWriter<D>> writerFunction) {
@@ -60,12 +60,12 @@ public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
   }
 
   @Override
-  public String objectModelName() {
+  public String modelName() {
     return objectModelName;
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataWriteBuilder(
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataBuilder(
       OutputFile outputFile) {
     return (B)
         new Avro.WriteBuilderImpl<E, D>(outputFile, FileContent.DATA)
@@ -73,7 +73,7 @@ public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteWriteBuilder(
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteBuilder(
       OutputFile outputFile) {
     return (B)
         new Avro.WriteBuilderImpl<E, D>(outputFile, FileContent.EQUALITY_DELETES)
@@ -82,7 +82,7 @@ public class AvroObjectModelFactory<E, D> implements ObjectModelFactory<E, D> {
 
   @Override
   public <B extends org.apache.iceberg.io.WriteBuilder<B, E, PositionDelete<D>>>
-      B positionDeleteWriteBuilder(OutputFile outputFile) {
+      B positionDeleteBuilder(OutputFile outputFile) {
     return (B)
         new Avro.WriteBuilderImpl<E, D>(outputFile, FileContent.POSITION_DELETES)
             .writerFunction(writerFunction)

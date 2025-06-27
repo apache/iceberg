@@ -32,7 +32,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.data.FlinkObjectModels;
+import org.apache.iceberg.flink.data.FlinkFormatModels;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -57,7 +57,7 @@ class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, Row
     super(
         table,
         dataFileFormat,
-        FlinkObjectModels.FLINK_OBJECT_MODEL,
+        FlinkFormatModels.MODEL_NAME,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

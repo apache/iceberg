@@ -54,7 +54,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     super(
         table,
         dataFileFormat,
-        SparkObjectModels.SPARK_OBJECT_MODEL,
+        SparkFormatModels.MODEL_NAME,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

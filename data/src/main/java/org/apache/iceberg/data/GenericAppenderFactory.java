@@ -128,8 +128,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       WriteBuilder<?, ?, Record> builder =
-          ObjectModelRegistry.writeBuilder(
-              fileFormat, GenericObjectModels.GENERIC_OBJECT_MODEL, encryptedOutputFile);
+          FormatModelRegistry.writeBuilder(
+              fileFormat, GenericFormatModels.MODEL_NAME, encryptedOutputFile);
       return builder
           .fileSchema(schema)
           .set(config)
@@ -148,8 +148,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
       DataWriteBuilder<?, ?, Record> builder =
-          ObjectModelRegistry.dataWriteBuilder(
-              format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
+          FormatModelRegistry.dataWriteBuilder(format, GenericFormatModels.MODEL_NAME, file);
       return builder
           .fileSchema(schema)
           .set(config)
@@ -178,8 +177,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       EqualityDeleteWriteBuilder<?, ?, Record> builder =
-          ObjectModelRegistry.equalityDeleteWriteBuilder(
-              format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
+          FormatModelRegistry.equalityDeleteWriteBuilder(
+              format, GenericFormatModels.MODEL_NAME, file);
       return builder
           .fileSchema(schema)
           .partition(partition)
@@ -206,8 +205,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       PositionDeleteWriteBuilder<?, ?, Record> builder =
-          ObjectModelRegistry.positionDeleteWriteBuilder(
-              format, GenericObjectModels.GENERIC_OBJECT_MODEL, file);
+          FormatModelRegistry.positionDeleteWriteBuilder(
+              format, GenericFormatModels.MODEL_NAME, file);
       return builder
           .fileSchema(schema)
           .partition(partition)

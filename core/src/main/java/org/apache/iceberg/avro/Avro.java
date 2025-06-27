@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION_LEVEL;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,12 +55,13 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -97,7 +99,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -110,7 +112,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -119,7 +121,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
@@ -283,6 +285,16 @@ public class Avro {
       return this;
     }
 
+    @Override
+    public WriteBuilderImpl<E, D> fileEncryptionKey(ByteBuffer encryptionKey) {
+      throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> fileAADPrefix(ByteBuffer aadPrefix) {
+      throw new UnsupportedOperationException("Not supported");
+    }
+
     private void initWriterFunctionAndContext() {
       switch (content) {
         case DATA:
@@ -428,7 +440,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -437,7 +449,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -446,7 +458,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -543,8 +555,8 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -554,8 +566,8 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -565,8 +577,8 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -801,7 +813,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -810,7 +822,7 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {
@@ -1007,6 +1019,28 @@ public class Avro {
     public ReadBuilderImpl<D> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> caseSensitive(boolean newCaseSensitive) {
+      // Filtering is not supported in Avro reader
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> filter(Expression newFilter) {
+      // Filtering is not supported in Avro reader
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
+      throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public ReadBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
+      throw new UnsupportedOperationException("Not supported");
     }
 
     @Override

@@ -25,7 +25,7 @@ import org.apache.iceberg.deletes.PositionDelete;
  * Interface that provides a unified abstraction for converting between data file formats and
  * input/output data representations.
  *
- * <p>{@link ObjectModelFactory} serves as a bridge between storage formats ({@link FileFormat}) and
+ * <p>{@link FormatModel} serves as a bridge between storage formats ({@link FileFormat}) and
  * expected input/output data structures, optimizing performance through direct conversion without
  * intermediate representations. File format implementations handle the low-level parsing details
  * while the object model determines the in-memory representation used for the parsed data.
@@ -38,21 +38,21 @@ import org.apache.iceberg.deletes.PositionDelete;
  * @param <E> input schema type used when converting input data to the file format
  * @param <D> output type used for reading data, and input type for writing data and deletes
  */
-public interface ObjectModelFactory<E, D> {
+public interface FormatModel<E, D> {
   /** The file format which is read/written by the object model. */
   FileFormat format();
 
   /**
    * Returns the unique identifier for the object model implementation processed by this factory.
    *
-   * <p>The object model names (for example: "generic", "spark", "spark-vectorized", "flink",
-   * "arrow") act as a contract specifying the expected data structures for both reading (converting
-   * file formats into output objects) and writing (converting input objects into file formats).
-   * This ensures proper integration between Iceberg's storage layer and processing engines.
+   * <p>The model names (for example: "generic", "spark", "spark-vectorized", "flink", "arrow") act
+   * as a contract specifying the expected data structures for both reading (converting file formats
+   * into output objects) and writing (converting input objects into file formats). This ensures
+   * proper integration between Iceberg's storage layer and processing engines.
    *
-   * @return string identifier for this object model implementation
+   * @return string identifier for this model implementation
    */
-  String objectModelName();
+  String modelName();
 
   /**
    * Creates a writer builder for standard data files.
@@ -67,7 +67,7 @@ public interface ObjectModelFactory<E, D> {
    * @return configured writer builder for standard data files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, D>> B dataWriteBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, E, D>> B dataBuilder(OutputFile outputFile);
 
   /**
    * Creates a writer builder for equality delete files.
@@ -85,7 +85,7 @@ public interface ObjectModelFactory<E, D> {
    * @return configured writer builder for equality delete files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, D>> B equalityDeleteWriteBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, E, D>> B equalityDeleteBuilder(OutputFile outputFile);
 
   /**
    * Creates a writer builder for position delete files.
@@ -104,8 +104,7 @@ public interface ObjectModelFactory<E, D> {
    * @return configured writer builder for position delete files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, PositionDelete<D>>> B positionDeleteWriteBuilder(
-      OutputFile outputFile);
+  <B extends WriteBuilder<B, E, PositionDelete<D>>> B positionDeleteBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.

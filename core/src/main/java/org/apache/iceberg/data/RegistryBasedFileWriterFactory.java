@@ -110,7 +110,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
     try {
       DataWriteBuilder<?, S, T> builder =
-          ObjectModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
+          FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
           .fileSchema(dataSchema)
           .set(properties)
@@ -137,7 +137,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
     try {
       EqualityDeleteWriteBuilder<?, S, T> builder =
-          ObjectModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
+          FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)
@@ -165,7 +165,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
     try {
       PositionDeleteWriteBuilder<?, S, T> builder =
-          ObjectModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
+          FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)

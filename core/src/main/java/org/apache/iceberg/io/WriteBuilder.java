@@ -26,7 +26,7 @@ import org.apache.iceberg.Schema;
 
 /**
  * Builder interface for creating file writers across supported data file formats. The {@link
- * ObjectModelFactory} implementations provide the appropriate {@link WriteBuilder} instances.
+ * FormatModel} implementations provide the appropriate {@link WriteBuilder} instances.
  *
  * <p>The {@link WriteBuilder} follows the builder pattern to configure and create {@link
  * FileAppender} instances that write data to the target output files.
@@ -51,6 +51,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    */
   B set(String property, String value);
 
+  @SuppressWarnings("unchecked")
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
     return (B) this;
@@ -65,6 +66,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    */
   B meta(String property, String value);
 
+  @SuppressWarnings("unchecked")
   default B meta(Map<String, String> properties) {
     properties.forEach(this::meta);
     return (B) this;
@@ -80,17 +82,13 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  default B fileEncryptionKey(ByteBuffer encryptionKey) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  B fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
    * does not support encryption, then an exception should be thrown.
    */
-  default B fileAADPrefix(ByteBuffer aadPrefix) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  B fileAADPrefix(ByteBuffer aadPrefix);
 
   /**
    * Sets the schema for the input data records.

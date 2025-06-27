@@ -61,7 +61,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -110,7 +110,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -119,7 +119,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -130,7 +130,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder {
@@ -205,7 +205,7 @@ public class ORC {
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private ORCObjectModelFactory.WriterFunction<E> writerFunction;
+    private ORCFormatModel.WriterFunction<E> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -224,8 +224,7 @@ public class ORC {
       }
     }
 
-    WriteBuilderImpl<E, D> writerFunction(
-        ORCObjectModelFactory.WriterFunction<E> newWriterFunction) {
+    WriteBuilderImpl<E, D> writerFunction(ORCFormatModel.WriterFunction<E> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -271,6 +270,16 @@ public class ORC {
     public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> fileEncryptionKey(ByteBuffer encryptionKey) {
+      throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> fileAADPrefix(ByteBuffer aadPrefix) {
+      throw new UnsupportedOperationException("Not supported");
     }
 
     private void initWriterFunctionAndContext() {
@@ -524,7 +533,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -533,7 +542,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -544,7 +553,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -647,8 +656,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -658,8 +667,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -671,8 +680,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     ObjectModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link ObjectModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
+   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -855,7 +864,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -867,7 +876,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     ObjectModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder {
@@ -972,8 +981,8 @@ public class ORC {
 
     private Function<TypeDescription, OrcRowReader<D>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<D>> batchedReaderFunc;
-    private ORCObjectModelFactory.ReaderFunction<D> readerFunction;
-    private ORCObjectModelFactory.BatchReaderFunction<D> batchReaderFunction;
+    private ORCFormatModel.ReaderFunction<D> readerFunction;
+    private ORCFormatModel.BatchReaderFunction<D> batchReaderFunction;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     protected ReadBuilderImpl(InputFile file) {
@@ -990,7 +999,7 @@ public class ORC {
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
-    ReadBuilderImpl<D> readerFunction(ORCObjectModelFactory.ReaderFunction<D> newReaderFunction) {
+    ReadBuilderImpl<D> readerFunction(ORCFormatModel.ReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && batchReaderFunction == null,
           "Cannot set multiple read builder functions");
@@ -999,7 +1008,7 @@ public class ORC {
     }
 
     ReadBuilderImpl<D> batchReaderFunction(
-        ORCObjectModelFactory.BatchReaderFunction<D> newReaderFunction) {
+        ORCFormatModel.BatchReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && readerFunction == null,
           "Cannot set multiple read builder functions");
@@ -1062,6 +1071,16 @@ public class ORC {
     public ReadBuilderImpl<D> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
+      throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public ReadBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
+      throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
