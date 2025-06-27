@@ -75,7 +75,10 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
   @Override
   public void processElement1(String value, Context context, Collector<String> collector)
       throws Exception {
-    shouldSkipElement(value, context);
+    if (shouldSkipElement(value, context)) {
+      return;
+    }
+
     if (!foundInTable.contains(value)) {
       foundInTable.put(value, true);
       context.timerService().registerEventTimeTimer(context.timestamp());
@@ -85,7 +88,10 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
   @Override
   public void processElement2(String value, Context context, Collector<String> collector)
       throws Exception {
-    shouldSkipElement(value, context);
+    if (shouldSkipElement(value, context)) {
+      return;
+    }
+
     foundInFileSystem.update(value);
     context.timerService().registerEventTimeTimer(context.timestamp());
   }

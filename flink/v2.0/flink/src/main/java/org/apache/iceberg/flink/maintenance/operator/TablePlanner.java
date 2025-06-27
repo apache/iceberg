@@ -111,8 +111,8 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
   }
 
   public static class SplitInfo {
-    private int version;
-    private byte[] split;
+    private final int version;
+    private final byte[] split;
 
     public SplitInfo(int version, byte[] split) {
       this.version = version;
