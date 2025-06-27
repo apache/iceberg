@@ -86,6 +86,7 @@ public class AppendBenchmark {
 
   @Setup
   public void setupBenchmark() {
+    dropTable();
     initTable();
     initDataFiles();
   }

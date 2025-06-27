@@ -40,12 +40,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -69,10 +69,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -669,13 +669,33 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
     int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
     List<List<F>> groups = divide(files, parallelism);
-    Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
-    Tasks.foreach(groups)
+
+    // Create a new list pairing each group with its index
+    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
+    for (int i = 0; i < groups.size(); i++) {
+      groupsWithIndex.add(Pair.of(i, groups.get(i)));
+    }
+
+    AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
+
+    Tasks.foreach(groupsWithIndex)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
-        .run(group -> manifests.addAll(writeFunc.apply(group)));
-    return ImmutableList.copyOf(manifests);
+        .run(
+            indexedGroup -> {
+              int index = indexedGroup.first();
+              List<F> group = indexedGroup.second();
+              List<ManifestFile> groupResults = writeFunc.apply(group);
+              results.set(index, groupResults);
+            });
+
+    // Collect results in order
+    ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
+    for (int i = 0; i < results.length(); i++) {
+      builder.addAll(results.get(i));
+    }
+    return builder.build();
   }
 
   private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
