@@ -257,13 +257,6 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
     } else {
       this.values = dataEncoding.getValuesReader(desc, ValuesType.VALUES);
     }
-
-    //    if (dataEncoding.usesDictionary() && converter.hasDictionarySupport()) {
-    //      bindToDictionary(dictionary);
-    //    } else {
-    //      bind(path.getType());
-    //    }
-
     try {
       values.initFromPage(valueCount, in);
     } catch (IOException e) {

@@ -161,7 +161,9 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     if (valuesRead == 0) {
       ByteBuffer firstValueBuffer = getBuffer(typeWidth);
       outputWriter.write(firstValueBuffer, firstValue);
-      vec.getDataBuffer().setBytes((long) rowId * typeWidth, firstValueBuffer);
+      if (vec != null) {
+        vec.getDataBuffer().setBytes((long) rowId * typeWidth, firstValueBuffer);
+      }
       lastValueRead = firstValue;
       rowId++;
       remaining--;
@@ -212,7 +214,9 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       remainingInMiniBlock--;
       valuesRead++;
     }
-    vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
+    if (vec != null) {
+      vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
+    }
 
     return valuesRead;
   }

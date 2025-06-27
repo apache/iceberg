@@ -84,22 +84,27 @@ public final class VectorizedParquetDefinitionLevelReader
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
         VectorizedValuesReader valuesReader) {
-      nextBatch(
-          vector,
-          startOffset,
-          typeWidth,
-          numValsToRead,
-          (mode, idx, numValues, byteArray, validityBuffer) -> {
-            switch (mode) {
-              case RLE:
-                nextRleBatch(
-                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
-                break;
-              case PACKED:
-                nextPackedBatch(
-                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
-            }
-          });
+      if (valuesReader instanceof VectorizedPlainValuesReader) {
+        nextBatch(
+                vector,
+                startOffset,
+                typeWidth,
+                numValsToRead,
+                (mode, idx, numValues, byteArray, validityBuffer) -> {
+                  switch (mode) {
+                    case RLE:
+                      nextRleBatch(
+                              vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                      break;
+                    case PACKED:
+                      nextPackedBatch(
+                              vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                  }
+                });
+      } else {
+        // TODO actually call the appropriate methods
+        valuesReader.readIntegers(numValsToRead, vector, startOffset);
+      }
     }
 
     public void nextDictEncodedBatch(
