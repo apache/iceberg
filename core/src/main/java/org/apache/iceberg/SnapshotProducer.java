@@ -40,7 +40,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -49,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.apache.commons.lang3.stream.Streams;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -71,7 +69,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
@@ -685,12 +682,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
-        .run(indexedGroup -> {
-          int index = indexedGroup.first();
-          List<F> group = indexedGroup.second();
-          List<ManifestFile> groupResults = writeFunc.apply(group);
-          results.set(index, groupResults);
-        });
+        .run(
+            indexedGroup -> {
+              int index = indexedGroup.first();
+              List<F> group = indexedGroup.second();
+              List<ManifestFile> groupResults = writeFunc.apply(group);
+              results.set(index, groupResults);
+            });
 
     // Collect results in order
     ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
