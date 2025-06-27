@@ -25,12 +25,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.UniqueConstraint;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.legacy.api.TableSchema;
+import org.apache.flink.table.runtime.typeutils.InternalSerializers;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -376,5 +379,35 @@ public class FlinkSchemaUtil {
                 primaryKey.getName(), columnName));
       }
     }
+  }
+
+  /**
+   * Creates an array of {@link TypeSerializer} for each field in the given {@link RowType}. Each
+   * serializer is responsible for serializing and deserializing the corresponding field.
+   *
+   * @param rowType the row type containing the fields to be serialized
+   * @return an array of {@link TypeSerializer}, one for each field in the row type
+   */
+  public static TypeSerializer[] createFieldSerializers(RowType rowType) {
+    return rowType.getChildren().stream()
+        .map(InternalSerializers::create)
+        .toArray(TypeSerializer[]::new);
+  }
+
+  /**
+   * Creates an array of {@link RowData.FieldGetter} for each field in the given {@link RowType}.
+   * Each field getter is used to retrieve the value of the corresponding field from a {@link
+   * RowData} object.
+   *
+   * @param rowType the row type containing the fields to be accessed
+   * @return an array of {@link RowData.FieldGetter}, one for each field in the row type
+   */
+  public static RowData.FieldGetter[] createFieldGetters(RowType rowType) {
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
+      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+    }
+
+    return fieldGetters;
   }
 }

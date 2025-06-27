@@ -85,12 +85,13 @@ public class OperatorTestBase {
 
   static final long EVENT_TIME = 10L;
   static final long EVENT_TIME_2 = 11L;
+  static final String FILE_NAME_1 = "fileName1";
+  static final String FILE_NAME_2 = "fileName2";
+
   static final Watermark WATERMARK = new Watermark(EVENT_TIME);
   protected static final String DUMMY_TASK_NAME = "dummyTask";
   protected static final String DUMMY_TABLE_NAME = "dummyTable";
 
-  static final String FILE_NAME_1 = "fileName1";
-  static final String FILE_NAME_2 = "fileName2";
   static final Watermark WATERMARK_2 = new Watermark(EVENT_TIME_2);
 
   @RegisterExtension
