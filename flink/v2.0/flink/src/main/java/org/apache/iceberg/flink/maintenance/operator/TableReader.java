@@ -31,6 +31,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.source.DataIterator;
+import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
@@ -46,8 +47,9 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
   private final String taskName;
   private final int taskIndex;
   private final Schema projectedSchema;
-  private final boolean caseSensitive;
   private IcebergSourceSplitSerializer splitSerializer;
+  private final ScanContext scanContext;
+  private final MetadataTableType metadataTableType;
 
   private transient MetaDataReaderFunction rowDataReaderFunction;
   private transient Counter errorCounter;
@@ -57,7 +59,8 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
       int taskIndex,
       TableLoader tableLoader,
       Schema projectedSchema,
-      boolean caseSensitive) {
+      ScanContext scanContext,
+      MetadataTableType metadataTableType) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table should no be null");
     Preconditions.checkNotNull(projectedSchema, "The projected schema should no be null");
@@ -66,15 +69,15 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
     this.taskName = taskName;
     this.taskIndex = taskIndex;
     this.projectedSchema = projectedSchema;
-    this.caseSensitive = caseSensitive;
+    this.scanContext = scanContext;
+    this.metadataTableType = metadataTableType;
   }
 
   @Override
   public void open(OpenContext openContext) throws Exception {
     tableLoader.open();
     Table table = tableLoader.loadTable();
-    Table metaTable =
-        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.ALL_FILES);
+    Table metaTable = MetadataTableUtils.createMetadataTableInstance(table, metadataTableType);
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), table.name(), taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
@@ -85,7 +88,7 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
             projectedSchema,
             metaTable.io(),
             metaTable.encryption());
-    this.splitSerializer = new IcebergSourceSplitSerializer(caseSensitive);
+    this.splitSerializer = new IcebergSourceSplitSerializer(scanContext.caseSensitive());
   }
 
   @Override

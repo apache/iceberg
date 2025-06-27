@@ -21,8 +21,10 @@ package org.apache.iceberg.flink.maintenance.operator;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.source.ScanContext;
 
 @Internal
 public class FileNameReader extends TableReader<String> {
@@ -32,8 +34,9 @@ public class FileNameReader extends TableReader<String> {
       int taskIndex,
       TableLoader tableLoader,
       Schema projectedSchema,
-      boolean caseSensitive) {
-    super(taskName, taskIndex, tableLoader, projectedSchema, caseSensitive);
+      ScanContext scanContext,
+      MetadataTableType metadataTableType) {
+    super(taskName, taskIndex, tableLoader, projectedSchema, scanContext, metadataTableType);
   }
 
   @Override
