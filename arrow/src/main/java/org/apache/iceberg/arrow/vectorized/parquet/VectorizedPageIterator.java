@@ -93,16 +93,21 @@ public class VectorizedPageIterator extends BasePageIterator {
         throw new ParquetDecodingException("could not read page in col " + desc, e);
       }
     } else {
-      if (dataEncoding == Encoding.PLAIN) {
-        valuesReader = new VectorizedPlainValuesReader();
-      } else {
-        throw new UnsupportedOperationException(
-            "Cannot support vectorized reads for column "
-                + desc
-                + " with "
-                + "encoding "
-                + dataEncoding
-                + ". Disable vectorized reads to read this table/file");
+      switch (dataEncoding) {
+        case PLAIN:
+          valuesReader = new VectorizedPlainValuesReader();
+          break;
+        case DELTA_BINARY_PACKED:
+          valuesReader = new VectorizedDeltaEncodedValuesReader();
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot support vectorized reads for column "
+                  + desc
+                  + " with "
+                  + "encoding "
+                  + dataEncoding
+                  + ". Disable vectorized reads to read this table/file");
       }
       try {
         valuesReader.initFromPage(valueCount, in);
