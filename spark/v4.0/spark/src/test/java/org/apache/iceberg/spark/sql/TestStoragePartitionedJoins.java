@@ -735,16 +735,15 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
 
     sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
 
-    sql("INSERT INTO %s VALUES (1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00'))", tableName);
-    sql("INSERT INTO %s VALUES (2L, 101, 'hr', TIMESTAMP('2024-11-10 09:00:00'))", tableName);
     sql(
-        "INSERT INTO %s VALUES (3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00'))",
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(2L, 101, 'hr', TIMESTAMP('2024-11-10 09:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(4L, 103, 'sales', TIMESTAMP('2024-11-10 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
         tableName);
-    sql("INSERT INTO %s VALUES (4L, 103, 'sales', TIMESTAMP('2024-11-10 10:00:00'))", tableName);
-    sql(
-        "INSERT INTO %s VALUES (5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00'))",
-        tableName);
-    sql("INSERT INTO %s VALUES (6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))", tableName);
 
     String create2ndTableStmt =
         "CREATE TABLE %s ("
@@ -758,15 +757,13 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql(create2ndTableStmt, otherTableName, tablePropsAsString(TABLE_PROPERTIES));
 
     sql(
-        "INSERT INTO %s VALUES (1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00'))",
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
         otherTableName);
-    sql(
-        "INSERT INTO %s VALUES (3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00'))",
-        otherTableName);
-    sql(
-        "INSERT INTO %s VALUES (5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00'))",
-        otherTableName);
-    sql("INSERT INTO %s VALUES (6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))", otherTableName);
 
     assertPartitioningAwarePlan(
         1, /* expected num of shuffles with SPJ */

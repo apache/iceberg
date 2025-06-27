@@ -64,7 +64,6 @@ public class HoursFunction extends UnaryUnboundFunction {
       implements ReducibleFunction<Integer, Integer> {
     @Override
     public Reducer<Integer, Integer> reducer(ReducibleFunction<?, ?> otherBucketFunction) {
-
       if (otherBucketFunction instanceof DaysFunction.BaseToDaysFunction) {
         return new HourToDaysReducer();
       }
