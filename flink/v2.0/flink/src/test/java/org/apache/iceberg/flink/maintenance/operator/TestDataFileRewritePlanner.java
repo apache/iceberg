@@ -33,6 +33,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -101,8 +102,11 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     0,
                     tableLoader(),
                     11,
-                    1L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(
+                        MIN_INPUT_FILES,
+                        "2",
+                        BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+                        "1000000")))) {
       testHarness.open();
 
       // Cause an exception
@@ -153,7 +157,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
     assertThat(planWithNoMaxRewriteBytes).hasSize(2);
 
     // Second run with low maxRewriteBytes, the 2nd group should be removed from the plan
-    long maxRewriteBytes =
+    Long maxRewriteBytes =
         planWithNoMaxRewriteBytes.get(0).group().fileScanTasks().get(0).sizeBytes()
             + planWithNoMaxRewriteBytes.get(1).group().fileScanTasks().get(0).sizeBytes()
             + 1;
@@ -166,8 +170,11 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     0,
                     tableLoader(),
                     11,
-                    maxRewriteBytes,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(
+                        MIN_INPUT_FILES,
+                        "2",
+                        BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+                        maxRewriteBytes.toString())))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
