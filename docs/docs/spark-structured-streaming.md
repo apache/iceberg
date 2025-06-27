@@ -20,7 +20,7 @@ title: "Structured Streaming"
 
 # Spark Structured Streaming
 
-Spark Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+Spark Iceberg Connector uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 ## Streaming Reads
 
