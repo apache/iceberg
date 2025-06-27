@@ -19,22 +19,22 @@
 package org.apache.iceberg.data;
 
 import java.util.function.Function;
-import org.apache.iceberg.avro.AvroObjectModelFactory;
+import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.orc.ORCObjectModelFactory;
-import org.apache.iceberg.parquet.ParquetObjectModelFactory;
+import org.apache.iceberg.orc.ORCFormatModel;
+import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class GenericObjectModels {
-  private static final Logger LOG = LoggerFactory.getLogger(GenericObjectModels.class);
+public class GenericFormatModels {
+  private static final Logger LOG = LoggerFactory.getLogger(GenericFormatModels.class);
 
-  public static final String GENERIC_OBJECT_MODEL = "generic";
+  public static final String MODEL_NAME = "generic";
 
   public static void register() {
     // ORC, Parquet are optional dependencies. If they are not present, we should just log and
@@ -47,9 +47,9 @@ public class GenericObjectModels {
   private static void registerParquet() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            ObjectModelRegistry.registerObjectModelFactory(
-                new ParquetObjectModelFactory<>(
-                    GENERIC_OBJECT_MODEL,
+            FormatModelRegistry.registerFormatModel(
+                new ParquetFormatModel<>(
+                    MODEL_NAME,
                     GenericParquetReaders::buildReader,
                     (nativeSchema, icebergSchema, messageType) ->
                         GenericParquetWriter.create(icebergSchema, messageType),
@@ -59,9 +59,9 @@ public class GenericObjectModels {
   private static void registerAvro() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            ObjectModelRegistry.registerObjectModelFactory(
-                new AvroObjectModelFactory<>(
-                    GENERIC_OBJECT_MODEL,
+            FormatModelRegistry.registerFormatModel(
+                new AvroFormatModel<>(
+                    MODEL_NAME,
                     PlannedDataReader::create,
                     (avroSchema, unused) -> DataWriter.create(avroSchema))));
   }
@@ -69,16 +69,16 @@ public class GenericObjectModels {
   private static void registerOrc() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            ObjectModelRegistry.registerObjectModelFactory(
-                new ORCObjectModelFactory<>(
-                    GENERIC_OBJECT_MODEL,
+            FormatModelRegistry.registerFormatModel(
+                new ORCFormatModel<>(
+                    MODEL_NAME,
                     GenericOrcReader::buildReader,
                     (schema, messageType, nativeSchema) ->
                         GenericOrcWriter.buildWriter(schema, messageType),
                     Function.identity())));
   }
 
-  private GenericObjectModels() {}
+  private GenericFormatModels() {}
 
   @SuppressWarnings("CatchBlockLogException")
   private static void logAngIgnoreNoClassDefFoundError(Runnable runnable) {

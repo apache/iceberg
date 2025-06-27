@@ -24,7 +24,7 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -50,7 +50,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema projection,
       Map<Integer, ?> idToConstant) {
     ReadBuilder<?, InternalRow> reader =
-        ObjectModelRegistry.readBuilder(format, SparkObjectModels.SPARK_OBJECT_MODEL, file);
+        FormatModelRegistry.readBuilder(format, SparkFormatModels.MODEL_NAME, file);
     return reader
         .project(projection)
         .constantFieldAccessors(idToConstant)

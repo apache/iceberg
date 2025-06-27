@@ -31,8 +31,8 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.ObjectModelFactory;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -57,52 +57,51 @@ import org.slf4j.LoggerFactory;
  *
  * The appropriate builder is selected based on {@link FileFormat} and object model name.
  *
- * <p>{@link ObjectModelFactory} objects are registered through {@link
- * #registerObjectModelFactory(ObjectModelFactory)} and used for creating readers and writers. Read
- * builders are returned directly from the factory. Write builders may be wrapped in specialized
- * content file writer implementations depending on the requested builder type.
+ * <p>{@link FormatModel} objects are registered through {@link #registerFormatModel(FormatModel)}
+ * and used for creating readers and writers. Read builders are returned directly from the factory.
+ * Write builders may be wrapped in specialized content file writer implementations depending on the
+ * requested builder type.
  */
-public final class ObjectModelRegistry {
-  private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
+public final class FormatModelRegistry {
+  private static final Logger LOG = LoggerFactory.getLogger(FormatModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER =
       ImmutableList.of(
-          "org.apache.iceberg.data.GenericObjectModels",
+          "org.apache.iceberg.data.GenericFormatModels",
           "org.apache.iceberg.arrow.vectorized.ArrowReader",
-          "org.apache.iceberg.flink.data.FlinkObjectModels",
-          "org.apache.iceberg.spark.source.SparkObjectModels");
+          "org.apache.iceberg.flink.data.FlinkFormatModels",
+          "org.apache.iceberg.spark.source.SparkFormatModels");
 
-  private static final Map<Pair<FileFormat, String>, ObjectModelFactory<?, ?>>
-      OBJECT_MODEL_FACTORIES = Maps.newConcurrentMap();
+  private static final Map<Pair<FileFormat, String>, FormatModel<?, ?>> FORMAT_MODELS =
+      Maps.newConcurrentMap();
 
   /**
-   * Registers an {@link ObjectModelFactory} in this registry.
+   * Registers an {@link FormatModel} in this registry.
    *
-   * <p>The {@link ObjectModelFactory} creates readers and writers for a specific combinations of
-   * file format (Parquet, ORC, Avro) and object model (for example: "generic", "spark", "flink",
-   * etc.). Registering custom factories allows integration of new data processing engines for the
+   * <p>The {@link FormatModel} creates readers and writers for a specific combinations of file
+   * format (Parquet, ORC, Avro) and object model (for example: "generic", "spark", "flink", etc.).
+   * Registering custom factories allows integration of new data processing engines for the
    * supported file formats with Iceberg's file access mechanisms.
    *
    * <p>Each factory must be uniquely identified by its combination of file format and object model
    * name. This uniqueness constraint prevents ambiguity when selecting factories for read and write
    * operations.
    *
-   * @param objectModelFactory the factory implementation to register
+   * @param formatModel the factory implementation to register
    * @throws IllegalArgumentException if a factory is already registered for the combination of
-   *     {@link ObjectModelFactory#format()} and {@link ObjectModelFactory#objectModelName()}
+   *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
    */
   @SuppressWarnings("CatchBlockLogException")
-  public static void registerObjectModelFactory(ObjectModelFactory<?, ?> objectModelFactory) {
-    Pair<FileFormat, String> key =
-        Pair.of(objectModelFactory.format(), objectModelFactory.objectModelName());
-    if (OBJECT_MODEL_FACTORIES.containsKey(key)) {
+  public static void registerFormatModel(FormatModel<?, ?> formatModel) {
+    Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
+    if (FORMAT_MODELS.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
               "Object model factory %s clashes with %s. Both serves %s",
-              objectModelFactory.getClass(), OBJECT_MODEL_FACTORIES.get(key), key));
+              formatModel.getClass(), FORMAT_MODELS.get(key), key));
     }
 
-    OBJECT_MODEL_FACTORIES.put(key, objectModelFactory);
+    FORMAT_MODELS.put(key, formatModel);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -122,7 +121,7 @@ public final class ObjectModelRegistry {
     registerSupportedFormats();
   }
 
-  private ObjectModelRegistry() {}
+  private FormatModelRegistry() {}
 
   /**
    * Returns a reader builder for the specified file format and object model.
@@ -132,15 +131,15 @@ public final class ObjectModelRegistry {
    * configuration options like schema projection, predicate pushdown, batch size and encryption.
    *
    * @param format the file format (Parquet, Avro, ORC) that determines the parsing implementation
-   * @param objectModelName identifier for the expected output data representation (generic, spark,
-   *     flink, etc.)
+   * @param modelName identifier for the expected output data representation (generic, spark, flink,
+   *     etc.)
    * @param inputFile source file to read data from
    * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
   public static <D> ReadBuilder<?, D> readBuilder(
-      FileFormat format, String objectModelName, InputFile inputFile) {
-    ObjectModelFactory<?, D> factory = factoryFor(format, objectModelName);
+      FileFormat format, String modelName, InputFile inputFile) {
+    FormatModel<?, D> factory = factoryFor(format, modelName);
     return factory.readBuilder(inputFile);
   }
 
@@ -152,16 +151,16 @@ public final class ObjectModelRegistry {
    * output file, but this basic writer does not collect or return {@link ContentFile} metadata.
    *
    * @param format the file format used for writing
-   * @param objectModelName name of the object model defining the input format
+   * @param modelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
    * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
   public static <E, D> WriteBuilder<?, E, D> writeBuilder(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
-    return factory.dataWriteBuilder(outputFile.encryptingOutputFile());
+      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
+    FormatModel<E, D> factory = factoryFor(format, modelName);
+    return factory.dataBuilder(outputFile.encryptingOutputFile());
   }
 
   /**
@@ -173,17 +172,17 @@ public final class ObjectModelRegistry {
    * used for table operations.
    *
    * @param format the file format used for writing
-   * @param objectModelName name of the object model defining the input format
+   * @param modelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
    * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
   public static <E, D> DataWriteBuilder<?, E, D> dataWriteBuilder(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
+      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
+    FormatModel<E, D> factory = factoryFor(format, modelName);
     WriteBuilder<?, E, D> writeBuilder =
-        factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
+        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -197,17 +196,17 @@ public final class ObjectModelRegistry {
    * {@link DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
-   * @param objectModelName name of the object model defining the input format
+   * @param modelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
    * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
   public static <E, D> EqualityDeleteWriteBuilder<?, E, D> equalityDeleteWriteBuilder(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
+      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
+    FormatModel<E, D> factory = factoryFor(format, modelName);
     WriteBuilder<?, E, D> writeBuilder =
-        factory.equalityDeleteWriteBuilder(outputFile.encryptingOutputFile());
+        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forEqualityDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -221,7 +220,7 @@ public final class ObjectModelRegistry {
    * DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
-   * @param objectModelName name of the object model defining the input format
+   * @param modelName name of the object model defining the input format
    * @param outputFile destination for the written data
    * @param <E> input schema type required by the writer for data conversion
    * @param <D> the type of data records contained in the {@link PositionDelete} that the writer
@@ -229,18 +228,16 @@ public final class ObjectModelRegistry {
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
   public static <E, D> PositionDeleteWriteBuilder<?, E, D> positionDeleteWriteBuilder(
-      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
-    ObjectModelFactory<E, D> factory = factoryFor(format, objectModelName);
+      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
+    FormatModel<E, D> factory = factoryFor(format, modelName);
     WriteBuilder<?, E, PositionDelete<D>> writeBuilder =
-        factory.positionDeleteWriteBuilder(outputFile.encryptingOutputFile());
+        factory.positionDeleteBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forPositionDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   @SuppressWarnings("unchecked")
-  private static <E, D> ObjectModelFactory<E, D> factoryFor(
-      FileFormat format, String objectModelName) {
-    return ((ObjectModelFactory<E, D>)
-        OBJECT_MODEL_FACTORIES.get(Pair.of(format, objectModelName)));
+  private static <E, D> FormatModel<E, D> factoryFor(FileFormat format, String modelName) {
+    return ((FormatModel<E, D>) FORMAT_MODELS.get(Pair.of(format, modelName)));
   }
 }

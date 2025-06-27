@@ -382,7 +382,6 @@ project(':iceberg-data') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
-    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')

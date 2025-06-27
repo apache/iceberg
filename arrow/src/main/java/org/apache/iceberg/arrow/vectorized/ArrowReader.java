@@ -37,7 +37,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -48,7 +48,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.ParquetObjectModelFactory;
+import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -123,12 +123,12 @@ public class ArrowReader extends CloseableGroup {
   private final EncryptionManager encryption;
   private final int batchSize;
   private final boolean reuseContainers;
-  private static final String ARROW_OBJECT_MODEL = "arrow";
+  private static final String MODEL_NAME = "arrow";
 
   public static void register() {
-    ObjectModelRegistry.registerObjectModelFactory(
-        new ParquetObjectModelFactory<>(
-            ARROW_OBJECT_MODEL,
+    FormatModelRegistry.registerFormatModel(
+        new ParquetFormatModel<>(
+            MODEL_NAME,
             (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
                 VectorizedCombinedScanIterator.buildReader(
                     schema,
@@ -337,7 +337,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<?, ColumnarBatch> builder =
-            ObjectModelRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location);
+            FormatModelRegistry.readBuilder(FileFormat.PARQUET, MODEL_NAME, location);
 
         if (reuseContainers) {
           builder.reuseContainers();
