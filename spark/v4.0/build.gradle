@@ -314,7 +314,9 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'org.apache.hc.core5', 'org.apache.iceberg.shaded.org.apache.hc.core5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty', 'org.apache.iceberg.shaded.io.netty'
-    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+    relocate ('org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow') {
+      exclude 'org.apache.arrow.c.**'
+    }
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
