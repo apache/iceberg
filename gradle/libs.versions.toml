@@ -41,6 +41,7 @@ comet = "0.8.1"
 datasketches = "6.2.0"
 delta-standalone = "3.3.2"
 delta-spark = "3.3.2"
+derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
 errorprone-annotations = "2.38.0"
 failsafe = "3.3.2"
@@ -176,6 +177,8 @@ apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apigu
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
+derby-core = { module = "org.apache.derby:derby", version.ref = "derby"}
+derby-tools = { module = "org.apache.derby:derbytools", version.ref = "derby"}
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
 flink119-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink119" }
 flink119-core = { module = "org.apache.flink:flink-core", version.ref = "flink119" }
