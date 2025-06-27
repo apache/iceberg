@@ -41,6 +41,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -51,7 +52,6 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
@@ -242,7 +242,7 @@ public class HTTPClient extends BaseHTTPClient {
 
     ErrorResponse enrichedErrorResponse =
         ErrorResponse.builder()
-            .wasRetried(wasRetried == Boolean.TRUE)
+            .wasRetried(Boolean.TRUE.equals(wasRetried))
             .responseCode(errorResponse.code())
             .withMessage(errorResponse.message())
             .withType(errorResponse.type())
@@ -326,7 +326,7 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    HttpContext context = new BasicHttpContext();
+    HttpContext context = HttpClientContext.create();
     try (CloseableHttpResponse response = httpClient.execute(request, context)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
