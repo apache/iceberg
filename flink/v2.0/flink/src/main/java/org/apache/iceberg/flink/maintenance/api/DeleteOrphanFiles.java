@@ -77,7 +77,6 @@ public class DeleteOrphanFiles {
     private Duration minAge = Duration.ofDays(3);
     private int planningWorkerPoolSize = 10;
     private int deleteBatchSize = 1000;
-    private boolean caseSensitive = false;
     private int maxListingDepth = 3;
     private int maxListingDirectSubDirs = 10;
     private boolean usePrefixListing = false;
@@ -242,7 +241,12 @@ public class DeleteOrphanFiles {
               .rebalance()
               .process(
                   new FileNameReader(
-                      taskName(), index(), tableLoader(), FILE_PATH_SCHEMA, caseSensitive))
+                      taskName(),
+                      index(),
+                      tableLoader(),
+                      FILE_PATH_SCHEMA,
+                      FILE_PATH_SCAN_CONTEXT,
+                      MetadataTableType.ALL_FILES))
               .name(operatorName(READER_TASK_NAME))
               .uid(READER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
