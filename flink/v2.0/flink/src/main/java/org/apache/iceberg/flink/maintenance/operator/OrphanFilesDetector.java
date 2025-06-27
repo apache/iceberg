@@ -149,9 +149,7 @@ public class OrphanFilesDetector extends KeyedCoProcessFunction<String, String, 
                 actual,
                 StringUtils.join(foundInTablesList, ","),
                 validationException);
-            ctx.output(
-                org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
-                validationException);
+            ctx.output(TaskResultAggregator.ERROR_STREAM, validationException);
           }
         }
       }
@@ -172,7 +170,7 @@ public class OrphanFilesDetector extends KeyedCoProcessFunction<String, String, 
 
     if (FileUriKeySelector.INVALID_URI.equals(context.getCurrentKey())) {
       context.output(
-          org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
+          TaskResultAggregator.ERROR_STREAM,
           new RuntimeException("Invalid URI format detected: " + value));
       hasUriError.update(true);
       foundInTable.clear();

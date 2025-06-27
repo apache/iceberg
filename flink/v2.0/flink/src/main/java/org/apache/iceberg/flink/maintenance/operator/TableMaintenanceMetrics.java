@@ -30,6 +30,9 @@ public class TableMaintenanceMetrics {
   // Operator error counter
   public static final String ERROR_COUNTER = "error";
 
+  // IncompatibleSchemaChangeBlocker metrics
+  public static final String INCOMPATIBLE_SPEC_CHANGE = "incompatibleSpecChange";
+
   // TriggerManager metrics
   public static final String RATE_LIMITER_TRIGGERED = "rateLimiterTriggered";
   public static final String CONCURRENT_RUN_THROTTLED = "concurrentRunThrottled";

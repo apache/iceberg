@@ -28,10 +28,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** As opposed to {@link ManifestWriter}, a rolling writer could produce multiple manifest files. */
 public class RollingManifestWriter<F extends ContentFile<F>> implements Closeable {
-  private static final int ROWS_DIVISOR = 250;
+  private static final int DEFAULT_ROWS_DIVISOR = 250;
 
   private final Supplier<ManifestWriter<F>> manifestWriterSupplier;
   private final long targetFileSizeInBytes;
+  private final int rowsDivisor;
   private final List<ManifestFile> manifestFiles;
 
   private long currentFileRows = 0;
@@ -40,10 +41,18 @@ public class RollingManifestWriter<F extends ContentFile<F>> implements Closeabl
   private boolean closed = false;
 
   public RollingManifestWriter(
-      Supplier<ManifestWriter<F>> manifestWriterSupplier, long targetFileSizeInBytes) {
+      Supplier<ManifestWriter<F>> manifestWriterSupplier,
+      long targetFileSizeInBytes,
+      Integer rowsDivisor) {
     this.manifestWriterSupplier = manifestWriterSupplier;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.manifestFiles = Lists.newArrayList();
+    this.rowsDivisor = rowsDivisor != null ? rowsDivisor : DEFAULT_ROWS_DIVISOR;
+  }
+
+  public RollingManifestWriter(
+      Supplier<ManifestWriter<F>> manifestWriterSupplier, long targetFileSizeInBytes) {
+    this(manifestWriterSupplier, targetFileSizeInBytes, DEFAULT_ROWS_DIVISOR);
   }
 
   /**
@@ -118,7 +127,7 @@ public class RollingManifestWriter<F extends ContentFile<F>> implements Closeabl
   }
 
   private boolean shouldRollToNewFile() {
-    return currentFileRows % ROWS_DIVISOR == 0 && currentWriter.length() >= targetFileSizeInBytes;
+    return currentFileRows % rowsDivisor == 0 && currentWriter.length() >= targetFileSizeInBytes;
   }
 
   private void closeCurrentWriter() {
@@ -126,13 +135,17 @@ public class RollingManifestWriter<F extends ContentFile<F>> implements Closeabl
       try {
         currentWriter.close();
         ManifestFile currentFile = currentWriter.toManifestFile();
-        manifestFiles.add(currentFile);
+        onNewManifestFile(currentFile);
         this.currentWriter = null;
         this.currentFileRows = 0;
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close current writer", e);
       }
     }
+  }
+
+  protected void onNewManifestFile(ManifestFile newManifestFile) {
+    manifestFiles.add(newManifestFile);
   }
 
   @Override

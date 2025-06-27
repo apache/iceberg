@@ -26,7 +26,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,7 +59,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
       OperatorTestBase.trigger(testHarness);
 
       assertThat(testHarness.extractOutputValues()).hasSize(11);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -84,7 +83,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
       OperatorTestBase.trigger(testHarness);
 
       assertThat(testHarness.extractOutputValues()).hasSize(14);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -104,7 +103,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
       OperatorTestBase.trigger(testHarness);
 
       assertThat(testHarness.extractOutputValues()).hasSize(2);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 }

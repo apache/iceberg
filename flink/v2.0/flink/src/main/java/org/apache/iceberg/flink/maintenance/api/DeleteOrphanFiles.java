@@ -20,11 +20,9 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
@@ -52,10 +50,6 @@ public class DeleteOrphanFiles {
   private static final ScanContext FILE_PATH_SCAN_CONTEXT =
       ScanContext.builder().streaming(true).project(FILE_PATH_SCHEMA).build();
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
-
-  @Internal
-  public static final OutputTag<Exception> ERROR_STREAM =
-      new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
 
   static final String PLANNER_TASK_NAME = "Table Planner";
   static final String READER_TASK_NAME = "Files Reader";
@@ -264,12 +258,12 @@ public class DeleteOrphanFiles {
 
       DataStream<Exception> errorStream =
           tableMetadataFiles
-              .getSideOutput(ERROR_STREAM)
+              .getSideOutput(TaskResultAggregator.ERROR_STREAM)
               .union(
-                  allFsFiles.getSideOutput(ERROR_STREAM),
-                  tableDataFiles.getSideOutput(ERROR_STREAM),
-                  splits.getSideOutput(ERROR_STREAM),
-                  filesToDelete.getSideOutput(ERROR_STREAM));
+                  allFsFiles.getSideOutput(TaskResultAggregator.ERROR_STREAM),
+                  tableDataFiles.getSideOutput(TaskResultAggregator.ERROR_STREAM),
+                  splits.getSideOutput(TaskResultAggregator.ERROR_STREAM),
+                  filesToDelete.getSideOutput(TaskResultAggregator.ERROR_STREAM));
 
       // Stop deleting the files if there is an error
       SingleOutputStreamOperator<String> filesOrSkip =
