@@ -132,6 +132,12 @@ public class PartitionSpec implements Serializable {
           for (PartitionField field : fields) {
             Type sourceType = schema.findType(field.sourceId());
             Type resultType = field.transform().getResultType(sourceType);
+
+            // When the source field has been dropped we cannot determine the type
+            if (resultType == null) {
+              resultType = Types.UnknownType.get();
+            }
+
             structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
           }
 

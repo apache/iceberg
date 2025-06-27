@@ -68,7 +68,7 @@ public class PartitionSpecParser {
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
-    return fromJson(json).bind(schema);
+    return fromJson(json).bindUnchecked(schema);
   }
 
   public static UnboundPartitionSpec fromJson(JsonNode json) {
