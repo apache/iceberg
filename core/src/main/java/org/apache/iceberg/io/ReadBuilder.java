@@ -26,7 +26,7 @@ import org.apache.iceberg.mapping.NameMapping;
 
 /**
  * Builder interface for creating file readers across supported data file formats. The {@link
- * ObjectModelFactory} implementations provides appropriate {@link ReadBuilder} instances
+ * FormatModel} implementations provides appropriate {@link ReadBuilder} instances
  *
  * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link
  * CloseableIterable} instances that read data from source files. Configuration options include
@@ -58,10 +58,7 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    *
    * @param newCaseSensitive indicates if filtering is case-sensitive
    */
-  default B caseSensitive(boolean newCaseSensitive) {
-    // Skip if filtering is not available
-    return (B) this;
-  }
+  B caseSensitive(boolean newCaseSensitive);
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
@@ -71,10 +68,7 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    *
    * @param newFilter the filter to set
    */
-  default B filter(Expression newFilter) {
-    // Skip if filtering is not available
-    return (B) this;
-  }
+  B filter(Expression newFilter);
 
   /**
    * Sets configuration key/value pairs for the reader. Reader builders should ignore configuration
@@ -108,17 +102,13 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    * Sets the file encryption key used for reading the file. If the reader does not support
    * encryption, then an exception should be thrown.
    */
-  default B fileEncryptionKey(ByteBuffer encryptionKey) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  B fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix for decryption. If the reader does not
    * support decryption, then an exception should be thrown.
    */
-  default B fileAADPrefix(ByteBuffer aadPrefix) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  B fileAADPrefix(ByteBuffer aadPrefix);
 
   /** Builds the reader. */
   CloseableIterable<D> build();
