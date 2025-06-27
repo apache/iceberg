@@ -56,17 +56,13 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       CollectingSink<TaskResult> collectingSink,
       Supplier<Boolean> waitForCondition)
       throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition, true);
-  }
-
-  void runAndWaitForSuccess(
-      StreamExecutionEnvironment env,
-      ManualSource<Trigger> triggerSource,
-      CollectingSink<TaskResult> collectingSink,
-      Supplier<Boolean> waitForCondition,
-      boolean resultSuccess)
-      throws Exception {
-    runAndWaitForResult(env, triggerSource, collectingSink, false, waitForCondition, resultSuccess);
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        false /* generateFailure */,
+        waitForCondition,
+        true /* resultSuccess */);
   }
 
   void runAndWaitForFailure(

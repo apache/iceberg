@@ -96,10 +96,7 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
       throws Exception {
     IcebergSourceSplit split = splitSerializer.deserialize(splitInfo.version(), splitInfo.split());
     try (DataIterator<RowData> iterator = rowDataReaderFunction.createDataIterator(split)) {
-      iterator.forEachRemaining(
-          rowData -> {
-            extract(rowData, out);
-          });
+      iterator.forEachRemaining(rowData -> extract(rowData, out));
     } catch (Exception e) {
       LOG.error("Exception processing split {} at {}", split, ctx.timestamp(), e);
       ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);

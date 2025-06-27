@@ -57,14 +57,14 @@ public class SkipOnError extends AbstractStreamOperator<String>
   }
 
   @Override
-  public void processElement1(StreamRecord<String> element) throws Exception {
+  public void processElement1(StreamRecord<String> element) {
     if (!hasErrorFlag) {
       filesToDelete.add(element.getValue());
     }
   }
 
   @Override
-  public void processElement2(StreamRecord<Exception> element) throws Exception {
+  public void processElement2(StreamRecord<Exception> element) {
     hasError.add(true);
     hasErrorFlag = true;
     filesToDelete.clear();

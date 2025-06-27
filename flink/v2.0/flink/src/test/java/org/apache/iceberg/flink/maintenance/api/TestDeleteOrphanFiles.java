@@ -228,10 +228,11 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
       table.io().deleteFile(manifestFile.path());
     }
 
-    runAndWaitForSuccess(
+    runAndWaitForResult(
         infra.env(),
         infra.source(),
         infra.sink(),
+        false /* generateFailure */,
         () -> checkDeleteFinished(table.name(), 0L),
         false /* resultSuccess*/);
 
