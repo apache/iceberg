@@ -19,18 +19,21 @@
 package org.apache.iceberg.util;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.actions.PartitionAwareHiddenPathFilter;
+import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -166,5 +169,48 @@ public class FileSystemWalker {
     }
 
     return isHiddenPath;
+  }
+
+  /**
+   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be
+   * marked as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of
+   * the characters that indicate a hidden path.
+   */
+  private static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
+
+    private final Set<String> hiddenPathPartitionNames;
+
+    private PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames) {
+      this.hiddenPathPartitionNames = hiddenPathPartitionNames;
+    }
+
+    @Override
+    public boolean accept(Path path) {
+      return isHiddenPartitionPath(path) || HiddenPathFilter.get().accept(path);
+    }
+
+    private boolean isHiddenPartitionPath(Path path) {
+      return hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
+    }
+
+    public static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
+      if (specs == null) {
+        return HiddenPathFilter.get();
+      }
+
+      Set<String> partitionNames =
+          specs.values().stream()
+              .map(PartitionSpec::fields)
+              .flatMap(List::stream)
+              .filter(field -> field.name().startsWith("_") || field.name().startsWith("."))
+              .map(field -> field.name() + "=")
+              .collect(Collectors.toSet());
+
+      if (partitionNames.isEmpty()) {
+        return HiddenPathFilter.get();
+      } else {
+        return new PartitionAwareHiddenPathFilter(partitionNames);
+      }
+    }
   }
 }

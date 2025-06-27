@@ -151,6 +151,8 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
           org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
           new RuntimeException("Invalid URI format detected: " + value));
       hasUriError.update(true);
+      foundInTable.clear();
+      foundInFileSystem.clear();
       return true;
     }
 
