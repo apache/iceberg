@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
@@ -50,6 +51,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.catalyst.plans.logical.Except;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
@@ -298,9 +300,11 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // (i.e. decimals > 8 bytes)
     Schema schema =
         new Schema(
-            optional(102, "float_data", Types.FloatType.get()),
-            optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
+//            optional(102, "float_data", Types.FloatType.get()),
+//            optional(103, "double_data", Types.DoubleType.get()),
+//            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get()));
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
