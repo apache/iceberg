@@ -157,50 +157,44 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testReadStreamWithMaxFiles1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
-        .isEqualTo(6);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
   public void testReadStreamWithMaxFiles2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2")))
-        .isEqualTo(3);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L));
   }
 
   @TestTemplate
   public void testReadStreamWithMaxRows1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    // only 1 micro-batch will be formed and we will read data partially
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1")))
-        .isEqualTo(1);
-
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
+    // soft limit of 1 is being enforced, the stream is not blocked.
     StreamingQuery query =
         startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"));
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
     assertThat(actual)
-        .containsExactlyInAnyOrderElementsOf(
-            Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
   }
 
   @TestTemplate
   public void testReadStreamWithMaxRows2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
-        .isEqualTo(4);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L));
 
     StreamingQuery query =
         startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
@@ -214,22 +208,19 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testReadStreamWithMaxRows4() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
-        .isEqualTo(2);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"), List.of(4L, 3L));
   }
 
   @TestTemplate
   public void testReadStreamWithCompositeReadLimit() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(
-                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
-                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2")))
-        .isEqualTo(6);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
+            SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
@@ -542,10 +533,9 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
-        .isEqualTo(6);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
@@ -557,10 +547,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
-        .isEqualTo(2);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"), List.of(4L, 3L));
   }
 
   @TestTemplate
@@ -572,14 +560,13 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(
-                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
-                    "4",
-                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
-                    "1")))
-        .isEqualTo(6);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(
+            SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+            "4",
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+            "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
@@ -591,10 +578,9 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     makeRewriteDataFiles();
     makeRewriteDataFiles();
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
-        .isEqualTo(6);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
@@ -608,10 +594,9 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     appendDataAsMultipleSnapshots(expected);
 
-    assertThat(
-            microBatchCount(
-                ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
-        .isEqualTo(12);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L, 1L, 2L, 1L, 1L, 1L, 1L));
   }
 
   @TestTemplate
@@ -778,21 +763,24 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         ImmutableMap.of(key, value, SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"));
   }
 
-  private int microBatchCount(Map<String, String> options) throws TimeoutException {
+  private void assertMicroBatchRecordSizes(
+      Map<String, String> options, List<Long> expectedMicroBatchRecordSize)
+      throws TimeoutException {
     Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
 
+    List<Long> syncList = Collections.synchronizedList(Lists.newArrayList());
     ds.writeStream()
         .options(options)
         .foreachBatch(
             (VoidFunction2<Dataset<Row>, Long>)
                 (dataset, batchId) -> {
-                  microBatches.getAndIncrement();
+                  syncList.add(dataset.count());
                 })
         .start()
         .processAllAvailable();
 
     stopStreams();
-    return microBatches.get();
+    assertThat(syncList).containsExactlyInAnyOrderElementsOf(expectedMicroBatchRecordSize);
   }
 
   private List<SimpleRecord> rowsAvailable(StreamingQuery query) {

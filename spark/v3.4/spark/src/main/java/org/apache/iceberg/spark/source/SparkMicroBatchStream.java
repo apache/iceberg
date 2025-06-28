@@ -349,7 +349,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       }
     }
 
-    // there is no ReadMaxRows, so return the default
+    // There is no ReadMaxRows, so return the default
     return Integer.MAX_VALUE;
   }
 
@@ -388,7 +388,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
     int curRecordCount = 0;
-    int curPos = 0;
+    long curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
     while (shouldContinueReading) {
@@ -412,14 +412,23 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              if ((curFilesAdded + 1) > getMaxFiles(limit)
-                  || (curRecordCount + task.file().recordCount()) > getMaxRows(limit)) {
+              if ((curFilesAdded + 1) > getMaxFiles(limit)) {
+                // On including the file it might happen that we might exceed, the configured
+                // soft limit on the number of records, since this is a soft limit its acceptable.
                 shouldContinueReading = false;
                 break;
               }
 
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
+
+              if (curRecordCount >= getMaxRows(limit)) {
+                // we included the file, so increment the number of files
+                // read in the current snapshot.
+                ++curPos;
+                shouldContinueReading = false;
+                break;
+              }
             }
             ++curPos;
           }
