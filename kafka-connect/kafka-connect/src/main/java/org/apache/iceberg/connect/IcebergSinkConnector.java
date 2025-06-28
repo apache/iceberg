@@ -40,6 +40,7 @@ public class IcebergSinkConnector extends SinkConnector {
   @Override
   public void start(Map<String, String> connectorProps) {
     this.props = connectorProps;
+    CatalogUtils.loadCatalog(new IcebergSinkConfig(props));
   }
 
   @Override
