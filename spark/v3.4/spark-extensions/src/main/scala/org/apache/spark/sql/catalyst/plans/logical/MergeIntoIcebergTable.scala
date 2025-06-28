@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.AssignmentUtils
@@ -28,7 +27,8 @@ case class MergeIntoIcebergTable(
     mergeCondition: Expression,
     matchedActions: Seq[MergeAction],
     notMatchedActions: Seq[MergeAction],
-    rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
+    rewritePlan: Option[LogicalPlan] = None)
+    extends RowLevelCommand {
 
   lazy val aligned: Boolean = {
     val matchedActionsAligned = matchedActions.forall {
@@ -71,7 +71,8 @@ case class MergeIntoIcebergTable(
       case Seq(newTarget, newSource, newRewritePlan) =>
         copy(targetTable = newTarget, sourceTable = newSource, rewritePlan = Some(newRewritePlan))
       case _ =>
-        throw new IllegalArgumentException("MergeIntoIcebergTable expects either two or three children")
+        throw new IllegalArgumentException(
+          "MergeIntoIcebergTable expects either two or three children")
     }
   }
 }
