@@ -85,11 +85,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     catalog.createTable(tableIdentifier, SCHEMA);
     tableUpdater.update(tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned());
-    TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().getIfPresent(tableIdentifier);
+    TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().get(tableIdentifier);
     assertThat(cacheItem).isNotNull();
 
     tableUpdater.update(tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned());
-    assertThat(cache.getInternalCache().getIfPresent(tableIdentifier)).isEqualTo(cacheItem);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isEqualTo(cacheItem);
   }
 
   @Test
@@ -153,7 +153,6 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
 
     // Last result cache should be cleared
-    assertThat(cache.getInternalCache().getIfPresent(tableIdentifier).inputSchemas().get(SCHEMA2))
-        .isNull();
+    assertThat(cache.getInternalCache().get(tableIdentifier).inputSchemas().get(SCHEMA2)).isNull();
   }
 }
