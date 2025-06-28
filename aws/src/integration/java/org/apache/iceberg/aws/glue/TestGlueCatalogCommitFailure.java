@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.s3.S3TestUtil;
 import org.apache.iceberg.aws.util.RetryDetector;
@@ -35,6 +37,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -60,6 +63,30 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
   @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*")
 })
 public class TestGlueCatalogCommitFailure extends GlueTestBase {
+  @Test
+  public void testFailingOpDoesNotRemoveExistingMetadata() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(tableId);
+
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    assertThat(fileExists(metadataLocation)).isTrue();
+
+    assertThat(glueCatalog.dropTable(tableId, false)).isTrue();
+
+    GlueTableOperations spyOps =
+        Mockito.spy((GlueTableOperations) glueCatalog.newTableOps(tableId));
+
+    failCommitAndThrowException(spyOps, new CommitFailedException("Datacenter on fire"));
+    InputFile metadataFile = spyOps.io().newInputFile(metadataLocation);
+    TableMetadata metadata = TableMetadataParser.read(spyOps.io(), metadataFile);
+
+    assertThatThrownBy(() -> spyOps.commit(null, metadata))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Datacenter on fire");
+    assertThat(fileExists(metadataLocation)).isTrue();
+  }
 
   @Test
   public void testFailedCommit() {
@@ -330,7 +357,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                   mapProperties.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
 
               // Simulate lock expiration or removal, use commit status null to avoid deleting data
-              realOps.cleanupMetadataAndUnlock(null, newMetadataLocation);
+              realOps.cleanupMetadataAndUnlock(null, newMetadataLocation, null);
 
               table.refresh();
               table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
@@ -519,11 +546,15 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   private boolean metadataFileExists(TableMetadata metadata) {
+    return fileExists(metadata.metadataFileLocation());
+  }
+
+  private boolean fileExists(String file) {
     try {
       S3.headObject(
           HeadObjectRequest.builder()
-              .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
-              .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
+              .bucket(S3TestUtil.getBucketFromUri(file))
+              .key(S3TestUtil.getKeyFromUri(file))
               .build());
       return true;
     } catch (NoSuchKeyException e) {
