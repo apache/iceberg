@@ -60,6 +60,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -142,6 +143,8 @@ class RecordConverter {
         return convertTimeValue(value);
       case TIMESTAMP:
         return convertTimestampValue(value, (TimestampType) type);
+      case TIMESTAMP_NANO:
+        return convertTimestampNanoValue(value, (TimestampNanoType) type);
     }
     throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
   }
@@ -464,6 +467,47 @@ class RecordConverter {
     return convertLocalDateTime(value);
   }
 
+  protected Temporal convertTimestampNanoValue(Object value, TimestampNanoType type) {
+    if (type.shouldAdjustToUTC()) {
+      return convertOffsetDateTimeNano(value);
+    }
+    return convertLocalDateTimeNano(value);
+  }
+
+  @SuppressWarnings("JavaUtilDate")
+  private OffsetDateTime convertOffsetDateTimeNano(Object value) {
+    if (value instanceof Number) {
+      long nanos = ((Number) value).longValue();
+      return DateTimeUtil.timestamptzFromNanos(nanos);
+    } else if (value instanceof String) {
+      return parseOffsetDateTimeNano((String) value);
+    } else if (value instanceof OffsetDateTime) {
+      return (OffsetDateTime) value;
+    } else if (value instanceof LocalDateTime) {
+      return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
+    } else if (value instanceof Date) {
+      // Date only has millisecond precision, so convert to nanoseconds but truncate to milliseconds
+      long millis = ((Date) value).getTime();
+      return DateTimeUtil.timestamptzFromNanos(millis * 1_000_000L);
+    }
+    throw new ConnectException(
+        "Cannot convert timestamptz-nano: " + value + ", type: " + value.getClass());
+  }
+
+  private OffsetDateTime parseOffsetDateTimeNano(String str) {
+    try {
+      return OffsetDateTime.parse(str);
+    } catch (DateTimeParseException e) {
+      try {
+        String tsStr = ensureTimestampFormat(str);
+        return LocalDateTime.parse(tsStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            .atOffset(ZoneOffset.UTC);
+      } catch (DateTimeParseException ex) {
+        return parseOffsetDateTime(str);
+      }
+    }
+  }
+
   @SuppressWarnings("JavaUtilDate")
   private OffsetDateTime convertOffsetDateTime(Object value) {
     if (value instanceof Number) {
@@ -508,6 +552,37 @@ class RecordConverter {
     }
     throw new ConnectException(
         "Cannot convert timestamp: " + value + ", type: " + value.getClass());
+  }
+
+  @SuppressWarnings("JavaUtilDate")
+  private LocalDateTime convertLocalDateTimeNano(Object value) {
+
+    if (value instanceof Number) {
+      long nanos = ((Number) value).longValue();
+      return DateTimeUtil.timestampFromNanos(nanos);
+    } else if (value instanceof String) {
+      return parseLocalDateTimeNano((String) value);
+    } else if (value instanceof LocalDateTime) {
+      return (LocalDateTime) value;
+    } else if (value instanceof OffsetDateTime) {
+      return ((OffsetDateTime) value).toLocalDateTime();
+    } else if (value instanceof Date) {
+      return DateTimeUtil.timestampFromNanos(((Date) value).getTime() * 1_000_000L);
+    }
+    throw new ConnectException(
+        "Cannot convert timestamp-nano: " + value + ", type: " + value.getClass());
+  }
+
+  private LocalDateTime parseLocalDateTimeNano(String str) {
+    try {
+      return LocalDateTime.parse(str);
+    } catch (DateTimeParseException e) {
+      try {
+        return OffsetDateTime.parse(str).toLocalDateTime();
+      } catch (DateTimeParseException ex) {
+        return parseLocalDateTime(str);
+      }
+    }
   }
 
   private LocalDateTime parseLocalDateTime(String str) {
