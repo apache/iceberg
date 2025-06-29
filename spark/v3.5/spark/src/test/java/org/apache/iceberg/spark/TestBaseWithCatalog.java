@@ -69,7 +69,13 @@ public abstract class TestBaseWithCatalog extends TestBase {
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
               CatalogProperties.CLIENT_POOL_SIZE,
-              "1"));
+              "1",
+              CatalogProperties.UNIQUE_TABLE_LOCATION,
+              SparkCatalogConfig.REST
+                  .properties()
+                  .getOrDefault(
+                      CatalogProperties.UNIQUE_TABLE_LOCATION,
+                      String.valueOf(CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT))));
 
   protected static RESTCatalog restCatalog;
 
@@ -177,6 +183,13 @@ public abstract class TestBaseWithCatalog extends TestBase {
   protected boolean cachingCatalogEnabled() {
     return PropertyUtil.propertyAsBoolean(
         catalogConfig, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
+  }
+
+  protected boolean uniqueTableLocation() {
+    return PropertyUtil.propertyAsBoolean(
+        catalogConfig,
+        CatalogProperties.UNIQUE_TABLE_LOCATION,
+        CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
   }
 
   protected void configurePlanningMode(PlanningMode planningMode) {

@@ -89,6 +89,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private Object hadoopConf;
   private String catalogName;
   private String warehousePath;
+  private boolean uniqueTableLocation = false;
   private AwsProperties awsProperties;
   private S3FileIOProperties s3FileIOProperties;
   private LockManager lockManager;
@@ -144,7 +145,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
         new AwsProperties(properties),
         new S3FileIOProperties(properties),
         awsClientFactory.glue(),
-        initializeLockManager(properties));
+        initializeLockManager(properties),
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT));
   }
 
   private LockManager initializeLockManager(Map<String, String> properties) {
@@ -172,7 +177,14 @@ public class GlueCatalog extends BaseMetastoreCatalog
       LockManager lock,
       Map<String, String> catalogProps) {
     this.catalogProperties = catalogProps;
-    initialize(name, path, properties, s3Properties, client, lock);
+    initialize(
+        name,
+        path,
+        properties,
+        s3Properties,
+        client,
+        lock,
+        CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
   }
 
   @VisibleForTesting
@@ -182,13 +194,15 @@ public class GlueCatalog extends BaseMetastoreCatalog
       AwsProperties properties,
       S3FileIOProperties s3Properties,
       GlueClient client,
-      LockManager lock) {
+      LockManager lock,
+      boolean uniqTableLocation) {
     this.catalogName = name;
     this.awsProperties = properties;
     this.s3FileIOProperties = s3Properties;
     this.warehousePath = Strings.isNullOrEmpty(path) ? null : LocationUtil.stripTrailingSlash(path);
     this.glue = client;
     this.lockManager = lock;
+    this.uniqueTableLocation = uniqTableLocation;
 
     this.closeableGroup = new CloseableGroup();
     this.fileIOTracker = new FileIOTracker();
@@ -280,7 +294,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
     String dbLocationUri = response.database().locationUri();
     if (dbLocationUri != null) {
       dbLocationUri = LocationUtil.stripTrailingSlash(dbLocationUri);
-      return String.format("%s/%s", dbLocationUri, tableIdentifier.name());
+      return String.format(
+          "%s/%s", dbLocationUri, formatTableName(tableIdentifier, uniqueTableLocation));
     }
 
     ValidationException.check(
@@ -292,7 +307,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         warehousePath,
         IcebergToGlueConverter.getDatabaseName(
             tableIdentifier, awsProperties.glueCatalogSkipNameValidation()),
-        tableIdentifier.name());
+        formatTableName(tableIdentifier, uniqueTableLocation));
   }
 
   @Override
