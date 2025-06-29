@@ -51,6 +51,13 @@ public final class MetricsConfig implements Serializable {
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
 
+  private static final MetricsConfig DEFAULT_POS_DELETE =
+      new MetricsConfig(
+          ImmutableMap.of(
+              MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get(),
+              MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get()),
+          MetricsModes.Full.get());
+
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
 
@@ -63,15 +70,8 @@ public final class MetricsConfig implements Serializable {
     return DEFAULT;
   }
 
-  /**
-   * Creates a metrics config from table configuration.
-   *
-   * @param props table configuration
-   * @deprecated use {@link MetricsConfig#forTable(Table)}
-   */
-  @Deprecated
-  public static MetricsConfig fromProperties(Map<String, String> props) {
-    return from(props, null, null);
+  public static MetricsConfig getDefaultForPosDelete() {
+    return DEFAULT_POS_DELETE;
   }
 
   /**
@@ -210,6 +210,16 @@ public final class MetricsConfig implements Serializable {
           METRICS_MODE_COLUMN_CONF_PREFIX + column,
           schema);
     }
+  }
+
+  /**
+   * Validate that all referenced columns in the properties are valid columns in the schema.
+   *
+   * @param schema schema to validate against
+   * @param props properties may contain metrics mode column overrides
+   */
+  static void validateReferencedColumns(Schema schema, Map<String, String> props) {
+    from(props, null, null).validateReferencedColumns(schema);
   }
 
   public MetricsMode columnMode(String columnAlias) {
