@@ -28,8 +28,12 @@ public enum SparkCatalogConfig {
       "testhive",
       SparkCatalog.class.getName(),
       ImmutableMap.of(
-          "type", "hive",
-          "default-namespace", "default")),
+          "type",
+          "hive",
+          "default-namespace",
+          "default",
+          CatalogProperties.CACHE_ENABLED,
+          "false")),
   HADOOP(
       "testhadoop",
       SparkCatalog.class.getName(),

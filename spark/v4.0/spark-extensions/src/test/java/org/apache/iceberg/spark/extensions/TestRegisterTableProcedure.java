@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.atIndex;
 
 import java.util.List;
@@ -81,5 +82,33 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
         .contains(numRows, atIndex(1))
         .as("Should have the right datafile count in the procedure result")
         .contains(originalFileCount, atIndex(2));
+  }
+
+  @TestTemplate
+  public void testRegisterTableToNonexistentNamespace()
+      throws NoSuchTableException, ParseException {
+    String targetNameWithNonexistentNamespace =
+        (catalogName.equals("spark_catalog") ? "" : catalogName + ".")
+            + "missing_namespace."
+            + "register_table";
+    long numRows = 1000;
+
+    sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
+    spark
+        .range(0, numRows)
+        .withColumn("data", functions.col("id").cast(DataTypes.StringType))
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.register_table('%s', '%s')",
+                    catalogName, targetNameWithNonexistentNamespace, metadataJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot register table to nonexistent target namespace");
   }
 }
