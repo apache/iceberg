@@ -20,22 +20,13 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
-import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
-import org.apache.iceberg.spark.OrcBatchReadConf;
-import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -119,93 +110,28 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    if (useCometBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
-
-    } else if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
-
-    } else if (useOrcBatchReads()) {
-      return new SparkColumnarReaderFactory(orcBatchReadConf());
-
-    } else {
-      return new SparkRowReaderFactory();
+    final String providerClass = readConf.partitionReaderFactoryProviderClass();
+    final DynConstructors.Ctor<SparkPartitionReaderFactoryProvider> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(SparkPartitionReaderFactoryProvider.class)
+              .loader(SparkBatch.class.getClassLoader())
+              .impl(providerClass)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize SparkPartitionReaderFactoryProvider, missing no-arg constructor: %s",
+              providerClass),
+          e);
     }
-  }
-
-  private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
-    return ImmutableParquetBatchReadConf.builder()
-        .batchSize(readConf.parquetBatchSize())
-        .readerType(readerType)
-        .build();
-  }
-
-  private OrcBatchReadConf orcBatchReadConf() {
-    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
-  }
-
-  // conditions for using Parquet batch reads:
-  // - Parquet vectorization is enabled
-  // - only primitives or metadata columns are projected
-  // - all tasks are of FileScanTask type and read only Parquet files
-  private boolean useParquetBatchReads() {
-    return readConf.parquetVectorizationEnabled()
-        && expectedSchema.columns().stream().allMatch(this::supportsParquetBatchReads)
-        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
-  }
-
-  private boolean supportsParquetBatchReads(ScanTask task) {
-    if (task instanceof ScanTaskGroup) {
-      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
-      return taskGroup.tasks().stream().allMatch(this::supportsParquetBatchReads);
-
-    } else if (task.isFileScanTask() && !task.isDataTask()) {
-      FileScanTask fileScanTask = task.asFileScanTask();
-      return fileScanTask.file().format() == FileFormat.PARQUET;
-
-    } else {
-      return false;
-    }
-  }
-
-  private boolean supportsParquetBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
-  }
-
-  private boolean useCometBatchReads() {
-    return readConf.parquetVectorizationEnabled()
-        && readConf.parquetReaderType() == ParquetReaderType.COMET
-        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
-        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
-  }
-
-  private boolean supportsCometBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType()
-        && !field.type().typeId().equals(Type.TypeID.UUID)
-        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
-        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
-  }
-
-  // conditions for using ORC batch reads:
-  // - ORC vectorization is enabled
-  // - all tasks are of type FileScanTask and read only ORC files with no delete files
-  private boolean useOrcBatchReads() {
-    return readConf.orcVectorizationEnabled()
-        && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
-  }
-
-  private boolean supportsOrcBatchReads(ScanTask task) {
-    if (task instanceof ScanTaskGroup) {
-      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
-      return taskGroup.tasks().stream().allMatch(this::supportsOrcBatchReads);
-
-    } else if (task.isFileScanTask() && !task.isDataTask()) {
-      FileScanTask fileScanTask = task.asFileScanTask();
-      return fileScanTask.file().format() == FileFormat.ORC && fileScanTask.deletes().isEmpty();
-
-    } else {
-      return false;
-    }
+    final SparkPartitionReaderFactoryConf conf =
+        ImmutableSparkPartitionReaderFactoryConf.builder()
+            .readConf(readConf)
+            .expectedSchema(expectedSchema)
+            .taskGroups(taskGroups)
+            .build();
+    return ctor.newInstance().createReaderFactory(conf);
   }
 
   @Override

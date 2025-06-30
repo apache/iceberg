@@ -363,4 +363,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
+
+  public String partitionReaderFactoryProviderClass() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.PARTITION_READER_FACTORY_PROVIDER)
+        .defaultValue(SparkSQLProperties.PARTITION_READER_FACTORY_PROVIDER_DEFAULT)
+        .parse();
+  }
 }
