@@ -319,11 +319,11 @@ public class TestSparkMetadataColumns extends TestBase {
   @TestTemplate
   public void testIdentifierFields() {
     table
-            .updateSchema()
-            .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
-            .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
-            .setIdentifierFields("id")
-            .commit();
+        .updateSchema()
+        .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
+        .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
+        .setIdentifierFields("id")
+        .commit();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1', -1, 'path/to/file')", TABLE_NAME);
 
