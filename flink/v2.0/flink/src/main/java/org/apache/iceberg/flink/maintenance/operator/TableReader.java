@@ -40,7 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Reads the records from the metadata table splits. */
-abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R> {
+abstract class TableReader<R> extends ProcessFunction<MetadataTablePlanner.SplitInfo, R> {
   private static final Logger LOG = LoggerFactory.getLogger(TableReader.class);
 
   private final TableLoader tableLoader;
@@ -92,8 +92,8 @@ abstract class TableReader<R> extends ProcessFunction<TablePlanner.SplitInfo, R>
   }
 
   @Override
-  public void processElement(TablePlanner.SplitInfo splitInfo, Context ctx, Collector<R> out)
-      throws Exception {
+  public void processElement(
+      MetadataTablePlanner.SplitInfo splitInfo, Context ctx, Collector<R> out) throws Exception {
     IcebergSourceSplit split = splitSerializer.deserialize(splitInfo.version(), splitInfo.split());
     try (DataIterator<RowData> iterator = rowDataReaderFunction.createDataIterator(split)) {
       iterator.forEachRemaining(rowData -> extract(rowData, out));

@@ -35,8 +35,8 @@ import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
 import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
+import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
-import org.apache.iceberg.flink.maintenance.operator.TablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -220,10 +220,10 @@ public class DeleteOrphanFiles {
       tableLoader().open();
 
       // Collect all data files
-      SingleOutputStreamOperator<TablePlanner.SplitInfo> splits =
+      SingleOutputStreamOperator<MetadataTablePlanner.SplitInfo> splits =
           trigger
               .process(
-                  new TablePlanner(
+                  new MetadataTablePlanner(
                       taskName(),
                       index(),
                       tableLoader(),

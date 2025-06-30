@@ -124,7 +124,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             configuration,
             maxListingDepth,
             maxListingDirectSubDirs,
-            remainingSubDirs,
+            remainingSubDirs::add,
             out::collect);
         for (String remainingSubDir : remainingSubDirs) {
           FileSystemWalker.listDirRecursivelyWithHadoop(
@@ -134,7 +134,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
               configuration,
               Integer.MAX_VALUE,
               Integer.MAX_VALUE,
-              Lists.newArrayList(),
+              dir -> {},
               out::collect);
         }
       }

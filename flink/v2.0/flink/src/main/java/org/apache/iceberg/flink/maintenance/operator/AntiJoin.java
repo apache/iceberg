@@ -38,10 +38,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A specialized co-process function that performs an anti-join between two streams of file URIs.
+ *
+ * <p>Emits every file that exists in the file system but is not referenced in the table metadata,
+ * which are considered orphan files. It also handles URI normalization using provided scheme and
+ * authority equivalence mappings.
+ */
 @Internal
 public class AntiJoin extends KeyedCoProcessFunction<String, String, String, String> {
   private static final Logger LOG = LoggerFactory.getLogger(AntiJoin.class);
 
+  // Use MapState to dedupe the strings found in the table
   private transient MapState<String, Boolean> foundInTable;
   private transient ValueState<String> foundInFileSystem;
   private transient ValueState<Boolean> hasUriError;
