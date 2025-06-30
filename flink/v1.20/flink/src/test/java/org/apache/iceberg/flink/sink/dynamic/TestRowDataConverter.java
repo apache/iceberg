@@ -34,6 +34,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -42,7 +43,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.Days;
 import org.junit.jupiter.api.Test;
 
-class TestRowDataEvolver {
+class TestRowDataConverter {
 
   static final Schema SCHEMA =
       new Schema(
@@ -59,7 +60,7 @@ class TestRowDataEvolver {
   void testPrimitiveTypes() {
     DataGenerator generator = new DataGenerators.Primitives();
     assertThat(
-            RowDataEvolver.convert(
+            convert(
                 generator.generateFlinkRowData(),
                 generator.icebergSchema(),
                 generator.icebergSchema()))
@@ -68,7 +69,7 @@ class TestRowDataEvolver {
 
   @Test
   void testAddColumn() {
-    assertThat(RowDataEvolver.convert(SimpleDataUtil.createRowData(1, "a"), SCHEMA, SCHEMA2))
+    assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SCHEMA, SCHEMA2))
         .isEqualTo(GenericRowData.of(1, StringData.fromString("a"), null));
   }
 
@@ -82,7 +83,7 @@ class TestRowDataEvolver {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> RowDataEvolver.convert(GenericRowData.of(42), currentSchema, targetSchema));
+        () -> convert(GenericRowData.of(42), currentSchema, targetSchema));
   }
 
   @Test
@@ -92,9 +93,7 @@ class TestRowDataEvolver {
             Types.NestedField.optional(2, "id", Types.LongType.get()),
             Types.NestedField.optional(4, "data", Types.StringType.get()));
 
-    assertThat(
-            RowDataEvolver.convert(
-                SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.SCHEMA, schemaWithLong))
+    assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.SCHEMA, schemaWithLong))
         .isEqualTo(GenericRowData.of(1L, StringData.fromString("a")));
   }
 
@@ -105,7 +104,7 @@ class TestRowDataEvolver {
     Schema schemaWithDouble =
         new Schema(Types.NestedField.optional(2, "float2double", Types.DoubleType.get()));
 
-    assertThat(RowDataEvolver.convert(GenericRowData.of(1.5f), schemaWithFloat, schemaWithDouble))
+    assertThat(convert(GenericRowData.of(1.5f), schemaWithFloat, schemaWithDouble))
         .isEqualTo(GenericRowData.of(1.5d));
   }
 
@@ -121,7 +120,7 @@ class TestRowDataEvolver {
     int days =
         Days.daysBetween(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), time).getDays();
 
-    assertThat(RowDataEvolver.convert(GenericRowData.of(days), schemaWithFloat, schemaWithDouble))
+    assertThat(convert(GenericRowData.of(days), schemaWithFloat, schemaWithDouble))
         .isEqualTo(GenericRowData.of(TimestampData.fromEpochMillis(time.getMillis())));
   }
 
@@ -133,7 +132,7 @@ class TestRowDataEvolver {
         new Schema(Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(10, 2)));
 
     assertThat(
-            RowDataEvolver.convert(
+            convert(
                 GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2)),
                 before,
                 after))
@@ -161,7 +160,7 @@ class TestRowDataEvolver {
             StringData.fromString("row_id_value"),
             GenericRowData.of(1, null, StringData.fromString("Jane")));
 
-    assertThat(RowDataEvolver.convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
+    assertThat(convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
   }
 
   @Test
@@ -188,7 +187,7 @@ class TestRowDataEvolver {
 
     RowData expectedData = GenericRowData.of(StringData.fromString("row_id_value"), null);
 
-    assertThat(RowDataEvolver.convert(oldData, oldSchema, newSchema)).isEqualTo(expectedData);
+    assertThat(convert(oldData, oldSchema, newSchema)).isEqualTo(expectedData);
   }
 
   @Test
@@ -208,9 +207,7 @@ class TestRowDataEvolver {
                     required(103, "required", Types.StringType.get()),
                     required(102, "name", Types.StringType.get()))));
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> RowDataEvolver.convert(oldData, oldSchema, newSchema));
+    assertThrows(IllegalArgumentException.class, () -> convert(oldData, oldSchema, newSchema));
   }
 
   @Test
@@ -233,7 +230,7 @@ class TestRowDataEvolver {
                 ImmutableMap.of(
                     StringData.fromString("Jane"), 1L, StringData.fromString("Joe"), 2L)));
 
-    assertThat(RowDataEvolver.convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
+    assertThat(convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
   }
 
   @Test
@@ -251,6 +248,13 @@ class TestRowDataEvolver {
         GenericRowData.of(
             StringData.fromString("row_id_value"), new GenericArrayData(new Long[] {1L, 2L, 3L}));
 
-    assertThat(RowDataEvolver.convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
+    assertThat(convert(oldData, oldSchema, newSchema)).isEqualTo(newData);
+  }
+
+  private static RowData convert(RowData sourceData, Schema sourceSchema, Schema targetSchema) {
+    return (RowData)
+        DataConverter.get(
+                FlinkSchemaUtil.convert(sourceSchema), FlinkSchemaUtil.convert(targetSchema))
+            .convert(sourceData);
   }
 }

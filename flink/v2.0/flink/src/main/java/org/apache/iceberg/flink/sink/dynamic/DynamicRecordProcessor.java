@@ -22,7 +22,6 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
@@ -43,6 +42,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final boolean immediateUpdate;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
+  private final int inputSchemasPerTableCacheMaximumSize;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
@@ -56,19 +56,23 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       CatalogLoader catalogLoader,
       boolean immediateUpdate,
       int cacheMaximumSize,
-      long cacheRefreshMs) {
+      long cacheRefreshMs,
+      int inputSchemasPerTableCacheMaximumSize) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
   }
 
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
     Catalog catalog = catalogLoader.loadCatalog();
-    this.tableCache = new TableMetadataCache(catalog, cacheMaximumSize, cacheRefreshMs);
+    this.tableCache =
+        new TableMetadataCache(
+            catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize);
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
@@ -97,7 +101,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
-    Tuple2<Schema, CompareSchemasVisitor.Result> foundSchema =
+    TableMetadataCache.ResolvedSchemaInfo foundSchema =
         exists
             ? tableCache.schema(data.tableIdentifier(), data.schema())
             : TableMetadataCache.NOT_FOUND;
@@ -107,16 +111,23 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     if (!exists
         || foundBranch == null
         || foundSpec == null
-        || foundSchema.f1 == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
+        || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       if (immediateUpdate) {
-        Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> newData =
+        Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
             updater.update(data.tableIdentifier(), data.branch(), data.schema(), data.spec());
-        emit(collector, data, newData.f0, newData.f1, newData.f2);
+        emit(
+            collector,
+            data,
+            newData.f0.resolvedTableSchema(),
+            newData.f0.recordConverter(),
+            newData.f1);
       } else {
         int writerKey =
             hashKeyGenerator.generateKey(
                 data,
-                foundSchema.f0 != null ? foundSchema.f0 : data.schema(),
+                foundSchema.resolvedTableSchema() != null
+                    ? foundSchema.resolvedTableSchema()
+                    : data.schema(),
                 foundSpec != null ? foundSpec : data.spec(),
                 data.rowData());
         context.output(
@@ -132,7 +143,12 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
                 DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema())));
       }
     } else {
-      emit(collector, data, foundSchema.f0, foundSchema.f1, foundSpec);
+      emit(
+          collector,
+          data,
+          foundSchema.resolvedTableSchema(),
+          foundSchema.recordConverter(),
+          foundSpec);
     }
   }
 
@@ -140,12 +156,9 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       Collector<DynamicRecordInternal> out,
       DynamicRecord data,
       Schema schema,
-      CompareSchemasVisitor.Result result,
+      DataConverter recordConverter,
       PartitionSpec spec) {
-    RowData rowData =
-        result == CompareSchemasVisitor.Result.SAME
-            ? data.rowData()
-            : RowDataEvolver.convert(data.rowData(), data.schema(), schema);
+    RowData rowData = (RowData) recordConverter.convert(data.rowData());
     int writerKey = hashKeyGenerator.generateKey(data, schema, spec, rowData);
     String tableName = data.tableIdentifier().toString();
     out.collect(
