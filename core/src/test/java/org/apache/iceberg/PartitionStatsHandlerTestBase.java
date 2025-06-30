@@ -203,7 +203,7 @@ public abstract class PartitionStatsHandlerTestBase {
             fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
-    Schema dataSchema = PartitionStatsHandler.schemaForVersion(testTable, partitionSchema);
+    Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
 
     PartitionData partitionData =
         new PartitionData(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
@@ -265,7 +265,7 @@ public abstract class PartitionStatsHandlerTestBase {
             fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
-    Schema dataSchema = PartitionStatsHandler.schemaForVersion(testTable, partitionSchema);
+    Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
 
     ImmutableList.Builder<PartitionStats> partitionListBuilder = ImmutableList.builder();
     for (int i = 0; i < 5; i++) {
@@ -369,7 +369,8 @@ public abstract class PartitionStatsHandlerTestBase {
 
     Snapshot snapshot1 = testTable.currentSnapshot();
     Schema recordSchema =
-        PartitionStatsHandler.schemaForVersion(testTable, Partitioning.partitionType(testTable));
+        PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion);
+
     Types.StructType partitionType =
         recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
     computeAndValidatePartitionStats(
@@ -588,8 +589,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
     assertThat(
             PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schemaForVersion(
-                    testTable, Partitioning.partitionType(testTable)),
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion),
                 testTable.io().newInputFile(statisticsFile.path())))
         .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
 
@@ -602,8 +602,7 @@ public abstract class PartitionStatsHandlerTestBase {
     // stats must be decremented to zero as all the files removed from table.
     assertThat(
             PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schemaForVersion(
-                    testTable, Partitioning.partitionType(testTable)),
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion),
                 testTable.io().newInputFile(statisticsFileNew.path())))
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
   }

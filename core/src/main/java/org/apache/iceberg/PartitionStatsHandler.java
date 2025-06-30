@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
@@ -97,12 +98,15 @@ public class PartitionStatsHandler {
    * all specs in a table.
    *
    * <p>Use this only for format version 1 and 2. For version 3 and above use {@link
-   * #schemaV3Plus(StructType)}
+   * #schema(StructType, int)}
    *
    * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
    *     Partitioning#partitionType(Table)}.
    * @return a schema that corresponds to the provided unified partition type.
+   * @deprecated since 1.10.0, will be removed in 1.11.0. Use {@link #schema(StructType, int)}
+   *     instead.
    */
+  @Deprecated
   public static Schema schema(StructType unifiedPartitionType) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     return new Schema(
@@ -121,15 +125,20 @@ public class PartitionStatsHandler {
   }
 
   /**
-   * Generates the partition stats file schema based on a combined partition type which considers
-   * all specs in a table. (For format version 3 and above)
+   * Generates the partition stats file schema for a given format version based on a combined
+   * partition type which considers all specs in a table.
    *
    * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
    *     Partitioning#partitionType(Table)}.
    * @return a schema that corresponds to the provided unified partition type.
    */
-  public static Schema schemaV3Plus(StructType unifiedPartitionType) {
+  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+
+    if (formatVersion <= 2) {
+      return schema(unifiedPartitionType);
+    }
+
     return new Schema(
         NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
         SPEC_ID,
@@ -156,15 +165,6 @@ public class PartitionStatsHandler {
         LAST_UPDATED_AT,
         LAST_UPDATED_SNAPSHOT_ID,
         DV_COUNT);
-  }
-
-  static Schema schemaForVersion(Table table, StructType partitionType) {
-    int formatVersion = ((HasTableOperations) table).operations().current().formatVersion();
-    if (formatVersion <= 2) {
-      return schema(partitionType);
-    }
-
-    return schemaV3Plus(partitionType);
   }
 
   /**
@@ -236,7 +236,10 @@ public class PartitionStatsHandler {
 
     List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
-        table, snapshot.snapshotId(), schemaForVersion(table, partitionType), sortedStats);
+        table,
+        snapshot.snapshotId(),
+        schema(partitionType, TableUtil.formatVersion(table)),
+        sortedStats);
   }
 
   @VisibleForTesting
@@ -280,9 +283,11 @@ public class PartitionStatsHandler {
         InternalData.read(fileFormat, inputFile).project(schema).build();
 
     if (schema.findField(DV_COUNT.name()) == null) {
-      return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
+      return CloseableIterable.transform(
+          records, record -> recordToPartitionStats(record, PartitionStats::new));
     } else {
-      return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStatsV3);
+      return CloseableIterable.transform(
+          records, record -> recordToPartitionStats(record, PartitionStatsV3::new));
     }
   }
 
@@ -303,24 +308,11 @@ public class PartitionStatsHandler {
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
   }
 
-  private static PartitionStats recordToPartitionStats(StructLike record) {
+  private static PartitionStats recordToPartitionStats(
+      StructLike record, BiFunction<StructLike, Integer, PartitionStats> statBuilder) {
     int pos = 0;
     PartitionStats stats =
-        new PartitionStats(
-            record.get(pos++, StructLike.class), // partition
-            record.get(pos++, Integer.class)); // spec id
-
-    for (; pos < record.size(); pos++) {
-      stats.set(pos, record.get(pos, Object.class));
-    }
-
-    return stats;
-  }
-
-  private static PartitionStats recordToPartitionStatsV3(StructLike record) {
-    int pos = 0;
-    PartitionStats stats =
-        new PartitionStatsV3(
+        statBuilder.apply(
             record.get(pos++, StructLike.class), // partition
             record.get(pos++, Integer.class)); // spec id
 
@@ -340,7 +332,7 @@ public class PartitionStatsHandler {
     // read previous stats, note that partition field will be read as GenericRecord
     try (CloseableIterable<PartitionStats> oldStats =
         readPartitionStatsFile(
-            schemaForVersion(table, partitionType),
+            schema(partitionType, TableUtil.formatVersion(table)),
             table.io().newInputFile(previousStatsFile.path()))) {
       oldStats.forEach(
           partitionStats ->
@@ -419,7 +411,7 @@ public class PartitionStatsHandler {
 
   private static PartitionMap<PartitionStats> computeStats(
       Table table, List<ManifestFile> manifests, boolean incremental) {
-    int version = ((HasTableOperations) table).operations().current().formatVersion();
+    int version = TableUtil.formatVersion(table);
     StructType partitionType = Partitioning.partitionType(table);
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
