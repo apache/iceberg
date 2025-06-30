@@ -69,11 +69,12 @@ public class BaseWriterTest {
         .thenReturn(LocationProviders.locationsFor("file", ImmutableMap.of()));
     when(table.encryption()).thenReturn(PlaintextEncryptionManager.instance());
     when(table.properties()).thenReturn(ImmutableMap.of());
+    when(table.name()).thenReturn("name");
   }
 
   protected WriteResult writeTest(
       List<Record> rows, IcebergSinkConfig config, Class<?> expectedWriterClass) {
-    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, "name", config)) {
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, table.name(), config)) {
       assertThat(writer.getClass()).isEqualTo(expectedWriterClass);
 
       rows.forEach(
