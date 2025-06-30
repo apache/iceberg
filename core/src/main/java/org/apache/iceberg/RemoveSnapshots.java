@@ -178,7 +178,9 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private TableMetadata internalApply() {
     this.base = ops.refresh();
-    if (base.snapshots().isEmpty()) {
+    // attempt to clean expired metadata even if there are no snapshots to expire
+    // table metadata builder takes care of the case when this should actually be a no-op
+    if (base.snapshots().isEmpty() && !cleanExpiredMetadata) {
       return base;
     }
 

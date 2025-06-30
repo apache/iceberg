@@ -30,9 +30,12 @@ import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
 import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTableForRowLineage
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
+import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTableForRowLineage
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
+import org.apache.spark.sql.catalyst.optimizer.RemoveRowLineageOutputFromOriginalTable
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
@@ -54,6 +57,8 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => CheckMergeIntoTableConditions }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
+    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage}
+    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage}
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
     extensions.injectCheckRule { _ => CheckViews }
@@ -64,6 +69,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }
     extensions.injectOptimizerRule { _ => ExtendedReplaceNullWithFalseInPredicate }
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
+    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
     // pre-CBO rules run only once and the order of the rules is important
     // - dynamic filters should be added before replacing commands with rewrite plans
     // - scans must be planned before building writes

@@ -20,11 +20,13 @@ package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.auth.AuthScope;
@@ -101,6 +103,7 @@ public class HTTPClient extends BaseHTTPClient {
   private final ObjectMapper mapper;
   private final AuthSession authSession;
   private final boolean isRootClient;
+  private final ConcurrentMap<Class<?>, ObjectReader> objectReaderCache = Maps.newConcurrentMap();
 
   private HTTPClient(
       URI baseUri,
@@ -303,6 +306,17 @@ public class HTTPClient extends BaseHTTPClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
+    return execute(
+        req, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
+  }
+
+  @Override
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest req,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
     HttpUriRequestBase request = new HttpUriRequestBase(req.method().name(), req.requestUri());
 
     req.headers().entries().forEach(e -> request.addHeader(e.name(), e.value()));
@@ -341,7 +355,11 @@ public class HTTPClient extends BaseHTTPClient {
       }
 
       try {
-        return mapper.readValue(responseBody, responseType);
+        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+        if (parserContext != null && !parserContext.isEmpty()) {
+          reader = reader.with(parserContext.toInjectableValues());
+        }
+        return reader.readValue(responseBody);
       } catch (JsonProcessingException e) {
         throw new RESTException(
             e,

@@ -50,6 +50,7 @@ import com.google.cloud.bigquery.BigQueryRetryConfig;
 import com.google.cloud.bigquery.BigQueryRetryHelper;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,6 +74,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 /** A client of Google Bigquery Metastore functions over the BigQuery service. */
 public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClient {
@@ -485,22 +488,30 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       // distinguish Iceberg
       // tables for us to filter out those results since invoking `getTable` on them would
       // correctly raise a `NoSuchIcebergTableException` for being inoperable by this plugin.
-      if (!listAllTables) {
-        tablesStream =
-            tablesStream
-                .parallel()
-                .filter(
-                    table -> {
-                      try {
-                        load(table.getTableReference());
-                      } catch (NoSuchTableException e) {
-                        return false;
-                      }
-                      return true;
-                    });
-      }
 
-      return tablesStream.collect(Collectors.toList());
+      List<Tables> allTables = tablesStream.collect(Collectors.toList());
+
+      if (!listAllTables) {
+        List<Tables> validTables = Collections.synchronizedList(Lists.newArrayList());
+        Tasks.foreach(allTables)
+            .executeWith(ThreadPools.getWorkerPool())
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .run(
+                table -> {
+                  try {
+                    load(table.getTableReference());
+                    validTables.add(table);
+                  } catch (NoSuchTableException e) {
+                    // Silently ignore tables that are not valid Iceberg tables
+                    // This is expected behavior as we're filtering out non-Iceberg tables
+                  }
+                });
+
+        return validTables;
+      } else {
+        return allTables;
+      }
     } catch (IOException e) {
       throw new RuntimeIOException("%s", e);
     }

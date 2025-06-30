@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.6'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.7'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -35,8 +35,8 @@ buildscript {
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.0'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.3.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.13.0'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.14.0'
   }
 }
 
@@ -260,6 +260,7 @@ project(':iceberg-bundled-guava') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
       exclude group: 'com.google.j2objc'
+      exclude group: 'org.jspecify'
     }
   }
 
@@ -366,6 +367,8 @@ project(':iceberg-core') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.derby.core
+    testImplementation libs.derby.tools
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation(libs.guava.testlib) {
@@ -718,6 +721,7 @@ project(':iceberg-gcp') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 }
 

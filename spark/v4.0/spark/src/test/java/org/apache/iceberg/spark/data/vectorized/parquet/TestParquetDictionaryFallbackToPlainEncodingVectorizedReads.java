@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.data.parquet.vectorized;
+package org.apache.iceberg.spark.data.vectorized.parquet;
 
 import java.io.File;
 import java.io.IOException;
