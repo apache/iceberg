@@ -413,7 +413,7 @@ public class TestBucketing {
         .isEqualTo(hashBytes(uuidBytes));
   }
 
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings({"rawtypes", "unchecked"})
   @Test
   void testStruct() {
     Bucket<?> bucket = Bucket.get(Integer.MAX_VALUE);
