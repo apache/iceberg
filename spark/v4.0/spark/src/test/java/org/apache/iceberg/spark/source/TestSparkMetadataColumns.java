@@ -77,7 +77,7 @@ public class TestSparkMetadataColumns extends TestBase {
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "category", Types.StringType.get()),
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
@@ -315,6 +315,42 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         ImmutableList.of(row(0, null, -1)),
         sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testIdentifierFields() {
+    table
+            .updateSchema()
+            .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
+            .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
+            .setIdentifierFields("id")
+            .commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1', -1, 'path/to/file')", TABLE_NAME);
+
+    assertEquals(
+            "Rows must match",
+            ImmutableList.of(row(1L, "a1")),
+            sql("SELECT id, category FROM %s", TABLE_NAME));
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
+            .isInstanceOf(ValidationException.class)
+            .hasMessageStartingWith(
+                    "Table column names conflict with names reserved for Iceberg metadata columns: [_spec_id, _file].");
+
+    table.refresh();
+
+    table
+            .updateSchema()
+            .renameColumn(MetadataColumns.SPEC_ID.name(), "_renamed" + MetadataColumns.SPEC_ID.name())
+            .renameColumn(
+                    MetadataColumns.FILE_PATH.name(), "_renamed" + MetadataColumns.FILE_PATH.name())
+            .commit();
+
+    assertEquals(
+            "Rows must match",
+            ImmutableList.of(row(0, null, -1)),
+            sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
   @TestTemplate
