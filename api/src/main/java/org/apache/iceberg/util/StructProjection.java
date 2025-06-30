@@ -221,4 +221,9 @@ public class StructProjection implements StructLike {
   public <T> void set(int pos, T value) {
     throw new UnsupportedOperationException("Cannot set fields in a TypeProjection");
   }
+
+  @Override
+  public String toString() {
+    return struct.toString();
+  }
 }
