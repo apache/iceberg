@@ -96,8 +96,9 @@ public class FileSystemWalker {
    * @param conf Hadoop conf
    * @param maxDepth Maximum recursion depth limit
    * @param maxDirectSubDirs Upper limit of subdirectories that can be processed directly
-   * @param remainingSubDirs Output parameter for storing unprocessed directory paths
-   * @param consumer Consumer for collecting qualified file paths
+   * @param remainingSubDirs Consumer for collecting parameter for storing unprocessed directory
+   *     paths
+   * @param files Consumer for collecting qualified file paths
    */
   public static void listDirRecursivelyWithHadoop(
       String dir,
@@ -106,11 +107,11 @@ public class FileSystemWalker {
       Configuration conf,
       int maxDepth,
       int maxDirectSubDirs,
-      List<String> remainingSubDirs,
-      Consumer<String> consumer) {
+      Consumer<String> remainingSubDirs,
+      Consumer<String> files) {
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
     if (maxDepth <= 0) {
-      remainingSubDirs.add(dir);
+      remainingSubDirs.accept(dir);
       return;
     }
 
@@ -123,12 +124,12 @@ public class FileSystemWalker {
         if (file.isDirectory()) {
           subDirs.add(file.getPath().toString());
         } else if (file.isFile() && predicate.test(file)) {
-          consumer.accept(file.getPath().toString());
+          files.accept(file.getPath().toString());
         }
       }
 
       if (subDirs.size() > maxDirectSubDirs) {
-        remainingSubDirs.addAll(subDirs);
+        subDirs.forEach(remainingSubDirs);
         return;
       }
 
@@ -141,7 +142,7 @@ public class FileSystemWalker {
             maxDepth - 1,
             maxDirectSubDirs,
             remainingSubDirs,
-            consumer);
+            files);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);

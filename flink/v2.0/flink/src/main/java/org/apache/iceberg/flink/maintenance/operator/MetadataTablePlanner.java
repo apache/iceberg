@@ -41,8 +41,8 @@ import org.slf4j.LoggerFactory;
 
 /** Plans the splits to read a metadata table content. */
 @Internal
-public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInfo> {
-  private static final Logger LOG = LoggerFactory.getLogger(TablePlanner.class);
+public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTablePlanner.SplitInfo> {
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataTablePlanner.class);
 
   private final String taskName;
   private final int taskIndex;
@@ -55,7 +55,7 @@ public class TablePlanner extends ProcessFunction<Trigger, TablePlanner.SplitInf
   private transient IcebergSourceSplitSerializer splitSerializer;
   private final MetadataTableType metadataTableType;
 
-  public TablePlanner(
+  public MetadataTablePlanner(
       String taskName,
       int taskIndex,
       TableLoader tableLoader,

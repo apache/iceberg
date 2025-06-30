@@ -333,7 +333,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           hadoopConf.value(),
           MAX_DRIVER_LISTING_DEPTH,
           MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
-          subDirs,
+          subDirs::add,
           matchingFiles::add);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
@@ -433,7 +433,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             hadoopConf.value().value(),
             MAX_EXECUTOR_LISTING_DEPTH,
             MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS,
-            subDirs,
+            subDirs::add,
             files::add);
       }
 

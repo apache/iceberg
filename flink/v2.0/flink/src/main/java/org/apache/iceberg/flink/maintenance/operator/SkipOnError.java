@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/** Skip file deletion processing when an error is encountered. */
 @Internal
 public class SkipOnError extends AbstractStreamOperator<String>
     implements TwoInputStreamOperator<String, Exception, String> {

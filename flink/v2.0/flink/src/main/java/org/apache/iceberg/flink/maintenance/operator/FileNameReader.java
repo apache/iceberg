@@ -26,6 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.ScanContext;
 
+/** A specialized reader implementation that extracts file names from Iceberg table rows. */
 @Internal
 public class FileNameReader extends TableReader<String> {
 

@@ -25,6 +25,12 @@ import org.apache.iceberg.actions.FileURI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A key selector implementation that extracts a normalized file path from a file URI string.
+ *
+ * <p>This selector groups file URIs by their normalized path, ignoring differences in scheme and
+ * authority that are considered equivalent according to the provided mappings.
+ */
 @Internal
 public class FileUriKeySelector implements KeySelector<String, String> {
   private static final Logger LOG = LoggerFactory.getLogger(FileUriKeySelector.class);

@@ -41,10 +41,10 @@ class TestTablePlanerAndReader extends OperatorTestBase {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
-    List<TablePlanner.SplitInfo> icebergSourceSplits;
-    try (OneInputStreamOperatorTestHarness<Trigger, TablePlanner.SplitInfo> testHarness =
+    List<MetadataTablePlanner.SplitInfo> icebergSourceSplits;
+    try (OneInputStreamOperatorTestHarness<Trigger, MetadataTablePlanner.SplitInfo> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new TablePlanner(
+            new MetadataTablePlanner(
                 OperatorTestBase.DUMMY_TASK_NAME,
                 0,
                 tableLoader(),
@@ -57,7 +57,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
 
-    try (OneInputStreamOperatorTestHarness<TablePlanner.SplitInfo, String> testHarness =
+    try (OneInputStreamOperatorTestHarness<MetadataTablePlanner.SplitInfo, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new FileNameReader(
                 OperatorTestBase.DUMMY_TASK_NAME,
@@ -67,7 +67,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 FILE_PATH_SCAN_CONTEXT,
                 MetadataTableType.ALL_FILES))) {
       testHarness.open();
-      for (TablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {
+      for (MetadataTablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {
         testHarness.processElement(icebergSourceSplit, System.currentTimeMillis());
       }
 
@@ -83,10 +83,10 @@ class TestTablePlanerAndReader extends OperatorTestBase {
     insertPartitioned(table, 2, "p1");
     insertPartitioned(table, 3, "p2");
     insertPartitioned(table, 4, "p2");
-    List<TablePlanner.SplitInfo> icebergSourceSplits;
-    try (OneInputStreamOperatorTestHarness<Trigger, TablePlanner.SplitInfo> testHarness =
+    List<MetadataTablePlanner.SplitInfo> icebergSourceSplits;
+    try (OneInputStreamOperatorTestHarness<Trigger, MetadataTablePlanner.SplitInfo> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new TablePlanner(
+            new MetadataTablePlanner(
                 OperatorTestBase.DUMMY_TASK_NAME,
                 0,
                 tableLoader(),
@@ -99,7 +99,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
 
-    try (OneInputStreamOperatorTestHarness<TablePlanner.SplitInfo, String> testHarness =
+    try (OneInputStreamOperatorTestHarness<MetadataTablePlanner.SplitInfo, String> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new FileNameReader(
                 OperatorTestBase.DUMMY_TASK_NAME,
@@ -109,7 +109,7 @@ class TestTablePlanerAndReader extends OperatorTestBase {
                 FILE_PATH_SCAN_CONTEXT,
                 MetadataTableType.ALL_FILES))) {
       testHarness.open();
-      for (TablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {
+      for (MetadataTablePlanner.SplitInfo icebergSourceSplit : icebergSourceSplits) {
         testHarness.processElement(icebergSourceSplit, System.currentTimeMillis());
       }
 
