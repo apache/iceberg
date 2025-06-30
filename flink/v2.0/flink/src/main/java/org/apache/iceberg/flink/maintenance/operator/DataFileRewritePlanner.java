@@ -36,6 +36,8 @@ import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterator;

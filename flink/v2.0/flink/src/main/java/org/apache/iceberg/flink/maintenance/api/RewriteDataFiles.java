@@ -61,7 +61,7 @@ public class RewriteDataFiles {
     private Expression filter = Expressions.alwaysTrue();
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "RewriteDataFiles";
     }
 
