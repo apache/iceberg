@@ -101,4 +101,8 @@ public class BucketUtil {
   public static int hash(BigDecimal value) {
     return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
   }
+
+  public static HashFunction hashFunction() {
+    return MURMUR3;
+  }
 }

@@ -30,11 +30,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -408,6 +411,29 @@ public class TestBucketing {
     assertThat(BucketUtil.hash(uuid))
         .as("UUID hash should match hash of backing bytes")
         .isEqualTo(hashBytes(uuidBytes));
+  }
+
+  @SuppressWarnings("rawtypes")
+  @Test
+  void testStruct() {
+    Bucket<?> bucket = Bucket.get(Integer.MAX_VALUE);
+    Types.StructType structType =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "intCol", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "strCol", Types.StringType.get()));
+    assertThat(bucket.canTransform(structType)).isTrue();
+    SerializableFunction boundBucket = bucket.bind(structType);
+    TestHelpers.CustomRow row = TestHelpers.CustomRow.of(1, "aaa");
+
+    Hasher hasher = MURMUR3.newHasher();
+    hasher.putInt(structType.fields().size());
+    hasher.putInt(BucketUtil.hash(row.get(0, Integer.class)));
+    hasher.putInt(BucketUtil.hash(row.get(1, String.class)));
+    int expected = hasher.hash().asInt();
+
+    assertThat(boundBucket.apply(row))
+        .as("Struct hash should match hash of struct fields")
+        .isEqualTo(expected);
   }
 
   @Test
