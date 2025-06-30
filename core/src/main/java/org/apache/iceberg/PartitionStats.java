@@ -22,7 +22,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class PartitionStats implements StructLike {
 
-  private static final int STATS_COUNT = 12;
+  protected static final int STATS_COUNT = 12;
 
   private StructLike partition;
   private int specId;

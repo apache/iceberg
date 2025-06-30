@@ -89,10 +89,15 @@ public class PartitionStatsHandler {
       NestedField.optional(11, "last_updated_at", LongType.get());
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
       NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
+  public static final NestedField DV_COUNT =
+      NestedField.required(13, "dv_count", IntegerType.get());
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
    * all specs in a table.
+   *
+   * <p>Use this only for format version 1 and 2. For version 3 and above use {@link
+   * #schemaV3Plus(StructType)}
    *
    * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
    *     Partitioning#partitionType(Table)}.
@@ -113,6 +118,53 @@ public class PartitionStatsHandler {
         TOTAL_RECORD_COUNT,
         LAST_UPDATED_AT,
         LAST_UPDATED_SNAPSHOT_ID);
+  }
+
+  /**
+   * Generates the partition stats file schema based on a combined partition type which considers
+   * all specs in a table. (For format version 3 and above)
+   *
+   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
+   *     Partitioning#partitionType(Table)}.
+   * @return a schema that corresponds to the provided unified partition type.
+   */
+  public static Schema schemaV3Plus(StructType unifiedPartitionType) {
+    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    return new Schema(
+        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
+        SPEC_ID,
+        DATA_RECORD_COUNT,
+        DATA_FILE_COUNT,
+        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+        NestedField.required(
+            POSITION_DELETE_RECORD_COUNT.fieldId(),
+            POSITION_DELETE_RECORD_COUNT.name(),
+            LongType.get()),
+        NestedField.required(
+            POSITION_DELETE_FILE_COUNT.fieldId(),
+            POSITION_DELETE_FILE_COUNT.name(),
+            IntegerType.get()),
+        NestedField.required(
+            EQUALITY_DELETE_RECORD_COUNT.fieldId(),
+            EQUALITY_DELETE_RECORD_COUNT.name(),
+            LongType.get()),
+        NestedField.required(
+            EQUALITY_DELETE_FILE_COUNT.fieldId(),
+            EQUALITY_DELETE_FILE_COUNT.name(),
+            IntegerType.get()),
+        TOTAL_RECORD_COUNT,
+        LAST_UPDATED_AT,
+        LAST_UPDATED_SNAPSHOT_ID,
+        DV_COUNT);
+  }
+
+  static Schema schemaForVersion(Table table, StructType partitionType) {
+    int formatVersion = ((HasTableOperations) table).operations().current().formatVersion();
+    if (formatVersion <= 2) {
+      return schema(partitionType);
+    }
+
+    return schemaV3Plus(partitionType);
   }
 
   /**
@@ -184,7 +236,7 @@ public class PartitionStatsHandler {
 
     List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
-        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+        table, snapshot.snapshotId(), schemaForVersion(table, partitionType), sortedStats);
   }
 
   @VisibleForTesting
@@ -226,7 +278,12 @@ public class PartitionStatsHandler {
 
     CloseableIterable<StructLike> records =
         InternalData.read(fileFormat, inputFile).project(schema).build();
-    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
+
+    if (schema.findField(DV_COUNT.name()) == null) {
+      return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
+    } else {
+      return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStatsV3);
+    }
   }
 
   private static OutputFile newPartitionStatsFile(
@@ -252,6 +309,21 @@ public class PartitionStatsHandler {
         new PartitionStats(
             record.get(pos++, StructLike.class), // partition
             record.get(pos++, Integer.class)); // spec id
+
+    for (; pos < record.size(); pos++) {
+      stats.set(pos, record.get(pos, Object.class));
+    }
+
+    return stats;
+  }
+
+  private static PartitionStats recordToPartitionStatsV3(StructLike record) {
+    int pos = 0;
+    PartitionStats stats =
+        new PartitionStatsV3(
+            record.get(pos++, StructLike.class), // partition
+            record.get(pos++, Integer.class)); // spec id
+
     for (; pos < record.size(); pos++) {
       stats.set(pos, record.get(pos, Object.class));
     }
@@ -263,13 +335,13 @@ public class PartitionStatsHandler {
       Table table,
       Snapshot snapshot,
       StructType partitionType,
-      PartitionStatisticsFile previousStatsFile)
-      throws IOException {
+      PartitionStatisticsFile previousStatsFile) {
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     // read previous stats, note that partition field will be read as GenericRecord
     try (CloseableIterable<PartitionStats> oldStats =
         readPartitionStatsFile(
-            schema(partitionType), table.io().newInputFile(previousStatsFile.path()))) {
+            schemaForVersion(table, partitionType),
+            table.io().newInputFile(previousStatsFile.path()))) {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
@@ -347,6 +419,7 @@ public class PartitionStatsHandler {
 
   private static PartitionMap<PartitionStats> computeStats(
       Table table, List<ManifestFile> manifests, boolean incremental) {
+    int version = ((HasTableOperations) table).operations().current().formatVersion();
     StructType partitionType = Partitioning.partitionType(table);
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
@@ -356,7 +429,7 @@ public class PartitionStatsHandler {
         .run(
             manifest ->
                 statsByManifest.add(
-                    collectStatsForManifest(table, manifest, partitionType, incremental)));
+                    collectStatsForManifest(table, version, manifest, partitionType, incremental)));
 
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     for (PartitionMap<PartitionStats> stats : statsByManifest) {
@@ -367,7 +440,11 @@ public class PartitionStatsHandler {
   }
 
   private static PartitionMap<PartitionStats> collectStatsForManifest(
-      Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
+      Table table,
+      int version,
+      ManifestFile manifest,
+      StructType partitionType,
+      boolean incremental) {
     List<String> projection = BaseScan.scanColumns(manifest.content());
     try (ManifestReader<?> reader = ManifestFiles.open(manifest, table.io()).select(projection)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
@@ -385,7 +462,10 @@ public class PartitionStatsHandler {
             statsMap.computeIfAbsent(
                 specId,
                 ((PartitionData) file.partition()).copy(),
-                () -> new PartitionStats(key, specId));
+                () ->
+                    version > 2
+                        ? new PartitionStatsV3(key, specId)
+                        : new PartitionStats(key, specId));
         if (entry.isLive()) {
           // Live can have both added and existing entries. Consider only added entries for
           // incremental compute as existing entries was already included in previous compute.
