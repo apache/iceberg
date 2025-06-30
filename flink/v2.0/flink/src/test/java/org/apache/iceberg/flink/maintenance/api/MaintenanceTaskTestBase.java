@@ -30,7 +30,7 @@ import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-class MaintenanceTaskTestBase extends OperatorTestBase {
+public class MaintenanceTaskTestBase extends OperatorTestBase {
   private static final int TESTING_TASK_ID = 0;
   private static final Duration POLL_DURATION = Duration.ofSeconds(5);
 

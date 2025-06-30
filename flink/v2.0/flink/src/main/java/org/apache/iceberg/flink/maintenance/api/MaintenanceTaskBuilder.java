@@ -41,7 +41,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
-  abstract String maintenanceTaskName();
+  public abstract String maintenanceTaskName();
 
   /**
    * After a given number of Iceberg table commits since the last run, starts the downstream job.
@@ -195,7 +195,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return triggerEvaluator.build();
   }
 
-  DataStream<TaskResult> append(
+  public DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       String newTableName,
       String newTaskName,

@@ -49,7 +49,7 @@ public class ExpireSnapshots {
     private Boolean cleanExpiredMetadata = null;
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "ExpireSnapshots";
     }
 
