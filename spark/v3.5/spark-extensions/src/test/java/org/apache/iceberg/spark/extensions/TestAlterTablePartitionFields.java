@@ -608,17 +608,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testDropPartitionAndUnderlyingField() {
-    String predicateLong = "col_ts >= '2024-04-01 19:25:00'";
-    List<Object[]> expectedLong =
-        Lists.newArrayList(
-            new Object[] {2000, LocalDateTime.ofEpochSecond(1711999500, 0, ZoneOffset.UTC)},
-            new Object[] {3000, LocalDateTime.ofEpochSecond(1714591500, 0, ZoneOffset.UTC)});
-    runCreateAndDropPartitionField("col_long", "col_long", expectedLong, predicateLong);
-    runCreateAndDropPartitionField(
-        "col_long", "truncate(2, col_long)", expectedLong, predicateLong);
-    runCreateAndDropPartitionField("col_long", "bucket(16, col_long)", expectedLong, predicateLong);
-
+  public void testDropPartitionAndSourceColumnLong() {
     String predicateTs = "col_long >= 2200";
     List<Object[]> expectedTs =
         Lists.newArrayList(new Object[] {2000, 2200L}, new Object[] {3000, 2300L});
@@ -626,5 +616,17 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
     runCreateAndDropPartitionField("col_ts", "year(col_ts)", expectedTs, predicateTs);
     runCreateAndDropPartitionField("col_ts", "month(col_ts)", expectedTs, predicateTs);
     runCreateAndDropPartitionField("col_ts", "day(col_ts)", expectedTs, predicateTs);
+  }
+
+  @TestTemplate
+  public void testDropPartitionAndSourceColumnTimestamp() {
+    String predicate = "col_ts >= '2024-04-01 19:25:00'";
+    List<Object[]> expected =
+        Lists.newArrayList(
+            new Object[] {2000, LocalDateTime.ofEpochSecond(1711999500, 0, ZoneOffset.UTC)},
+            new Object[] {3000, LocalDateTime.ofEpochSecond(1714591500, 0, ZoneOffset.UTC)});
+    runCreateAndDropPartitionField("col_long", "col_long", expected, predicate);
+    runCreateAndDropPartitionField("col_long", "truncate(2, col_long)", expected, predicate);
+    runCreateAndDropPartitionField("col_long", "bucket(16, col_long)", expected, predicate);
   }
 }

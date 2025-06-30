@@ -172,7 +172,7 @@ public class TestPartitioning {
 
     PartitionSpec newSpec = PartitionSpec.builderFor(table.schema()).identity("category").build();
 
-    TableOperations ops = ((HasTableOperations) table).operations();
+    TableOperations ops = table.operations();
     TableMetadata current = ops.current();
     ops.commit(current, current.updatePartitionSpec(newSpec));
 
@@ -181,6 +181,27 @@ public class TestPartitioning {
     assertThatThrownBy(() -> Partitioning.partitionType(table))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Conflicting partition fields");
+  }
+
+  @Test
+  public void testPartitionTypeDropInactiveFields() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_CATEGORY_DATA_SPEC, V2_FORMAT_VERSION);
+
+    StructType actualType = Partitioning.partitionType(table);
+    assertThat(actualType)
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "category", Types.StringType.get()),
+                NestedField.optional(1001, "data", Types.StringType.get())));
+
+    // Create a new spec, and drop the field of the old spec
+    table.updateSpec().removeField("category").commit();
+    table.updateSchema().deleteColumn("category").commit();
+
+    actualType = Partitioning.partitionType(table);
+    assertThat(actualType)
+        .isEqualTo(StructType.of(NestedField.optional(1001, "data", Types.StringType.get())));
   }
 
   @Test
