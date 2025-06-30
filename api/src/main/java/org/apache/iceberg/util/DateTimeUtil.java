@@ -183,6 +183,11 @@ public class DateTimeUtil {
         LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 
+  public static int hoursToDays(int hours) {
+    LocalDate date = EPOCH.toLocalDateTime().plusHours(hours).toLocalDate();
+    return daysFromDate(date);
+  }
+
   public static int daysToYears(int days) {
     return convertDays(days, ChronoUnit.YEARS);
   }

@@ -88,4 +88,12 @@ public class TestDateTimeUtil {
     assertThat(Transforms.hour().toHumanString(Types.IntegerType.get(), 419686))
         .isEqualTo("2017-11-16-22");
   }
+
+  @Test
+  public void hourToDaysPositive() {
+    long micros = DateTimeUtil.isoTimestampToMicros("2025-06-26T22:55:00.000001001");
+    int expectedDays = DateTimeUtil.microsToDays(micros);
+    assertThat(DateTimeUtil.hoursToDays(DateTimeUtil.microsToHours(micros)))
+        .isEqualTo(expectedDays);
+  }
 }

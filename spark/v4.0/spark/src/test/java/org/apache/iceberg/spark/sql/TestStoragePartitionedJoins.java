@@ -724,6 +724,59 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
         tableName(OTHER_TABLE_NAME));
   }
 
+  @TestTemplate
+  public void testJoinsHourToDays() throws NoSuchTableException {
+    String createTableStmt =
+        "CREATE TABLE %s ("
+            + "id BIGINT, int_col INT,dep STRING,timestamp_col TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(timestamp_col)) "
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(2L, 101, 'hr', TIMESTAMP('2024-11-10 09:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(4L, 103, 'sales', TIMESTAMP('2024-11-10 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
+        tableName);
+
+    String create2ndTableStmt =
+        "CREATE TABLE %s ("
+            + "id BIGINT, int_col INT, dep STRING, timestamp_col TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (hours(timestamp_col)) "
+            + "TBLPROPERTIES (%s)";
+
+    String otherTableName = tableName(OTHER_TABLE_NAME);
+
+    sql(create2ndTableStmt, otherTableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
+        otherTableName);
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id and t1.timestamp_col = t2.timestamp_col "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        otherTableName);
+  }
+
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)
       throws NoSuchTableException {
 
