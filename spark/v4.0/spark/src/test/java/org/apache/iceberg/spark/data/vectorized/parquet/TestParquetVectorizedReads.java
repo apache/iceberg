@@ -310,7 +310,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<Record> data =
-        generateData(schema, 30000, 0L, 0, IDENTITY);
+        generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
