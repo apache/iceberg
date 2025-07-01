@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.Serializable;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -52,7 +50,7 @@ class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
-  private transient Cache<String, SerializerInfo> serializers;
+  private transient Map<String, SerializerInfo> serializers;
 
   TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
     this.catalogLoader = catalogLoader;
@@ -80,10 +78,10 @@ class TableSerializerCache implements Serializable {
 
     if (serializers == null) {
       // We need to initialize the cache at the first time
-      this.serializers = Caffeine.newBuilder().maximumSize(maximumSize).build();
+      this.serializers = new LRUCache<>(maximumSize);
     }
 
-    SerializerInfo info = serializers.get(tableName, SerializerInfo::new);
+    SerializerInfo info = serializers.computeIfAbsent(tableName, SerializerInfo::new);
     Schema schema = unknownSchema != null ? unknownSchema : info.schemas.get(schemaId);
     PartitionSpec spec = unknownSpec != null ? unknownSpec : info.specs.get(specId);
 
@@ -129,7 +127,7 @@ class TableSerializerCache implements Serializable {
   }
 
   @VisibleForTesting
-  Cache<String, SerializerInfo> getCache() {
+  Map<String, SerializerInfo> getCache() {
     return serializers;
   }
 }
