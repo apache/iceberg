@@ -37,8 +37,6 @@ import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
-import org.apache.hc.core5.http.protocol.BasicHttpContext;
-import org.apache.hc.core5.http.protocol.HttpContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -82,20 +80,14 @@ public class TestExponentialHttpRequestRetryStrategy {
 
   @Test
   public void basicRetry() {
-    HttpContext context503 = new BasicHttpContext();
     BasicHttpResponse response503 = new BasicHttpResponse(503, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response503, 3, context503)).isTrue();
-    assertThat(context503.getAttribute("was-retried") == Boolean.TRUE).isTrue();
+    assertThat(retryStrategy.retryRequest(response503, 3, null)).isTrue();
 
-    HttpContext context429 = new BasicHttpContext();
     BasicHttpResponse response429 = new BasicHttpResponse(429, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response429, 3, context429)).isTrue();
-    assertThat(context429.getAttribute("was-retried") == Boolean.TRUE).isTrue();
+    assertThat(retryStrategy.retryRequest(response429, 3, null)).isTrue();
 
-    HttpContext context404 = new BasicHttpContext();
     BasicHttpResponse response404 = new BasicHttpResponse(404, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response404, 3, context404)).isFalse();
-    assertThat(context429.getAttribute("was-retried") == Boolean.TRUE).isTrue();
+    assertThat(retryStrategy.retryRequest(response404, 3, null)).isFalse();
   }
 
   @Test
@@ -163,9 +155,8 @@ public class TestExponentialHttpRequestRetryStrategy {
   @Test
   public void retryOnNonAbortedRequests() {
     HttpGet request = new HttpGet("/");
-    HttpContext context = new BasicHttpContext();
 
-    assertThat(retryStrategy.retryRequest(request, new IOException(), 1, context)).isTrue();
+    assertThat(retryStrategy.retryRequest(request, new IOException(), 1, null)).isTrue();
   }
 
   @Test
@@ -206,17 +197,17 @@ public class TestExponentialHttpRequestRetryStrategy {
         .isBetween(4000L, 5000L);
   }
 
-  @Test
-  public void testRetryBadGateway() {
-    HttpContext context = new BasicHttpContext();
-    BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
-    assertThat(retryStrategy.retryRequest(response502, 3, context)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503})
+  public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
-  @Test
-  public void testRetryGatewayTimeout() {
-    HttpContext context = new BasicHttpContext();
-    BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
-    assertThat(retryStrategy.retryRequest(response504, 3, context)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {500, 502, 504})
+  public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
   }
 }
