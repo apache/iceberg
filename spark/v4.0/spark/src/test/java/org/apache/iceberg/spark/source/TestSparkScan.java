@@ -1035,6 +1035,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     assertThat(System.identityHashCode(batchScan2))
         .isNotEqualTo(System.identityHashCode(batchScan.digest()));
     assertThat(batchScan2.digest()).isEqualTo(batchScan.digest());
+    assertThat(batchScan2.toBatch()).isEqualTo(batchScan.toBatch());
 
     // Two scans that are not structurally equal should have different digests.
     final SparkScanBuilder builder = scanBuilder();
@@ -1043,12 +1044,14 @@ public class TestSparkScan extends TestBaseWithCatalog {
     assertThat(System.identityHashCode(batchScanWithPushedPredicate))
         .isNotEqualTo(System.identityHashCode(batchScan.digest()));
     assertThat(batchScanWithPushedPredicate.digest()).isNotEqualTo(batchScan.digest());
+    assertThat(batchScanWithPushedPredicate.toBatch()).isNotEqualTo(batchScan.toBatch());
 
     // Two scans that are of different classes should have different digests.
     final SparkScan changelogScan = (SparkScan) scanBuilder().buildCopyOnWriteScan();
     assertThat(System.identityHashCode(changelogScan))
         .isNotEqualTo(System.identityHashCode(batchScan.digest()));
     assertThat(changelogScan.digest()).isNotEqualTo(batchScan.digest());
+    assertThat(changelogScan.toBatch()).isNotEqualTo(batchScan.toBatch());
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {
