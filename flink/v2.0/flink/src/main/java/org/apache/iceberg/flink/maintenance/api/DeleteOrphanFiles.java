@@ -29,13 +29,13 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.maintenance.operator.AntiJoin;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
 import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
 import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
+import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDetector;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -284,7 +284,7 @@ public class DeleteOrphanFiles {
               .union(tableDataFiles)
               .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities))
               .connect(allFsFiles.keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
-              .process(new AntiJoin(prefixMismatchMode, equalSchemes, equalAuthorities))
+              .process(new OrphanFilesDetector(prefixMismatchMode, equalSchemes, equalAuthorities))
               .slotSharingGroup(slotSharingGroup())
               .name(operatorName(FILTER_FILES_TASK_NAME))
               .uid(FILTER_FILES_TASK_NAME + uidSuffix())

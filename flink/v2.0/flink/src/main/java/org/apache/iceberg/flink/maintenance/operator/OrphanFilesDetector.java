@@ -46,8 +46,8 @@ import org.slf4j.LoggerFactory;
  * authority equivalence mappings.
  */
 @Internal
-public class AntiJoin extends KeyedCoProcessFunction<String, String, String, String> {
-  private static final Logger LOG = LoggerFactory.getLogger(AntiJoin.class);
+public class OrphanFilesDetector extends KeyedCoProcessFunction<String, String, String, String> {
+  private static final Logger LOG = LoggerFactory.getLogger(OrphanFilesDetector.class);
 
   // Use MapState to dedupe the strings found in the table
   private transient MapState<String, Boolean> foundInTable;
@@ -57,7 +57,7 @@ public class AntiJoin extends KeyedCoProcessFunction<String, String, String, Str
   private final Map<String, String> equalSchemes;
   private final Map<String, String> equalAuthorities;
 
-  public AntiJoin(
+  public OrphanFilesDetector(
       DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode,
       Map<String, String> equalSchemes,
       Map<String, String> equalAuthorities) {
