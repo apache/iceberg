@@ -184,7 +184,7 @@ public class TestPartitioning {
   }
 
   @Test
-  public void testPartitionTypeDropInactiveFields() {
+  public void testPartitionTypeIgnoreInactiveFields() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_CATEGORY_DATA_SPEC, V2_FORMAT_VERSION);
 
