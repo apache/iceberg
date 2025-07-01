@@ -84,27 +84,39 @@ public final class VectorizedParquetDefinitionLevelReader
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
         VectorizedValuesReader valuesReader) {
-      if (valuesReader instanceof VectorizedPlainValuesReader) {
-        nextBatch(
-                vector,
-                startOffset,
-                typeWidth,
-                numValsToRead,
-                (mode, idx, numValues, byteArray, validityBuffer) -> {
-                  switch (mode) {
-                    case RLE:
-                      nextRleBatch(
-                              vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
-                      break;
-                    case PACKED:
-                      nextPackedBatch(
-                              vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
-                  }
-                });
-      } else {
-        // TODO actually call the appropriate methods
-        valuesReader.readIntegers(numValsToRead, vector, startOffset);
-      }
+      nextBatch(
+          vector,
+          startOffset,
+          typeWidth,
+          numValsToRead,
+          (mode, idx, numValues, byteArray, validityBuffer) -> {
+            if (valuesReader instanceof VectorizedPlainValuesReader) {
+              switch (mode) {
+                case RLE:
+                  nextRleBatch(
+                      vector,
+                      typeWidth,
+                      nullabilityHolder,
+                      valuesReader,
+                      idx,
+                      numValues,
+                      byteArray);
+                  break;
+                case PACKED:
+                  nextPackedBatch(
+                      vector,
+                      typeWidth,
+                      nullabilityHolder,
+                      valuesReader,
+                      idx,
+                      numValues,
+                      byteArray);
+              }
+            } else {
+              nextVectorizedBatch(
+                  vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues);
+            }
+          });
     }
 
     public void nextDictEncodedBatch(
@@ -164,6 +176,19 @@ public final class VectorizedParquetDefinitionLevelReader
         int idx,
         int numValues,
         byte[] byteArray);
+
+    protected void nextVectorizedBatch(
+        FieldVector vector,
+        int typeWidth,
+        NullabilityHolder nullabilityHolder,
+        VectorizedValuesReader valuesReader,
+        int idx,
+        int numValues) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName()
+              + " does not support reader "
+              + valuesReader.getClass().getName());
+    }
 
     protected void nextRleDictEncodedBatch(
         FieldVector vector,
@@ -282,6 +307,24 @@ public final class VectorizedParquetDefinitionLevelReader
         vector
             .getDataBuffer()
             .setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()));
+      }
+    }
+
+    @Override
+    protected void nextVectorizedBatch(
+        FieldVector vector,
+        int typeWidth,
+        NullabilityHolder nullabilityHolder,
+        VectorizedValuesReader valuesReader,
+        int idx,
+        int numValues) {
+      if (currentValue == maxDefLevel) {
+        valuesReader.readLongs(numValues, vector, idx);
+        for (int i = 0; i < numValues; i++) {
+          nullabilityHolder.setNotNull(idx + i);
+        }
+      } else {
+        setNulls(nullabilityHolder, idx + numValues, numValues, vector.getValidityBuffer());
       }
     }
   }

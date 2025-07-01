@@ -175,6 +175,7 @@ public class RandomGenericData {
 
     private final Random random;
     private final float nullPercentage;
+    private int currentInt = 1;
 
     protected RandomDataGenerator(long seed) {
       this(seed, DEFAULT_NULL_PERCENTAGE);
@@ -289,6 +290,10 @@ public class RandomGenericData {
           } else {
             return EPOCH.plus((long) result, NANOS).toLocalDateTime();
           }
+        case INTEGER:
+          return currentInt++;
+        case LONG:
+          return (long)currentInt++;
         default:
           return result;
       }

@@ -20,7 +20,6 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.Preconditions;
@@ -78,18 +77,18 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
         valueCount >= 1, "Page must have at least one value, but it has " + valueCount);
     this.in = in;
     // Read the header
-    this.blockSizeInValues = BytesUtils.readUnsignedVarInt(in);
-    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(in);
+    this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.in);
+    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(this.in);
     double miniSize = (double) blockSizeInValues / miniBlockNumInABlock;
     Preconditions.checkArgument(
         miniSize % 8 == 0, "miniBlockSize must be multiple of 8, but it's " + miniSize);
     this.miniBlockSizeInValues = (int) miniSize;
     // True value count. May be less than valueCount because of nulls
-    this.totalValueCount = BytesUtils.readUnsignedVarInt(in);
+    this.totalValueCount = BytesUtils.readUnsignedVarInt(this.in);
     this.bitWidths = new int[miniBlockNumInABlock];
     this.unpackedValuesBuffer = new long[miniBlockSizeInValues];
     // read the first value
-    firstValue = BytesUtils.readZigZagVarLong(in);
+    firstValue = BytesUtils.readZigZagVarLong(this.in);
   }
 
   @Override
@@ -104,13 +103,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public int readInteger() {
-    readValues(1, null, 0, INT_SIZE, (b, v) -> intVal = (int) v);
+    readValues(1, null, 0, INT_SIZE, (f, i, v) -> intVal = (int) v);
     return intVal;
   }
 
   @Override
   public long readLong() {
-    readValues(1, null, 0, LONG_SIZE, (b, v) -> longVal = (int) v);
+    readValues(1, null, 0, LONG_SIZE, (f, i, v) -> longVal = v);
     return longVal;
   }
 
@@ -126,12 +125,12 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, INT_SIZE, (b, v) -> b.putInt((int) v));
+    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
   }
 
   @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, LONG_SIZE, ByteBuffer::putLong);
+    readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
   }
 
   @Override
@@ -159,11 +158,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     int remaining = total;
     // First value
     if (valuesRead == 0) {
-      ByteBuffer firstValueBuffer = getBuffer(typeWidth);
-      outputWriter.write(firstValueBuffer, firstValue);
-      if (vec != null) {
-        vec.getDataBuffer().setBytes((long) rowId * typeWidth, firstValueBuffer);
-      }
+      outputWriter.write(vec, (long) rowId * typeWidth, firstValue);
       lastValueRead = firstValue;
       rowId++;
       remaining--;
@@ -201,7 +196,6 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     }
 
     // read values from miniblock
-    ByteBuffer buffer = getBuffer(remainingInMiniBlock * typeWidth);
     int valuesRead = 0;
     for (int i = miniBlockSizeInValues - remainingInMiniBlock;
         i < miniBlockSizeInValues && valuesRead < remaining;
@@ -209,13 +203,10 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       // calculate values from deltas unpacked for current block
       long outValue = lastValueRead + minDeltaInCurrentBlock + unpackedValuesBuffer[i];
       lastValueRead = outValue;
-      outputWriter.write(buffer, outValue);
+      outputWriter.write(vec, ((long) (rowId + valuesRead) * typeWidth), outValue);
       remainingInBlock--;
       remainingInMiniBlock--;
       valuesRead++;
-    }
-    if (vec != null) {
-      vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
     }
 
     return valuesRead;
@@ -231,14 +222,6 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     remainingInBlock = blockSizeInValues;
     currentMiniBlock = 0;
     remainingInMiniBlock = 0;
-  }
-
-  private ByteBuffer getBuffer(int length) {
-    try {
-      return this.in.slice(length).order(ByteOrder.LITTLE_ENDIAN);
-    } catch (IOException e) {
-      throw new ParquetDecodingException("Failed to read " + length + " bytes", e);
-    }
   }
 
   /**
@@ -274,17 +257,18 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     }
   }
 
-  /** A functional interface to write long values to into a ByteBuffer */
+  /** A functional interface to write long values to into a FieldVector */
   @FunctionalInterface
   interface IntegerOutputWriter {
 
     /**
-     * A functional interface that writes a long value to a specified row in a ByteBuffer, which
-     * will be written into a FieldVector
+     * A functional interface that can be used to write a long value to a specified row in a
+     * FieldVector
      *
-     * @param buffer a ByteBuffer to write the value into
+     * @param vec a FieldVector to write the value into
+     * @param index The offset to write to
      * @param val value to write
      */
-    void write(ByteBuffer buffer, long val);
+    void write(FieldVector vec, long index, long val);
   }
 }
