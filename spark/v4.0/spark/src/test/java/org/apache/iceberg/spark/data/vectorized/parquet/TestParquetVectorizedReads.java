@@ -300,11 +300,11 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // (i.e. decimals > 8 bytes)
     Schema schema =
         new Schema(
-            optional(102, "float_data", Types.FloatType.get())
-//            optional(103, "double_data", Types.DoubleType.get()),
-//            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
-//            optional(105, "int_data", Types.IntegerType.get()),
-//            optional(106, "long_data", Types.LongType.get())
+            optional(102, "float_data", Types.FloatType.get()),
+            optional(103, "double_data", Types.DoubleType.get()),
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get())
         );
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
@@ -319,8 +319,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Test
   public void testUnsupportedReadsForParquetV2() throws Exception {
-    // Longs, ints, string types etc. use delta encoding and which are not supported for vectorized
-    // reads
+    // Some types use delta encoding and which are not supported for vectorized reads
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
