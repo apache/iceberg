@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,7 +54,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriter.class);
 
-  private final Cache<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
+  private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
   private final DynamicWriterMetrics metrics;
   private final int subTaskId;
@@ -82,7 +80,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.metrics = metrics;
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
-    this.taskWriterFactories = Caffeine.newBuilder().maximumSize(cacheMaximumSize).build();
+    this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
@@ -102,7 +100,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                 element.equalityFields()),
             writerKey -> {
               RowDataTaskWriterFactory taskWriterFactory =
-                  taskWriterFactories.get(
+                  taskWriterFactories.computeIfAbsent(
                       writerKey,
                       factoryKey -> {
                         Table table =
