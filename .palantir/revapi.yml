@@ -1178,33 +1178,6 @@ acceptedBreaks:
       new: "class org.apache.iceberg.Metrics"
       justification: "Java serialization across versions is not guaranteed"
     org.apache.iceberg:iceberg-core:
-    - code: "java.generics.elementNowParameterized"
-      old: "class org.apache.iceberg.rest.auth.AuthSessionCache"
-      new: "class org.apache.iceberg.rest.auth.AuthSessionCache<K extends java.lang.Object,\
-        \ V extends org.apache.iceberg.rest.auth.AuthSession>"
-      justification: "AuthSessionCache was introduced in 1.8.0, but is not used before\
-        \ 1.9.0"
-    - code: "java.generics.formalTypeParameterAdded"
-      old: "class org.apache.iceberg.rest.auth.AuthSessionCache"
-      new: "class org.apache.iceberg.rest.auth.AuthSessionCache<K extends java.lang.Object,\
-        \ V extends org.apache.iceberg.rest.auth.AuthSession>"
-      justification: "AuthSessionCache was introduced in 1.8.0, but is not used before\
-        \ 1.9.0"
-    - code: "java.generics.formalTypeParameterRemoved"
-      old: "method <T extends org.apache.iceberg.rest.auth.AuthSession> T org.apache.iceberg.rest.auth.AuthSessionCache::cachedSession(java.lang.String,\
-        \ java.util.function.Function<java.lang.String, T>)"
-      new: "method V org.apache.iceberg.rest.auth.AuthSessionCache<K, V extends org.apache.iceberg.rest.auth.AuthSession>::cachedSession(K,\
-        \ java.util.function.Function<K, V>)"
-      justification: "AuthSessionCache was introduced in 1.8.0, but is not used before\
-        \ 1.9.0"
-    - code: "java.method.parameterTypeChanged"
-      old: "parameter <T extends org.apache.iceberg.rest.auth.AuthSession> T org.apache.iceberg.rest.auth.AuthSessionCache::cachedSession(===java.lang.String===,\
-        \ java.util.function.Function<java.lang.String, T>)"
-      new: "parameter V org.apache.iceberg.rest.auth.AuthSessionCache<K, V extends\
-        \ org.apache.iceberg.rest.auth.AuthSession>::cachedSession(===K===, java.util.function.Function<K,\
-        \ V>)"
-      justification: "AuthSessionCache was introduced in 1.8.0, but is not used before\
-        \ 1.9.0"
     - code: "java.method.removed"
       old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.CombinedScanTask,\
         \ org.apache.hadoop.conf.Configuration)"
@@ -1246,14 +1219,6 @@ acceptedBreaks:
         \ org.apache.iceberg.catalog.TableIdentifier)"
       justification: "Break is acceptable because class is exposed outside of its\
         \ visibility scope"
-    - code: "java.method.returnTypeTypeParametersChanged"
-      old: "method org.apache.iceberg.rest.auth.AuthSessionCache org.apache.iceberg.rest.auth.OAuth2Manager::newSessionCache(java.lang.String,\
-        \ java.util.Map<java.lang.String, java.lang.String>)"
-      new: "method org.apache.iceberg.rest.auth.AuthSessionCache<java.lang.String,\
-        \ org.apache.iceberg.rest.auth.OAuth2Util.AuthSession> org.apache.iceberg.rest.auth.OAuth2Manager::newSessionCache(java.lang.String,\
-        \ java.util.Map<java.lang.String, java.lang.String>)"
-      justification: "AuthSessionCache was introduced in 1.8.0, but is not used before\
-        \ 1.9.0"
     org.apache.iceberg:iceberg-parquet:
     - code: "java.class.visibilityReduced"
       old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
