@@ -30,6 +30,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.column.values.plain.PlainValuesReader;
 
 public final class VectorizedParquetDefinitionLevelReader
     extends BaseVectorizedParquetValuesReader {
@@ -90,32 +91,27 @@ public final class VectorizedParquetDefinitionLevelReader
           typeWidth,
           numValsToRead,
           (mode, idx, numValues, byteArray, validityBuffer) -> {
-            if (valuesReader instanceof VectorizedPlainValuesReader) {
               switch (mode) {
                 case RLE:
                   nextRleBatch(
-                      vector,
-                      typeWidth,
-                      nullabilityHolder,
-                      valuesReader,
-                      idx,
-                      numValues,
-                      byteArray);
+                          vector,
+                          typeWidth,
+                          nullabilityHolder,
+                          valuesReader,
+                          idx,
+                          numValues,
+                          byteArray);
                   break;
                 case PACKED:
                   nextPackedBatch(
-                      vector,
-                      typeWidth,
-                      nullabilityHolder,
-                      valuesReader,
-                      idx,
-                      numValues,
-                      byteArray);
+                          vector,
+                          typeWidth,
+                          nullabilityHolder,
+                          valuesReader,
+                          idx,
+                          numValues,
+                          byteArray);
               }
-            } else {
-              nextVectorizedBatch(
-                  vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues);
-            }
           });
     }
 
@@ -176,19 +172,6 @@ public final class VectorizedParquetDefinitionLevelReader
         int idx,
         int numValues,
         byte[] byteArray);
-
-    protected void nextVectorizedBatch(
-        FieldVector vector,
-        int typeWidth,
-        NullabilityHolder nullabilityHolder,
-        VectorizedValuesReader valuesReader,
-        int idx,
-        int numValues) {
-      throw new UnsupportedOperationException(
-          this.getClass().getName()
-              + " does not support reader "
-              + valuesReader.getClass().getName());
-    }
 
     protected void nextRleDictEncodedBatch(
         FieldVector vector,
@@ -307,24 +290,6 @@ public final class VectorizedParquetDefinitionLevelReader
         vector
             .getDataBuffer()
             .setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()));
-      }
-    }
-
-    @Override
-    protected void nextVectorizedBatch(
-        FieldVector vector,
-        int typeWidth,
-        NullabilityHolder nullabilityHolder,
-        VectorizedValuesReader valuesReader,
-        int idx,
-        int numValues) {
-      if (currentValue == maxDefLevel) {
-        valuesReader.readLongs(numValues, vector, idx);
-        for (int i = 0; i < numValues; i++) {
-          nullabilityHolder.setNotNull(idx + i);
-        }
-      } else {
-        setNulls(nullabilityHolder, idx + numValues, numValues, vector.getValidityBuffer());
       }
     }
   }
@@ -695,6 +660,7 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
+  @SuppressWarnings({"all"})
   private void setNextNValuesInVector(
       int typeWidth,
       NullabilityHolder nullabilityHolder,
@@ -704,8 +670,8 @@ public final class VectorizedParquetDefinitionLevelReader
       int numValues) {
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     if (currentValue == maxDefLevel) {
-      ByteBuffer buffer = valuesReader.readBinary(numValues * typeWidth).toByteBuffer();
-      vector.getDataBuffer().setBytes((long) bufferIdx * typeWidth, buffer);
+      // TODO read the correct type not just hard-coded longs here
+      valuesReader.readLongs(numValues, vector, bufferIdx);
       nullabilityHolder.setNotNulls(bufferIdx, numValues);
       if (setArrowValidityVector) {
         for (int i = 0; i < numValues; i++) {
