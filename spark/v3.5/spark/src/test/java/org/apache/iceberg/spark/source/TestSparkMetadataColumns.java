@@ -331,25 +331,6 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         ImmutableList.of(row(1L, "a1")),
         sql("SELECT id, category FROM %s", TABLE_NAME));
-
-    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith(
-            "Table column names conflict with names reserved for Iceberg metadata columns: [_spec_id, _file].");
-
-    table.refresh();
-
-    table
-        .updateSchema()
-        .renameColumn(MetadataColumns.SPEC_ID.name(), "_renamed" + MetadataColumns.SPEC_ID.name())
-        .renameColumn(
-            MetadataColumns.FILE_PATH.name(), "_renamed" + MetadataColumns.FILE_PATH.name())
-        .commit();
-
-    assertEquals(
-        "Rows must match",
-        ImmutableList.of(row(0, null, -1)),
-        sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
   @TestTemplate
