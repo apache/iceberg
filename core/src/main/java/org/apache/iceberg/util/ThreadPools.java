@@ -91,7 +91,7 @@ public class ThreadPools {
    * A shared {@link ScheduledExecutorService} that REST catalogs can use for refreshing their
    * authentication data.
    */
-  public static ScheduledExecutorService getAuthRefreshPool() {
+  public static ScheduledExecutorService authRefreshPool() {
     return AuthRefreshPoolHolder.INSTANCE;
   }
 

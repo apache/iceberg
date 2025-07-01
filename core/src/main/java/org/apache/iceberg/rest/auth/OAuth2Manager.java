@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -63,6 +64,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
   private AuthSessionCache sessionCache;
+  private ScheduledExecutorService refreshExecutor;
 
   public OAuth2Manager(String managerName) {
     super(managerName + "-token-refresh");
@@ -110,20 +112,16 @@ public class OAuth2Manager extends RefreshingAuthManager {
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    keepRefreshed(config.keepRefreshed());
+    this.refreshExecutor = config.keepRefreshed() ? ThreadPools.authRefreshPool() : null;
     // authResponse comes from the init phase: this means we already fetched a token
     // so reuse it now and turn token refresh on.
     if (authResponse != null) {
       return OAuth2Util.AuthSession.fromTokenResponse(
-          refreshClient, ThreadPools.getAuthRefreshPool(), authResponse, startTimeMillis, session);
+          refreshClient, refreshExecutor, authResponse, startTimeMillis, session);
     } else if (config.token() != null) {
       // If both a token and a credential are provided, prefer the token.
       return OAuth2Util.AuthSession.fromAccessToken(
-          refreshClient,
-          ThreadPools.getAuthRefreshPool(),
-          config.token(),
-          config.expiresAtMillis(),
-          session);
+          refreshClient, refreshExecutor, config.token(), config.expiresAtMillis(), session);
     } else if (config.credential() != null && !config.credential().isEmpty()) {
       OAuthTokenResponse response =
           OAuth2Util.fetchToken(
@@ -134,11 +132,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
               config.oauth2ServerUri(),
               config.optionalOAuthParams());
       return OAuth2Util.AuthSession.fromTokenResponse(
-          refreshClient,
-          ThreadPools.getAuthRefreshPool(),
-          response,
-          System.currentTimeMillis(),
-          session);
+          refreshClient, refreshExecutor, response, System.currentTimeMillis(), session);
     }
     return session;
   }
@@ -220,19 +214,19 @@ public class OAuth2Manager extends RefreshingAuthManager {
       String token, Map<String, String> properties, OAuth2Util.AuthSession parent) {
     Long expiresAtMillis = AuthConfig.fromProperties(properties).expiresAtMillis();
     return OAuth2Util.AuthSession.fromAccessToken(
-        refreshClient, ThreadPools.getAuthRefreshPool(), token, expiresAtMillis, parent);
+        refreshClient, refreshExecutor, token, expiresAtMillis, parent);
   }
 
   protected OAuth2Util.AuthSession newSessionFromCredential(
       String credential, OAuth2Util.AuthSession parent) {
     return OAuth2Util.AuthSession.fromCredential(
-        refreshClient, ThreadPools.getAuthRefreshPool(), credential, parent);
+        refreshClient, refreshExecutor, credential, parent);
   }
 
   protected OAuth2Util.AuthSession newSessionFromTokenExchange(
       String token, String tokenType, OAuth2Util.AuthSession parent) {
     return OAuth2Util.AuthSession.fromTokenExchange(
-        refreshClient, ThreadPools.getAuthRefreshPool(), token, tokenType, parent);
+        refreshClient, refreshExecutor, token, tokenType, parent);
   }
 
   private static void warnIfDeprecatedTokenEndpointUsed(Map<String, String> properties) {

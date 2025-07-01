@@ -123,7 +123,7 @@ public class TestS3RestSigner {
     // there aren't other token refreshes being scheduled after every sign request and after
     // TestS3RestSigner completes all tests, there should be only this single token in the queue
     // that is scheduled for refresh
-    assertThat(ThreadPools.getAuthRefreshPool())
+    assertThat(ThreadPools.authRefreshPool())
         .extracting("e") // field declared in DelegatedScheduledExecutorService
         .asInstanceOf(type(ScheduledThreadPoolExecutor.class))
         .satisfies(
