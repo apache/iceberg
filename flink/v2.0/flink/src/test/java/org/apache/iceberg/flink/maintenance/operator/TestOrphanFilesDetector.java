@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
-public class TestAntiJoin extends OperatorTestBase {
+public class TestOrphanFilesDetector extends OperatorTestBase {
   private static final Map<String, String> EQUAL_SCHEMES =
       Maps.newHashMap(
           ImmutableMap.of(
@@ -230,7 +230,7 @@ public class TestAntiJoin extends OperatorTestBase {
       org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode)
       throws Exception {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
-        new AntiJoin(prefixMismatchMode, EQUAL_SCHEMES, EQUAL_AUTHORITIES),
+        new OrphanFilesDetector(prefixMismatchMode, EQUAL_SCHEMES, EQUAL_AUTHORITIES),
         (KeySelector<String, String>)
             t -> new FileURI(t, EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
         (KeySelector<String, String>)
