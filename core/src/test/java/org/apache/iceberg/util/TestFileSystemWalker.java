@@ -122,6 +122,29 @@ public class TestFileSystemWalker {
   }
 
   @Test
+  public void testListDirRecursivelyWithHadoopMaxDirectSubDirs() {
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+    Predicate<FileStatus> fileFilter =
+        fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithHadoop(
+        basePath,
+        specs,
+        fileFilter,
+        hadoopConf,
+        2, // maxDepth
+        1, // maxDirectSubDirs
+        remainingDirs::add,
+        foundFiles::add);
+
+    assertThat(foundFiles).hasSize(1);
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(remainingDirs).hasSize(2);
+    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "normal_dir").toString());
+    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "hidden_dir").toString());
+  }
+
+  @Test
   public void testListDirRecursivelyWithFileIO() {
     List<String> foundFiles = Lists.newArrayList();
     Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
@@ -134,5 +157,34 @@ public class TestFileSystemWalker {
         .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
+  }
+
+  @Test
+  public void testPartitionAwareHiddenPathFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "_hidden_field", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("_hidden_field").build();
+    Map<Integer, PartitionSpec> partitionSpecs = ImmutableMap.of(0, spec);
+
+    Path partitionDir = Paths.get(basePath, "_hidden_field=value");
+    Files.createDirectories(partitionDir);
+    Path fileInPartition = partitionDir.resolve("file4.txt");
+    Files.createFile(fileInPartition);
+
+    Path partitionDir1 = Paths.get(basePath, "_show_field=value");
+    Files.createDirectories(partitionDir1);
+    Path fileInPartition1 = partitionDir1.resolve("file5.txt");
+    Files.createFile(fileInPartition1);
+
+    List<String> foundFiles = Lists.newArrayList();
+    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO, basePath, partitionSpecs, fileFilter, foundFiles::add);
+
+    assertThat(foundFiles).contains("file:" + fileInPartition.toAbsolutePath());
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(foundFiles).doesNotContain("file:" + fileInPartition1.toAbsolutePath());
   }
 }
