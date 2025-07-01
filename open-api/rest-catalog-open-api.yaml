@@ -3112,7 +3112,7 @@ components:
         - rename-table
         - create-view
         - drop-view
-        - replace-view
+        - update-view
         - rename-view
         - create-namespace
         - update-namespace-properties
@@ -3493,7 +3493,7 @@ components:
     GetEventsRequest:
       type: object
       properties:
-        next-page-token:
+        page-token:
           $ref: "#/components/schemas/PageToken"
         page-size:
           type: integer
@@ -3501,6 +3501,8 @@ components:
           description: >
             The maximum number of events to return in a single response.
             If not provided, the server may choose a default page size.
+            Servers may return less results than requested for various reasons, such as
+            server side limits, payload size or processing time.
         after-timestamp-ms:
           type: integer
           format: int64
@@ -4152,11 +4154,8 @@ components:
           $ref: "#/components/schemas/PageToken"
         highest-processed-timestamp-ms:
           description: >
-            The highest timestamp processed by the server when generating this response. 
+            The highest event timestamp processed when generating this response. 
             This may not necessarily appear in the returned changes if it was filtered out.
-
-            Clients can use this value as the `after-timestamp-ms` parameter in subsequent 
-            requests to continue retrieving changes after this point.
           type: integer
           format: int64
         events:
@@ -4177,7 +4176,10 @@ components:
           type: string
           description: Unique ID of this event. Clients should perform deduplication based on this ID.
         request-id:
-          description: ID of the request this change belongs to.
+          description: >
+            Opaque ID of the request this change belongs to.
+            This ID can be used to identify events that were part of the same request.
+            Servers generate this ID randomly.
           type: string
         event-count:
           type: integer
@@ -4209,7 +4211,7 @@ components:
               rename-table: "#/components/schemas/RenameTableOperation"
               create-view: "#/components/schemas/CreateViewOperation"
               drop-view: "#/components/schemas/DropViewOperation"
-              replace-view: "#/components/schemas/ReplaceViewOperation"
+              update-view: "#/components/schemas/UpdateViewOperation"
               rename-view: "#/components/schemas/RenameTableOperation"
               create-namespace: "#/components/schemas/CreateNamespaceOperation"
               update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"
@@ -4223,7 +4225,7 @@ components:
             - $ref: "#/components/schemas/RenameTableOperation"
             - $ref: "#/components/schemas/CreateViewOperation"
             - $ref: "#/components/schemas/DropViewOperation"
-            - $ref: "#/components/schemas/ReplaceViewOperation"
+            - $ref: "#/components/schemas/UpdateViewOperation"
             - $ref: "#/components/schemas/RenameTableOperation"
             - $ref: "#/components/schemas/CreateNamespaceOperation"
             - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"
@@ -4245,8 +4247,6 @@ components:
         table-uuid:
           type: string
           format: uuid
-        metadata:
-          $ref: "#/components/schemas/TableMetadata"
 
     RegisterTableOperation:
       required:
@@ -4263,8 +4263,6 @@ components:
         table-uuid:
           type: string
           format: uuid
-        metadata:
-          $ref: "#/components/schemas/TableMetadata"
 
     DropTableOperation:
       required:
@@ -4329,12 +4327,10 @@ components:
           $ref: "#/components/schemas/OperationType"
           const: "create-view"
         identifier:
-          $ref: "#/components/schemas/TableIdentifier"#
+          $ref: "#/components/schemas/TableIdentifier"
         view-uuid:
           type: string
           format: uuid
-        metadata:
-          $ref: "#/components/schemas/ViewMetadata"
 
     DropViewOperation:
       required:
@@ -4351,7 +4347,7 @@ components:
           type: string
           format: uuid
 
-    ReplaceViewOperation:
+    UpdateViewOperation:
       required:
         - operation-type
         - identifier
@@ -4360,7 +4356,7 @@ components:
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
-          const: "replace-view"
+          const: "update-view"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
         view-uuid:

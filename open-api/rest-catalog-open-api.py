@@ -1006,7 +1006,7 @@ class OperationType(BaseModel):
             'rename-table',
             'create-view',
             'drop-view',
-            'replace-view',
+            'update-view',
             'rename-view',
             'create-namespace',
             'update-namespace-properties',
@@ -1047,11 +1047,11 @@ class EmptyPlanningResult(BaseModel):
 
 
 class GetEventsRequest(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    page_token: Optional[PageToken] = Field(None, alias='page-token')
     page_size: Optional[int] = Field(
         None,
         alias='page-size',
-        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size.\n',
+        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size. Servers may return less results than requested for various reasons, such as server side limits, payload size or processing time.\n',
     )
     after_timestamp_ms: Optional[int] = Field(
         None,
@@ -1082,6 +1082,22 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class CreateTableOperation(BaseModel):
+    operation_type: Literal['create-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RegisterTableOperation(BaseModel):
+    operation_type: Literal['register-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
 class DropTableOperation(BaseModel):
     operation_type: Literal['drop-table'] = Field(
         ..., alias='operation-type', const=True
@@ -1096,6 +1112,14 @@ class RenameTableOperation(RenameTableRequest):
         ..., alias='operation-type', const=True
     )
     table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class CreateViewOperation(BaseModel):
+    operation_type: Literal['create-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class DropViewOperation(BaseModel):
@@ -1548,7 +1572,7 @@ class EventsResponse(BaseModel):
     highest_processed_timestamp_ms: int = Field(
         ...,
         alias='highest-processed-timestamp-ms',
-        description='The highest timestamp processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-timestamp-ms` parameter in subsequent  requests to continue retrieving changes after this point.\n',
+        description='The highest event timestamp processed when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\n',
     )
     events: List[Event]
 
@@ -1560,7 +1584,9 @@ class Event(BaseModel):
         description='Unique ID of this event. Clients should perform deduplication based on this ID.',
     )
     request_id: str = Field(
-        ..., alias='request-id', description='ID of the request this change belongs to.'
+        ...,
+        alias='request-id',
+        description='Opaque ID of the request this change belongs to. This ID can be used to identify events that were part of the same request. Servers generate this ID randomly.\n',
     )
     event_count: int = Field(
         ...,
@@ -1584,7 +1610,7 @@ class Event(BaseModel):
         RenameTableOperation,
         CreateViewOperation,
         DropViewOperation,
-        ReplaceViewOperation,
+        UpdateViewOperation,
         CreateNamespaceOperation,
         UpdateNamespacePropertiesOperation,
         DropNamespaceOperation,
@@ -1596,24 +1622,6 @@ class Event(BaseModel):
     )
 
 
-class CreateTableOperation(BaseModel):
-    operation_type: Literal['create-table'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
-    metadata: TableMetadata
-
-
-class RegisterTableOperation(BaseModel):
-    operation_type: Literal['register-table'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
-    metadata: TableMetadata
-
-
 class UpdateTableOperation(BaseModel):
     operation_type: Literal['update-table'] = Field(
         ..., alias='operation-type', const=True
@@ -1623,17 +1631,8 @@ class UpdateTableOperation(BaseModel):
     updates: List[TableUpdate]
 
 
-class CreateViewOperation(BaseModel):
-    operation_type: Literal['create-view'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    identifier: TableIdentifier
-    view_uuid: UUID = Field(..., alias='view-uuid')
-    metadata: ViewMetadata
-
-
-class ReplaceViewOperation(BaseModel):
-    operation_type: Literal['replace-view'] = Field(
+class UpdateViewOperation(BaseModel):
+    operation_type: Literal['update-view'] = Field(
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
