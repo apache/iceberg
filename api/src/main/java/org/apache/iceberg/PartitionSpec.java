@@ -134,7 +134,7 @@ public class PartitionSpec implements Serializable {
             Type resultType = field.transform().getResultType(sourceType);
 
             // When the source field has been dropped we cannot determine the type
-            if (resultType == null) {
+            if (sourceType == null) {
               resultType = Types.UnknownType.get();
             }
 

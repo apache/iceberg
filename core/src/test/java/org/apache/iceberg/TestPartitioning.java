@@ -186,22 +186,29 @@ public class TestPartitioning {
   @Test
   public void testPartitionTypeIgnoreInactiveFields() {
     TestTables.TestTable table =
-        TestTables.create(tableDir, "test", SCHEMA, BY_CATEGORY_DATA_SPEC, V2_FORMAT_VERSION);
+        TestTables.create(
+            tableDir, "test", SCHEMA, BY_DATA_CATEGORY_BUCKET_SPEC, V2_FORMAT_VERSION);
 
     StructType actualType = Partitioning.partitionType(table);
     assertThat(actualType)
         .isEqualTo(
             StructType.of(
-                NestedField.optional(1000, "category", Types.StringType.get()),
-                NestedField.optional(1001, "data", Types.StringType.get())));
+                NestedField.optional(1000, "data", Types.StringType.get()),
+                NestedField.optional(1001, "category_bucket", Types.IntegerType.get())));
 
     // Create a new spec, and drop the field of the old spec
-    table.updateSpec().removeField("category").commit();
+    table.updateSpec().removeField("category_bucket").commit();
     table.updateSchema().deleteColumn("category").commit();
 
     actualType = Partitioning.partitionType(table);
     assertThat(actualType)
-        .isEqualTo(StructType.of(NestedField.optional(1001, "data", Types.StringType.get())));
+        .isEqualTo(StructType.of(NestedField.optional(1000, "data", Types.StringType.get())));
+
+    table.updateSpec().removeField("data").commit();
+    table.updateSchema().deleteColumn("data").commit();
+
+    actualType = Partitioning.partitionType(table);
+    assertThat(actualType).isEqualTo(StructType.of());
   }
 
   @Test
