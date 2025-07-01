@@ -19,10 +19,12 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -91,6 +93,8 @@ public class BinPackRewriteFilePlanner
    */
   public static final String MAX_FILES_TO_REWRITE = "max-files-to-rewrite";
 
+  public static final String MAX_BYTES_TO_REWRITE = "max-bytes-to-rewrite";
+
   private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
   private final Expression filter;
@@ -101,6 +105,7 @@ public class BinPackRewriteFilePlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
   private Integer maxFilesToRewrite;
+  private Long maxBytesToRewrite = Long.MAX_VALUE;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -139,6 +144,7 @@ public class BinPackRewriteFilePlanner
         .add(DELETE_RATIO_THRESHOLD)
         .add(RewriteDataFiles.REWRITE_JOB_ORDER)
         .add(MAX_FILES_TO_REWRITE)
+        .add(MAX_BYTES_TO_REWRITE)
         .build();
   }
 
@@ -154,6 +160,7 @@ public class BinPackRewriteFilePlanner
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
     this.maxFilesToRewrite = maxFilesToRewrite(options);
+    this.maxBytesToRewrite = maxBytesToRewrite(options);
   }
 
   private int deleteFileThreshold(Map<String, String> options) {
@@ -181,6 +188,16 @@ public class BinPackRewriteFilePlanner
         value == null || value > 0,
         "Cannot set %s to %s, the value must be positive integer.",
         MAX_FILES_TO_REWRITE,
+        value);
+    return value;
+  }
+
+  private Long maxBytesToRewrite(Map<String, String> options) {
+    Long value = PropertyUtil.propertyAsLong(options, MAX_BYTES_TO_REWRITE, Long.MAX_VALUE);
+    Preconditions.checkArgument(
+        value > 0,
+        "Cannot set %s to %s, the value must be positive integer.",
+        MAX_BYTES_TO_REWRITE,
         value);
     return value;
   }
@@ -252,11 +269,48 @@ public class BinPackRewriteFilePlanner
                         }
                       });
             });
+
+    List<RewriteFileGroup> prunedRewriteFileGroupsBySize = Lists.newArrayList();
+    AtomicLong fileSizeRunner = new AtomicLong();
+
+    selectedFileGroups.stream()
+        .forEach(
+            rewriteFileGroup -> {
+              if (fileSizeRunner.get() < maxBytesToRewrite) {
+                List<FileScanTask> fileScanTasks = rewriteFileGroup.fileScanTasks();
+                StructLike partition = rewriteFileGroup.info().partition();
+                List<FileScanTask> fileScanTasksPruned =
+                    fileScanTasks.stream()
+                        .sorted(Comparator.comparingLong(FileScanTask::sizeBytes))
+                        .takeWhile(
+                            fileScanTask -> {
+                              long fileScanTaskSize = fileScanTask.sizeBytes();
+                              if (fileSizeRunner.get() + fileScanTaskSize <= maxBytesToRewrite) {
+                                fileSizeRunner.getAndAdd(fileScanTaskSize);
+                                return true;
+                              }
+                              return false;
+                            })
+                        .collect(Collectors.toList());
+                long inputSize = inputSize(fileScanTasksPruned);
+
+                RewriteFileGroup prunedRewriteGroup =
+                    newRewriteGroup(
+                        ctx,
+                        partition,
+                        fileScanTasksPruned,
+                        inputSplitSize(inputSize),
+                        expectedOutputFiles(inputSize));
+
+                prunedRewriteFileGroupsBySize.add(prunedRewriteGroup);
+              }
+            });
+
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
     return new FileRewritePlan<>(
         CloseableIterable.of(
-            selectedFileGroups.stream()
+            prunedRewriteFileGroupsBySize.stream()
                 .sorted(RewriteFileGroup.comparator(rewriteJobOrder))
                 .collect(Collectors.toList())),
         totalGroupCount,
