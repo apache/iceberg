@@ -56,12 +56,12 @@ public class ValuesAsBytesReader extends ValuesReader {
   }
 
   @Override
-  public int readInteger() {
+  public final int readInteger() {
     return getBuffer(4).getInt();
   }
 
   @Override
-  public long readLong() {
+  public final long readLong() {
     return getBuffer(8).getLong();
   }
 

@@ -185,11 +185,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
         numRowsRead += batch.numRows();
-        if (numRowsRead != batch.numRows()) {
-          // todo skip the first batch for debugging
-          GenericsHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
-
-        }
+        GenericsHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
       assertThat(numRowsRead).isEqualTo(expectedSize);
     }
