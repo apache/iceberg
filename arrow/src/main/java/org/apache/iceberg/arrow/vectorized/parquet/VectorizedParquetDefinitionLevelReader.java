@@ -92,27 +92,15 @@ public final class VectorizedParquetDefinitionLevelReader
           typeWidth,
           numValsToRead,
           (mode, idx, numValues, byteArray, validityBuffer) -> {
-              switch (mode) {
-                case RLE:
-                  nextRleBatch(
-                          vector,
-                          typeWidth,
-                          nullabilityHolder,
-                          valuesReader,
-                          idx,
-                          numValues,
-                          byteArray);
-                  break;
-                case PACKED:
-                  nextPackedBatch(
-                          vector,
-                          typeWidth,
-                          nullabilityHolder,
-                          valuesReader,
-                          idx,
-                          numValues,
-                          byteArray);
-              }
+            switch (mode) {
+              case RLE:
+                nextRleBatch(
+                        vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                break;
+              case PACKED:
+                nextPackedBatch(
+                        vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+            }
           });
     }
 
@@ -684,7 +672,6 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
-  @SuppressWarnings({"all"})
   private void setNextNValuesInVector(
       NullabilityHolder nullabilityHolder,
       VectorizedValuesReader valuesReader,
