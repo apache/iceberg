@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -35,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,8 +73,8 @@ public class TestFileSystemWalker {
 
   @Test
   public void testListDirRecursivelyWithHadoop() {
-    List<String> foundFiles = new ArrayList<>();
-    List<String> remainingDirs = new ArrayList<>();
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
     Predicate<FileStatus> fileFilter =
         fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
     FileSystemWalker.listDirRecursivelyWithHadoop(
@@ -98,8 +98,8 @@ public class TestFileSystemWalker {
 
   @Test
   public void testListDirRecursivelyWithHadoopMaxDepth() {
-    List<String> foundFiles = new ArrayList<>();
-    List<String> remainingDirs = new ArrayList<>();
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
     Predicate<FileStatus> fileFilter =
         fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
     FileSystemWalker.listDirRecursivelyWithHadoop(
@@ -123,7 +123,7 @@ public class TestFileSystemWalker {
 
   @Test
   public void testListDirRecursivelyWithFileIO() {
-    List<String> foundFiles = new ArrayList<>();
+    List<String> foundFiles = Lists.newArrayList();
     Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
     FileSystemWalker.listDirRecursivelyWithFileIO(
         fileIO, basePath, specs, fileFilter, foundFiles::add);
