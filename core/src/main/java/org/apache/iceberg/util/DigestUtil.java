@@ -21,7 +21,7 @@ package org.apache.iceberg.util;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -29,7 +29,7 @@ import java.util.Base64;
 
 public class DigestUtil {
   private static final byte[] MAGIC_DELIMITER =
-      "0c1d0aaa-b115-42e0-bfa5-38495d6b3f5b".getBytes(Charset.defaultCharset());
+      "0c1d0aaa-b115-42e0-bfa5-38495d6b3f5b".getBytes(StandardCharsets.UTF_8);
 
   private DigestUtil() {}
 
@@ -41,8 +41,8 @@ public class DigestUtil {
     } catch (NoSuchAlgorithmException e) {
       throw new UnsupportedOperationException("Failed to create MD5 instance", e);
     }
-    try (final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final ObjectOutputStream oos = new ObjectOutputStream(baos)) {
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(baos)) {
       for (Object object : objects) {
         writeObject(oos, object);
         writeObject(oos, MAGIC_DELIMITER);
