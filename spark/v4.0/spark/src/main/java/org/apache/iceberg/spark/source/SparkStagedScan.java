@@ -28,6 +28,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.util.DigestUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 
@@ -86,7 +87,7 @@ class SparkStagedScan extends SparkScan {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
+        table().name(), taskSetId, readSchema().toString(), splitSize, splitSize, openFileCost);
   }
 
   @Override
@@ -94,5 +95,17 @@ class SparkStagedScan extends SparkScan {
     return String.format(
         "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
+  }
+
+  @Override
+  protected String digest() {
+    return DigestUtil.computeDigest(
+        getClass().getName(),
+        table().name(),
+        taskSetId,
+        readSchema(),
+        splitSize,
+        splitSize,
+        openFileCost);
   }
 }

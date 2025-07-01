@@ -35,6 +35,7 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.util.DigestUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
@@ -171,6 +172,17 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return Objects.hash(
         table().name(),
         readSchema(),
+        filterExpressions().toString(),
+        snapshotId(),
+        filteredLocations);
+  }
+
+  @Override
+  protected String digest() {
+    return DigestUtil.computeDigest(
+        getClass().getName(),
+        table().name(),
+        readSchema().toString(),
         filterExpressions().toString(),
         snapshotId(),
         filteredLocations);

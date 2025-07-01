@@ -159,10 +159,17 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
+  /**
+   * A string digest summarizing all the comparable components in this SparkScan. This is used for
+   * equality checks. The instances that are not equal must return different values of digests to
+   * distinguish them from each other.
+   */
+  protected abstract String digest();
+
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, digest());
   }
 
   @Override

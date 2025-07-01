@@ -62,6 +62,7 @@ import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
+import org.apache.spark.sql.connector.expressions.filter.AlwaysFalse;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
@@ -1021,6 +1022,33 @@ public class TestSparkScan extends TestBaseWithCatalog {
     scan = builder.build().toBatch();
 
     assertThat(scan.planInputPartitions()).hasSize(4);
+  }
+
+  @TestTemplate
+  public void testDigest() throws Exception {
+    createUnpartitionedTable(spark, tableName);
+
+    final SparkScan batchScan = (SparkScan) scanBuilder().build();
+
+    // Two scans that are structurally equal should have the same digest.
+    final SparkScan batchScan2 = (SparkScan) scanBuilder().build();
+    assertThat(System.identityHashCode(batchScan2))
+        .isNotEqualTo(System.identityHashCode(batchScan.digest()));
+    assertThat(batchScan2.digest()).isEqualTo(batchScan.digest());
+
+    // Two scans that are not structurally equal should have different digests.
+    final SparkScanBuilder builder = scanBuilder();
+    pushFilters(builder, new AlwaysFalse());
+    final SparkScan batchScanWithPushedPredicate = (SparkScan) builder.build();
+    assertThat(System.identityHashCode(batchScanWithPushedPredicate))
+        .isNotEqualTo(System.identityHashCode(batchScan.digest()));
+    assertThat(batchScanWithPushedPredicate.digest()).isNotEqualTo(batchScan.digest());
+
+    // Two scans that are of different classes should have different digests.
+    final SparkScan changelogScan = (SparkScan) scanBuilder().buildCopyOnWriteScan();
+    assertThat(System.identityHashCode(changelogScan))
+        .isNotEqualTo(System.identityHashCode(batchScan.digest()));
+    assertThat(changelogScan.digest()).isNotEqualTo(batchScan.digest());
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {
