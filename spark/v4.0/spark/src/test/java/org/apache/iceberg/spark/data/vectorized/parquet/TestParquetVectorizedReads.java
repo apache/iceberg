@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
@@ -297,7 +296,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   public void testSupportedReadsForParquetV2() throws Exception {
     // Float and double column types are written using plain encoding with Parquet V2,
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes)
+    // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),

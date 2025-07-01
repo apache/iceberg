@@ -30,8 +30,6 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.values.ValuesReader;
-import org.apache.parquet.column.values.plain.PlainValuesReader;
 
 public final class VectorizedParquetDefinitionLevelReader
     extends BaseVectorizedParquetValuesReader {
@@ -95,11 +93,11 @@ public final class VectorizedParquetDefinitionLevelReader
             switch (mode) {
               case RLE:
                 nextRleBatch(
-                        vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
                 break;
               case PACKED:
                 nextPackedBatch(
-                        vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+                    vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
             }
           });
     }
@@ -256,7 +254,7 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode);
 
     public abstract void nextVals(
-            FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total);
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total);
   }
 
   class LongReader extends NumericBaseReader {
@@ -286,7 +284,8 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
-    public void nextVals(FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
       valuesReader.readLongs(total, vector, rowId);
     }
   }
@@ -318,7 +317,8 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
-    public void nextVals(FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
       valuesReader.readDoubles(total, vector, rowId);
     }
   }
@@ -350,7 +350,8 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
-    public void nextVals(FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
       valuesReader.readFloats(total, vector, rowId);
     }
   }
@@ -384,7 +385,8 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
-    public void nextVals(FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
       valuesReader.readIntegers(total, vector, rowId);
     }
   }
