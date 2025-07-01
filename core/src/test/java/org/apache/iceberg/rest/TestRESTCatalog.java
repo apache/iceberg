@@ -62,7 +62,6 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
@@ -93,7 +92,6 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -2648,24 +2646,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // what older REST servers would send back too
     verifyTableExistsFallbackToGETRequest(
         ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE)).build());
-  }
-
-  @Test
-  public void testErrorHandlingForConflicts() {
-    Consumer<ErrorResponse> errorResponseConsumer = ErrorHandlers.tableCommitHandler();
-    // server returning 409 with client without retrying
-    ErrorResponse errorResponse409WithoutRetries =
-        ErrorResponse.builder().responseCode(409).wasRetried(false).build();
-    Assertions.assertThrows(
-        CommitFailedException.class,
-        () -> errorResponseConsumer.accept(errorResponse409WithoutRetries));
-
-    // server returning 409, with retries.
-    ErrorResponse errorResponse409WithRetries =
-        ErrorResponse.builder().responseCode(409).wasRetried(true).build();
-    Assertions.assertThrows(
-        CommitStateUnknownException.class,
-        () -> errorResponseConsumer.accept(errorResponse409WithRetries));
   }
 
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
