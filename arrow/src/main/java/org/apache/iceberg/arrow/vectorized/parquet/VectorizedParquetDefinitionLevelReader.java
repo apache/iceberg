@@ -671,7 +671,7 @@ public final class VectorizedParquetDefinitionLevelReader
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     if (currentValue == maxDefLevel) {
       // TODO read the correct type not just hard-coded longs here
-      valuesReader.readLongs(numValues, vector, bufferIdx);
+      valuesReader.readFloats(numValues, vector, bufferIdx);
       nullabilityHolder.setNotNulls(bufferIdx, numValues);
       if (setArrowValidityVector) {
         for (int i = 0; i < numValues; i++) {

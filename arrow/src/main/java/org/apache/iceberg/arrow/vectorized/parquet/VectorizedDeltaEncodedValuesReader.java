@@ -158,7 +158,8 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     int remaining = total;
     // First value
     if (valuesRead == 0) {
-      outputWriter.write(vec, (long) rowId * typeWidth, firstValue);
+      System.out.println("#### (F) Wrote value " + firstValue + " to " + ((long) (rowId + valuesRead) * typeWidth));
+      outputWriter.write(vec, ((long) (rowId + valuesRead) * typeWidth), firstValue);
       lastValueRead = firstValue;
       rowId++;
       remaining--;
@@ -203,6 +204,8 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       // calculate values from deltas unpacked for current block
       long outValue = lastValueRead + minDeltaInCurrentBlock + unpackedValuesBuffer[i];
       lastValueRead = outValue;
+      System.out.println("#### (O) Wrote value " + outValue + " to " + ((long) (rowId + valuesRead) * typeWidth) +
+              " vec IS null == " + (vec == null));
       outputWriter.write(vec, ((long) (rowId + valuesRead) * typeWidth), outValue);
       remainingInBlock--;
       remainingInMiniBlock--;
