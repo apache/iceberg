@@ -39,7 +39,7 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:dynamodb"
     implementation "software.amazon.awssdk:lakeformation"
 
-    implementation libs.analyticsaccelerator.s3
+    implementation(libs.analyticsaccelerator.s3)
   }
 
   shadowJar {
@@ -50,10 +50,6 @@ project(":iceberg-aws-bundle") {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
-    }
-
-    dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
     }
 
     // relocate AWS-specific versions

@@ -214,36 +214,16 @@ public class TestS3InputStream {
     }
   }
 
-  private byte[] randomData(int size) {
-    byte[] data = new byte[size];
-    random.nextBytes(data);
-    return data;
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testVectoredRead(Map<String, String> aalProperties) throws Exception {
+    testVectoredRead(s3, s3Async, aalProperties);
   }
 
-  private void writeS3Data(S3URI uri, byte[] data) throws IOException {
-    s3.putObject(
-        PutObjectRequest.builder()
-            .bucket(uri.bucket())
-            .key(uri.key())
-            .contentLength((long) data.length)
-            .build(),
-        RequestBody.fromBytes(data));
-  }
-
-  private void createBucket(String bucketName) {
-    try {
-      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
-      // don't do anything
-    }
-  }
-
-  @Test
-  public void testVectoredRead() throws Exception {
-    testVectoredRead(s3, s3Async);
-  }
-
-  protected void testVectoredRead(S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
+  protected void testVectoredRead(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, Map<String, String> aalProperties)
+      throws Exception {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     assumeThat(s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()).isTrue();
 
     S3URI uri = new S3URI("s3://bucket/path/to/vectored-read.dat");
@@ -252,7 +232,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri, aalProperties)) {
       IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
       assertThat(in.readVectoredAvailable(allocate)).isTrue();
 
@@ -278,11 +258,9 @@ public class TestS3InputStream {
 
       in.readVectored(ranges, allocate);
 
-
       ByteBuffer buffer1 = future1.get();
       ByteBuffer buffer2 = future2.get();
       ByteBuffer buffer3 = future3.get();
-
 
       assertThat(future1.isDone()).isTrue();
       assertThat(future2.isDone()).isTrue();
@@ -309,13 +287,18 @@ public class TestS3InputStream {
     }
   }
 
-  @Test
-  public void testVectoredReadWithNonNonContinuousRanges() throws Exception {
-    testVectoredReadWithNonContinuousRanges(s3, s3Async);
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testVectoredReadWithNonNonContinuousRanges(Map<String, String> aalProperties)
+      throws Exception {
+    testVectoredReadWithNonContinuousRanges(s3, s3Async, aalProperties);
   }
 
   protected void testVectoredReadWithNonContinuousRanges(
-      S3Client s3Client, S3AsyncClient s3AsyncClient) throws Exception {
+      S3Client s3Client, S3AsyncClient s3AsyncClient, Map<String, String> aalProperties)
+      throws Exception {
+
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     assumeThat(s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()).isTrue();
 
     S3URI uri = new S3URI("s3://bucket/path/to/vectored-read-overlapping.dat");
@@ -324,7 +307,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri, aalProperties)) {
       List<ParquetObjectRange> ranges = Lists.newArrayList();
       CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
       CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
@@ -365,6 +348,30 @@ public class TestS3InputStream {
           .isEqualTo(Arrays.copyOfRange(data, range1Offset, range1Offset + range1Length));
       assertThat(range2Data)
           .isEqualTo(Arrays.copyOfRange(data, range2Offset, range2Offset + range2Length));
+    }
+  }
+
+  private byte[] randomData(int size) {
+    byte[] data = new byte[size];
+    random.nextBytes(data);
+    return data;
+  }
+
+  private void writeS3Data(S3URI uri, byte[] data) throws IOException {
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(uri.bucket())
+            .key(uri.key())
+            .contentLength((long) data.length)
+            .build(),
+        RequestBody.fromBytes(data));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
+      // don't do anything
     }
   }
 
