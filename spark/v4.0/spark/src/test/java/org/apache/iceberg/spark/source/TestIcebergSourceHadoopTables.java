@@ -65,4 +65,9 @@ public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
   public String loadLocation(TableIdentifier ident) {
     return tableLocation;
   }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
 }

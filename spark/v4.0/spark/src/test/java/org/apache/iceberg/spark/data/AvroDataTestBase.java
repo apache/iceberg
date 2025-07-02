@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +38,19 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -47,11 +59,24 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.assertj.core.api.Assumptions;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class AvroDataTestBase {
@@ -63,6 +88,14 @@ public abstract class AvroDataTestBase {
           FIRST_ROW_ID,
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
           34L);
+
+  private static final ByteBuffer TEST_METADATA_BUFFER =
+      VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c", "d", "e"), true);
+  private static final VariantMetadata TEST_METADATA = Variants.metadata(TEST_METADATA_BUFFER);
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "var", Types.VariantType.get()));
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
@@ -89,10 +122,6 @@ public abstract class AvroDataTestBase {
     return false;
   }
 
-  protected boolean supportsVariant() {
-    return false;
-  }
-
   protected static final StructType SUPPORTED_PRIMITIVES =
       StructType.of(
           required(100, "id", LongType.get()),
@@ -112,10 +141,96 @@ public abstract class AvroDataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
-          required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
-          required(118, "variant", Types.VariantType.get()));
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
+          );
 
   @TempDir protected Path temp;
+
+  private static final Type[] SIMPLE_TYPES =
+      new Type[] {
+        Types.UnknownType.get(),
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.DateType.get(),
+        Types.TimeType.get(),
+        Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
+        Types.TimestampNanoType.withZone(),
+        Types.TimestampNanoType.withoutZone(),
+        Types.StringType.get(),
+        Types.FixedType.ofLength(7),
+        Types.BinaryType.get(),
+        Types.DecimalType.of(9, 0),
+        Types.DecimalType.of(11, 2),
+        Types.DecimalType.of(38, 10),
+        Types.VariantType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeometryType.of("srid:3857"),
+        Types.GeographyType.crs84(),
+        Types.GeographyType.of("srid:4269"),
+        Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+      };
+
+  protected boolean supportsUnknown() {
+    return false;
+  }
+
+  protected boolean supportsTime() {
+    return false;
+  }
+
+  protected boolean supportsTimestampNanos() {
+    return false;
+  }
+
+  protected boolean supportsVariant() {
+    return false;
+  }
+
+  protected boolean supportsGeospatial() {
+    return false;
+  }
+
+  @ParameterizedTest
+  @FieldSource("SIMPLE_TYPES")
+  public void testTypeSchema(Type type) throws IOException {
+    Assumptions.assumeThat(
+            supportsUnknown()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+        .as("unknown is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsTime() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) == null)
+        .as("Spark does not support time fields")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsTimestampNanos()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
+        .as("timestamp_ns is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsVariant()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+        .as("variant is not yet implemented")
+        .isTrue();
+    if (!supportsGeospatial()) {
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
+          .as("geometry is not yet implemented")
+          .isTrue();
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
+          .as("geography is not yet implemented")
+          .isTrue();
+    }
+
+    writeAndValidate(
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(2, "test_type", type),
+            required(3, "trailing_data", Types.StringType.get())));
+  }
 
   @Test
   public void testSimpleStruct() throws IOException {
@@ -606,5 +721,163 @@ public abstract class AvroDataTestBase {
                     33L)),
             record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
             record.copy(Map.of("id", 5L, "data", "e"))));
+  }
+
+  @Test
+  public void testShreddedVariant() throws IOException {
+    Assumptions.assumeThat(supportsVariant()).as("Variant support is not implemented").isTrue();
+
+    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT32));
+    GroupType fieldB =
+        field(
+            "b",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType objectFields = objectFields(fieldA, fieldB);
+    GroupType variantType = variant("var", 2, objectFields);
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    Record recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    Record recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    Record fields = record(objectFields, Map.of("a", recordA, "b", recordB));
+    Record variant =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
+    Record record = record(parquetSchema, Map.of("id", 1, "var", variant));
+    InternalRow actual = writeAndRead(icebergSchema(parquetSchema), SCHEMA, record);
+
+    Record expected = GenericRecord.create(SCHEMA);
+    expected.set(0, 1);
+    ShreddedObject expectedObject = Variants.object(TEST_METADATA);
+    expectedObject.put("a", Variants.ofNull());
+    expectedObject.put("b", Variants.of("iceberg"));
+    expected.set(1, Variant.of(TEST_METADATA, expectedObject));
+
+    GenericsHelpers.assertEqualsUnsafe(SCHEMA.asStruct(), expected, actual);
+  }
+
+  private static InternalRow writeAndRead(Schema writeSchema, Schema expectedSchema, Record record)
+      throws IOException {
+    return Iterables.getOnlyElement(writeAndRead(writeSchema, expectedSchema, List.of(record)));
+  }
+
+  private static List<InternalRow> writeAndRead(
+      Schema writeSchema, Schema expectedSchema, List<Record> records) throws IOException {
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .named("test")
+            .build()) {
+      writer.addAll(records);
+    }
+
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(output.toInputFile())
+            .project(expectedSchema)
+            .createReaderFunc(
+                type -> SparkParquetReaders.buildReader(expectedSchema, type, ID_TO_CONSTANT))
+            .build()) {
+      return Lists.newArrayList(reader);
+    }
+  }
+
+  private static ByteBuffer serialize(VariantValue value) {
+    ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    value.writeTo(buffer, 0);
+    return buffer;
+  }
+
+  private static Record record(GroupType type, Map<String, Object> fields) {
+    Record record = org.apache.iceberg.data.GenericRecord.create(icebergSchema(type));
+    for (Map.Entry<String, Object> entry : fields.entrySet()) {
+      record.setField(entry.getKey(), entry.getValue());
+    }
+    return record;
+  }
+
+  private static Schema icebergSchema(GroupType schema) {
+    if (schema instanceof MessageType) {
+      return ParquetSchemaUtil.convert((MessageType) schema);
+
+    } else {
+      MessageType messageType =
+          org.apache.parquet.schema.Types.buildMessage()
+              .addFields(schema.getFields().toArray(new org.apache.parquet.schema.Type[0]))
+              .named(schema.getName());
+      return ParquetSchemaUtil.convert(messageType);
+    }
+  }
+
+  private static MessageType parquetSchema(org.apache.parquet.schema.Type variantType) {
+    return org.apache.parquet.schema.Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT32)
+        .id(1)
+        .named("id")
+        .addField(variantType)
+        .named("table");
+  }
+
+  private static GroupType variant(
+      String name, int fieldId, org.apache.parquet.schema.Type shreddedType) {
+    checkShreddedType(shreddedType);
+    return org.apache.parquet.schema.Types.buildGroup(
+            org.apache.parquet.schema.Type.Repetition.OPTIONAL)
+        .id(fieldId)
+        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named("metadata")
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named("value")
+        .addField(shreddedType)
+        .named(name);
+  }
+
+  private static GroupType objectFields(GroupType... fields) {
+    for (GroupType fieldType : fields) {
+      checkField(fieldType);
+    }
+
+    return org.apache.parquet.schema.Types.buildGroup(
+            org.apache.parquet.schema.Type.Repetition.OPTIONAL)
+        .addFields(fields)
+        .named("typed_value");
+  }
+
+  private static org.apache.parquet.schema.Type shreddedPrimitive(
+      PrimitiveType.PrimitiveTypeName primitive) {
+    return org.apache.parquet.schema.Types.optional(primitive).named("typed_value");
+  }
+
+  private static org.apache.parquet.schema.Type shreddedPrimitive(
+      PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation) {
+    return org.apache.parquet.schema.Types.optional(primitive).as(annotation).named("typed_value");
+  }
+
+  private static GroupType field(String name, org.apache.parquet.schema.Type shreddedType) {
+    checkShreddedType(shreddedType);
+    return org.apache.parquet.schema.Types.buildGroup(
+            org.apache.parquet.schema.Type.Repetition.REQUIRED)
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named("value")
+        .addField(shreddedType)
+        .named(name);
+  }
+
+  private static void checkShreddedType(org.apache.parquet.schema.Type shreddedType) {
+    Preconditions.checkArgument(
+        shreddedType.getName().equals("typed_value"),
+        "Invalid shredded type name: %s should be typed_value",
+        shreddedType.getName());
+    Preconditions.checkArgument(
+        shreddedType.isRepetition(org.apache.parquet.schema.Type.Repetition.OPTIONAL),
+        "Invalid shredded type repetition: %s should be OPTIONAL",
+        shreddedType.getRepetition());
+  }
+
+  private static void checkField(GroupType fieldType) {
+    Preconditions.checkArgument(
+        fieldType.isRepetition(org.apache.parquet.schema.Type.Repetition.REQUIRED),
+        "Invalid field type repetition: %s should be REQUIRED",
+        fieldType.getRepetition());
   }
 }

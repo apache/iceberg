@@ -37,8 +37,8 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.parquet.ParquetVariantReaders;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
-import org.apache.iceberg.parquet.TripleIterator;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -51,7 +51,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
@@ -515,20 +514,15 @@ public class SparkParquetReaders {
   }
 
   /** Variant reader to convert from Variant to Spark VariantVal */
-  private static class VariantReader implements ParquetValueReader<VariantVal> {
-    private final ParquetValueReader<Variant> reader;
-    private final List<TripleIterator<?>> children;
-    private final TripleIterator<?> column;
-
-    protected VariantReader(ParquetValueReader<?> reader) {
-      this.reader = (ParquetValueReader<Variant>) reader;
-      this.children = reader.columns();
-      this.column = reader.column();
+  private static class VariantReader
+      extends ParquetVariantReaders.DelegatingValueReader<Variant, VariantVal> {
+    private VariantReader(ParquetValueReader<?> reader) {
+      super((ParquetValueReader<Variant>) reader);
     }
 
     @Override
-    public final VariantVal read(VariantVal ignored) {
-      Variant variant = reader.read(null);
+    public VariantVal read(VariantVal reuse) {
+      Variant variant = super.readFromDelegate(null);
       byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
       ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
       variant.metadata().writeTo(metadataBuffer, 0);
@@ -538,21 +532,6 @@ public class SparkParquetReaders {
       variant.value().writeTo(valueBuffer, 0);
 
       return new VariantVal(valueBytes, metadataBytes);
-    }
-
-    @Override
-    public final void setPageSource(PageReadStore pageStore) {
-      reader.setPageSource(pageStore);
-    }
-
-    @Override
-    public final TripleIterator<?> column() {
-      return column;
-    }
-
-    @Override
-    public List<TripleIterator<?>> columns() {
-      return children;
     }
   }
 

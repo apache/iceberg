@@ -219,14 +219,9 @@ public class GenericsHelpers {
         assertEqualsSafe(type.asNestedType().asMapType(), (Map<?, ?>) expected, asMap);
         break;
       case VARIANT:
-        assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
+        assertThat(expected).as("Should expect a Variant").isInstanceOf(Variant.class);
         assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
-        assertThat(actual)
-            .as("Variant should match")
-            .isEqualTo(
-                new VariantVal(
-                    ((Record) expected).get(0, ByteBuffer.class).array(),
-                    ((Record) expected).get(1, ByteBuffer.class).array()));
+        assertEquals((Variant) expected, (VariantVal) actual);
         break;
       case TIME:
       default:
@@ -312,7 +307,7 @@ public class GenericsHelpers {
     }
   }
 
-  private static void assertEqualsUnsafe(Variant expected, VariantVal actual) {
+  private static void assertEquals(Variant expected, VariantVal actual) {
     VariantMetadata actualMetadata =
         VariantMetadata.from(ByteBuffer.wrap(actual.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
     VariantTestUtil.assertEqual(expected.metadata(), actualMetadata);
@@ -427,7 +422,7 @@ public class GenericsHelpers {
       case VARIANT:
         assertThat(expected).as("Should expect a Variant").isInstanceOf(Variant.class);
         assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
-        assertEqualsUnsafe((Variant) expected, (VariantVal) actual);
+        assertEquals((Variant) expected, (VariantVal) actual);
         break;
       case TIME:
       default:
