@@ -265,7 +265,8 @@ public class TestSparkMetadataColumns extends TestBase {
 
     assertThat(spark.table(TABLE_NAME).count()).isEqualTo(7500);
 
-    List<Object[]> expectedRows = rows.stream().map(r -> row(r.get(0))).collect(Collectors.toList());
+    List<Object[]> expectedRows =
+        rows.stream().map(r -> row(r.get(0))).collect(Collectors.toList());
     assertEquals("Rows must match", expectedRows, sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
