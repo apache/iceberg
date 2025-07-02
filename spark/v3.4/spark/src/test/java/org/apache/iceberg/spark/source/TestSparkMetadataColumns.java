@@ -76,7 +76,7 @@ public class TestSparkMetadataColumns extends TestBase {
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "category", Types.StringType.get()),
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
