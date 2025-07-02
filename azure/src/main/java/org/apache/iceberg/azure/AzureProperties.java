@@ -19,6 +19,7 @@
 package org.apache.iceberg.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
@@ -63,6 +64,8 @@ public class AzureProperties implements Serializable {
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
   private Map<String, String> allProperties;
+  private String keyWrapAlgorithm;
+  private String keyVaultUri;
 
   public AzureProperties() {}
 
@@ -95,6 +98,13 @@ public class AzureProperties implements Serializable {
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
     this.allProperties = SerializableMap.copyOf(properties);
+    if (properties.containsKey(KEYVAULT_URI)) {
+      this.keyVaultUri = properties.get(KEYVAULT_URI);
+    }
+    this.keyWrapAlgorithm =
+        properties.getOrDefault(
+            AzureProperties.KEYVAULT_KEY_WRAPPING_ALGORITHM,
+            KeyWrapAlgorithm.RSA_OAEP_256.getValue());
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -145,5 +155,13 @@ public class AzureProperties implements Serializable {
     } else {
       builder.endpoint("https://" + account);
     }
+  }
+
+  public KeyWrapAlgorithm keyWrapAlgorithm() {
+    return KeyWrapAlgorithm.fromString(this.keyWrapAlgorithm);
+  }
+
+  public String keyVaultUri() {
+    return this.keyVaultUri;
   }
 }

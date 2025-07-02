@@ -55,16 +55,14 @@ public class AzureKeyManagementClient implements KeyManagementClient {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    String vaultUrl = properties.get(AzureProperties.KEYVAULT_URI);
-    keyClient =
+    AzureProperties azureProperties = new AzureProperties(properties);
+
+    String vaultUrl = azureProperties.keyVaultUri();
+    this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+    this.keyClient =
         new KeyClientBuilder()
             .vaultUrl(vaultUrl)
             .credential(new DefaultAzureCredentialBuilder().build())
             .buildClient();
-    this.keyWrapAlgorithm =
-        KeyWrapAlgorithm.fromString(
-            properties.getOrDefault(
-                AzureProperties.KEYVAULT_KEY_WRAPPING_ALGORITHM,
-                KeyWrapAlgorithm.RSA_OAEP_256.getValue()));
   }
 }

@@ -41,7 +41,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
   @EnabledIfEnvironmentVariable(named = "AZURE_TENANT_ID", matches = ".*"),
   @EnabledIfEnvironmentVariable(named = KEYVAULT_URI, matches = ".*")
 })
-public class AzureKeyManagementClientTest {
+public class TestAzureKeyManagementClient {
   private static final String ICEBERG_TEST_KEY_NAME = "iceberg-test-key";
 
   private static KeyClient keyClient;
