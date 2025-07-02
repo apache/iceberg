@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.google.common.collect.ImmutableMap;
 import java.io.File;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
@@ -61,8 +63,12 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
@@ -70,14 +76,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   private static final String goldenFilePlain = "PLAIN";
   private static final List<String> goldenFileEncodings =
-          ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY");
-  private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> goldenFileTypes = ImmutableMap.of(
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY");
+  private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> goldenFileTypes =
+      ImmutableMap.of(
           "string", Types.StringType.get(),
           "float", Types.FloatType.get(),
           "int32", Types.IntegerType.get(),
           "int64", Types.LongType.get(),
-          "binary", Types.BinaryType.get()
-  );
+          "binary", Types.BinaryType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
@@ -352,21 +358,19 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
   }
 
-  private void assertIdenticalFileContents(File actual, File expected, Schema schema) throws IOException {
-    System.out.println("Comparing " + actual + " with " + expected);
+  private void assertIdenticalFileContents(File actual, File expected, Schema schema)
+      throws IOException {
     try (CloseableIterable<InternalRow> actualReader =
-                 Parquet.read(Files.localInput(actual))
-                         .project(schema)
-                         .createReaderFunc(
-                                 t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-                         .build()) {
+        Parquet.read(Files.localInput(actual))
+            .project(schema)
+            .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
+            .build()) {
       Iterator<InternalRow> actualIterator = actualReader.iterator();
       try (CloseableIterable<InternalRow> plainReader =
-                   Parquet.read(Files.localInput(expected))
-                           .project(schema)
-                           .createReaderFunc(
-                                   t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-                           .build()) {
+          Parquet.read(Files.localInput(expected))
+              .project(schema)
+              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
+              .build()) {
         Iterator<InternalRow> expectedIterator = plainReader.iterator();
 
         List<InternalRow> expectedList = new ArrayList<>();
@@ -381,24 +385,43 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     }
   }
 
-  @Test
-  public void testGoldenFiles() throws Exception {
-    for (String goldenEncoding : goldenFileEncodings) {
-      for (var goldenFileType : goldenFileTypes.entrySet()) {
-        Path goldenResourcePath = Paths.get("encodings", goldenEncoding, goldenFileType.getKey() + ".parquet");
-        URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
-        if (goldenFileUrl != null) {
-          Path plainResourcePath = Paths.get("encodings", goldenFilePlain, goldenFileType.getKey() + ".parquet");
-          URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
-          if (plainFileUrl == null) {
-            throw new IllegalStateException("PLAIN encoded file should exist: " + plainResourcePath);
-          } else {
-            Schema expectedSchema = new Schema(optional(1, "data", goldenFileType.getValue()));
-            assertIdenticalFileContents(
-                    new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
-          }
-        }
+  static Stream<org.junit.jupiter.params.provider.Arguments> encodingTypeProvider() {
+    List<org.junit.jupiter.params.provider.Arguments> args = new ArrayList<>();
+    for (String encoding : goldenFileEncodings) {
+      for (var typeEntry : goldenFileTypes.entrySet()) {
+        args.add(arguments(encoding, typeEntry.getKey(), typeEntry.getValue()));
       }
     }
+    return args.stream();
+  }
+
+  static Stream<Arguments> goldenFilesAndEncodings() {
+    return goldenFileEncodings.stream()
+        .flatMap(
+            encoding ->
+                goldenFileTypes.entrySet().stream()
+                    .map(
+                        typeEntry ->
+                            Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
+  }
+
+  @ParameterizedTest
+  @MethodSource("goldenFilesAndEncodings")
+  public void testGoldenFiles(
+      String encoding, String typeName, org.apache.iceberg.types.Type.PrimitiveType primitiveType)
+      throws Exception {
+    Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
+    URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
+    Assumptions.assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
+
+    Path plainResourcePath = Paths.get("encodings", goldenFilePlain, typeName + ".parquet");
+    URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
+    if (plainFileUrl == null) {
+      throw new IllegalStateException("PLAIN encoded file should exist: " + plainResourcePath);
+    }
+
+    Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
+    assertIdenticalFileContents(
+        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
   }
 }
