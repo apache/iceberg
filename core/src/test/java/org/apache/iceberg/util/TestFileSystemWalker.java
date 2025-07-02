@@ -39,6 +39,8 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestFileSystemWalker {
 
@@ -159,8 +161,9 @@ public class TestFileSystemWalker {
         .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
   }
 
-  @Test
-  public void testPartitionAwareHiddenPathFilter() throws IOException {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testPartitionAwareHiddenPathFilter(boolean useHadoop) throws IOException {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -179,10 +182,27 @@ public class TestFileSystemWalker {
     Files.createFile(fileInPartition1);
 
     List<String> foundFiles = Lists.newArrayList();
-    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
-    FileSystemWalker.listDirRecursivelyWithFileIO(
-        fileIO, basePath, partitionSpecs, fileFilter, foundFiles::add);
+    List<String> remainingDirs = Lists.newArrayList();
 
+    if (useHadoop) {
+      Predicate<FileStatus> fileFilter =
+          fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
+      FileSystemWalker.listDirRecursivelyWithHadoop(
+          basePath,
+          partitionSpecs,
+          fileFilter,
+          hadoopConf,
+          Integer.MAX_VALUE, // maxDepth
+          Integer.MAX_VALUE, // maxDirectSubDirs
+          remainingDirs::add,
+          foundFiles::add);
+    } else {
+      Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+      FileSystemWalker.listDirRecursivelyWithFileIO(
+          fileIO, basePath, partitionSpecs, fileFilter, foundFiles::add);
+    }
+
+    assertThat(remainingDirs).isEmpty();
     assertThat(foundFiles).contains("file:" + fileInPartition.toAbsolutePath());
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
     assertThat(foundFiles).doesNotContain("file:" + fileInPartition1.toAbsolutePath());
