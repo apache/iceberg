@@ -23,15 +23,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.junit.jupiter.params.provider.Arguments.arguments;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +44,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -64,7 +62,6 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.assertj.core.api.Assumptions;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -74,10 +71,10 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
-  private static final String goldenFilePlain = "PLAIN";
-  private static final List<String> goldenFileEncodings =
+  private static final String PLAIN = "PLAIN";
+  private static final List<String> GOLDEN_FILE_ENCODINGS =
       ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY");
-  private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> goldenFileTypes =
+  private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
           "float", Types.FloatType.get(),
@@ -374,33 +371,23 @@ public class TestParquetVectorizedReads extends AvroDataTest {
               .build()) {
         Iterator<InternalRow> expectedIterator = plainReader.iterator();
 
-        List<InternalRow> expectedList = new ArrayList<>();
+        List<InternalRow> expectedList = Lists.newArrayList();
         expectedIterator.forEachRemaining(expectedList::add);
-        List<InternalRow> actualList = new ArrayList<>();
+        List<InternalRow> actualList = Lists.newArrayList();
         actualIterator.forEachRemaining(actualList::add);
 
-        Assertions.assertNotEquals(expectedList.size(), 0);
-        Assertions.assertEquals(expectedList.size(), actualList.size());
-        Assertions.assertEquals(expectedList, actualList);
+        assertThat(actualList).isNotEmpty();
+        assertThat(actualList).hasSameSizeAs(expectedList);
+        assertThat(actualList).hasSameElementsAs(expectedList);
       }
     }
-  }
-
-  static Stream<org.junit.jupiter.params.provider.Arguments> encodingTypeProvider() {
-    List<org.junit.jupiter.params.provider.Arguments> args = new ArrayList<>();
-    for (String encoding : goldenFileEncodings) {
-      for (var typeEntry : goldenFileTypes.entrySet()) {
-        args.add(arguments(encoding, typeEntry.getKey(), typeEntry.getValue()));
-      }
-    }
-    return args.stream();
   }
 
   static Stream<Arguments> goldenFilesAndEncodings() {
-    return goldenFileEncodings.stream()
+    return GOLDEN_FILE_ENCODINGS.stream()
         .flatMap(
             encoding ->
-                goldenFileTypes.entrySet().stream()
+                GOLDEN_FILE_TYPES.entrySet().stream()
                     .map(
                         typeEntry ->
                             Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
@@ -415,7 +402,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
     Assumptions.assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
 
-    Path plainResourcePath = Paths.get("encodings", goldenFilePlain, typeName + ".parquet");
+    Path plainResourcePath = Paths.get("encodings", PLAIN, typeName + ".parquet");
     URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
     if (plainFileUrl == null) {
       throw new IllegalStateException("PLAIN encoded file should exist: " + plainResourcePath);
