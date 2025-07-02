@@ -83,7 +83,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
           "float", Types.FloatType.get(),
           "int32", Types.IntegerType.get(),
           "int64", Types.LongType.get(),
-          "binary", Types.BinaryType.get());
+          "binary", Types.BinaryType.get(),
+          "boolean", Types.BooleanType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
