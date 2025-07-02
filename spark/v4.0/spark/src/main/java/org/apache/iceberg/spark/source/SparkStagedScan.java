@@ -103,7 +103,7 @@ class SparkStagedScan extends SparkScan {
         getClass().getName(),
         table().name(),
         taskSetId,
-        readSchema(),
+        readSchema().toString(),
         splitSize,
         splitSize,
         openFileCost);
