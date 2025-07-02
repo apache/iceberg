@@ -56,6 +56,7 @@ import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.TaskContext;
@@ -396,12 +397,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       }
     }
 
-    private DeleteFileSet rewritableDeletes() {
+    private DeleteFileSet danglingDVs() {
       if (scan == null) {
         return DeleteFileSet.create();
       } else {
         return scan.tasks().stream()
-            .flatMap(task -> task.deletes().stream())
+            .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
             .collect(Collectors.toCollection(DeleteFileSet::create));
       }
     }
@@ -425,8 +426,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       DataFileSet overwrittenFiles = overwrittenFiles();
       int numOverwrittenFiles = overwrittenFiles.size();
-      DeleteFileSet rewritableDeletes = rewritableDeletes();
-      overwriteFiles.deleteFiles(overwrittenFiles, rewritableDeletes);
+      DeleteFileSet danglingDVs = danglingDVs();
+      overwriteFiles.deleteFiles(overwrittenFiles, danglingDVs);
 
       int numAddedFiles = 0;
       for (DataFile file : files(messages)) {

@@ -177,8 +177,9 @@ public class RewriteDataFilesSparkAction
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
           new RemoveDanglingDeletesSparkAction(spark(), table);
-      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
-      return result.withRemovedDeleteFilesCount(result.removedDeleteFilesCount() + removedCount);
+      int removedDeleteFiles = Iterables.size(action.execute().removedDeleteFiles());
+      return result.withRemovedDeleteFilesCount(
+          result.removedDeleteFilesCount() + removedDeleteFiles);
     }
 
     return result;

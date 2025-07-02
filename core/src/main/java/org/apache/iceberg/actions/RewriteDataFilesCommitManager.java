@@ -75,11 +75,11 @@ public class RewriteDataFilesCommitManager {
   public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
     DataFileSet rewrittenDataFiles = DataFileSet.create();
     DataFileSet addedDataFiles = DataFileSet.create();
-    DeleteFileSet rewritableDeletes = DeleteFileSet.create();
+    DeleteFileSet danglingDVs = DeleteFileSet.create();
     for (RewriteFileGroup group : fileGroups) {
       rewrittenDataFiles.addAll(group.rewrittenFiles());
       addedDataFiles.addAll(group.addedFiles());
-      rewritableDeletes.addAll(group.rewritableDeletes());
+      danglingDVs.addAll(group.danglingDVs());
     }
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
@@ -90,7 +90,7 @@ public class RewriteDataFilesCommitManager {
 
     rewrittenDataFiles.forEach(rewrite::deleteFile);
     addedDataFiles.forEach(rewrite::addFile);
-    rewritableDeletes.forEach(rewrite::deleteFile);
+    danglingDVs.forEach(rewrite::deleteFile);
 
     snapshotProperties.forEach(rewrite::set);
 

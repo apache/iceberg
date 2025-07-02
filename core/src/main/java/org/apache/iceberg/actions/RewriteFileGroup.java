@@ -62,7 +62,7 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
         .collect(Collectors.toCollection(DataFileSet::create));
   }
 
-  public Set<DeleteFile> rewritableDeletes() {
+  public Set<DeleteFile> danglingDVs() {
     return fileScanTasks().stream()
         .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
         .collect(Collectors.toCollection(DeleteFileSet::create));
@@ -79,7 +79,7 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
         .addedDataFilesCount(addedFiles.size())
         .rewrittenDataFilesCount(fileScanTasks().size())
         .rewrittenBytesCount(inputFilesSizeInBytes())
-        .removedDeleteFilesCount(rewritableDeletes().size())
+        .removedDeleteFilesCount(danglingDVs().size())
         .build();
   }
 

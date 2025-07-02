@@ -543,7 +543,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void removeOrphanedDVsFromDeleteManifest() throws Exception {
+  public void removeDanglingDVsFromDeleteManifest() throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Table table = createTable();
     int numDataFiles = 5;
@@ -565,11 +565,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
     assertThat(deleteFiles).hasSize(numDataFiles);
 
+    Set<String> validDataFilePaths =
+        TestHelpers.dataFiles(table).stream()
+            .map(ContentFile::location)
+            .collect(Collectors.toSet());
     for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
-      Set<String> validDataFilePaths =
-          TestHelpers.dataFiles(table).stream()
-              .map(ContentFile::location)
-              .collect(Collectors.toSet());
       ManifestReader<DeleteFile> reader =
           ManifestFiles.readDeleteManifest(
               manifestFile, table.io(), ((BaseTable) table).operations().current().specsById());
@@ -595,11 +595,10 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(TestHelpers.dataFiles(table)).hasSize(1);
     assertThat(TestHelpers.deleteFiles(table)).isEmpty();
 
-    Set<String> validDataFilePaths =
+    validDataFilePaths =
         TestHelpers.dataFiles(table).stream()
             .map(ContentFile::location)
             .collect(Collectors.toSet());
-
     for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
       ManifestReader<DeleteFile> reader =
           ManifestFiles.readDeleteManifest(
