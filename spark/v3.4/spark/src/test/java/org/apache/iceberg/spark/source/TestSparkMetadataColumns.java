@@ -59,9 +59,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -227,21 +228,21 @@ public class TestSparkMetadataColumns extends TestBase {
 
     table.updateProperties().set(PARQUET_ROW_GROUP_SIZE_BYTES, "100").commit();
 
-    List<Long> ids = Lists.newArrayList();
+    List<Row> rows = Lists.newArrayList();
     for (long id = 0L; id < 200L; id++) {
-      ids.add(id);
+      rows.add(RowFactory.create(id));
     }
     Dataset<Row> df =
         spark
-            .createDataset(ids, Encoders.LONG())
-            .withColumnRenamed("value", "id")
+            .createDataFrame(rows, new StructType().add("id", DataTypes.LongType, false))
             .withColumn("category", lit("hr"))
             .withColumn("data", lit("ABCDEF"));
     df.coalesce(1).writeTo(TABLE_NAME).append();
 
     assertThat(spark.table(TABLE_NAME).count()).isEqualTo(200);
 
-    List<Object[]> expectedRows = ids.stream().map(this::row).collect(Collectors.toList());
+    List<Object[]> expectedRows =
+        rows.stream().map(r -> row(r.get(0))).collect(Collectors.toList());
     assertEquals("Rows must match", expectedRows, sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
@@ -251,21 +252,20 @@ public class TestSparkMetadataColumns extends TestBase {
 
     table.updateProperties().set(PARQUET_BATCH_SIZE, "1000").commit();
 
-    List<Long> ids = Lists.newArrayList();
+    List<Row> rows = Lists.newArrayList();
     for (long id = 0L; id < 7500L; id++) {
-      ids.add(id);
+      rows.add(RowFactory.create(id));
     }
     Dataset<Row> df =
         spark
-            .createDataset(ids, Encoders.LONG())
-            .withColumnRenamed("value", "id")
+            .createDataFrame(rows, new StructType().add("id", DataTypes.LongType, false))
             .withColumn("category", lit("hr"))
             .withColumn("data", lit("ABCDEF"));
     df.coalesce(1).writeTo(TABLE_NAME).append();
 
     assertThat(spark.table(TABLE_NAME).count()).isEqualTo(7500);
 
-    List<Object[]> expectedRows = ids.stream().map(this::row).collect(Collectors.toList());
+    List<Object[]> expectedRows = rows.stream().map(r -> row(r.get(0))).collect(Collectors.toList());
     assertEquals("Rows must match", expectedRows, sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
