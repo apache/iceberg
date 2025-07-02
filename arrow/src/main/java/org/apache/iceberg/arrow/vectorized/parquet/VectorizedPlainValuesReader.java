@@ -74,4 +74,11 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   public void readDoubles(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, DOUBLE_SIZE);
   }
+
+  @Override
+  public void readBinary(int total, FieldVector vec, int rowId) {
+    for (int i = 0; i < total; i++) {
+      readBinary(1, vec, rowId + i);
+    }
+  }
 }

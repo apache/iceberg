@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
@@ -37,6 +38,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -148,13 +150,17 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .build();
   }
 
-  FileAppender<Record> getParquetV2Writer(Schema schema, File testFile) throws IOException {
-    return Parquet.write(Files.localOutput(testFile))
+  FileAppender<Record> getParquetV2Writer(
+          Schema schema, File testFile, Map<String, String> writerOptions) throws IOException {
+    Parquet.WriteBuilder writeBuilder = Parquet.write(Files.localOutput(testFile))
         .schema(schema)
         .createWriterFunc(GenericParquetWriter::create)
         .named("test")
-        .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
-        .build();
+        .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0);
+    for (var entry: writerOptions.entrySet()) {
+      writeBuilder.set(entry.getKey(), entry.getValue());
+    }
+    return writeBuilder.build();
   }
 
   void assertRecordsMatch(
@@ -291,6 +297,17 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     assertRecordsMatch(readSchema, 30000, data, dataFile, false, BATCH_SIZE);
   }
 
+  private void testReadsWithSchema(Schema schema, Map<String, String> writerOptions) throws Exception {
+    File dataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    Iterable<Record> data =
+            generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile, writerOptions)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
+  }
+
   @Test
   public void testSupportedReadsForParquetV2() throws Exception {
     // Float and double column types are written using plain encoding with Parquet V2,
@@ -303,15 +320,19 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
             optional(105, "int_data", Types.IntegerType.get()),
             optional(106, "long_data", Types.LongType.get()));
+    testReadsWithSchema(schema, ImmutableMap.of());
+  }
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<Record> data =
-        generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
-      writer.addAll(data);
-    }
-    assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
+  @Test
+  public void testDeltaLengthByteArrayBinaryReadsForParquetV2() throws Exception {
+    // By default, Parquet seems to want to use DELTA_BYTE_ARRAY for binary columns
+    // instead of DELTA_LENGTH_BYTE_ARRAY
+    Schema schema =
+            new Schema(
+                    optional(106, "binary_data", Types.BinaryType.get()));
+    testReadsWithSchema(schema, ImmutableMap.of(
+            "parquet.enable.dictionary", "false"
+    ));
   }
 
   @Test
@@ -322,7 +343,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
+    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile, ImmutableMap.of())) {
       writer.addAll(data);
     }
     assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
