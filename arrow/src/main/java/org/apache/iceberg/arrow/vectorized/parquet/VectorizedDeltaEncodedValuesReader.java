@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.parquet.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.values.ValuesReader;
@@ -65,7 +65,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
   private int remainingInMiniBlock = 0; // values in current mini block still to be read
   private long[] unpackedValuesBuffer;
 
-  private ByteBufferInputStream in;
+  private ByteBufferInputStream inputStream;
 
   // temporary buffers used by readInteger and readLong
   private int intVal;
@@ -75,20 +75,20 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
   public void initFromPage(int valueCount, ByteBufferInputStream in) throws IOException {
     Preconditions.checkArgument(
         valueCount >= 1, "Page must have at least one value, but it has " + valueCount);
-    this.in = in;
+    this.inputStream = in;
     // Read the header
-    this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.in);
-    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(this.in);
+    this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.inputStream);
+    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(this.inputStream);
     double miniSize = (double) blockSizeInValues / miniBlockNumInABlock;
     Preconditions.checkArgument(
         miniSize % 8 == 0, "miniBlockSize must be multiple of 8, but it's " + miniSize);
     this.miniBlockSizeInValues = (int) miniSize;
     // True value count. May be less than valueCount because of nulls
-    this.totalValueCount = BytesUtils.readUnsignedVarInt(this.in);
+    this.totalValueCount = BytesUtils.readUnsignedVarInt(this.inputStream);
     this.bitWidths = new int[miniBlockNumInABlock];
     this.unpackedValuesBuffer = new long[miniBlockSizeInValues];
     // read the first value
-    firstValue = BytesUtils.readZigZagVarLong(this.in);
+    firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
   }
 
   @Override
@@ -156,22 +156,23 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
               + " more.");
     }
     int remaining = total;
+    int currentRowId = rowId;
     // First value
     if (valuesRead == 0) {
-      outputWriter.write(vec, ((long) (rowId + valuesRead) * typeWidth), firstValue);
+      outputWriter.write(vec, ((long) (currentRowId + valuesRead) * typeWidth), firstValue);
       lastValueRead = firstValue;
-      rowId++;
+      currentRowId++;
       remaining--;
     }
     while (remaining > 0) {
-      int n;
+      int loadedRows;
       try {
-        n = loadMiniBlockToOutput(remaining, vec, rowId, typeWidth, outputWriter);
+        loadedRows = loadMiniBlockToOutput(remaining, vec, currentRowId, typeWidth, outputWriter);
       } catch (IOException e) {
         throw new ParquetDecodingException("Error reading mini block.", e);
       }
-      rowId += n;
-      remaining -= n;
+      currentRowId += loadedRows;
+      remaining -= loadedRows;
     }
     valuesRead = total - remaining;
   }
@@ -196,25 +197,25 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     }
 
     // read values from miniblock
-    int valuesRead = 0;
+    int valuesReadInMiniBlock = 0;
     for (int i = miniBlockSizeInValues - remainingInMiniBlock;
-        i < miniBlockSizeInValues && valuesRead < remaining;
+        i < miniBlockSizeInValues && valuesReadInMiniBlock < remaining;
         i++) {
       // calculate values from deltas unpacked for current block
       long outValue = lastValueRead + minDeltaInCurrentBlock + unpackedValuesBuffer[i];
       lastValueRead = outValue;
-      outputWriter.write(vec, ((long) (rowId + valuesRead) * typeWidth), outValue);
+      outputWriter.write(vec, ((long) (rowId + valuesReadInMiniBlock) * typeWidth), outValue);
       remainingInBlock--;
       remainingInMiniBlock--;
-      valuesRead++;
+      valuesReadInMiniBlock++;
     }
 
-    return valuesRead;
+    return valuesReadInMiniBlock;
   }
 
   private void readBlockHeader() {
     try {
-      minDeltaInCurrentBlock = BytesUtils.readZigZagVarLong(in);
+      minDeltaInCurrentBlock = BytesUtils.readZigZagVarLong(inputStream);
     } catch (IOException e) {
       throw new ParquetDecodingException("Can not read min delta in current block", e);
     }
@@ -234,7 +235,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     BytePackerForLong packer =
         Packer.LITTLE_ENDIAN.newBytePackerForLong(bitWidths[currentMiniBlock]);
     for (int j = 0; j < miniBlockSizeInValues; j += 8) {
-      ByteBuffer buffer = in.slice(packer.getBitWidth());
+      ByteBuffer buffer = inputStream.slice(packer.getBitWidth());
       if (buffer.hasArray()) {
         packer.unpack8Values(
             buffer.array(), buffer.arrayOffset() + buffer.position(), unpackedValuesBuffer, j);
@@ -250,7 +251,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
   private void readBitWidthsForMiniBlocks() {
     for (int i = 0; i < miniBlockNumInABlock; i++) {
       try {
-        bitWidths[i] = BytesUtils.readIntLittleEndianOnOneByte(in);
+        bitWidths[i] = BytesUtils.readIntLittleEndianOnOneByte(inputStream);
       } catch (IOException e) {
         throw new ParquetDecodingException("Can not decode bitwidth in block header", e);
       }
