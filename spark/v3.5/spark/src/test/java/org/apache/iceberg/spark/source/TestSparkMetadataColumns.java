@@ -318,19 +318,14 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @TestTemplate
   public void testIdentifierFields() {
-    table
-        .updateSchema()
-        .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
-        .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
-        .setIdentifierFields("id")
-        .commit();
+    table.updateSchema().setIdentifierFields("id").commit();
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1', -1, 'path/to/file')", TABLE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     assertEquals(
         "Rows must match",
-        ImmutableList.of(row(1L, "a1")),
-        sql("SELECT id, category FROM %s", TABLE_NAME));
+        ImmutableList.of(row(1L, 0, null)),
+        sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
   }
 
   @TestTemplate
