@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.auth;
 
 import static java.util.Map.entry;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.Map;
@@ -229,10 +231,9 @@ class TestOAuth2Manager {
           .as("should not create refresh executor when no context credentials provided")
           .isNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
           .as("should not create session cache for empty context")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+          .isNull();
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -256,10 +257,12 @@ class TestOAuth2Manager {
           .as("should create refresh executor when contextual session created")
           .isNotNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should create session cache for context with token")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -282,10 +285,12 @@ class TestOAuth2Manager {
           .as("should create refresh executor when contextual session created")
           .isNotNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should create session cache for context with credentials")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
     }
     Mockito.verify(client)
         .postForm(
@@ -319,10 +324,12 @@ class TestOAuth2Manager {
           .as("should create refresh executor when contextual session created")
           .isNotNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should create session cache for context with token exchange")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
     }
     Mockito.verify(client)
         .postForm(
@@ -358,10 +365,12 @@ class TestOAuth2Manager {
       assertThat(contextualSession2).isNotSameAs(catalogSession);
       assertThat(contextualSession1).isSameAs(contextualSession2);
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should only create and cache contextual session once")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
       Mockito.verify(manager, times(1))
           .newSessionFromAccessToken("context-token", Map.of(), catalogSession);
     }
@@ -383,10 +392,9 @@ class TestOAuth2Manager {
           .as("should not create refresh executor when no table credentials provided")
           .isNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
           .as("should not create session cache for empty table credentials")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+          .isNull();
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -408,10 +416,12 @@ class TestOAuth2Manager {
           .as("should create refresh executor when table session created")
           .isNotNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should create session cache for table with token")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -432,10 +442,12 @@ class TestOAuth2Manager {
           .as("should create refresh executor when table session created")
           .isNotNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should create session cache for table with token exchange")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
     }
     Mockito.verify(client)
         .postForm(
@@ -470,10 +482,12 @@ class TestOAuth2Manager {
       assertThat(tableSession2).isNotSameAs(catalogSession);
       assertThat(tableSession1).isSameAs(tableSession2);
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
+          .asInstanceOf(type(Cache.class))
+          .extracting(Cache::asMap)
+          .asInstanceOf(map(String.class, AuthSession.class))
           .as("should only create and cache table session once")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+          .hasSize(1);
       Mockito.verify(manager, times(1))
           .newSessionFromAccessToken("table-token", Map.of("token", "table-token"), catalogSession);
     }
@@ -498,10 +512,9 @@ class TestOAuth2Manager {
           .as("should not create refresh executor when table credentials were filtered out")
           .isNull();
       assertThat(manager)
-          .extracting("sessionCache")
-          .asInstanceOf(type(AuthSessionCache.class))
+          .extracting("sessionCache.sessionCache")
           .as("should not create session cache for ignored table credentials")
-          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+          .isNull();
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -518,9 +531,9 @@ class TestOAuth2Manager {
     try (OAuth2Manager manager =
             new OAuth2Manager("test") {
               @Override
-              protected AuthSessionCache newSessionCache(
+              protected AuthManagerSessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
                   String name, Map<String, String> properties) {
-                return new AuthSessionCache(
+                return new DefaultAuthManagerSessionCache<>(
                     Duration.ofHours(1), Runnable::run, Ticker.systemTicker());
               }
 

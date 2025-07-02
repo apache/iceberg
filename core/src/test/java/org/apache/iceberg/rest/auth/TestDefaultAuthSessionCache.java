@@ -29,12 +29,12 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-class TestGenericAuthSessionCache {
+class TestDefaultAuthSessionCache {
 
   @Test
   void cachedHitsAndMisses() {
-    GenericAuthSessionCache<String, AuthSession> cache =
-        new GenericAuthSessionCache<>(Duration.ofHours(1), Runnable::run, System::nanoTime);
+    DefaultAuthManagerSessionCache<String, AuthSession> cache =
+        new DefaultAuthManagerSessionCache<>(Duration.ofHours(1), Runnable::run, System::nanoTime);
     AuthSession session1 = Mockito.mock(AuthSession.class);
     AuthSession session2 = Mockito.mock(AuthSession.class);
 
@@ -70,8 +70,8 @@ class TestGenericAuthSessionCache {
   @SuppressWarnings("unchecked")
   void cacheEviction() {
     AtomicLong ticker = new AtomicLong(0);
-    GenericAuthSessionCache<String, AuthSession> cache =
-        new GenericAuthSessionCache<>(Duration.ofHours(1), Runnable::run, ticker::get);
+    DefaultAuthManagerSessionCache<String, AuthSession> cache =
+        new DefaultAuthManagerSessionCache<>(Duration.ofHours(1), Runnable::run, ticker::get);
     AuthSession session1 = Mockito.mock(AuthSession.class);
 
     Function<String, AuthSession> loader = Mockito.mock(Function.class);

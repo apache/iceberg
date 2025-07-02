@@ -32,10 +32,10 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A cache for {@link AuthSession} instances. */
-public class GenericAuthSessionCache<K, V extends AuthSession> implements AutoCloseable {
+public class DefaultAuthManagerSessionCache<K, V extends AuthSession>
+    implements AuthManagerSessionCache<K, V> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(GenericAuthSessionCache.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultAuthManagerSessionCache.class);
 
   private final Duration sessionTimeout;
   private final Executor executor;
@@ -51,7 +51,7 @@ public class GenericAuthSessionCache<K, V extends AuthSession> implements AutoCl
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
-  public GenericAuthSessionCache(String name, Duration sessionTimeout) {
+  public DefaultAuthManagerSessionCache(String name, Duration sessionTimeout) {
     this(
         sessionTimeout,
         ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
@@ -68,20 +68,13 @@ public class GenericAuthSessionCache<K, V extends AuthSession> implements AutoCl
    *     default executor. The executor will be closed when this cache is closed.
    * @param ticker the ticker to use for the cache.
    */
-  GenericAuthSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
+  DefaultAuthManagerSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
   }
 
-  /**
-   * Returns a cached session for the given key, loading it with the given loader if it is not
-   * already cached.
-   *
-   * @param key the key to use for the session.
-   * @param loader the loader to use to load the session if it is not already cached.
-   * @return the cached session.
-   */
+  @Override
   public V cachedSession(K key, Function<K, V> loader) {
     return sessionCache().get(key, loader);
   }

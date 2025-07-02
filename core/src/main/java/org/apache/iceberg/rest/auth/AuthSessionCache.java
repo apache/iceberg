@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A cache for {@link AuthSession} instances.
  *
- * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link GenericAuthSessionCache}.
+ * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link AuthManagerSessionCache}.
  */
 @Deprecated
 public class AuthSessionCache implements AutoCloseable {
