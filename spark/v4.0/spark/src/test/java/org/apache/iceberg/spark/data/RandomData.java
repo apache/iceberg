@@ -42,7 +42,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -222,6 +221,10 @@ public class RandomData {
       return result;
     }
 
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
+    }
+
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = randomValue(primitive, random);
@@ -337,22 +340,16 @@ public class RandomData {
       return result;
     }
 
-    public VariantVal variant(Types.VariantType variant) {
-      // TIME, TIMESTAMPTZ_NANOS and TIMESTAMPNTZ_NANOS are not supported in Spark
-      Variant v =
-          RandomVariants.randomVariant(
-              random,
-              PhysicalType.TIME,
-              PhysicalType.TIMESTAMPTZ_NANOS,
-              PhysicalType.TIMESTAMPNTZ_NANOS);
+    public VariantVal variant(Types.VariantType type) {
+      Variant variant = RandomVariants.randomVariant(random);
 
-      byte[] metadataBytes = new byte[v.metadata().sizeInBytes()];
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
       ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-      v.metadata().writeTo(metadataBuffer, 0);
+      variant.metadata().writeTo(metadataBuffer, 0);
 
-      byte[] valueBytes = new byte[v.value().sizeInBytes()];
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
       ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-      v.value().writeTo(valueBuffer, 0);
+      variant.value().writeTo(valueBuffer, 0);
 
       return new VariantVal(valueBytes, metadataBytes);
     }

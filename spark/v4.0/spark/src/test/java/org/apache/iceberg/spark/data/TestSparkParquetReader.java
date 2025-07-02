@@ -18,14 +18,12 @@
  */
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantTestUtil;
-import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
@@ -68,9 +63,6 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTest {
-  private static final VariantMetadata EMPTY_METADATA =
-      Variants.metadata(VariantTestUtil.emptyMetadata());
-
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
@@ -145,14 +137,13 @@ public class TestSparkParquetReader extends AvroDataTest {
     }
   }
 
-  protected Table tableFromInputFile(InputFile inputFile, Schema schema, int formatVersion)
-      throws IOException {
+  protected Table tableFromInputFile(InputFile inputFile, Schema schema) throws IOException {
     HadoopTables tables = new HadoopTables();
     Table table =
         tables.create(
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(FORMAT_VERSION, String.valueOf(formatVersion)),
+            ImmutableMap.of(),
             java.nio.file.Files.createTempDirectory(temp, null).toFile().getCanonicalPath());
 
     table
@@ -203,7 +194,7 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     // Now we try to import that file as an Iceberg table to make sure Iceberg can read
     // Int96 end to end.
-    Table int96Table = tableFromInputFile(parquetInputFile, schema, 2);
+    Table int96Table = tableFromInputFile(parquetInputFile, schema);
     List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(int96Table).build());
 
     assertThat(tableRecords).hasSameSizeAs(rows);
@@ -261,67 +252,5 @@ public class TestSparkParquetReader extends AvroDataTest {
     assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: missing_str");
-  }
-
-  @Test
-  public void testUnshreddedVariants() throws IOException {
-    Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
-    StructType sparkSchema =
-        new StructType(
-            new StructField[] {
-              new StructField("v", DataTypes.VariantType, true, Metadata.empty())
-            });
-    List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
-    List<Record> tableRecords = writeAndRead(schema, sparkSchema, rows);
-
-    assertThat(tableRecords).hasSameSizeAs(rows);
-    for (int i = 0; i < tableRecords.size(); i++) {
-      GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
-    }
-  }
-
-  private static List<Record> writeAndRead(
-      Schema schema, StructType sparkSchema, List<InternalRow> rows) throws IOException {
-    Path tempDir = java.nio.file.Files.createTempDirectory("my-temp-dir-");
-    System.out.println("path:" + tempDir);
-    String outputFilePath = String.format("%s/%s", tempDir, "variant.parquet");
-    HadoopOutputFile outputFile =
-        HadoopOutputFile.fromPath(
-            new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
-
-    try (ParquetWriter<InternalRow> writer =
-        new NativeSparkWriterBuilder(outputFile)
-            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-            .set("spark.sql.parquet.writeLegacyFormat", "false")
-            .set("spark.sql.parquet.outputTimestampType", "INT96")
-            .set("spark.sql.parquet.fieldId.write.enabled", "true")
-            .build()) {
-      for (InternalRow row : rows) {
-        writer.write(row);
-      }
-    }
-
-    // Read as Iceberg tables
-    InputFile inputFile = Files.localInput(outputFilePath);
-    HadoopTables tables = new HadoopTables();
-    Table table =
-        tables.create(
-            schema,
-            PartitionSpec.unpartitioned(),
-            ImmutableMap.of(FORMAT_VERSION, String.valueOf(3)),
-            tempDir.toFile().getCanonicalPath());
-
-    table
-        .newAppend()
-        .appendFile(
-            DataFiles.builder(PartitionSpec.unpartitioned())
-                .withFormat(FileFormat.PARQUET)
-                .withInputFile(inputFile)
-                .withMetrics(ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault()))
-                .withFileSizeInBytes(inputFile.getLength())
-                .build())
-        .commit();
-
-    return Lists.newArrayList(IcebergGenerics.read(table).build());
   }
 }

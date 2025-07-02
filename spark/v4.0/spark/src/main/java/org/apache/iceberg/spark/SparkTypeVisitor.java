@@ -51,6 +51,7 @@ class SparkTypeVisitor<T> {
 
     } else if (type instanceof VariantType) {
       return visitor.variant((VariantType) type);
+
     } else if (type instanceof UserDefinedType) {
       throw new UnsupportedOperationException("User-defined types are not supported");
 
