@@ -33,7 +33,11 @@ public class DigestUtil {
 
   private DigestUtil() {}
 
-  /** Computes a digest string that can be used for equality check of the input object array. */
+  /**
+   * Computes a digest string for the input object array that can be used for equality check. For
+   * example, given input A and input B are computed to digest strings D1 and D2 respectively, and
+   * if we tested D1.equals(D2) == true, then A can be guaranteed equal to B, and vice versa.
+   */
   public static String computeDigest(Object... objects) {
     final MessageDigest md5;
     try {
