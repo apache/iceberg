@@ -22,7 +22,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
@@ -87,12 +86,6 @@ class RegisterTableProcedure extends BaseProcedure {
         "Cannot handle an empty argument metadata_file");
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
-    if (tableName.hasNamespace() && icebergCatalog instanceof SupportsNamespaces) {
-      Preconditions.checkArgument(
-          ((SupportsNamespaces) icebergCatalog).namespaceExists(tableName.namespace()),
-          "Cannot register table to nonexistent target namespace %s",
-          tableName.namespace());
-    }
     Table table = icebergCatalog.registerTable(tableName, metadataFile);
     Long currentSnapshotId = null;
     Long totalDataFiles = null;
