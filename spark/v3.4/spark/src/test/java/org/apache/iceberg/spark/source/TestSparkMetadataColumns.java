@@ -323,9 +323,9 @@ public class TestSparkMetadataColumns extends TestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     assertEquals(
-            "Rows must match",
-            ImmutableList.of(row(1L, 0, null)),
-            sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
+        "Rows must match",
+        ImmutableList.of(row(1L, 0, null)),
+        sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
   }
 
   private void createAndInitTable() throws IOException {
