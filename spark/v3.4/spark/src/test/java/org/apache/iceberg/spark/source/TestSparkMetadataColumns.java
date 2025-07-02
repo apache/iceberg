@@ -316,6 +316,18 @@ public class TestSparkMetadataColumns extends TestBase {
         sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
+  @TestTemplate
+  public void testIdentifierFields() {
+    table.updateSchema().setIdentifierFields("id").commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
+
+    assertEquals(
+            "Rows must match",
+            ImmutableList.of(row(1L, 0, null)),
+            sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
+  }
+
   private void createAndInitTable() throws IOException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
