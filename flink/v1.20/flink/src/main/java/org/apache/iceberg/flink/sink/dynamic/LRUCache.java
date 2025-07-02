@@ -42,6 +42,10 @@ class LRUCache<K, V> extends LinkedHashMap<K, V> {
   private final int maximumSize;
   private final Consumer<Map.Entry<K, V>> evictionCallback;
 
+  LRUCache(int maximumSize) {
+    this(maximumSize, ignored -> {});
+  }
+
   LRUCache(int maximumSize, Consumer<Map.Entry<K, V>> evictionCallback) {
     super(Math.min(maximumSize, DEFAULT_INITIAL_CAPACITY), DEFAULT_LOAD_FACTOR, true);
     this.maximumSize = maximumSize;
