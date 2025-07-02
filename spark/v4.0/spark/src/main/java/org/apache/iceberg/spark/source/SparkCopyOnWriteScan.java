@@ -179,15 +179,17 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   protected String digest() {
-    final List<String> orderedFilterLocations =
-        filteredLocations.stream().sorted().collect(Collectors.toList());
+    final String orderedFilterLocationsString =
+        filteredLocations == null
+            ? null
+            : filteredLocations.stream().sorted().collect(Collectors.toList()).toString();
     return DigestUtil.computeDigest(
         getClass().getName(),
         table().name(),
         readSchema().toString(),
         filterExpressions().toString(),
         snapshotId(),
-        orderedFilterLocations.toString());
+        orderedFilterLocationsString);
   }
 
   @Override
