@@ -22,20 +22,21 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class PartitionStats implements StructLike {
 
-  static final int STATS_COUNT = 12;
+  static final int STATS_COUNT = 13;
 
   private StructLike partition;
   private int specId;
   private long dataRecordCount;
   private int dataFileCount;
   private long totalDataFileSizeInBytes;
-  private long positionDeleteRecordCount;
+  private long positionDeleteRecordCount; // also includes dv record count as per spec
   private int positionDeleteFileCount;
   private long equalityDeleteRecordCount;
   private int equalityDeleteFileCount;
   private Long totalRecordCount; // null by default
   private Long lastUpdatedAt; // null by default
   private Long lastUpdatedSnapshotId; // null by default
+  private int dvCount;
 
   public PartitionStats(StructLike partition, int specId) {
     this.partition = partition;
@@ -90,6 +91,10 @@ public class PartitionStats implements StructLike {
     return lastUpdatedSnapshotId;
   }
 
+  public int dvCount() {
+    return dvCount;
+  }
+
   /**
    * Updates the partition stats from the data/delete file.
    *
@@ -109,7 +114,12 @@ public class PartitionStats implements StructLike {
         break;
       case POSITION_DELETES:
         this.positionDeleteRecordCount += file.recordCount();
-        this.positionDeleteFileCount += 1;
+        if (file.format() == FileFormat.PUFFIN) {
+          this.dvCount += 1;
+        } else {
+          this.positionDeleteFileCount += 1;
+        }
+
         break;
       case EQUALITY_DELETES:
         this.equalityDeleteRecordCount += file.recordCount();
@@ -156,7 +166,12 @@ public class PartitionStats implements StructLike {
         break;
       case POSITION_DELETES:
         this.positionDeleteRecordCount -= file.recordCount();
-        this.positionDeleteFileCount -= 1;
+        if (file.format() == FileFormat.PUFFIN) {
+          this.dvCount -= 1;
+        } else {
+          this.positionDeleteFileCount -= 1;
+        }
+
         break;
       case EQUALITY_DELETES:
         this.equalityDeleteRecordCount -= file.recordCount();
@@ -200,6 +215,8 @@ public class PartitionStats implements StructLike {
     if (entry.lastUpdatedAt != null) {
       updateSnapshotInfo(entry.lastUpdatedSnapshotId, entry.lastUpdatedAt);
     }
+
+    this.dvCount += entry.dvCount;
   }
 
   private void updateSnapshotInfo(long snapshotId, long updatedAt) {
@@ -241,6 +258,8 @@ public class PartitionStats implements StructLike {
         return javaClass.cast(lastUpdatedAt);
       case 11:
         return javaClass.cast(lastUpdatedSnapshotId);
+      case 12:
+        return javaClass.cast(dvCount);
       default:
         throw new UnsupportedOperationException("Unknown position: " + pos);
     }
@@ -288,6 +307,9 @@ public class PartitionStats implements StructLike {
         break;
       case 11:
         this.lastUpdatedSnapshotId = (Long) value;
+        break;
+      case 12:
+        this.dvCount = value == null ? 0 : (int) value;
         break;
       default:
         throw new UnsupportedOperationException("Unknown position: " + pos);

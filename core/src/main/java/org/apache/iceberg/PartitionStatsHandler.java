@@ -30,7 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
@@ -281,14 +280,7 @@ public class PartitionStatsHandler {
 
     CloseableIterable<StructLike> records =
         InternalData.read(fileFormat, inputFile).project(schema).build();
-
-    if (schema.findField(DV_COUNT.name()) == null) {
-      return CloseableIterable.transform(
-          records, record -> recordToPartitionStats(record, PartitionStats::new));
-    } else {
-      return CloseableIterable.transform(
-          records, record -> recordToPartitionStats(record, PartitionStatsV3::new));
-    }
+    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
   }
 
   private static OutputFile newPartitionStatsFile(
@@ -308,14 +300,12 @@ public class PartitionStatsHandler {
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
   }
 
-  private static PartitionStats recordToPartitionStats(
-      StructLike record, BiFunction<StructLike, Integer, PartitionStats> statBuilder) {
+  private static PartitionStats recordToPartitionStats(StructLike record) {
     int pos = 0;
     PartitionStats stats =
-        statBuilder.apply(
+        new PartitionStats(
             record.get(pos++, StructLike.class), // partition
             record.get(pos++, Integer.class)); // spec id
-
     for (; pos < record.size(); pos++) {
       stats.set(pos, record.get(pos, Object.class));
     }
@@ -411,7 +401,6 @@ public class PartitionStatsHandler {
 
   private static PartitionMap<PartitionStats> computeStats(
       Table table, List<ManifestFile> manifests, boolean incremental) {
-    int version = TableUtil.formatVersion(table);
     StructType partitionType = Partitioning.partitionType(table);
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
@@ -421,7 +410,7 @@ public class PartitionStatsHandler {
         .run(
             manifest ->
                 statsByManifest.add(
-                    collectStatsForManifest(table, version, manifest, partitionType, incremental)));
+                    collectStatsForManifest(table, manifest, partitionType, incremental)));
 
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     for (PartitionMap<PartitionStats> stats : statsByManifest) {
@@ -432,11 +421,7 @@ public class PartitionStatsHandler {
   }
 
   private static PartitionMap<PartitionStats> collectStatsForManifest(
-      Table table,
-      int version,
-      ManifestFile manifest,
-      StructType partitionType,
-      boolean incremental) {
+      Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
     List<String> projection = BaseScan.scanColumns(manifest.content());
     try (ManifestReader<?> reader = ManifestFiles.open(manifest, table.io()).select(projection)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
@@ -454,10 +439,7 @@ public class PartitionStatsHandler {
             statsMap.computeIfAbsent(
                 specId,
                 ((PartitionData) file.partition()).copy(),
-                () ->
-                    version > 2
-                        ? new PartitionStatsV3(key, specId)
-                        : new PartitionStats(key, specId));
+                () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
           // Live can have both added and existing entries. Consider only added entries for
           // incremental compute as existing entries was already included in previous compute.
