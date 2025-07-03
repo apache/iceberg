@@ -317,14 +317,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
     String fileListPath = stagingDir + RESULT_LOCATION;
-
-    // We need ResolvingFileIO in case we are writing to another filesystem.
-    try (FileIO io = fetchResolvingFileIO()) {
-      // Write using native Iceberg FileIO instead of relying on Spark writers
-      OutputFile fileList = io.newOutputFile(fileListPath);
-      writeAsCsv(filesToMove, fileList);
-    }
-
+    OutputFile fileList = table.io().newOutputFile(fileListPath);
+    writeAsCsv(filesToMove, fileList);
     return fileListPath;
   }
 
@@ -338,18 +332,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-  }
-
-  private FileIO fetchResolvingFileIO() {
-    FileIO tableIO = table.io();
-    ResolvingFileIO resolvingIO = (ResolvingFileIO) CatalogUtil.loadFileIO(
-            ResolvingFileIO.class.getName(),
-            tableIO.properties(),
-            null);
-    if (tableIO instanceof final HadoopConfigurable hadoopConfigurable) {
-      resolvingIO.setConf(hadoopConfigurable.getConf());
-    }
-    return resolvingIO;
   }
 
   private Set<Snapshot> deltaSnapshots(TableMetadata startMetadata, Set<Snapshot> allSnapshots) {
