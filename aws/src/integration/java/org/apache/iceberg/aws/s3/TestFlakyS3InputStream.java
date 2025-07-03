@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.listAnalyticsAcceleratorLibraryProperties;
 import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +29,8 @@ import static org.mockito.Mockito.spy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,6 +38,7 @@ import java.util.stream.Stream;
 import javax.net.ssl.SSLException;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -59,8 +63,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 public class TestFlakyS3InputStream extends TestS3InputStream {
 
-  private final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
-
   private AtomicInteger resetForRetryCounter;
 
   @BeforeEach
@@ -69,10 +71,15 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
   }
 
   @Override
-  SeekableInputStream newInputStream(S3Client s3Client, S3AsyncClient s3AsyncClient, S3URI uri) {
+  SeekableInputStream newInputStream(
+      S3Client s3Client,
+      S3AsyncClient s3AsyncClient,
+      S3URI uri,
+      Map<String, String> aalProperties) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     if (s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()) {
       PrefixedS3Client client =
-          new PrefixedS3Client("s3", Map.of(), () -> s3Client, () -> s3AsyncClient);
+          new PrefixedS3Client("s3", aalProperties, () -> s3Client, () -> s3AsyncClient);
       return AnalyticsAcceleratorUtil.newStream(
           S3InputFile.fromLocation(uri.location(), client, MetricsContext.nullMetrics()));
     }
@@ -86,96 +93,132 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
   }
 
   @ParameterizedTest
-  @MethodSource("retryableExceptions")
-  public void testReadWithFlakyStreamRetrySucceed(IOException exception) throws Exception {
+  @MethodSource("aalPropertiesAndRetryableExceptions")
+  public void testReadWithFlakyStreamRetrySucceed(
+      Map<String, String> aalProperties, IOException exception) throws Exception {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator Library does not support retries at read level");
     testRead(
         flakyStreamClient(new AtomicInteger(3), exception),
-        flakyStreamAsyncClient(new AtomicInteger(3), exception));
+        flakyStreamAsyncClient(new AtomicInteger(3), exception),
+        aalProperties);
     assertThat(resetForRetryCounter.get()).isEqualTo(2);
   }
 
   @ParameterizedTest
-  @MethodSource("retryableExceptions")
-  public void testReadWithFlakyStreamExhaustedRetries(IOException exception) {
+  @MethodSource("aalPropertiesAndRetryableExceptions")
+  public void testReadWithFlakyStreamExhaustedRetries(
+      Map<String, String> aalProperties, IOException exception) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator Library does not support retries at read level");
     assertThatThrownBy(
             () ->
                 testRead(
                     flakyStreamClient(new AtomicInteger(5), exception),
-                    flakyStreamAsyncClient(new AtomicInteger(5), exception)))
+                    flakyStreamAsyncClient(new AtomicInteger(5), exception),
+                    aalProperties))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
     assertThat(resetForRetryCounter.get()).isEqualTo(3);
   }
 
   @ParameterizedTest
-  @MethodSource("nonRetryableExceptions")
-  public void testReadWithFlakyStreamNonRetryableException(IOException exception) {
+  @MethodSource("aalPropertiesAndNonRetryableExceptions")
+  public void testReadWithFlakyStreamNonRetryableException(
+      Map<String, String> aalProperties, IOException exception) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator wraps IOException differently");
     assertThatThrownBy(
             () ->
                 testRead(
                     flakyStreamClient(new AtomicInteger(3), exception),
-                    flakyStreamAsyncClient(new AtomicInteger(3), exception)))
+                    flakyStreamAsyncClient(new AtomicInteger(3), exception),
+                    aalProperties))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
     assertThat(resetForRetryCounter.get()).isEqualTo(0);
   }
 
   @ParameterizedTest
-  @MethodSource("retryableExceptions")
-  public void testSeekWithFlakyStreamRetrySucceed(IOException exception) throws Exception {
+  @MethodSource("aalPropertiesAndRetryableExceptions")
+  public void testSeekWithFlakyStreamRetrySucceed(
+      Map<String, String> aalProperties, IOException exception) throws Exception {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator Library does not support retries at read level");
     testSeek(
         flakyStreamClient(new AtomicInteger(3), exception),
-        flakyStreamAsyncClient(new AtomicInteger(3), exception));
+        flakyStreamAsyncClient(new AtomicInteger(3), exception),
+        aalProperties);
     assertThat(resetForRetryCounter.get()).isEqualTo(2);
   }
 
   @ParameterizedTest
-  @MethodSource("retryableExceptions")
-  public void testSeekWithFlakyStreamExhaustedRetries(IOException exception) {
+  @MethodSource("aalPropertiesAndRetryableExceptions")
+  public void testSeekWithFlakyStreamExhaustedRetries(
+      Map<String, String> aalProperties, IOException exception) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator Library does not support retries at read level");
     assertThatThrownBy(
             () ->
                 testSeek(
                     flakyStreamClient(new AtomicInteger(5), exception),
-                    flakyStreamAsyncClient(new AtomicInteger(5), exception)))
+                    flakyStreamAsyncClient(new AtomicInteger(5), exception),
+                    aalProperties))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
     assertThat(resetForRetryCounter.get()).isEqualTo(3);
   }
 
   @ParameterizedTest
-  @MethodSource("nonRetryableExceptions")
-  public void testSeekWithFlakyStreamNonRetryableException(IOException exception) {
+  @MethodSource("aalPropertiesAndNonRetryableExceptions")
+  public void testSeekWithFlakyStreamNonRetryableException(
+      Map<String, String> aalProperties, IOException exception) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
     skipIfAnalyticsAcceleratorEnabled(
         s3FileIOProperties, "Analytics Accelerator wraps IOException differently");
     assertThatThrownBy(
             () ->
                 testSeek(
                     flakyStreamClient(new AtomicInteger(3), exception),
-                    flakyStreamAsyncClient(new AtomicInteger(3), exception)))
+                    flakyStreamAsyncClient(new AtomicInteger(3), exception),
+                    aalProperties))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
     assertThat(resetForRetryCounter.get()).isEqualTo(0);
   }
 
-  private static Stream<Arguments> retryableExceptions() {
-    return Stream.of(
-        Arguments.of(
-            new SocketTimeoutException("socket timeout exception"),
-            new SSLException("some ssl exception")));
+  private static Stream<Arguments> aalPropertiesAndRetryableExceptions() {
+    return aalPropertiesAndExceptions(true);
   }
 
-  private static Stream<Arguments> nonRetryableExceptions() {
-    return Stream.of(Arguments.of(new IOException("some generic non-retryable IO exception")));
+  private static Stream<Arguments> aalPropertiesAndNonRetryableExceptions() {
+    return aalPropertiesAndExceptions(false);
+  }
+
+  private static Stream<Arguments> aalPropertiesAndExceptions(boolean retryable) {
+    List<IOException> exceptions = retryable ? retryableExceptions() : nonRetryableExceptions();
+    List<Arguments> results = Lists.newArrayList();
+    for (Map<String, String> aalProperties : listAnalyticsAcceleratorLibraryProperties()) {
+      for (IOException exception : exceptions) {
+        results.add(Arguments.of(aalProperties, exception));
+      }
+    }
+    return results.stream();
+  }
+
+  private static List<IOException> retryableExceptions() {
+    return Arrays.asList(
+        new SocketTimeoutException("socket timeout exception"),
+        new SSLException("some ssl exception"));
+  }
+
+  private static List<IOException> nonRetryableExceptions() {
+    return Arrays.asList(new IOException("some generic non-retryable IO exception"));
   }
 
   private S3ClientWrapper flakyStreamClient(AtomicInteger counter, IOException failure) {
