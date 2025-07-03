@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -55,11 +59,13 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -77,12 +83,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Tuple2;
 
 public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePath>
     implements RewriteTablePath {
@@ -312,20 +316,40 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
-    List<Tuple2<String, String>> fileList =
-        filesToMove.stream()
-            .map(p -> Tuple2.apply(p.first(), p.second()))
-            .collect(Collectors.toList());
-    Dataset<Tuple2<String, String>> fileListDataset =
-        spark().createDataset(fileList, Encoders.tuple(Encoders.STRING(), Encoders.STRING()));
     String fileListPath = stagingDir + RESULT_LOCATION;
-    fileListDataset
-        .repartition(1)
-        .write()
-        .mode(SaveMode.Overwrite)
-        .format("csv")
-        .save(fileListPath);
+
+    // We need ResolvingFileIO in case we are writing to another filesystem.
+    try (FileIO io = fetchResolvingFileIO()) {
+      // Write using native Iceberg FileIO instead of relying on Spark writers
+      OutputFile fileList = io.newOutputFile(fileListPath);
+      writeAsCsv(filesToMove, fileList);
+    }
+
     return fileListPath;
+  }
+
+  private void writeAsCsv(Set<Pair<String, String>> csvRows, OutputFile outputFile) {
+    try (BufferedWriter writer = new BufferedWriter(
+            new OutputStreamWriter(outputFile.create(), StandardCharsets.UTF_8))) {
+      for (Pair<String, String> pair : csvRows) {
+        writer.write(String.join(",", pair.first(), pair.second()));
+        writer.newLine();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
+  private FileIO fetchResolvingFileIO() {
+    FileIO tableIO = table.io();
+    ResolvingFileIO resolvingIO = (ResolvingFileIO) CatalogUtil.loadFileIO(
+            ResolvingFileIO.class.getName(),
+            tableIO.properties(),
+            null);
+    if (tableIO instanceof final HadoopConfigurable hadoopConfigurable) {
+      resolvingIO.setConf(hadoopConfigurable.getConf());
+    }
+    return resolvingIO;
   }
 
   private Set<Snapshot> deltaSnapshots(TableMetadata startMetadata, Set<Snapshot> allSnapshots) {
