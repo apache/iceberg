@@ -322,10 +322,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return fileListPath;
   }
 
-  private void writeAsCsv(Set<Pair<String, String>> csvRows, OutputFile outputFile) {
+  private void writeAsCsv(Set<Pair<String, String>> rows, OutputFile outputFile) {
     try (BufferedWriter writer = new BufferedWriter(
             new OutputStreamWriter(outputFile.createOrOverwrite(), StandardCharsets.UTF_8))) {
-      for (Pair<String, String> pair : csvRows) {
+      for (Pair<String, String> pair : rows) {
         writer.write(String.join(",", pair.first(), pair.second()));
         writer.newLine();
       }
