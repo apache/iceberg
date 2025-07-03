@@ -48,13 +48,14 @@ import org.apache.spark.unsafe.types.UTF8String;
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
 
-  ChangelogRowReader(SparkInputPartition partition) {
+  ChangelogRowReader(SparkInputPartition partition, boolean cacheDeleteFilesOnExecutors) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive());
+        partition.isCaseSensitive(),
+        cacheDeleteFilesOnExecutors);
   }
 
   ChangelogRowReader(
@@ -62,13 +63,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
         taskGroup,
         tableSchema,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
-        caseSensitive);
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
   }
 
   @Override
@@ -111,14 +114,17 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
 
   CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
     String filePath = task.file().location();
-    SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+    SparkDeleteFilter deletes =
+        new SparkDeleteFilter(
+            filePath, task.deletes(), counter(), true, cacheDeleteFilesOnExecutors());
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
     String filePath = task.file().location();
     SparkDeleteFilter deletes =
-        new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
+        new SparkDeleteFilter(
+            filePath, task.existingDeletes(), counter(), true, cacheDeleteFilesOnExecutors());
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 

@@ -56,6 +56,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -76,6 +77,7 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
   }
 
   @Override
@@ -120,16 +122,18 @@ class SparkBatch implements Batch {
   @Override
   public PartitionReaderFactory createReaderFactory() {
     if (useCometBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
+      return new SparkColumnarReaderFactory(
+          parquetBatchReadConf(ParquetReaderType.COMET), cacheDeleteFilesOnExecutors);
 
     } else if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
+      return new SparkColumnarReaderFactory(
+          parquetBatchReadConf(ParquetReaderType.ICEBERG), cacheDeleteFilesOnExecutors);
 
     } else if (useOrcBatchReads()) {
-      return new SparkColumnarReaderFactory(orcBatchReadConf());
+      return new SparkColumnarReaderFactory(orcBatchReadConf(), cacheDeleteFilesOnExecutors);
 
     } else {
-      return new SparkRowReaderFactory();
+      return new SparkRowReaderFactory(cacheDeleteFilesOnExecutors);
     }
   }
 

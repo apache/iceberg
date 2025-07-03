@@ -43,6 +43,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   BaseBatchReader(
       Table table,
@@ -51,10 +52,12 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf) {
+      OrcBatchReadConf orcConf,
+      boolean cacheDeleteFilesOnExecutors) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -76,6 +79,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         throw new UnsupportedOperationException(
             "Format: " + format + " not supported for batched reads");
     }
+  }
+
+  protected boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   private CloseableIterable<ColumnarBatch> newParquetIterable(
