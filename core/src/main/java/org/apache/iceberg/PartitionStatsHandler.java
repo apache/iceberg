@@ -108,6 +108,32 @@ public class PartitionStatsHandler {
   @Deprecated
   public static Schema schema(StructType unifiedPartitionType) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    return v2Schema(unifiedPartitionType);
+  }
+
+  /**
+   * Generates the partition stats file schema for a given format version based on a combined
+   * partition type which considers all specs in a table.
+   *
+   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
+   *     Partitioning#partitionType(Table)}.
+   * @return a schema that corresponds to the provided unified partition type.
+   */
+  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
+    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    Preconditions.checkState(
+        formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
+        "Invalid format version: %d",
+        formatVersion);
+
+    if (formatVersion <= 2) {
+      return v2Schema(unifiedPartitionType);
+    }
+
+    return v3Schema(unifiedPartitionType);
+  }
+
+  private static Schema v2Schema(StructType unifiedPartitionType) {
     return new Schema(
         NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
         SPEC_ID,
@@ -123,21 +149,7 @@ public class PartitionStatsHandler {
         LAST_UPDATED_SNAPSHOT_ID);
   }
 
-  /**
-   * Generates the partition stats file schema for a given format version based on a combined
-   * partition type which considers all specs in a table.
-   *
-   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
-   *     Partitioning#partitionType(Table)}.
-   * @return a schema that corresponds to the provided unified partition type.
-   */
-  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
-
-    if (formatVersion <= 2) {
-      return schema(unifiedPartitionType);
-    }
-
+  private static Schema v3Schema(StructType unifiedPartitionType) {
     return new Schema(
         NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
         SPEC_ID,

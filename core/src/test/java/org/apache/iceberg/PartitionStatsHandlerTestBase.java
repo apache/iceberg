@@ -57,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -414,9 +415,8 @@ public abstract class PartitionStatsHandlerTestBase {
             0));
 
     DeleteFile posDeletes = null;
-    DeleteFile deleteVectors = null;
-    if (formatVersion == 3) {
-      deleteVectors = commitDVs(testTable, dataFile3);
+    if (formatVersion >= 3) {
+      posDeletes = commitDVs(testTable, dataFile3);
     } else if (formatVersion == 2) {
       posDeletes = commitPositionDeletes(testTable);
     }
@@ -463,14 +463,14 @@ public abstract class PartitionStatsHandlerTestBase {
             3 * dataFile3.recordCount(),
             3,
             3 * dataFile3.fileSizeInBytes(),
-            formatVersion == 3 ? deleteVectors.recordCount() : posDeletes.recordCount(),
-            formatVersion == 3 ? 0 : 1, // pos delete file count
+            posDeletes.recordCount(),
+            ContentFileUtil.isDV(posDeletes) ? 0 : 1, // pos delete file count
             0L,
             0,
             null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId(),
-            formatVersion == 3 ? 1 : 0), // dv count
+            ContentFileUtil.isDV(posDeletes) ? 1 : 0), // dv count
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
             0,
@@ -515,7 +515,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
     assertThat(
             PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion),
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
                 testTable.io().newInputFile(statisticsFile.path())))
         .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
 
@@ -528,7 +528,7 @@ public abstract class PartitionStatsHandlerTestBase {
     // stats must be decremented to zero as all the files removed from table.
     assertThat(
             PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion),
+                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
                 testTable.io().newInputFile(statisticsFileNew.path())))
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
   }
