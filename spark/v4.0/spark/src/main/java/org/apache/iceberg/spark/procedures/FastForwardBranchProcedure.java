@@ -33,7 +33,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class FastForwardBranchProcedure extends BaseProcedure {
 
-  public static final String NAME = "fast_forward";
+  static final String NAME = "fast_forward";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -92,7 +92,7 @@ public class FastForwardBranchProcedure extends BaseProcedure {
           long snapshotAfter = table.snapshot(from).snapshotId();
           InternalRow outputRow =
               newInternalRow(UTF8String.fromString(from), snapshotBefore, snapshotAfter);
-          return asIteratorScan(OUTPUT_TYPE, outputRow);
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 

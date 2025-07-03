@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
-  public static final String NAME = "expire_snapshots";
+  static final String NAME = "expire_snapshots";
 
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsProcedure.class);
 
@@ -164,7 +164,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
           ExpireSnapshots.Result result = action.execute();
 
-          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 

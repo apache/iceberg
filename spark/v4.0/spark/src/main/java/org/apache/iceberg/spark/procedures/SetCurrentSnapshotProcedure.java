@@ -46,7 +46,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class SetCurrentSnapshotProcedure extends BaseProcedure {
 
-  public static final String NAME = "set_current_snapshot";
+  static final String NAME = "set_current_snapshot";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -109,7 +109,7 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
           table.manageSnapshots().setCurrentSnapshot(targetSnapshotId).commit();
 
           InternalRow outputRow = newInternalRow(previousSnapshotId, targetSnapshotId);
-          return asIteratorScan(OUTPUT_TYPE, outputRow);
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 

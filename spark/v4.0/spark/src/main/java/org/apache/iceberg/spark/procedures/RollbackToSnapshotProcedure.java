@@ -42,7 +42,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class RollbackToSnapshotProcedure extends BaseProcedure {
 
-  public static final String NAME = "rollback_to_snapshot";
+  static final String NAME = "rollback_to_snapshot";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -98,7 +98,7 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
           table.manageSnapshots().rollbackTo(snapshotId).commit();
 
           InternalRow outputRow = newInternalRow(previousSnapshot.snapshotId(), snapshotId);
-          return asIteratorScan(OUTPUT_TYPE, outputRow);
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 

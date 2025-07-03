@@ -42,7 +42,7 @@ import org.apache.spark.sql.types.StructType;
  */
 public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
 
-  public static final String NAME = "rewrite_position_delete_files";
+  static final String NAME = "rewrite_position_delete_files";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -112,7 +112,7 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
           }
 
           RewritePositionDeleteFiles.Result result = action.execute();
-          return asIteratorScan(OUTPUT_TYPE, toOutputRow(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRow(result));
         });
   }
 

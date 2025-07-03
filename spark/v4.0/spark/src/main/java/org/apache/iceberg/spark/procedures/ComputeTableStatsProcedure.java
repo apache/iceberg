@@ -43,7 +43,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class ComputeTableStatsProcedure extends BaseProcedure {
 
-  public static final String NAME = "compute_table_stats";
+  static final String NAME = "compute_table_stats";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -110,7 +110,7 @@ public class ComputeTableStatsProcedure extends BaseProcedure {
           }
 
           ComputeTableStats.Result result = action.execute();
-          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 

@@ -193,6 +193,7 @@ abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
       this.rows = rows;
     }
 
+    @Override
     public StructType readSchema() {
       return this.readSchema;
     }
@@ -203,7 +204,7 @@ abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
     }
   }
 
-  protected Iterator<Scan> asIteratorScan(StructType readSchema, InternalRow... rows) {
+  protected Iterator<Scan> asScanIterator(StructType readSchema, InternalRow... rows) {
     return Collections.<Scan>singleton(new Result(readSchema, rows)).iterator();
   }
 

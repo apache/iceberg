@@ -37,7 +37,7 @@ import org.apache.spark.sql.types.StructType;
 
 public class AncestorsOfProcedure extends BaseProcedure {
 
-  public static final String NAME = "ancestors_of";
+  static final String NAME = "ancestors_of";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -101,7 +101,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
         Lists.newArrayList(
             SnapshotUtil.ancestorIdsBetween(toSnapshotId, null, icebergTable::snapshot));
 
-    return asIteratorScan(OUTPUT_TYPE, toOutputRow(icebergTable, snapshotIds));
+    return asScanIterator(OUTPUT_TYPE, toOutputRow(icebergTable, snapshotIds));
   }
 
   @Override

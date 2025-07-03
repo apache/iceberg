@@ -50,7 +50,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
-  public static final String NAME = "rewrite_data_files";
+  static final String NAME = "rewrite_data_files";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -131,7 +131,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           RewriteDataFiles.Result result = action.execute();
 
-          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 

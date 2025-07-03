@@ -39,7 +39,7 @@ import org.apache.spark.sql.types.StructType;
 
 class MigrateTableProcedure extends BaseProcedure {
 
-  public static final String NAME = "migrate";
+  static final String NAME = "migrate";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -123,7 +123,7 @@ class MigrateTableProcedure extends BaseProcedure {
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();
-    return asIteratorScan(OUTPUT_TYPE, newInternalRow(result.migratedDataFilesCount()));
+    return asScanIterator(OUTPUT_TYPE, newInternalRow(result.migratedDataFilesCount()));
   }
 
   @Override

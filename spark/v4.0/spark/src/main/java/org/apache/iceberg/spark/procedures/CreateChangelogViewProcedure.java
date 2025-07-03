@@ -88,7 +88,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class CreateChangelogViewProcedure extends BaseProcedure {
 
-  public static final String NAME = "create_changelog_view";
+  static final String NAME = "create_changelog_view";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -181,7 +181,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     df.createOrReplaceTempView(viewName);
 
-    return asIteratorScan(OUTPUT_TYPE, toOutputRows(viewName));
+    return asScanIterator(OUTPUT_TYPE, toOutputRows(viewName));
   }
 
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {

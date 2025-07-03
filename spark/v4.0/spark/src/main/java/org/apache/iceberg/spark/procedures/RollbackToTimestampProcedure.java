@@ -43,7 +43,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class RollbackToTimestampProcedure extends BaseProcedure {
 
-  public static final String NAME = "rollback_to_timestamp";
+  static final String NAME = "rollback_to_timestamp";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -103,7 +103,7 @@ class RollbackToTimestampProcedure extends BaseProcedure {
 
           InternalRow outputRow =
               newInternalRow(previousSnapshot.snapshotId(), currentSnapshot.snapshotId());
-          return asIteratorScan(OUTPUT_TYPE, outputRow);
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 

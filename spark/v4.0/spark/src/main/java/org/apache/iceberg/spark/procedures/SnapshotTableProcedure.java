@@ -37,7 +37,7 @@ import org.apache.spark.sql.types.StructType;
 
 class SnapshotTableProcedure extends BaseProcedure {
 
-  public static final String NAME = "snapshot";
+  static final String NAME = "snapshot";
 
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
       ProcedureParameter.in("source_table", DataTypes.StringType).build();
@@ -122,7 +122,7 @@ class SnapshotTableProcedure extends BaseProcedure {
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();
-    return asIteratorScan(OUTPUT_TYPE, newInternalRow(result.importedDataFilesCount()));
+    return asScanIterator(OUTPUT_TYPE, newInternalRow(result.importedDataFilesCount()));
   }
 
   @Override

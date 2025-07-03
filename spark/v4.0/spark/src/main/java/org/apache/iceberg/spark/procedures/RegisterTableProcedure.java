@@ -40,7 +40,7 @@ import org.apache.spark.sql.types.StructType;
 
 class RegisterTableProcedure extends BaseProcedure {
 
-  public static final String NAME = "register_table";
+  static final String NAME = "register_table";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -111,7 +111,7 @@ class RegisterTableProcedure extends BaseProcedure {
           Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
 
-    return asIteratorScan(
+    return asScanIterator(
         OUTPUT_TYPE, newInternalRow(currentSnapshotId, totalRecords, totalDataFiles));
   }
 

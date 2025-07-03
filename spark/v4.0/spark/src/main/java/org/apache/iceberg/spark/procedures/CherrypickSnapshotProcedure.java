@@ -43,7 +43,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class CherrypickSnapshotProcedure extends BaseProcedure {
 
-  public static final String NAME = "cherrypick_snapshot";
+  static final String NAME = "cherrypick_snapshot";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -91,7 +91,7 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     long snapshotId = args.getLong(1);
 
-    return asIteratorScan(
+    return asScanIterator(
         OUTPUT_TYPE,
         modifyIcebergTable(
             tableIdent,

@@ -54,7 +54,7 @@ import scala.runtime.BoxedUnit;
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
-  public static final String NAME = "remove_orphan_files";
+  static final String NAME = "remove_orphan_files";
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesProcedure.class);
 
@@ -205,7 +205,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
           DeleteOrphanFiles.Result result = action.execute();
 
-          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 

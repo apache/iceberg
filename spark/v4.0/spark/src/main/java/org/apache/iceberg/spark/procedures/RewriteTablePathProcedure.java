@@ -36,7 +36,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class RewriteTablePathProcedure extends BaseProcedure {
 
-  public static final String NAME = "rewrite_table_path";
+  static final String NAME = "rewrite_table_path";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -121,7 +121,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
             action.stagingLocation(stagingLocation);
           }
 
-          return asIteratorScan(
+          return asScanIterator(
               OUTPUT_TYPE,
               toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute()));
         });

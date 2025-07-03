@@ -56,7 +56,7 @@ import scala.collection.JavaConverters;
 
 class AddFilesProcedure extends BaseProcedure {
 
-  public static final String NAME = "add_files";
+  static final String NAME = "add_files";
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.in("table", DataTypes.StringType).build();
@@ -132,7 +132,7 @@ class AddFilesProcedure extends BaseProcedure {
     int parallelism = input.asInt(PARALLELISM, 1);
     Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
 
-    return asIteratorScan(
+    return asScanIterator(
         OUTPUT_TYPE,
         importToIceberg(
             tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism));

@@ -199,8 +199,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     record2.put("data", "b");
     File outputFile = temp.resolve("test.avro").toFile();
 
-    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(schema);
-    DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<>(datumWriter);
+    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter(schema);
+    DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter(datumWriter);
     dataFileWriter.create(schema, outputFile);
     dataFileWriter.append(record1);
     dataFileWriter.append(record2);

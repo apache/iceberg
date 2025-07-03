@@ -155,7 +155,7 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
     assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
-        .isInstanceOf(RuntimeException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith(
             "Couldn't load table '%s' in catalog '%s'", tableIdent, catalogName);
   }

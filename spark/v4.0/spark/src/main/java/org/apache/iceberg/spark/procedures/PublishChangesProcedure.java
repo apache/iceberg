@@ -47,7 +47,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class PublishChangesProcedure extends BaseProcedure {
 
-  public static final String NAME = "publish_changes";
+  static final String NAME = "publish_changes";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -114,7 +114,7 @@ class PublishChangesProcedure extends BaseProcedure {
           Snapshot currentSnapshot = table.currentSnapshot();
 
           InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
-          return asIteratorScan(OUTPUT_TYPE, outputRow);
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 

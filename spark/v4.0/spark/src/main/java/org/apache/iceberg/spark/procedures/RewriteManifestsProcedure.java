@@ -46,7 +46,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class RewriteManifestsProcedure extends BaseProcedure {
 
-  public static final String NAME = "rewrite_manifests";
+  static final String NAME = "rewrite_manifests";
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -113,7 +113,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
           RewriteManifests.Result result = action.execute();
 
-          return asIteratorScan(OUTPUT_TYPE, toOutputRows(result));
+          return asScanIterator(OUTPUT_TYPE, toOutputRows(result));
         });
   }
 
