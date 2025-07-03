@@ -27,6 +27,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedTwoInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
@@ -183,7 +184,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
   @Test
   void testPrefixMismatchModeDelete() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
-        testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.DELETE)) {
+        testHarness(PrefixMismatchMode.DELETE)) {
       testHarness.open();
 
       testHarness.processElement1(AUTHORITY_FILE_1, EVENT_TIME);
@@ -198,7 +199,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
   @Test
   void testPrefixMismatchModeIgnore() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
-        testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.IGNORE)) {
+        testHarness(PrefixMismatchMode.IGNORE)) {
       testHarness.open();
 
       testHarness.processElement1(AUTHORITY_FILE_1, EVENT_TIME);
@@ -213,7 +214,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
   @Test
   void testMultiAuthority() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness =
-        testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.IGNORE)) {
+        testHarness(PrefixMismatchMode.IGNORE)) {
       testHarness.open();
 
       testHarness.processElement1(TWO_AUTHORITY_SCHEME_FILE_1, EVENT_TIME);
@@ -227,8 +228,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
   }
 
   private static KeyedTwoInputStreamOperatorTestHarness<String, String, String, String> testHarness(
-      org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode)
-      throws Exception {
+      PrefixMismatchMode prefixMismatchMode) throws Exception {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
         new OrphanFilesDetector(prefixMismatchMode, EQUAL_SCHEMES, EQUAL_AUTHORITIES),
         (KeySelector<String, String>)
@@ -240,6 +240,6 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
 
   private static KeyedTwoInputStreamOperatorTestHarness<String, String, String, String>
       testHarness() throws Exception {
-    return testHarness(org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.ERROR);
+    return testHarness(PrefixMismatchMode.ERROR);
   }
 }
