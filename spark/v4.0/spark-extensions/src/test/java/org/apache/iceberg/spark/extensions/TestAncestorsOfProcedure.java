@@ -145,6 +145,8 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testInvalidAncestorOfCases() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
     assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage(
@@ -154,9 +156,9 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
-        .isInstanceOf(RuntimeException.class)
+    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', '1.1')", catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith(
-            "Couldn't load table '%s' in catalog '%s'", tableIdent, catalogName);
+            "[CAST_INVALID_INPUT] The value '1.1' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
   }
 }
