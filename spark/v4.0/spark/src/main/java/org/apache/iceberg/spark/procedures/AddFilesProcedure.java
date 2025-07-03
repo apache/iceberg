@@ -59,17 +59,15 @@ class AddFilesProcedure extends BaseProcedure {
   static final String NAME = "add_files";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
-      ProcedureParameter.in("source_table", DataTypes.StringType).build();
+      requiredInParameter("source_table", DataTypes.StringType);
   private static final ProcedureParameter PARTITION_FILTER_PARAM =
-      ProcedureParameter.in("partition_filter", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("partition_filter", STRING_MAP);
   private static final ProcedureParameter CHECK_DUPLICATE_FILES_PARAM =
-      ProcedureParameter.in("check_duplicate_files", DataTypes.BooleanType)
-          .defaultValue("NULL")
-          .build();
+      optionalInParameter("check_duplicate_files", DataTypes.BooleanType);
   private static final ProcedureParameter PARALLELISM =
-      ProcedureParameter.in("parallelism", DataTypes.IntegerType).defaultValue("NULL").build();
+      optionalInParameter("parallelism", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {

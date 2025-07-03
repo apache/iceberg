@@ -60,21 +60,17 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("older_than", DataTypes.TimestampType).defaultValue("NULL").build(),
-        ProcedureParameter.in("location", DataTypes.StringType).defaultValue("NULL").build(),
-        ProcedureParameter.in("dry_run", DataTypes.BooleanType).defaultValue("NULL").build(),
-        ProcedureParameter.in("max_concurrent_deletes", DataTypes.IntegerType)
-            .defaultValue("NULL")
-            .build(),
-        ProcedureParameter.in("file_list_view", DataTypes.StringType).defaultValue("NULL").build(),
-        ProcedureParameter.in("equal_schemes", STRING_MAP).defaultValue("NULL").build(),
-        ProcedureParameter.in("equal_authorities", STRING_MAP).defaultValue("NULL").build(),
-        ProcedureParameter.in("prefix_mismatch_mode", DataTypes.StringType)
-            .defaultValue("NULL")
-            .build(),
+        requiredInParameter("table", DataTypes.StringType),
+        optionalInParameter("older_than", DataTypes.TimestampType),
+        optionalInParameter("location", DataTypes.StringType),
+        optionalInParameter("dry_run", DataTypes.BooleanType),
+        optionalInParameter("max_concurrent_deletes", DataTypes.IntegerType),
+        optionalInParameter("file_list_view", DataTypes.StringType),
+        optionalInParameter("equal_schemes", STRING_MAP),
+        optionalInParameter("equal_authorities", STRING_MAP),
+        optionalInParameter("prefix_mismatch_mode", DataTypes.StringType),
         // List files with prefix operations. Default is false.
-        ProcedureParameter.in("prefix_listing", DataTypes.BooleanType).defaultValue("NULL").build(),
+        optionalInParameter("prefix_listing", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =

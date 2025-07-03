@@ -47,8 +47,8 @@ class RollbackToTimestampProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("timestamp", DataTypes.TimestampType).build()
+        requiredInParameter("table", DataTypes.StringType),
+        requiredInParameter("timestamp", DataTypes.TimestampType)
       };
 
   private static final StructType OUTPUT_TYPE =

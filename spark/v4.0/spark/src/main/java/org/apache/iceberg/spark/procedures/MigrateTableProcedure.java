@@ -42,15 +42,15 @@ class MigrateTableProcedure extends BaseProcedure {
   static final String NAME = "migrate";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter PROPERTIES_PARAM =
-      ProcedureParameter.in("properties", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("properties", STRING_MAP);
   private static final ProcedureParameter DROP_BACKUP_PARAM =
-      ProcedureParameter.in("drop_backup", DataTypes.BooleanType).defaultValue("NULL").build();
+      optionalInParameter("drop_backup", DataTypes.BooleanType);
   private static final ProcedureParameter BACKUP_TABLE_NAME_PARAM =
-      ProcedureParameter.in("backup_table_name", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("backup_table_name", DataTypes.StringType);
   private static final ProcedureParameter PARALLELISM_PARAM =
-      ProcedureParameter.in("parallelism", DataTypes.IntegerType).defaultValue("NULL").build();
+      optionalInParameter("parallelism", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {

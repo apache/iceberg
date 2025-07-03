@@ -50,9 +50,9 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("use_caching", DataTypes.BooleanType).defaultValue("NULL").build(),
-        ProcedureParameter.in("spec_id", DataTypes.IntegerType).defaultValue("NULL").build()
+        requiredInParameter("table", DataTypes.StringType),
+        optionalInParameter("use_caching", DataTypes.BooleanType),
+        optionalInParameter("spec_id", DataTypes.IntegerType)
       };
 
   // counts are not nullable since the action result is never null

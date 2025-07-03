@@ -53,16 +53,12 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("older_than", DataTypes.TimestampType).defaultValue("NULL").build(),
-        ProcedureParameter.in("retain_last", DataTypes.IntegerType).defaultValue("NULL").build(),
-        ProcedureParameter.in("max_concurrent_deletes", DataTypes.IntegerType)
-            .defaultValue("NULL")
-            .build(),
-        ProcedureParameter.in("stream_results", DataTypes.BooleanType).defaultValue("NULL").build(),
-        ProcedureParameter.in("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
-            .defaultValue("NULL")
-            .build()
+        requiredInParameter("table", DataTypes.StringType),
+        optionalInParameter("older_than", DataTypes.TimestampType),
+        optionalInParameter("retain_last", DataTypes.IntegerType),
+        optionalInParameter("max_concurrent_deletes", DataTypes.IntegerType),
+        optionalInParameter("stream_results", DataTypes.BooleanType),
+        optionalInParameter("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
       };
 
   private static final StructType OUTPUT_TYPE =

@@ -51,8 +51,8 @@ class PublishChangesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("wap_id", DataTypes.StringType).build()
+        requiredInParameter("table", DataTypes.StringType),
+        requiredInParameter("wap_id", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =

@@ -91,17 +91,17 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   static final String NAME = "create_changelog_view";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter CHANGELOG_VIEW_PARAM =
-      ProcedureParameter.in("changelog_view", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("changelog_view", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.in("options", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("options", STRING_MAP);
   private static final ProcedureParameter COMPUTE_UPDATES_PARAM =
-      ProcedureParameter.in("compute_updates", DataTypes.BooleanType).defaultValue("NULL").build();
+      optionalInParameter("compute_updates", DataTypes.BooleanType);
   private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
-      ProcedureParameter.in("identifier_columns", STRING_ARRAY).defaultValue("NULL").build();
+      optionalInParameter("identifier_columns", STRING_ARRAY);
   private static final ProcedureParameter NET_CHANGES =
-      ProcedureParameter.in("net_changes", DataTypes.BooleanType).defaultValue("NULL").build();
+      optionalInParameter("net_changes", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {

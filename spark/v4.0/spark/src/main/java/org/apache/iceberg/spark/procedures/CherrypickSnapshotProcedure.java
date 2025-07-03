@@ -47,8 +47,8 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("snapshot_id", DataTypes.LongType).build()
+        requiredInParameter("table", DataTypes.StringType),
+        requiredInParameter("snapshot_id", DataTypes.LongType)
       };
 
   private static final StructType OUTPUT_TYPE =

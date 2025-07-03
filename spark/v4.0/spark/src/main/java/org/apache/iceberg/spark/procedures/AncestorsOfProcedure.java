@@ -40,9 +40,9 @@ public class AncestorsOfProcedure extends BaseProcedure {
   static final String NAME = "ancestors_of";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SNAPSHOT_ID_PARAM =
-      ProcedureParameter.in("snapshot_id", DataTypes.LongType).defaultValue("NULL").build();
+      optionalInParameter("snapshot_id", DataTypes.LongType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};

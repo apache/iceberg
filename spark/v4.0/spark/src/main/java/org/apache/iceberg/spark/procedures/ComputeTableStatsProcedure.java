@@ -46,11 +46,11 @@ public class ComputeTableStatsProcedure extends BaseProcedure {
   static final String NAME = "compute_table_stats";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SNAPSHOT_ID_PARAM =
-      ProcedureParameter.in("snapshot_id", DataTypes.LongType).defaultValue("NULL").build();
+      optionalInParameter("snapshot_id", DataTypes.LongType);
   private static final ProcedureParameter COLUMNS_PARAM =
-      ProcedureParameter.in("columns", STRING_ARRAY).defaultValue("NULL").build();
+      optionalInParameter("columns", STRING_ARRAY);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM, COLUMNS_PARAM};

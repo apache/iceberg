@@ -53,15 +53,15 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   static final String NAME = "rewrite_data_files";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter STRATEGY_PARAM =
-      ProcedureParameter.in("strategy", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("strategy", DataTypes.StringType);
   private static final ProcedureParameter SORT_ORDER_PARAM =
-      ProcedureParameter.in("sort_order", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("sort_order", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.in("options", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("options", STRING_MAP);
   private static final ProcedureParameter WHERE_PARAM =
-      ProcedureParameter.in("where", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("where", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {

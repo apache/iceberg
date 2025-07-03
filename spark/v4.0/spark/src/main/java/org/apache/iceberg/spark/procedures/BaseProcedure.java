@@ -47,6 +47,7 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.connector.read.LocalScan;
 import org.apache.spark.sql.connector.read.Scan;
@@ -62,6 +63,19 @@ abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
   protected static final DataType STRING_MAP =
       DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
   protected static final DataType STRING_ARRAY = DataTypes.createArrayType(DataTypes.StringType);
+
+  protected static ProcedureParameter requiredInParameter(String name, DataType dataType) {
+    return ProcedureParameter.in(name, dataType).build();
+  }
+
+  protected static ProcedureParameter optionalInParameter(String name, DataType dataType) {
+    return optionalInParameter(name, dataType, "NULL");
+  }
+
+  protected static ProcedureParameter optionalInParameter(
+      String name, DataType dataType, String defaultValue) {
+    return ProcedureParameter.in(name, dataType).defaultValue(defaultValue).build();
+  }
 
   private final SparkSession spark;
   private final TableCatalog tableCatalog;

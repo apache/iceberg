@@ -50,9 +50,9 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.in("table", DataTypes.StringType).build(),
-        ProcedureParameter.in("snapshot_id", DataTypes.LongType).defaultValue("NULL").build(),
-        ProcedureParameter.in("ref", DataTypes.StringType).defaultValue("NULL").build()
+        requiredInParameter("table", DataTypes.StringType),
+        optionalInParameter("snapshot_id", DataTypes.LongType),
+        optionalInParameter("ref", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =

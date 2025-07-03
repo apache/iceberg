@@ -45,11 +45,11 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
   static final String NAME = "rewrite_position_delete_files";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.in("options", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("options", STRING_MAP);
   private static final ProcedureParameter WHERE_PARAM =
-      ProcedureParameter.in("where", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("where", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM, WHERE_PARAM};

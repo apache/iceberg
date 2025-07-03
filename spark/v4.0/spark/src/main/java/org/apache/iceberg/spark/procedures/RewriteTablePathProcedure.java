@@ -39,17 +39,17 @@ public class RewriteTablePathProcedure extends BaseProcedure {
   static final String NAME = "rewrite_table_path";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SOURCE_PREFIX_PARAM =
-      ProcedureParameter.in("source_prefix", DataTypes.StringType).build();
+      requiredInParameter("source_prefix", DataTypes.StringType);
   private static final ProcedureParameter TARGET_PREFIX_PARAM =
-      ProcedureParameter.in("target_prefix", DataTypes.StringType).build();
+      requiredInParameter("target_prefix", DataTypes.StringType);
   private static final ProcedureParameter START_VERSION_PARAM =
-      ProcedureParameter.in("start_version", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("start_version", DataTypes.StringType);
   private static final ProcedureParameter END_VERSION_PARM =
-      ProcedureParameter.in("end_version", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("end_version", DataTypes.StringType);
   private static final ProcedureParameter STAGING_LOCATION_PARAM =
-      ProcedureParameter.in("staging_location", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("staging_location", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {

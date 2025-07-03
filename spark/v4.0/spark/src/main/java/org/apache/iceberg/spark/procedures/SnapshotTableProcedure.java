@@ -40,15 +40,15 @@ class SnapshotTableProcedure extends BaseProcedure {
   static final String NAME = "snapshot";
 
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
-      ProcedureParameter.in("source_table", DataTypes.StringType).build();
+      requiredInParameter("source_table", DataTypes.StringType);
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.in("table", DataTypes.StringType).build();
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter LOCATION_PARAM =
-      ProcedureParameter.in("location", DataTypes.StringType).defaultValue("NULL").build();
+      optionalInParameter("location", DataTypes.StringType);
   private static final ProcedureParameter PROPERTIES_PARAM =
-      ProcedureParameter.in("properties", STRING_MAP).defaultValue("NULL").build();
+      optionalInParameter("properties", STRING_MAP);
   private static final ProcedureParameter PARALLELISM_PARAM =
-      ProcedureParameter.in("parallelism", DataTypes.IntegerType).defaultValue("NULL").build();
+      optionalInParameter("parallelism", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
