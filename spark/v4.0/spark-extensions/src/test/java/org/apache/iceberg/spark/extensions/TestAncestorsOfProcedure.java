@@ -156,7 +156,8 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', '1.1')", catalogName, tableIdent))
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.ancestors_of('%s', '1.1')", catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith(
             "[CAST_INVALID_INPUT] The value '1.1' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
