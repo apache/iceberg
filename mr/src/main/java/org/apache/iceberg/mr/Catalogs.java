@@ -65,7 +65,7 @@ public final class Catalogs {
 
   public static final String ICEBERG_DEFAULT_CATALOG_NAME = "default_iceberg";
   public static final String ICEBERG_HADOOP_TABLE_NAME = "location_based_table";
-  static final String NAME = "name";
+  public static final String NAME = "name";
   public static final String LOCATION = "location";
 
   private static final String NO_CATALOG_TYPE = "no catalog";
