@@ -54,4 +54,8 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
   default FileScanTask asFileScanTask() {
     return this;
   }
+
+  default long minRecordCountEstimate() {
+    return deletes().isEmpty() ? file().recordCount() : 0;
+  }
 }

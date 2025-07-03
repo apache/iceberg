@@ -35,6 +35,8 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.events.LimitAwareScanTaskEvent;
+import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -107,25 +109,35 @@ public class TableScanUtil {
         planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
   }
 
-  @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
       CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, 0);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
+      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost, int limit) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
-
-    // capture manifests which can be closed after scan planning
-    CloseableIterable<T> splitTasks =
-        CloseableIterable.combine(
-            FluentIterable.from(tasks)
-                .transformAndConcat(
-                    task -> {
-                      if (task instanceof SplittableScanTask<?>) {
-                        return ((SplittableScanTask<? extends T>) task).split(splitSize);
-                      } else {
-                        return ImmutableList.of(task);
-                      }
-                    }),
-            tasks);
+    CloseableIterable<T> splitTasks;
+    if (limit > 0) {
+      // optimize scan planning by stopping early when estimated row count reaches limit
+      splitTasks = splitScanTasksWithLimitPushDown(tasks, splitSize, limit);
+    } else {
+      // capture manifests which can be closed after scan planning
+      splitTasks =
+          CloseableIterable.combine(
+              FluentIterable.from(tasks)
+                  .transformAndConcat(
+                      task -> {
+                        if (task instanceof SplittableScanTask<?>) {
+                          return ((SplittableScanTask<? extends T>) task).split(splitSize);
+                        } else {
+                          return ImmutableList.of(task);
+                        }
+                      }),
+              tasks);
+    }
 
     Function<T, Long> weightFunc =
         task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
@@ -248,5 +260,49 @@ public class TableScanUtil {
     Preconditions.checkArgument(splitSize > 0, "Split size must be > 0: %s", splitSize);
     Preconditions.checkArgument(lookback > 0, "Split planning lookback must be > 0: %s", lookback);
     Preconditions.checkArgument(openFileCost >= 0, "File open cost must be >= 0: %s", openFileCost);
+  }
+
+  private static <T> CloseableIterable<T> splitScanTasksWithLimitPushDown(
+      CloseableIterable<T> tasks, long splitSize, int limit) {
+
+    List<T> candidateTasks = Lists.newArrayList();
+    long remainingLimit = limit;
+
+    for (T task : tasks) {
+      if (task instanceof SplittableScanTask<?>) {
+        @SuppressWarnings("unchecked")
+        SplittableScanTask<? extends T> splittable = (SplittableScanTask<? extends T>) task;
+        for (T splitTask : splittable.split(splitSize)) {
+          candidateTasks.add(splitTask);
+          remainingLimit = updateRemainingLimit(splitTask, remainingLimit);
+          if (remainingLimit <= 0) {
+            break;
+          }
+        }
+      } else {
+        candidateTasks.add(task);
+        remainingLimit = updateRemainingLimit(task, remainingLimit);
+      }
+
+      if (remainingLimit <= 0) {
+        break;
+      }
+    }
+
+    return CloseableIterable.combine(candidateTasks, tasks);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> long updateRemainingLimit(T task, long remainingLimit) {
+    if (task instanceof ScanTask) {
+      ScanTask scanTask = (ScanTask) task;
+      if (scanTask.isFileScanTask()) {
+        FileScanTask fileTask = scanTask.asFileScanTask();
+        long estimate = fileTask.minRecordCountEstimate();
+        Listeners.notifyAll(new LimitAwareScanTaskEvent(fileTask.toString(), estimate));
+        return remainingLimit - estimate;
+      }
+    }
+    return remainingLimit;
   }
 }
