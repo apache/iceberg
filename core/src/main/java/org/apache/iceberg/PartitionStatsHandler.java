@@ -166,6 +166,12 @@ public class PartitionStatsHandler {
       stats =
           computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
     } else {
+      if (statisticsFile.snapshotId() == snapshotId) {
+        // no-op
+        LOG.info("Returning existing statistics file for snapshot {}", snapshotId);
+        return statisticsFile;
+      }
+
       try {
         stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
       } catch (InvalidStatsFileException exception) {
