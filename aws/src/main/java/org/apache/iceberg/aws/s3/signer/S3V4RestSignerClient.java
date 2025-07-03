@@ -97,7 +97,7 @@ public abstract class S3V4RestSignerClient
                   IoUtils.closeQuietlyV2(authManager, null);
                   IoUtils.closeQuietlyV2(httpClient, null);
                 },
-                "S3V4RestSignerClient-shutdown-hook"));
+                "s3-signer-shutdown-hook"));
   }
 
   public abstract Map<String, String> properties();

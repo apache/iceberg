@@ -156,7 +156,6 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
-
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession parent = new OAuth2Util.AuthSession(headers, config);
@@ -169,6 +168,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     if (refreshClient == null) {
       refreshClient = sharedClient.withAuthSession(parent);
     }
+
     if (sessionCache == null) {
       sessionCache = newSessionCache(name, properties);
     }
