@@ -324,7 +324,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private void writeAsCsv(Set<Pair<String, String>> csvRows, OutputFile outputFile) {
     try (BufferedWriter writer = new BufferedWriter(
-            new OutputStreamWriter(outputFile.create(), StandardCharsets.UTF_8))) {
+            new OutputStreamWriter(outputFile.createOrOverwrite(), StandardCharsets.UTF_8))) {
       for (Pair<String, String> pair : csvRows) {
         writer.write(String.join(",", pair.first(), pair.second()));
         writer.newLine();
