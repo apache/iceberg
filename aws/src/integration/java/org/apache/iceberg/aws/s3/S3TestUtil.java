@@ -20,6 +20,11 @@ package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.params.provider.Arguments;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,5 +54,25 @@ public class S3TestUtil {
       LOG.warn(message);
     }
     assumeThat(!isAcceleratorEnabled).describedAs(message).isTrue();
+  }
+
+  public static Stream<Arguments> analyticsAcceleratorLibraryProperties() {
+    return listAnalyticsAcceleratorLibraryProperties().stream().map(Arguments::of);
+  }
+
+  public static List<Map<String, String>> listAnalyticsAcceleratorLibraryProperties() {
+    return List.of(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, Boolean.toString(true)),
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, Boolean.toString(false)));
+  }
+
+  public static Map<String, String> mergeProperties(
+      Map<String, String> aalProperties, Map<String, String> testProperties) {
+    return ImmutableMap.<String, String>builder()
+        .putAll(aalProperties)
+        .putAll(testProperties)
+        .build();
   }
 }

@@ -41,6 +41,8 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.metrics.MetricCollector;
@@ -158,12 +160,13 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
         .isEqualTo(2);
   }
 
-  @Test
-  public void testNoRetryAwarenessCorruptsTable() {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNoRetryAwarenessCorruptsTable(Map<String, String> aalProperties) {
     // This test exists to replicate the issue the prior test validates the fix for
     // See https://github.com/apache/iceberg/issues/7151
     skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(),
+        new S3FileIOProperties(aalProperties),
         "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
     String namespace = createNamespace();
     String tableName = createTable(namespace);

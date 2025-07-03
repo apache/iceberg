@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.mergeProperties;
 import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -169,16 +170,19 @@ public class TestS3FileIO {
     }
   }
 
-  @Test
-  public void testNewInputFile() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputFile(Map<String, String> aalProperties) throws IOException {
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(mergeProperties(aalProperties, properties));
     String location = "s3://bucket/path/to/file.txt";
     byte[] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
 
-    InputFile in = s3FileIO.newInputFile(location);
+    InputFile in = testS3FileIO.newInputFile(location);
     assertThat(in.exists()).isFalse();
 
-    OutputFile out = s3FileIO.newOutputFile(location);
+    OutputFile out = testS3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtil.writeFully(os, ByteBuffer.wrap(expected));
     }
@@ -192,9 +196,10 @@ public class TestS3FileIO {
 
     assertThat(actual).isEqualTo(expected);
 
-    s3FileIO.deleteFile(in);
+    testS3FileIO.deleteFile(in);
 
-    assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
+    assertThat(testS3FileIO.newInputFile(location).exists()).isFalse();
+    testS3FileIO.close();
   }
 
   @Test
@@ -280,8 +285,11 @@ public class TestS3FileIO {
     assertThat(post.get().serviceName()).isEqualTo("s3");
   }
 
-  @Test
-  public void testPrefixList() {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testPrefixList(Map<String, String> aalProperties) {
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(mergeProperties(aalProperties, properties));
     String prefix = "s3://bucket/path/to/list";
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -292,12 +300,14 @@ public class TestS3FileIO {
               String scalePrefix = String.format("%s/%s/", prefix, scale);
 
               createRandomObjects(scalePrefix, scale);
-              assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
+              assertThat(Streams.stream(testS3FileIO.listPrefix(scalePrefix)).count())
                   .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count()).isEqualTo(totalFiles);
+    assertThat(Streams.stream(testS3FileIO.listPrefix(prefix)).count()).isEqualTo(totalFiles);
+    testS3FileIO.deletePrefix(prefix);
+    testS3FileIO.close();
   }
 
   /**
@@ -401,24 +411,33 @@ public class TestS3FileIO {
         });
   }
 
-  @Test
-  public void testReadMissingLocation() {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testReadMissingLocation(Map<String, String> aalProperties) {
+    final Map<String, String> testProperties = mergeProperties(aalProperties, this.properties);
     skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(properties),
+        new S3FileIOProperties(testProperties),
         "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(testProperties);
     String location = "s3://bucket/path/to/data.parquet";
-    InputFile in = s3FileIO.newInputFile(location);
+    InputFile in = testS3FileIO.newInputFile(location);
 
     assertThatThrownBy(() -> in.newStream().read())
         .isInstanceOf(NotFoundException.class)
         .hasMessage("Location does not exist: " + location);
+    testS3FileIO.close();
   }
 
-  @Test
-  public void testMissingTableMetadata() {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testMissingTableMetadata(Map<String, String> aalProperties) {
+    final Map<String, String> testProperties = mergeProperties(aalProperties, this.properties);
     skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(properties),
+        new S3FileIOProperties(testProperties),
         "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(testProperties);
     Map<String, String> conf = Maps.newHashMap();
     conf.put(
         CatalogProperties.URI,
@@ -437,7 +456,7 @@ public class TestS3FileIO {
       BaseTable table = (BaseTable) catalog.createTable(ident, schema);
 
       // delete the current metadata
-      s3FileIO.deleteFile(table.operations().current().metadataFileLocation());
+      testS3FileIO.deleteFile(table.operations().current().metadataFileLocation());
 
       long start = System.currentTimeMillis();
       // to test NotFoundException, load the table again. refreshing the existing table doesn't
@@ -449,6 +468,7 @@ public class TestS3FileIO {
       long duration = System.currentTimeMillis() - start;
       assertThat(duration < 10_000).as("Should take less than 10 seconds").isTrue();
     }
+    testS3FileIO.close();
   }
 
   @Test
@@ -583,8 +603,11 @@ public class TestS3FileIO {
     assertThat(result).isInstanceOf(S3FileIO.class);
   }
 
-  @Test
-  public void testInputFileWithDataFile() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testInputFileWithDataFile(Map<String, String> aalProperties) throws IOException {
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(mergeProperties(aalProperties, properties));
     String location = "s3://bucket/path/to/data-file.parquet";
     DataFile dataFile =
         DataFiles.builder(PartitionSpec.unpartitioned())
@@ -593,22 +616,27 @@ public class TestS3FileIO {
             .withFormat(FileFormat.PARQUET)
             .withRecordCount(123L)
             .build();
-    OutputStream outputStream = s3FileIO.newOutputFile(location).create();
+    OutputStream outputStream = testS3FileIO.newOutputFile(location).create();
     byte[] data = "testing".getBytes();
     outputStream.write(data);
     outputStream.close();
 
-    InputFile inputFile = s3FileIO.newInputFile(dataFile);
+    InputFile inputFile = testS3FileIO.newInputFile(dataFile);
     reset(s3mock);
 
     assertThat(inputFile.getLength())
         .as("Data file length should be determined from the file size stats")
         .isEqualTo(123L);
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
+    testS3FileIO.deleteFile(location);
+    testS3FileIO.close();
   }
 
-  @Test
-  public void testInputFileWithManifest() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testInputFileWithManifest(Map<String, String> aalProperties) throws IOException {
+    final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
+    testS3FileIO.initialize(mergeProperties(aalProperties, properties));
     String dataFileLocation = "s3://bucket/path/to/data-file-2.parquet";
     DataFile dataFile =
         DataFiles.builder(PartitionSpec.unpartitioned())
@@ -618,17 +646,19 @@ public class TestS3FileIO {
             .withRecordCount(123L)
             .build();
     String manifestLocation = "s3://bucket/path/to/manifest.avro";
-    OutputFile outputFile = s3FileIO.newOutputFile(manifestLocation);
+    OutputFile outputFile = testS3FileIO.newOutputFile(manifestLocation);
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(PartitionSpec.unpartitioned(), outputFile);
     writer.add(dataFile);
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
-    InputFile inputFile = s3FileIO.newInputFile(manifest);
+    InputFile inputFile = testS3FileIO.newInputFile(manifest);
     reset(s3mock);
 
     assertThat(inputFile.getLength()).isEqualTo(manifest.length());
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
+    testS3FileIO.deleteFile(dataFileLocation);
+    testS3FileIO.close();
   }
 
   @ParameterizedTest
