@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.mergeProperties;
 import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -50,6 +51,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
@@ -160,18 +163,21 @@ public class TestS3FileIOIntegration {
     clientFactory.initialize(Maps.newHashMap());
   }
 
-  @Test
-  public void testNewInputStream() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputStream(Map<String, String> aalProperties) throws Exception {
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(ImmutableMap.of());
+    s3FileIO.initialize(aalProperties);
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testS3FileIOWithS3FileIOAwsClientFactoryImpl() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testS3FileIOWithS3FileIOAwsClientFactoryImpl(Map<String, String> aalProperties)
+      throws Exception {
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
@@ -180,38 +186,45 @@ public class TestS3FileIOIntegration {
     properties.put(
         S3FileIOProperties.CLIENT_FACTORY,
         "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
-    s3FileIO.initialize(properties);
+    s3FileIO.initialize(mergeProperties(aalProperties, properties));
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testS3FileIOWithDefaultAwsClientFactoryImpl() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testS3FileIOWithDefaultAwsClientFactoryImpl(Map<String, String> aalProperties)
+      throws Exception {
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO();
-    s3FileIO.initialize(Maps.newHashMap());
+    s3FileIO.initialize(aalProperties);
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testNewInputStreamWithAccessPoint() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputStreamWithAccessPoint(Map<String, String> aalProperties)
+      throws Exception {
     requireAccessPointSupport();
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> testProperties =
         ImmutableMap.of(
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
-            testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
+            testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName));
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testCrossRegionAccessEnabled() throws Exception {
-    Map<String, String> properties =
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testCrossRegionAccessEnabled(Map<String, String> aalProperties) throws Exception {
+    Map<String, String> testProperties =
         ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
+    Map<String, String> properties = mergeProperties(aalProperties, testProperties);
     skipIfAnalyticsAcceleratorEnabled(
         new S3FileIOProperties(properties),
         "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access");
@@ -236,11 +249,14 @@ public class TestS3FileIOIntegration {
     }
   }
 
-  @Test
-  public void testNewInputStreamWithCrossRegionAccessPoint() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputStreamWithCrossRegionAccessPoint(Map<String, String> aalProperties)
+      throws Exception {
     requireAccessPointSupport();
-    Map<String, String> properties =
+    Map<String, String> testProperties =
         ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    Map<String, String> properties = mergeProperties(aalProperties, testProperties);
     skipIfAnalyticsAcceleratorEnabled(
         new S3FileIOProperties(properties),
         "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access Points");
@@ -258,38 +274,36 @@ public class TestS3FileIOIntegration {
             .build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> accessPointProperties =
         ImmutableMap.of(
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
-            testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
+            testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName));
+    s3FileIO.initialize(mergeProperties(aalProperties, accessPointProperties));
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputStreamWithMultiRegionAccessPoint(Map<String, String> aalProperties)
+      throws Exception {
     assumeThat(multiRegionAccessPointAlias).isNotEmpty();
-    clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
+    skipIfAnalyticsAcceleratorEnabled(
+        new S3FileIOProperties(aalProperties),
+        "S3 Async Clients needed for Analytics Accelerator Library does not support Cross Region Access");
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    clientFactory.initialize(mergeProperties(aalProperties, testProperties));
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> accessPointProperties =
         ImmutableMap.of(
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testMultiRegionAccessPointARN(
-                AwsIntegTestUtil.testRegion(), multiRegionAccessPointAlias)));
-    validateRead(s3FileIO);
-  }
-
-  @Test
-  public void testNewInputStreamWithAnalyticsAccelerator() throws Exception {
-    s3.putObject(
-        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
-        RequestBody.fromBytes(contentBytes));
-    S3FileIO s3FileIO = new S3FileIO();
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, String.valueOf(true)));
+                AwsIntegTestUtil.testRegion(), multiRegionAccessPointAlias));
+    s3FileIO.initialize(mergeProperties(aalProperties, accessPointProperties));
     validateRead(s3FileIO);
   }
 
@@ -407,11 +421,13 @@ public class TestS3FileIOIntegration {
     }
   }
 
-  @Test
-  public void testServerSideS3Encryption() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testServerSideS3Encryption(Map<String, String> aalProperties) throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_S3));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_S3);
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -420,16 +436,18 @@ public class TestS3FileIOIntegration {
     assertThat(response.serverSideEncryption()).isEqualTo(ServerSideEncryption.AES256);
   }
 
-  @Test
-  public void testServerSideKmsEncryption() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testServerSideKmsEncryption(Map<String, String> aalProperties) throws Exception {
     requireKMSEncryptionSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> testProperties =
         ImmutableMap.of(
             S3FileIOProperties.SSE_TYPE,
             S3FileIOProperties.SSE_TYPE_KMS,
             S3FileIOProperties.SSE_KEY,
-            kmsKeyArn));
+            kmsKeyArn);
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -439,12 +457,15 @@ public class TestS3FileIOIntegration {
     assertThat(kmsKeyArn).isEqualTo(response.ssekmsKeyId());
   }
 
-  @Test
-  public void testServerSideKmsEncryptionWithDefaultKey() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testServerSideKmsEncryptionWithDefaultKey(Map<String, String> aalProperties)
+      throws Exception {
     requireKMSEncryptionSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_KMS));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_KMS);
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -461,16 +482,19 @@ public class TestS3FileIOIntegration {
             aliasListEntry -> assertThat(aliasListEntry.aliasName()).isEqualTo("alias/aws/s3"));
   }
 
-  @Test
-  public void testDualLayerServerSideKmsEncryption() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDualLayerServerSideKmsEncryption(Map<String, String> aalProperties)
+      throws Exception {
     requireKMSEncryptionSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> testProperties =
         ImmutableMap.of(
             S3FileIOProperties.SSE_TYPE,
             S3FileIOProperties.DSSE_TYPE_KMS,
             S3FileIOProperties.SSE_KEY,
-            kmsKeyArn));
+            kmsKeyArn);
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -480,8 +504,9 @@ public class TestS3FileIOIntegration {
     assertThat(response.ssekmsKeyId()).isEqualTo(kmsKeyArn);
   }
 
-  @Test
-  public void testServerSideCustomEncryption() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testServerSideCustomEncryption(Map<String, String> aalProperties) throws Exception {
     requireKMSEncryptionSupport();
     // generate key
     KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
@@ -495,14 +520,12 @@ public class TestS3FileIOIntegration {
         new String(encoder.encode(digest.digest(secretKey.getEncoded())), StandardCharsets.UTF_8);
 
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    Map<String, String> properties =
+    Map<String, String> testProperties =
         ImmutableMap.of(
-            S3FileIOProperties.SSE_TYPE,
-            S3FileIOProperties.SSE_TYPE_CUSTOM,
-            S3FileIOProperties.SSE_KEY,
-            encodedKey,
-            S3FileIOProperties.SSE_MD5,
-            md5);
+            S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_CUSTOM,
+            S3FileIOProperties.SSE_KEY, encodedKey,
+            S3FileIOProperties.SSE_MD5, md5);
+    Map<String, String> properties = mergeProperties(aalProperties, testProperties);
     skipIfAnalyticsAcceleratorEnabled(
         new S3FileIOProperties(properties),
         "Analytics Accelerator Library does not support Server Side Custom Encryption");
@@ -524,13 +547,15 @@ public class TestS3FileIOIntegration {
     assertThat(response.sseCustomerKeyMD5()).isEqualTo(md5);
   }
 
-  @Test
-  public void testACL() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testACL(Map<String, String> aalProperties) throws Exception {
     requireACLSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> testProperties =
         ImmutableMap.of(
-            S3FileIOProperties.ACL, ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL.toString()));
+            S3FileIOProperties.ACL, ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL.toString());
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
 
     write(s3FileIO);
     validateRead(s3FileIO);
@@ -543,65 +568,81 @@ public class TestS3FileIOIntegration {
         .satisfies(grant -> assertThat(grant.permission()).isEqualTo(Permission.FULL_CONTROL));
   }
 
-  @Test
-  public void testClientFactorySerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testClientFactorySerialization(Map<String, String> aalProperties) throws Exception {
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
-    fileIO.initialize(ImmutableMap.of());
+    fileIO.initialize(aalProperties);
     write(fileIO);
     byte[] data = TestHelpers.serialize(fileIO);
     S3FileIO fileIO2 = TestHelpers.deserialize(data);
     validateRead(fileIO2);
   }
 
-  @Test
-  public void testDeleteFilesMultipleBatches() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDeleteFilesMultipleBatches(Map<String, String> aalProperties) throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize));
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
 
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
   }
 
-  @Test
-  public void testDeleteFilesMultipleBatchesWithAccessPoints() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDeleteFilesMultipleBatchesWithAccessPoints(Map<String, String> aalProperties)
+      throws Exception {
     requireAccessPointSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> testProperties =
         ImmutableMap.of(
             S3FileIOProperties.DELETE_BATCH_SIZE,
             Integer.toString(deletionBatchSize),
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
-            testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
+            testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName));
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
   }
 
-  @Test
-  public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints(
+      Map<String, String> aalProperties) throws Exception {
     requireKMSEncryptionSupport();
-    clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    clientFactory.initialize(mergeProperties(aalProperties, testProperties));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
+    Map<String, String> accessPointProperties =
         ImmutableMap.of(
             S3FileIOProperties.DELETE_BATCH_SIZE,
             Integer.toString(deletionBatchSize),
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
-            testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
+            testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName));
+    s3FileIO.initialize(mergeProperties(aalProperties, accessPointProperties));
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
   }
 
-  @Test
-  public void testDeleteFilesLessThanBatchSize() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDeleteFilesLessThanBatchSize(Map<String, String> aalProperties) throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize));
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     testDeleteFiles(deletionBatchSize - 1, s3FileIO);
   }
 
-  @Test
-  public void testDeleteFilesSingleBatchWithRemainder() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testDeleteFilesSingleBatchWithRemainder(Map<String, String> aalProperties)
+      throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize));
+    s3FileIO.initialize(mergeProperties(aalProperties, testProperties));
     testDeleteFiles(5, s3FileIO);
   }
 
@@ -643,11 +684,12 @@ public class TestS3FileIOIntegration {
             });
   }
 
-  @Test
-  public void testFileRecoveryHappyPath() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testFileRecoveryHappyPath(Map<String, String> aalProperties) throws Exception {
     requireVersioningSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(ImmutableMap.of());
+    s3FileIO.initialize(aalProperties);
     String filePath = String.format("s3://%s/%s/%s", bucketName, prefix, "someFile.parquet");
     write(s3FileIO, filePath);
     s3FileIO.deleteFile(filePath);
@@ -655,13 +697,15 @@ public class TestS3FileIOIntegration {
 
     assertThat(s3FileIO.recoverFile(filePath)).isTrue();
     assertThat(s3FileIO.newInputFile(filePath).exists()).isTrue();
+    s3FileIO.deleteFile(filePath);
   }
 
-  @Test
-  public void testFileRecoveryFailsToRecover() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testFileRecoveryFailsToRecover(Map<String, String> aalProperties) throws Exception {
     requireVersioningSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
-    s3FileIO.initialize(ImmutableMap.of());
+    s3FileIO.initialize(aalProperties);
     s3.putBucketVersioning(
         PutBucketVersioningRequest.builder()
             .bucket(bucketName)
