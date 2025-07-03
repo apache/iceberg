@@ -29,6 +29,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
 import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
@@ -86,8 +87,7 @@ public class DeleteOrphanFiles {
                 "s3n", "s3",
                 "s3a", "s3a"));
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
-    private org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode =
-        org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode.ERROR;
+    private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
     @Override
     String maintenanceTaskName() {
@@ -147,8 +147,7 @@ public class DeleteOrphanFiles {
      * @param newPrefixMismatchMode to action when mismatch
      * @return for chained calls
      */
-    public Builder prefixMismatchMode(
-        org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode newPrefixMismatchMode) {
+    public Builder prefixMismatchMode(PrefixMismatchMode newPrefixMismatchMode) {
       this.prefixMismatchMode = newPrefixMismatchMode;
       return this;
     }

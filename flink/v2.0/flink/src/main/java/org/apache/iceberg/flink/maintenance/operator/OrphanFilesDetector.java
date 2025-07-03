@@ -116,33 +116,35 @@ public class OrphanFilesDetector extends KeyedCoProcessFunction<String, String, 
         .keys()
         .forEach(uri -> foundInTablesList.add(new FileURI(uri, equalSchemes, equalAuthorities)));
 
-    if (foundInFileSystem.value() != null && foundInTablesList.isEmpty()) {
-      FileURI fileURI = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
-      out.collect(fileURI.getUriAsString());
-    } else if (foundInFileSystem.value() != null && !foundInTablesList.isEmpty()) {
-      FileURI actual = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
-      if (hasMismatch(actual, foundInTablesList)) {
-        if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
-          out.collect(foundInFileSystem.value());
-        } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
-          ValidationException validationException =
-              new ValidationException(
-                  "Unable to determine whether certain files are orphan. "
-                      + "Metadata references files that match listed/provided files except for authority/scheme. "
-                      + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-                      + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-                      + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-                      + "authorities/schemes or to 'DELETE' if you are ABSOLUTELY confident that remaining conflicting "
-                      + "authorities/schemes are different. It will be impossible to recover deleted files. "
-                      + "Conflicting authorities/schemes");
-          LOG.warn(
-              "Unable to determine whether certain files are orphan. Found in filesystem: {} and in table: {}",
-              actual,
-              StringUtils.join(foundInTablesList, ","),
-              validationException);
-          ctx.output(
-              org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
-              validationException);
+    if (foundInFileSystem.value() != null) {
+      if (foundInTablesList.isEmpty()) {
+        FileURI fileURI = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
+        out.collect(fileURI.getUriAsString());
+      } else {
+        FileURI actual = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
+        if (hasMismatch(actual, foundInTablesList)) {
+          if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
+            out.collect(foundInFileSystem.value());
+          } else if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.ERROR) {
+            ValidationException validationException =
+                new ValidationException(
+                    "Unable to determine whether certain files are orphan. "
+                        + "Metadata references files that match listed/provided files except for authority/scheme. "
+                        + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
+                        + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
+                        + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
+                        + "authorities/schemes or to 'DELETE' if you are ABSOLUTELY confident that remaining conflicting "
+                        + "authorities/schemes are different. It will be impossible to recover deleted files. "
+                        + "Conflicting authorities/schemes");
+            LOG.warn(
+                "Unable to determine whether certain files are orphan. Found in filesystem: {} and in table: {}",
+                actual,
+                StringUtils.join(foundInTablesList, ","),
+                validationException);
+            ctx.output(
+                org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.ERROR_STREAM,
+                validationException);
+          }
         }
       }
     }
