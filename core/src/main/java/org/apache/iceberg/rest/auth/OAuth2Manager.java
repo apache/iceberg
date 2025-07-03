@@ -61,7 +61,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
-  private AuthManagerSessionCache<String, OAuth2Util.AuthSession> sessionCache;
+  private SessionCache<String, OAuth2Util.AuthSession> sessionCache;
 
   public OAuth2Manager(String managerName) {
     super(managerName + "-token-refresh");
@@ -156,7 +156,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public void close() {
-    AuthManagerSessionCache<String, OAuth2Util.AuthSession> cache = sessionCache;
+    SessionCache<String, OAuth2Util.AuthSession> cache = sessionCache;
     this.sessionCache = null;
     try (cache) {
       super.close();
@@ -169,15 +169,12 @@ public class OAuth2Manager extends RefreshingAuthManager {
    */
   @Deprecated
   protected AuthSessionCache newSessionCache(String managerName, Map<String, String> properties) {
-    return null;
+    return new AuthSessionCache(managerName, sessionTimeout(properties));
   }
 
-  protected AuthManagerSessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
+  protected SessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
       String managerName, Map<String, String> properties) {
-    AuthSessionCache deprecated = newSessionCache(managerName, properties);
-    return deprecated != null
-        ? new AuthManagerSessionCacheAdapter(deprecated)
-        : new DefaultAuthManagerSessionCache<>(managerName, sessionTimeout(properties));
+    return new DefaultSessionCache<>(managerName, sessionTimeout(properties));
   }
 
   protected OAuth2Util.AuthSession maybeCreateChildSession(
@@ -271,32 +268,5 @@ public class OAuth2Manager extends RefreshingAuthManager {
             props,
             CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
             CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT));
-  }
-
-  /**
-   * Adapter for deprecated {@link AuthSessionCache} instances produced by subclasses of this class.
-   *
-   * <p>This class will be removed in 1.11.0, when {@link #newSessionCache(String, Map)} is removed.
-   */
-  @SuppressWarnings("deprecation")
-  private static class AuthManagerSessionCacheAdapter
-      implements AuthManagerSessionCache<String, OAuth2Util.AuthSession> {
-
-    private final AuthSessionCache cache;
-
-    private AuthManagerSessionCacheAdapter(AuthSessionCache cache) {
-      this.cache = cache;
-    }
-
-    @Override
-    public OAuth2Util.AuthSession cachedSession(
-        String key, Function<String, OAuth2Util.AuthSession> loader) {
-      return cache.cachedSession(key, loader);
-    }
-
-    @Override
-    public void close() {
-      cache.close();
-    }
   }
 }

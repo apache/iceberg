@@ -531,9 +531,9 @@ class TestOAuth2Manager {
     try (OAuth2Manager manager =
             new OAuth2Manager("test") {
               @Override
-              protected AuthManagerSessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
+              protected SessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
                   String name, Map<String, String> properties) {
-                return new DefaultAuthManagerSessionCache<>(
+                return new DefaultSessionCache<>(
                     Duration.ofHours(1), Runnable::run, Ticker.systemTicker());
               }
 

@@ -21,7 +21,7 @@ package org.apache.iceberg.rest.auth;
 import java.util.function.Function;
 
 /** A cache for {@link AuthSession} instances. */
-public interface AuthManagerSessionCache<K, V extends AuthSession> extends AutoCloseable {
+public interface SessionCache<K, V extends AuthSession> extends AutoCloseable {
 
   /**
    * Returns a cached session for the given key, loading it with the given loader if it is not

@@ -32,10 +32,9 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DefaultAuthManagerSessionCache<K, V extends AuthSession>
-    implements AuthManagerSessionCache<K, V> {
+public class DefaultSessionCache<K, V extends AuthSession> implements SessionCache<K, V> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DefaultAuthManagerSessionCache.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultSessionCache.class);
 
   private final Duration sessionTimeout;
   private final Executor executor;
@@ -51,7 +50,7 @@ public class DefaultAuthManagerSessionCache<K, V extends AuthSession>
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
-  public DefaultAuthManagerSessionCache(String name, Duration sessionTimeout) {
+  public DefaultSessionCache(String name, Duration sessionTimeout) {
     this(
         sessionTimeout,
         ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
@@ -68,7 +67,7 @@ public class DefaultAuthManagerSessionCache<K, V extends AuthSession>
    *     default executor. The executor will be closed when this cache is closed.
    * @param ticker the ticker to use for the cache.
    */
-  DefaultAuthManagerSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
+  DefaultSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
