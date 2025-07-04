@@ -50,7 +50,6 @@ class ADLSLocation {
   private final String container;
   private final String path;
   private final String host;
-  private final String location;
 
   /**
    * Creates a new ADLSLocation from a fully qualified URI.
@@ -63,8 +62,6 @@ class ADLSLocation {
     Matcher matcher = URI_PATTERN.matcher(location);
 
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
-
-    this.location = location;
 
     String authority = matcher.group(2);
     String[] parts = authority.split("@", -1);
@@ -100,9 +97,5 @@ class ADLSLocation {
   /** Returns ADLS host. */
   public String host() {
     return host;
-  }
-
-  public String location() {
-    return location;
   }
 }

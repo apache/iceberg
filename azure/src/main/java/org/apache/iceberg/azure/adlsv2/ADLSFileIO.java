@@ -59,7 +59,8 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
-  private List<StorageCredential> storageCredentials = ImmutableList.of();
+  // use modifiable collection for Kryo serde
+  private List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedADLSClient> clientByPrefix;
 
   /**
@@ -115,6 +116,7 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
         matchingPrefix = storagePrefix;
       }
     }
+
     prefixedADLSClient = clientByPrefix().getOrDefault(matchingPrefix, null);
 
     Preconditions.checkState(
@@ -221,6 +223,7 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       clientByPrefix.values().forEach(PrefixedADLSClient::close);
       this.clientByPrefix = null;
     }
+
     DelegateFileIO.super.close();
   }
 

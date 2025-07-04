@@ -23,7 +23,6 @@ import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -33,7 +32,6 @@ class PrefixedADLSClient implements AutoCloseable {
   private static final HttpClient HTTP = HttpClient.createDefault();
   private final String storagePrefix;
   private final AzureProperties azureProperties;
-
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
 
   PrefixedADLSClient(String storagePrefix, Map<String, String> properties) {
@@ -58,9 +56,10 @@ class PrefixedADLSClient implements AutoCloseable {
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
-    Optional.ofNullable(vendedAdlsCredentialProvider)
-        .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
-        .ifPresent(clientBuilder::addPolicy);
+    if (vendedAdlsCredentialProvider != null) {
+      clientBuilder.addPolicy(
+          new VendedAzureSasCredentialPolicy(location.host(), vendedAdlsCredentialProvider));
+    }
     azureProperties.applyClientConfiguration(location.host(), clientBuilder);
 
     return clientBuilder.buildClient();
@@ -70,7 +69,7 @@ class PrefixedADLSClient implements AutoCloseable {
     return azureProperties;
   }
 
-  public String storagePrefix() {
+  String storagePrefix() {
     return storagePrefix;
   }
 

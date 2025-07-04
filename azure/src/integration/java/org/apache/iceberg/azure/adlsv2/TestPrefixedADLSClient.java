@@ -33,9 +33,10 @@ import java.util.Map;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 
 @SuppressWarnings("resource")
-public class PrefixedADLSClientTest extends BaseAzuriteTest {
+public class TestPrefixedADLSClient extends AzuriteTestBase {
 
   @Test
   public void invalidParameters() {
@@ -57,8 +58,8 @@ public class PrefixedADLSClientTest extends BaseAzuriteTest {
     Map<String, String> properties =
         ImmutableMap.of(ADLS_SAS_TOKEN_PREFIX + ACCOUNT_HOST, "sasToken");
 
-    try (var mockedAzurePropertiesConstruction = mockAzurePropertiesConstruction()) {
-
+    try (MockedConstruction<AzureProperties> mockedAzurePropertiesConstruction =
+        mockAzurePropertiesConstruction()) {
       PrefixedADLSClient client = new PrefixedADLSClient("abfs", properties);
       assertThat(client.storagePrefix()).isEqualTo("abfs");
 
