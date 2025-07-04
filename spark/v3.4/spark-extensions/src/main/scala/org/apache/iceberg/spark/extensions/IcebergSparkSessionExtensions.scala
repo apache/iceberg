@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
@@ -57,8 +56,8 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => CheckMergeIntoTableConditions }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
-    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage}
-    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage}
+    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage }
+    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
     extensions.injectCheckRule { _ => CheckViews }
@@ -69,7 +68,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }
     extensions.injectOptimizerRule { _ => ExtendedReplaceNullWithFalseInPredicate }
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
-    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
+    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable }
     // pre-CBO rules run only once and the order of the rules is important
     // - dynamic filters should be added before replacing commands with rewrite plans
     // - scans must be planned before building writes
