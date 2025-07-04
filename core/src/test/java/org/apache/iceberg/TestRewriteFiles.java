@@ -28,7 +28,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -780,11 +779,16 @@ public class TestRewriteFiles extends TestBase {
   }
 
   @TestTemplate
-  public void deleteDataFileAlsoRemovesDV() {
-    assumeThat(formatVersion).isGreaterThan(2);
+  public void removingDataFileAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     commit(
         table,
-        table.newRowDelta().addRows(FILE_A).addRows(FILE_B).addDeletes(fileADeletes()),
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
         branch);
 
     Snapshot snapshot = latestSnapshot(table, branch);
@@ -801,17 +805,12 @@ public class TestRewriteFiles extends TestBase {
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
 
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
-    Iterator<Long> ids = formatVersion >= 3 ? ids(2L, 1L) : ids(1L, 1L);
-    Iterator<ManifestEntry.Status> statuses =
-        formatVersion >= 3
-            ? statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING)
-            : statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
-        ids,
-        files(fileADeletes()),
-        statuses);
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 }
