@@ -724,6 +724,7 @@ public class TestRowDelta extends TestBase {
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
+    long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
@@ -743,7 +744,10 @@ public class TestRowDelta extends TestBase {
         files(FILE_A),
         statuses(Status.DELETED));
 
-    Iterator<Long> ids = formatVersion >= 3 ? ids(2L, 1L) : ids(1L, 1L);
+    Iterator<Long> ids =
+        formatVersion >= 3
+            ? ids(deleteSnap.snapshotId(), deltaSnapshotId)
+            : ids(deltaSnapshotId, deltaSnapshotId);
     Iterator<Status> statuses =
         formatVersion >= 3
             ? statuses(Status.DELETED, Status.EXISTING)

@@ -81,7 +81,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
-  private Set<String> dataFilePathsWithDanglingDVs = Sets.newHashSet();
+  // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
+  // data file paths
+  private Set<String> removedDataFilePaths = Sets.newHashSet();
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -162,7 +164,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
-    this.dataFilePathsWithDanglingDVs =
+    this.removedDataFilePaths =
         dataFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
   }
 
@@ -417,7 +419,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return true;
     } else if (!deleteFiles.isEmpty()) {
       return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
-    } else if (!dataFilePathsWithDanglingDVs.isEmpty()) {
+    } else if (!removedDataFilePaths.isEmpty()) {
       return true;
     }
 
@@ -469,8 +471,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean isDanglingDV(DeleteFile file) {
-    return ContentFileUtil.isDV(file)
-        && dataFilePathsWithDanglingDVs.contains(file.referencedDataFile());
+    return ContentFileUtil.isDV(file) && removedDataFilePaths.contains(file.referencedDataFile());
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
@@ -511,6 +512,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
                     if (allRowsMatch) {
                       writer.delete(entry);
+                      F copyWithoutStats = file.copyWithoutStats();
+                      // add the file here in case it was deleted using an expression. The
+                      // DeleteManifestFilterManager will then remove its matching DV
+                      deleteFiles.add(copyWithoutStats);
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
@@ -521,7 +526,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(file.copyWithoutStats());
+                        deletedFiles.add(copyWithoutStats);
                       }
                     } else {
                       writer.existing(entry);
