@@ -20,10 +20,12 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.expressions.Expression;
@@ -289,6 +291,24 @@ public class RewriteDataFiles {
           .uid(AGGREGATOR_TASK_NAME + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
           .forceNonParallel();
+    }
+  }
+
+  public static class RewriteDataFilesResult implements TaskResult.Result {
+    private final Set<DataFile> deletedDataFiles;
+    private final Set<DataFile> addedDataFiles;
+
+    public RewriteDataFilesResult(Set<DataFile> deletedDataFiles, Set<DataFile> addedDataFiles) {
+      this.deletedDataFiles = deletedDataFiles;
+      this.addedDataFiles = addedDataFiles;
+    }
+
+    public Set<DataFile> deletedDataFiles() {
+      return deletedDataFiles;
+    }
+
+    public Set<DataFile> addedDataFiles() {
+      return addedDataFiles;
     }
   }
 }
