@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -58,12 +59,9 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 4, 0);
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFilesActionV2 rewriteDataFilesAction =
-        new RewriteDataFilesActionV2(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
 
-    TaskResult result =
-        rewriteDataFilesAction
+    RewriteDataFiles.Builder builder =
+        RewriteDataFiles.builder()
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -74,7 +72,14 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false)
+            .rewriteAll(false);
+
+    TaskResult result =
+        new RewriteDataFilesActionV2(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
             .execute();
 
     assertThat(result.success()).isTrue();
@@ -102,12 +107,9 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 4, 0);
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFilesActionV2 rewriteDataFilesAction =
-        new RewriteDataFilesActionV2(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
 
-    TaskResult result =
-        rewriteDataFilesAction
+    RewriteDataFiles.Builder builder =
+        RewriteDataFiles.builder()
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -119,7 +121,14 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false)
+            .rewriteAll(false);
+
+    TaskResult result =
+        new RewriteDataFilesActionV2(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
             .execute();
 
     assertThat(result.success()).isTrue();
@@ -148,11 +157,16 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 4, 0);
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFilesActionV2 rewriteDataFilesAction =
-        new RewriteDataFilesActionV2(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
 
-    TaskResult result = rewriteDataFilesAction.rewriteAll(true).execute();
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().rewriteAll(true);
+
+    TaskResult result =
+        new RewriteDataFilesActionV2(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .execute();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -178,11 +192,15 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 2, 0);
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFilesActionV2 rewriteDataFilesAction =
-        new RewriteDataFilesActionV2(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
-    TaskResult result = rewriteDataFilesAction.parallelism(1).rewriteAll(true).execute();
+    TaskResult result =
+        new RewriteDataFilesActionV2(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .execute();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -248,11 +266,15 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFilesActionV2 rewriteDataFilesAction =
-        new RewriteDataFilesActionV2(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
-    TaskResult result = rewriteDataFilesAction.parallelism(1).rewriteAll(true).execute();
+    TaskResult result =
+        new RewriteDataFilesActionV2(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .execute();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
