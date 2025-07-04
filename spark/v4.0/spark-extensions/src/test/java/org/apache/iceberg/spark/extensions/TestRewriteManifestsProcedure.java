@@ -266,7 +266,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         .hasSize(1);
   }
 
-  @Disabled // Spark SQL does not support case insensitive for named arguments
+  @Disabled("Spark SQL does not support case insensitive for named arguments")
   public void testRewriteManifestsCaseInsensitiveArgs() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
