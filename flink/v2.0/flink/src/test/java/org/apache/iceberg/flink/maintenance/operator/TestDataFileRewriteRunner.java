@@ -45,6 +45,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.parquet.Parquet;
@@ -286,7 +287,8 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                         MIN_INPUT_FILES,
                         "2",
                         TARGET_FILE_SIZE_BYTES,
-                        String.valueOf(targetFileSize))))) {
+                        String.valueOf(targetFileSize)),
+                    Expressions.alwaysTrue()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

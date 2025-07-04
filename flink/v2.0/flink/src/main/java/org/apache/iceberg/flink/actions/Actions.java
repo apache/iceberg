@@ -22,6 +22,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 
 public class Actions {
 
@@ -32,21 +35,52 @@ public class Actions {
 
   private final StreamExecutionEnvironment env;
   private final Table table;
+  private final TableLoader tableLoader;
 
+  @Deprecated
   private Actions(StreamExecutionEnvironment env, Table table) {
     this.env = env;
     this.table = table;
+    this.tableLoader = null;
   }
 
+  private Actions(StreamExecutionEnvironment env, TableLoader tableLoader) {
+    this.env = env;
+    this.tableLoader = tableLoader;
+    if (!tableLoader.isOpen()) {
+      tableLoader.open();
+    }
+
+    this.table = tableLoader.loadTable();
+  }
+
+  @Deprecated
   public static Actions forTable(StreamExecutionEnvironment env, Table table) {
     return new Actions(env, table);
   }
 
+  public static Actions forTable(StreamExecutionEnvironment env, TableLoader tableLoader) {
+    return new Actions(env, tableLoader);
+  }
+
+  @Deprecated
   public static Actions forTable(Table table) {
     return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(CONFIG), table);
   }
 
+  public static Actions forTableLoad(TableLoader tableLoader) {
+    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(CONFIG), tableLoader);
+  }
+
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(env, table);
+  }
+
+  public RewriteDataFilesActionV2 rewriteDataFilesV2(RewriteDataFiles.Builder builder) {
+    return new RewriteDataFilesActionV2(env, tableLoader, builder, System.currentTimeMillis());
+  }
+
+  public ExpireSnapshotsAction expireSnapshots(ExpireSnapshots.Builder builder) {
+    return new ExpireSnapshotsAction(env, tableLoader, builder, System.currentTimeMillis());
   }
 }

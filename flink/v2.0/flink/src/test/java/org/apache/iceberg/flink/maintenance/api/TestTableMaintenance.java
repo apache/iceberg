@@ -417,7 +417,7 @@ class TestTableMaintenance extends OperatorTestBase {
     }
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return MAINTENANCE_TASK_NAME;
     }
 

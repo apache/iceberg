@@ -28,12 +28,22 @@ public class TaskResult implements Serializable {
   private final long startEpoch;
   private final boolean success;
   private final List<Exception> exceptions;
+  private Result result;
 
   public TaskResult(int taskIndex, long startEpoch, boolean success, List<Exception> exceptions) {
     this.taskIndex = taskIndex;
     this.startEpoch = startEpoch;
     this.success = success;
     this.exceptions = exceptions;
+  }
+
+  public TaskResult(
+      int taskIndex, long startEpoch, boolean success, List<Exception> exceptions, Result result) {
+    this.taskIndex = taskIndex;
+    this.startEpoch = startEpoch;
+    this.success = success;
+    this.exceptions = exceptions;
+    this.result = result;
   }
 
   public int taskIndex() {
@@ -48,6 +58,10 @@ public class TaskResult implements Serializable {
     return success;
   }
 
+  public Result result() {
+    return result;
+  }
+
   public List<Exception> exceptions() {
     return exceptions;
   }
@@ -59,6 +73,9 @@ public class TaskResult implements Serializable {
         .add("startEpoch", startEpoch)
         .add("success", success)
         .add("exceptions", exceptions)
+        .add("result", result)
         .toString();
   }
+
+  public interface Result {}
 }
