@@ -23,6 +23,8 @@ import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 
 public class Actions {
 
@@ -74,19 +76,11 @@ public class Actions {
     return new RewriteDataFilesAction(env, table);
   }
 
-  public RewriteDataFilesActionV2 rewriteDataFilesV2() {
-    return new RewriteDataFilesActionV2(env, tableLoader);
+  public RewriteDataFilesActionV2 rewriteDataFilesV2(RewriteDataFiles.Builder builder) {
+    return new RewriteDataFilesActionV2(env, tableLoader, builder, System.currentTimeMillis());
   }
 
-  public ExpireSnapshotsAction expireSnapshots() {
-    return new ExpireSnapshotsAction(env, tableLoader);
-  }
-
-  public RewriteDataFilesActionV2 rewriteDataFilesV2(long triggerTimestamp) {
-    return new RewriteDataFilesActionV2(env, tableLoader, triggerTimestamp);
-  }
-
-  public ExpireSnapshotsAction expireSnapshots(long triggerTimestamp) {
-    return new ExpireSnapshotsAction(env, tableLoader, triggerTimestamp);
+  public ExpireSnapshotsAction expireSnapshots(ExpireSnapshots.Builder builder) {
+    return new ExpireSnapshotsAction(env, tableLoader, builder, System.currentTimeMillis());
   }
 }

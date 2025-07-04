@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.actions;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -34,49 +33,39 @@ import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-abstract class BaseTableMaintenanceAction<
-    T extends BaseTableMaintenanceAction<T, B>, B extends MaintenanceTaskBuilder<?>> {
+abstract class BaseTableMaintenanceAction<T> {
 
   private final StreamExecutionEnvironment env;
   private final TableLoader tableLoader;
-  private static final int DEFAULT_PARALLELISM = ExecutionConfig.PARALLELISM_DEFAULT;
   private final long triggerTimestamp;
   private static final String DEFAULT_UID_SUFFIX = UUID.randomUUID().toString();
-  private static final String DEFAULT_SLOT_SHARING_GROUP =
-      StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
   private static final int DEFAULT_TASK_INDEX = 0;
-  private final B builder;
-
-  BaseTableMaintenanceAction(
-      StreamExecutionEnvironment env, TableLoader tableLoader, Supplier<B> builderSupplier) {
-    this(env, tableLoader, System.currentTimeMillis(), builderSupplier);
-  }
+  private final MaintenanceTaskBuilder<?> builder;
 
   BaseTableMaintenanceAction(
       StreamExecutionEnvironment env,
       TableLoader tableLoader,
-      long triggerTimestamp,
-      Supplier<B> builderSupplier) {
+      MaintenanceTaskBuilder<?> builder,
+      long triggerTimestamp) {
     if (!tableLoader.isOpen()) {
       tableLoader.open();
     }
 
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
-    Preconditions.checkNotNull(builderSupplier, "BuilderSupplier should not be null");
+    Preconditions.checkNotNull(builder, "Builder should not be null");
 
     this.env = env;
     this.tableLoader = tableLoader;
     this.triggerTimestamp = triggerTimestamp;
-    this.builder = builderSupplier.get();
+    this.builder = builder;
   }
 
   /**
    * Executes the maintenance task and returns the first task result.
    *
    * @return {@link TaskResult} from the execution, or null if no results were produced
-   * @throws Exception if any error occurs during task execution
    */
-  public TaskResult execute() throws Exception {
+  public TaskResult execute() {
     String tableName = tableLoader.loadTable().name();
     DataStream<TaskResult> resultDataStream =
         builder.append(
@@ -86,27 +75,36 @@ abstract class BaseTableMaintenanceAction<
             DEFAULT_TASK_INDEX,
             tableLoader(),
             DEFAULT_UID_SUFFIX,
-            DEFAULT_SLOT_SHARING_GROUP,
-            DEFAULT_PARALLELISM);
+            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+            ExecutionConfig.PARALLELISM_DEFAULT);
     try (CloseableIterator<TaskResult> iter = resultDataStream.executeAndCollect()) {
       List<TaskResult> taskResultList = Lists.newArrayList(iter);
-      return taskResultList.stream().findFirst().orElse(null);
+      if (taskResultList.isEmpty()) {
+        return null;
+      }
+
+      return taskResultList.get(0);
+    } catch (Exception e) {
+      throw new RuntimeException("TableMaintenance error.", e);
     }
   }
 
+  @SuppressWarnings("unchecked")
   public T uidSuffix(String newUidSuffix) {
     builder.uidSuffix(newUidSuffix);
-    return self();
+    return (T) this;
   }
 
+  @SuppressWarnings("unchecked")
   public T slotSharingGroup(String newSlotSharingGroup) {
     builder.slotSharingGroup(newSlotSharingGroup);
-    return self();
+    return (T) this;
   }
 
+  @SuppressWarnings("unchecked")
   public T parallelism(int parallelism) {
     builder.parallelism(parallelism);
-    return self();
+    return (T) this;
   }
 
   protected DataStream<Trigger> createTriggerStream() {
@@ -117,14 +115,5 @@ abstract class BaseTableMaintenanceAction<
 
   protected TableLoader tableLoader() {
     return tableLoader;
-  }
-
-  @SuppressWarnings("unchecked")
-  private T self() {
-    return (T) this;
-  }
-
-  public B builder() {
-    return builder;
   }
 }

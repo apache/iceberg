@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
@@ -37,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +55,11 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
     tableLoader().open();
   }
 
+  @AfterEach
+  void after() throws IOException {
+    tableLoader().close();
+  }
+
   @Test
   void testExpireSnapshots() throws Exception {
     insert(table, 1, "a");
@@ -63,15 +71,19 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
     assertThat(snapshots).hasSize(4);
 
     long triggerTime = System.currentTimeMillis();
-    ExpireSnapshotsAction expireSnapshotsAction =
-        new ExpireSnapshotsAction(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
-    TaskResult result =
-        expireSnapshotsAction
+    ExpireSnapshots.Builder builder =
+        ExpireSnapshots.builder()
             .deleteBatchSize(3)
             .maxSnapshotAge(Duration.ZERO)
             .planningWorkerPoolSize(1)
-            .retainLast(1)
+            .retainLast(1);
+
+    TaskResult result =
+        new ExpireSnapshotsAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
             .execute();
 
     assertThat(result.success()).isTrue();
@@ -96,16 +108,20 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
     insert(table, 2, "b");
 
     long triggerTime = System.currentTimeMillis();
-    ExpireSnapshotsAction expireSnapshotsAction =
-        new ExpireSnapshotsAction(
-            StreamExecutionEnvironment.getExecutionEnvironment(), tableLoader(), triggerTime);
-    TaskResult result =
-        expireSnapshotsAction
+    ExpireSnapshots.Builder builder =
+        ExpireSnapshots.builder()
             .deleteBatchSize(1)
             .maxSnapshotAge(Duration.ZERO)
             .planningWorkerPoolSize(1)
             .retainLast(1)
-            .parallelism(1)
+            .parallelism(1);
+
+    TaskResult result =
+        new ExpireSnapshotsAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
             .execute();
 
     assertThat(result.success()).isTrue();

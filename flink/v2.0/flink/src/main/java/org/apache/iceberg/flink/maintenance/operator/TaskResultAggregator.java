@@ -54,6 +54,8 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
     implements TwoInputStreamOperator<Trigger, Exception, TaskResult> {
   public static final OutputTag<Exception> ERROR_STREAM =
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
+  public static final OutputTag<TaskResult.Result> RESULT_AGG_STREAM =
+      new OutputTag<>("result-agg-stream", TypeInformation.of(TaskResult.Result.class));
 
   private static final Logger LOG = LoggerFactory.getLogger(TaskResultAggregator.class);
 

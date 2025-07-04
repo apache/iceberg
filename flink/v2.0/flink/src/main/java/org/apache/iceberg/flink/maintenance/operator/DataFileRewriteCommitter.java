@@ -27,12 +27,14 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -60,6 +62,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private transient Counter addedDataFileSizeCounter;
   private transient Counter removedDataFileNumCounter;
   private transient Counter removedDataFileSizeCounter;
+
+  private transient Set<DataFile> addedDataFiles;
+  private transient Set<DataFile> removedDataFiles;
 
   public DataFileRewriteCommitter(
       String tableName, String taskName, int taskIndex, TableLoader tableLoader) {
@@ -91,6 +96,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC);
     this.removedDataFileSizeCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC);
+    this.addedDataFiles = Sets.newHashSet();
+    this.removedDataFiles = Sets.newHashSet();
   }
 
   @Override
@@ -128,6 +135,10 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     try {
       if (commitService != null) {
         commitService.close();
+        output.collect(
+            TaskResultAggregator.RESULT_AGG_STREAM,
+            new StreamRecord<>(
+                new RewriteDataFiles.RewriteDataFilesResult(addedDataFiles, removedDataFiles)));
       }
 
       LOG.info(
@@ -150,6 +161,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
 
     // Cleanup
     this.commitService = null;
+    this.addedDataFiles.clear();
+    this.removedDataFiles.clear();
 
     super.processWatermark(mark);
   }
@@ -187,11 +200,13 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         for (DataFile added : fileGroup.addedFiles()) {
           addedDataFileNumCounter.inc();
           addedDataFileSizeCounter.inc(added.fileSizeInBytes());
+          addedDataFiles.add(added);
         }
 
         for (DataFile rewritten : fileGroup.rewrittenFiles()) {
           removedDataFileNumCounter.inc();
           removedDataFileSizeCounter.inc(rewritten.fileSizeInBytes());
+          removedDataFiles.add(rewritten);
         }
       }
     }
