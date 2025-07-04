@@ -145,8 +145,6 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testInvalidAncestorOfCases() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
-
     assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage(

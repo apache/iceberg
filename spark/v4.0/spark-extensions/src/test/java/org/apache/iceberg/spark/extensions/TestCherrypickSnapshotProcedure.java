@@ -186,8 +186,9 @@ public class TestCherrypickSnapshotProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.cherrypick_snapshot('t', 2.2)", catalogName))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageStartingWith("Couldn't load table");
+    assertThatThrownBy(() -> sql("CALL %s.system.cherrypick_snapshot('t', '2.2')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "[CAST_INVALID_INPUT] The value '2.2' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
   }
 }

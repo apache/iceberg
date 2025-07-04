@@ -226,9 +226,10 @@ public class TestSetCurrentSnapshotProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Either snapshot_id or ref must be provided, not both");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageStartingWith("Couldn't load table");
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('t', '2.2')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "[CAST_INVALID_INPUT] The value '2.2' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)

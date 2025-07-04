@@ -165,10 +165,14 @@ public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('test_table', branch => 'main', to => 'newBranch')",
+                    "CALL %s.system.fast_forward(table => 'test_table', 'main', to => 'newBranch')",
                     catalogName))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageStartingWith("Couldn't load table");
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "[UNEXPECTED_POSITIONAL_ARGUMENT] Cannot invoke routine `fast_forward` "
+                + "because it contains positional argument(s) following the named argument assigned to `table`; "
+                + "please rearrange them so the positional arguments come first and then retry the query again. "
+                + "SQLSTATE: 4274K");
 
     assertThatThrownBy(
             () ->

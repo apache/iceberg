@@ -274,9 +274,10 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
         .hasMessage(
             "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `rollback_to_snapshot` because the parameter named `snapshot_id` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 1 or by name) and retry the query again. SQLSTATE: 4274K");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t', 2.2)", catalogName))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageStartingWith("Couldn't load table");
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t', '2.2')", catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "[CAST_INVALID_INPUT] The value '2.2' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
