@@ -74,6 +74,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
     return S3AsyncClient.builder()
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
         .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+        .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .build();
   }
