@@ -83,7 +83,12 @@ public class AwsClientProperties implements Serializable {
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String REFRESH_CREDENTIALS_ENABLED = "client.refresh-credentials-enabled";
 
-  /** Controls whether legacy md5 plugin should be added or not. Defaults to false. */
+  /**
+   * Controls whether legacy MD5 plugin should be added or not. Defaults to false. AWS SDK version
+   * 2.30.0 introduced integrity protections that are not backward compatible. Enable this property
+   * only when you need to access older S3-compatible object storages that depend on the legacy MD5
+   * checksum.
+   */
   public static final String LEGACY_MD5_PLUGIN_ENABLED = "client.legacy-md5-plugin-enabled";
 
   private String clientRegion;
