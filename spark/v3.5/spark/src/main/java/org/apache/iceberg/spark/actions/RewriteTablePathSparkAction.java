@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -59,13 +58,11 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -323,7 +320,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private void writeAsCsv(Set<Pair<String, String>> rows, OutputFile outputFile) {
-    try (BufferedWriter writer = new BufferedWriter(
+    try (BufferedWriter writer =
+        new BufferedWriter(
             new OutputStreamWriter(outputFile.createOrOverwrite(), StandardCharsets.UTF_8))) {
       for (Pair<String, String> pair : rows) {
         writer.write(String.join(",", pair.first(), pair.second()));
