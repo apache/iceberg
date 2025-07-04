@@ -101,11 +101,6 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   }
 
   @Override
-  public boolean isDeterministic() {
-    return false;
-  }
-
-  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());

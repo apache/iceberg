@@ -80,11 +80,6 @@ class RegisterTableProcedure extends BaseProcedure {
   }
 
   @Override
-  public boolean isDeterministic() {
-    return false;
-  }
-
-  @Override
   public Iterator<Scan> call(InternalRow args) {
     TableIdentifier tableName =
         Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));

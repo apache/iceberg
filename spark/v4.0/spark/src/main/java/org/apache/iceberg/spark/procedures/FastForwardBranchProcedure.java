@@ -73,11 +73,6 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   }
 
   @Override
-  public boolean isDeterministic() {
-    return false;
-  }
-
-  @Override
   public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     String from = args.getString(1);

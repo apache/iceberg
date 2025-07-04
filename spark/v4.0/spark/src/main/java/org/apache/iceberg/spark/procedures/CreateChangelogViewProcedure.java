@@ -143,11 +143,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   @Override
-  public boolean isDeterministic() {
-    return false;
-  }
-
-  @Override
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 

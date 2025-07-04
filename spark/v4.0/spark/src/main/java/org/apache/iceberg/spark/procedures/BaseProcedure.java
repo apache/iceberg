@@ -88,6 +88,11 @@ abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
     this.tableCatalog = tableCatalog;
   }
 
+  @Override
+  public boolean isDeterministic() {
+    return false;
+  }
+
   protected SparkSession spark() {
     return this.spark;
   }

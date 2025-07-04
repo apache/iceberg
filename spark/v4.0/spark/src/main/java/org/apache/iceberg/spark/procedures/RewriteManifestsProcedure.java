@@ -88,11 +88,6 @@ class RewriteManifestsProcedure extends BaseProcedure {
   }
 
   @Override
-  public boolean isDeterministic() {
-    return false;
-  }
-
-  @Override
   public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
