@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
+import java.util.Optional;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.util.Pair;
@@ -35,6 +36,7 @@ import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
+import software.amazon.s3.analyticsaccelerator.request.EncryptionSecrets;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
@@ -59,14 +61,21 @@ class AnalyticsAcceleratorUtil {
   public static SeekableInputStream newStream(S3InputFile inputFile) {
     S3URI uri = S3URI.of(inputFile.uri().bucket(), inputFile.uri().key());
     HeadObjectResponse metadata = inputFile.getObjectMetadata();
-    OpenStreamInformation openStreamInfo =
-        OpenStreamInformation.builder()
-            .objectMetadata(
-                ObjectMetadata.builder()
-                    .contentLength(metadata.contentLength())
-                    .etag(metadata.eTag())
-                    .build())
-            .build();
+    OpenStreamInformation.OpenStreamInformationBuilder openStreamInformationBuilder =
+        OpenStreamInformation.builder();
+    openStreamInformationBuilder.objectMetadata(
+        ObjectMetadata.builder()
+            .contentLength(metadata.contentLength())
+            .etag(metadata.eTag())
+            .build());
+    if (inputFile.s3FileIOProperties().sseType().equals(S3FileIOProperties.SSE_TYPE_CUSTOM)) {
+      openStreamInformationBuilder.encryptionSecrets(
+          EncryptionSecrets.builder()
+              .sseCustomerKey(Optional.of(inputFile.s3FileIOProperties().sseKey()))
+              .build());
+    }
+
+    OpenStreamInformation openStreamInfo = openStreamInformationBuilder.build();
 
     S3SeekableInputStreamFactory factory =
         STREAM_FACTORY_CACHE.get(
