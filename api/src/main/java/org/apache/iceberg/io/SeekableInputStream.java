@@ -20,6 +20,9 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
 
 /**
  * {@code SeekableInputStream} is an interface with the methods needed to read data from a file or
@@ -43,4 +46,14 @@ public abstract class SeekableInputStream extends InputStream {
    * @throws IOException If the underlying stream throws IOException
    */
   public abstract void seek(long newPos) throws IOException;
+
+  public void readVectored(List<ParquetObjectRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    throw new UnsupportedOperationException(
+        "Default iceberg stream doesn't support read vector io");
+  }
+
+  public boolean readVectoredAvailable(IntFunction<ByteBuffer> allocate) {
+    return false;
+  }
 }
