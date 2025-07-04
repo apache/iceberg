@@ -65,29 +65,30 @@ public class PartitionStatsHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
 
-  public static final int PARTITION_FIELD_ID = 0;
+  // schema of the partition stats file as per spec
+  public static final int PARTITION_FIELD_ID = 1;
   public static final String PARTITION_FIELD_NAME = "partition";
-  public static final NestedField SPEC_ID = NestedField.required(1, "spec_id", IntegerType.get());
+  public static final NestedField SPEC_ID = NestedField.required(2, "spec_id", IntegerType.get());
   public static final NestedField DATA_RECORD_COUNT =
-      NestedField.required(2, "data_record_count", LongType.get());
+      NestedField.required(3, "data_record_count", LongType.get());
   public static final NestedField DATA_FILE_COUNT =
-      NestedField.required(3, "data_file_count", IntegerType.get());
+      NestedField.required(4, "data_file_count", IntegerType.get());
   public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
-      NestedField.required(4, "total_data_file_size_in_bytes", LongType.get());
+      NestedField.required(5, "total_data_file_size_in_bytes", LongType.get());
   public static final NestedField POSITION_DELETE_RECORD_COUNT =
-      NestedField.optional(5, "position_delete_record_count", LongType.get());
+      NestedField.optional(6, "position_delete_record_count", LongType.get());
   public static final NestedField POSITION_DELETE_FILE_COUNT =
-      NestedField.optional(6, "position_delete_file_count", IntegerType.get());
+      NestedField.optional(7, "position_delete_file_count", IntegerType.get());
   public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
-      NestedField.optional(7, "equality_delete_record_count", LongType.get());
+      NestedField.optional(8, "equality_delete_record_count", LongType.get());
   public static final NestedField EQUALITY_DELETE_FILE_COUNT =
-      NestedField.optional(8, "equality_delete_file_count", IntegerType.get());
+      NestedField.optional(9, "equality_delete_file_count", IntegerType.get());
   public static final NestedField TOTAL_RECORD_COUNT =
-      NestedField.optional(9, "total_record_count", LongType.get());
+      NestedField.optional(10, "total_record_count", LongType.get());
   public static final NestedField LAST_UPDATED_AT =
-      NestedField.optional(10, "last_updated_at", LongType.get());
+      NestedField.optional(11, "last_updated_at", LongType.get());
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
-      NestedField.optional(11, "last_updated_snapshot_id", LongType.get());
+      NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
@@ -147,6 +148,7 @@ public class PartitionStatsHandler {
    * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
    *     present.
    */
+  @SuppressWarnings("CatchBlockLogException")
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
     Preconditions.checkArgument(table != null, "Invalid table: null");
@@ -164,7 +166,21 @@ public class PartitionStatsHandler {
       stats =
           computeStats(table, snapshot.allManifests(table.io()), false /* incremental */).values();
     } else {
-      stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
+      if (statisticsFile.snapshotId() == snapshotId) {
+        // no-op
+        LOG.info("Returning existing statistics file for snapshot {}", snapshotId);
+        return statisticsFile;
+      }
+
+      try {
+        stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
+      } catch (InvalidStatsFileException exception) {
+        LOG.warn(
+            "Using full compute as previous statistics file is corrupted for incremental compute.");
+        stats =
+            computeStats(table, snapshot.allManifests(table.io()), false /* incremental */)
+                .values();
+      }
     }
 
     if (stats.isEmpty()) {
@@ -237,32 +253,15 @@ public class PartitionStatsHandler {
   }
 
   private static PartitionStats recordToPartitionStats(StructLike record) {
+    int pos = 0;
     PartitionStats stats =
         new PartitionStats(
-            record.get(PARTITION_FIELD_ID, StructLike.class),
-            record.get(SPEC_ID.fieldId(), Integer.class));
-    stats.set(DATA_RECORD_COUNT.fieldId(), record.get(DATA_RECORD_COUNT.fieldId(), Long.class));
-    stats.set(DATA_FILE_COUNT.fieldId(), record.get(DATA_FILE_COUNT.fieldId(), Integer.class));
-    stats.set(
-        TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(),
-        record.get(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), Long.class));
-    stats.set(
-        POSITION_DELETE_RECORD_COUNT.fieldId(),
-        record.get(POSITION_DELETE_RECORD_COUNT.fieldId(), Long.class));
-    stats.set(
-        POSITION_DELETE_FILE_COUNT.fieldId(),
-        record.get(POSITION_DELETE_FILE_COUNT.fieldId(), Integer.class));
-    stats.set(
-        EQUALITY_DELETE_RECORD_COUNT.fieldId(),
-        record.get(EQUALITY_DELETE_RECORD_COUNT.fieldId(), Long.class));
-    stats.set(
-        EQUALITY_DELETE_FILE_COUNT.fieldId(),
-        record.get(EQUALITY_DELETE_FILE_COUNT.fieldId(), Integer.class));
-    stats.set(TOTAL_RECORD_COUNT.fieldId(), record.get(TOTAL_RECORD_COUNT.fieldId(), Long.class));
-    stats.set(LAST_UPDATED_AT.fieldId(), record.get(LAST_UPDATED_AT.fieldId(), Long.class));
-    stats.set(
-        LAST_UPDATED_SNAPSHOT_ID.fieldId(),
-        record.get(LAST_UPDATED_SNAPSHOT_ID.fieldId(), Long.class));
+            record.get(pos++, StructLike.class), // partition
+            record.get(pos++, Integer.class)); // spec id
+    for (; pos < record.size(); pos++) {
+      stats.set(pos, record.get(pos, Object.class));
+    }
+
     return stats;
   }
 
@@ -280,6 +279,8 @@ public class PartitionStatsHandler {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+    } catch (Exception exception) {
+      throw new InvalidStatsFileException(exception);
     }
 
     // incrementally compute the new stats, partition field will be written as PartitionData
@@ -431,5 +432,12 @@ public class PartitionStatsHandler {
     entries.sort(
         Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
     return entries;
+  }
+
+  private static class InvalidStatsFileException extends RuntimeException {
+
+    InvalidStatsFileException(Throwable cause) {
+      super(cause);
+    }
   }
 }

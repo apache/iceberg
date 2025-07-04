@@ -206,7 +206,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -275,7 +275,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -290,7 +290,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",

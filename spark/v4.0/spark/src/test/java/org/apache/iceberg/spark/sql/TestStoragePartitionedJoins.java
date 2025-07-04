@@ -98,6 +98,12 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
           SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(),
           "-1",
           SparkSQLProperties.PRESERVE_DATA_GROUPING,
+          "true",
+          SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
+          "false",
+          SQLConf.V2_BUCKETING_ALLOW_JOIN_KEYS_SUBSET_OF_PARTITION_KEYS().key(),
+          "true",
+          SQLConf.V2_BUCKETING_ALLOW_COMPATIBLE_TRANSFORMS().key(),
           "true");
 
   private static final Map<String, String> DISABLED_SPJ_SQL_CONF =
@@ -550,6 +556,146 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsCompatibleBucketNumbers() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(4, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(2L, 101, 'hr'),"
+            + "(3L, 102, 'operation'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(6, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(3L, 300, 'hardware'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsWithBucketWithOneSideReducing() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(4, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(2L, 101, 'hr'),"
+            + "(3L, 102, 'operation'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(8, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(3L, 300, 'hardware'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsIncompatibleBucketNumbers() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(3, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(2L, 101, 'hr'),"
+            + "(3L, 102, 'operation'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(5, id))"
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software'),"
+            + "(3L, 300, 'hardware'),"
+            + "(4L, 103, 'sales'),"
+            + "(5L, 104, 'marketing'),"
+            + "(6L, 105, 'pr')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        3, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
   public void testAggregates() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
@@ -576,6 +722,59 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
         "SELECT COUNT (DISTINCT id) AS count FROM %s GROUP BY dep ORDER BY count",
         tableName,
         tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsHourToDays() throws NoSuchTableException {
+    String createTableStmt =
+        "CREATE TABLE %s ("
+            + "id BIGINT, int_col INT,dep STRING,timestamp_col TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(timestamp_col)) "
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(2L, 101, 'hr', TIMESTAMP('2024-11-10 09:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(4L, 103, 'sales', TIMESTAMP('2024-11-10 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
+        tableName);
+
+    String create2ndTableStmt =
+        "CREATE TABLE %s ("
+            + "id BIGINT, int_col INT, dep STRING, timestamp_col TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (hours(timestamp_col)) "
+            + "TBLPROPERTIES (%s)";
+
+    String otherTableName = tableName(OTHER_TABLE_NAME);
+
+    sql(create2ndTableStmt, otherTableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1L, 100, 'software', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(3L, 102, 'operation', TIMESTAMP('2024-11-10 11:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(5L, 104, 'marketing', TIMESTAMP('2024-11-11 10:00:00')),"
+            + "(6L, 105, 'pr', TIMESTAMP('2024-11-10 10:00:00'))",
+        otherTableName);
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id and t1.timestamp_col = t2.timestamp_col "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        otherTableName);
   }
 
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)

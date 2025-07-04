@@ -80,7 +80,7 @@ abstract class DynamicRecordInternalSerializerTestBase
 
     return new DynamicRecordInternal[] {
       new DynamicRecordInternal(
-          TABLE, BRANCH, SCHEMA, rowData, SPEC, 42, false, Collections.emptyList())
+          TABLE, BRANCH, SCHEMA, rowData, SPEC, 42, false, Collections.emptySet())
     };
   }
 

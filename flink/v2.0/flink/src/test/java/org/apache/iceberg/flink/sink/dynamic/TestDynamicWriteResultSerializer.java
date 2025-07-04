@@ -23,13 +23,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 class TestDynamicWriteResultSerializer {
@@ -53,7 +53,7 @@ class TestDynamicWriteResultSerializer {
   void testRoundtrip() throws IOException {
     DynamicWriteResult dynamicWriteResult =
         new DynamicWriteResult(
-            new WriteTarget("table", "branch", 42, 23, false, Lists.newArrayList(1, 2)),
+            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
             WriteResult.builder().addDataFiles(DATA_FILE).build());
 
     DynamicWriteResultSerializer serializer = new DynamicWriteResultSerializer();
@@ -71,7 +71,7 @@ class TestDynamicWriteResultSerializer {
   void testUnsupportedVersion() throws IOException {
     DynamicWriteResult dynamicWriteResult =
         new DynamicWriteResult(
-            new WriteTarget("table", "branch", 42, 23, false, Lists.newArrayList(1, 2)),
+            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
             WriteResult.builder().addDataFiles(DATA_FILE).build());
 
     DynamicWriteResultSerializer serializer = new DynamicWriteResultSerializer();

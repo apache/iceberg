@@ -42,6 +42,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.Schema;
@@ -151,7 +152,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     ExecutorService workerPool =
-        ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
+        ThreadPools.newFixedThreadPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
       this.batchSplits =
@@ -291,7 +292,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private RowDataConverter<T> converter;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
-    private TableSchema projectedFlinkSchema;
+    private TableSchema projectedTableSchema;
+    private ResolvedSchema projectedFlinkSchema;
     private Boolean exposeLocality;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
@@ -458,7 +460,17 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #project(ResolvedSchema)}
+     *     instead.
+     */
+    @Deprecated
     public Builder<T> project(TableSchema newProjectedFlinkSchema) {
+      this.projectedTableSchema = newProjectedFlinkSchema;
+      return this;
+    }
+
+    public Builder<T> project(ResolvedSchema newProjectedFlinkSchema) {
       this.projectedFlinkSchema = newProjectedFlinkSchema;
       return this;
     }
@@ -546,7 +558,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
-     * @deprecated Use {@link #setAll} instead.
+     * @deprecated will be removed in 2.0.0; use {@link #setAll} instead.
      */
     @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
@@ -572,6 +584,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
+      } else if (projectedTableSchema != null) {
+        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedTableSchema));
       }
 
       SerializableRecordEmitter<T> emitter = SerializableRecordEmitter.defaultEmitter();

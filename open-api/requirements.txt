@@ -15,5 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-openapi-spec-validator==0.7.1
-datamodel-code-generator==0.30.1
+openapi-spec-validator==0.7.2
+datamodel-code-generator==0.31.2

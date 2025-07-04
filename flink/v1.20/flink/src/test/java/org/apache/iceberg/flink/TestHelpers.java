@@ -132,7 +132,7 @@ public class TestHelpers {
         .collect(Collectors.toList());
   }
 
-  private static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
+  public static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
     DataStructureConverter<RowData, Row> converter =
