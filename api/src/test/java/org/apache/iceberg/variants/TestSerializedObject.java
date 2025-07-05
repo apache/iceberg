@@ -182,42 +182,31 @@ public class TestSerializedObject {
     assertThat(actualInner.get("f").asPrimitive().get()).isEqualTo((byte) 3);
   }
 
-  @Test
-  public void testTwoByteOffsets() {
-    // a string larger than 255 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(300, random);
+  @ParameterizedTest
+  @ValueSource(
+      ints = {
+        300, // a big string larger than 255 bytes to push the value offset size above 1 byte to
+        // test TwoByteOffsets
+        70_000 // a really-big string larger than 65535 bytes to push the value offset size above 1
+        // byte to test ThreeByteOffsets
+      })
+  public void testMultiByteOffsets(int multiByteOffset) {
+    String randomString = RandomUtil.generateString(multiByteOffset, random);
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
-    Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", I1, "b", I2, "c", I3);
-    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
-    ByteBuffer value = VariantTestUtil.createObject(meta, data);
-
-    VariantMetadata metadata = VariantMetadata.from(meta);
-    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
-
-    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(4);
-
-    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
-    assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
-  }
-
-  @Test
-  public void testThreeByteOffsets() {
-    // a string larger than 65535 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(70_000, random);
-    SerializedPrimitive reallyBigString = VariantTestUtil.createString(randomString);
-
-    // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
-        ImmutableMap.of("really-big", reallyBigString, "a", I1, "b", I2, "c", I3);
+        ImmutableMap.of(
+            "small",
+            VariantTestUtil.createShortString("iceberg"),
+            "big",
+            bigString,
+            "a",
+            I1,
+            "b",
+            I2,
+            "c",
+            I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
@@ -225,7 +214,7 @@ public class TestSerializedObject {
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(5);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -233,15 +222,41 @@ public class TestSerializedObject {
     assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
     assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
-    assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    VariantTestUtil.assertVariantString(object.get("big"), randomString);
+    VariantTestUtil.assertVariantString(object.get("small"), "iceberg");
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void testLargeObject(boolean sortFieldNames) {
-    Map<String, SerializedPrimitive> fields = Maps.newHashMap();
+    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
+    for (int i = 0; i < 10_000; i += 1) {
+      fields.put(
+          RandomUtil.generateString(10, random),
+          VariantTestUtil.createShortString(RandomUtil.generateString(10, random)));
+    }
+
+    ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
+    ByteBuffer value = VariantTestUtil.createObject(meta, (Map) fields);
+
+    VariantMetadata metadata = VariantMetadata.from(meta);
+    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
+
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numFields()).isEqualTo(10_000);
+
+    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
+      VariantValue fieldValue = object.get(entry.getKey());
+      VariantTestUtil.assertVariantString(fieldValue, entry.getValue().get().toString());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testLargeObjectUsingShortStringWithBigHeader(boolean sortFieldNames) {
+    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
     for (int i = 0; i < 10_000; i += 1) {
       fields.put(
           RandomUtil.generateString(10, random),
@@ -257,7 +272,7 @@ public class TestSerializedObject {
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(10_000);
 
-    for (Map.Entry<String, SerializedPrimitive> entry : fields.entrySet()) {
+    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
