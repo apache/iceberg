@@ -363,4 +363,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
+
+  public boolean limitPushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.LIMIT_PUSH_DOWN_ENABLED)
+        .defaultValue(SparkSQLProperties.LIMIT_PUSH_DOWN_ENABLED_DEFAULT)
+        .parse();
+  }
 }
