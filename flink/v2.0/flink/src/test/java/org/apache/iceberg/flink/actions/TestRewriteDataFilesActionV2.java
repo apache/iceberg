@@ -31,6 +31,7 @@ import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
@@ -49,7 +50,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
   private static final String COMMIT_TASK_NAME = "Rewrite commit";
 
   @Test
-  void testRewriteUnpartitioned() throws Exception {
+  void testRewriteUnPartitioned() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -75,7 +76,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .rewriteAll(false);
 
     TaskResult result =
-        new RewriteDataFilesActionV2(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -85,6 +86,11 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(4);
+
     assertFileNum(table, 1, 0);
 
     SimpleDataUtil.assertTableRecords(
@@ -97,7 +103,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testRewriteUnpartitionedWithFilter() throws Exception {
+  void testRewriteUnPartitionedWithFilter() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -124,7 +130,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .rewriteAll(false);
 
     TaskResult result =
-        new RewriteDataFilesActionV2(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -134,6 +140,11 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     assertFileNum(table, 3, 0);
 
@@ -161,7 +172,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().rewriteAll(true);
 
     TaskResult result =
-        new RewriteDataFilesActionV2(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -171,6 +182,11 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(2);
+    assertThat(actionResult.deletedDataFiles()).hasSize(4);
 
     assertFileNum(table, 2, 0);
 
@@ -195,7 +211,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
     TaskResult result =
-        new RewriteDataFilesActionV2(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -205,6 +221,11 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(
@@ -269,7 +290,7 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
     TaskResult result =
-        new RewriteDataFilesActionV2(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -284,6 +305,11 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 1, 3);
 
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(

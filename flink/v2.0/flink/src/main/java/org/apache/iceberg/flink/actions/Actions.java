@@ -37,6 +37,10 @@ public class Actions {
   private final Table table;
   private final TableLoader tableLoader;
 
+  /**
+   * @deprecated Use {@link #Actions(StreamExecutionEnvironment, TableLoader)} instead. Constructs
+   *     an Actions instance for the given table.
+   */
   @Deprecated
   private Actions(StreamExecutionEnvironment env, Table table) {
     this.env = env;
@@ -54,33 +58,52 @@ public class Actions {
     this.table = tableLoader.loadTable();
   }
 
+  /**
+   * @param table the Iceberg table to perform actions on
+   * @return an Actions instance
+   * @deprecated Use {@link #forTableLoader(StreamExecutionEnvironment, TableLoader)} instead.
+   *     <p>Creates an Actions instance for the given table using the default execution environment.
+   */
   @Deprecated
   public static Actions forTable(StreamExecutionEnvironment env, Table table) {
     return new Actions(env, table);
   }
 
-  public static Actions forTable(StreamExecutionEnvironment env, TableLoader tableLoader) {
+  public static Actions forTableLoader(StreamExecutionEnvironment env, TableLoader tableLoader) {
     return new Actions(env, tableLoader);
   }
 
+  /**
+   * @param table the Iceberg table to perform actions on
+   * @return an Actions instance
+   * @deprecated Use {@link #forTableLoader(TableLoader)} instead.
+   *     <p>Creates an Actions instance for the given table using the default execution environment.
+   */
   @Deprecated
   public static Actions forTable(Table table) {
     return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(CONFIG), table);
   }
 
-  public static Actions forTableLoad(TableLoader tableLoader) {
+  public static Actions forTableLoader(TableLoader tableLoader) {
     return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(CONFIG), tableLoader);
   }
 
+  /**
+   * @deprecated Use {@link #rewriteDataFiles(RewriteDataFiles.Builder)} instead. Constructs an
+   *     RewriteDataFilesAction instance for rewrite data files.
+   */
+  @Deprecated
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(env, table);
   }
 
-  public RewriteDataFilesActionV2 rewriteDataFilesV2(RewriteDataFiles.Builder builder) {
-    return new RewriteDataFilesActionV2(env, tableLoader, builder, System.currentTimeMillis());
+  public BaseTableMaintenanceAction<RewriteDataFiles.Builder> rewriteDataFiles(
+      RewriteDataFiles.Builder builder) {
+    return new BaseTableMaintenanceAction<>(env, tableLoader, builder, System.currentTimeMillis());
   }
 
-  public ExpireSnapshotsAction expireSnapshots(ExpireSnapshots.Builder builder) {
-    return new ExpireSnapshotsAction(env, tableLoader, builder, System.currentTimeMillis());
+  public BaseTableMaintenanceAction<ExpireSnapshots.Builder> expireSnapshots(
+      ExpireSnapshots.Builder builder) {
+    return new BaseTableMaintenanceAction<>(env, tableLoader, builder, System.currentTimeMillis());
   }
 }

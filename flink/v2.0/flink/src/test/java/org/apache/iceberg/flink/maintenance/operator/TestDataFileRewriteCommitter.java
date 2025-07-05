@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestDataFileRewriteCommitter extends OperatorTestBase {
+
   @Test
   void testUnpartitioned() throws Exception {
     Table table = createTable();
@@ -57,7 +58,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      assertThat(testHarness.extractOutputValues()).isEmpty();
+      List<Trigger> triggers = testHarness.extractOutputValues();
+      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+      assertThat(triggers.get(0).taskId()).isNull();
     }
 
     assertDataFiles(
@@ -101,7 +104,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      assertThat(testHarness.extractOutputValues()).isEmpty();
+      List<Trigger> triggers = testHarness.extractOutputValues();
+      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+      assertThat(triggers.get(0).taskId()).isNull();
     }
   }
 
@@ -127,7 +132,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      assertThat(testHarness.extractOutputValues()).isEmpty();
+      List<Trigger> triggers = testHarness.extractOutputValues();
+      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+      assertThat(triggers.get(0).taskId()).isNull();
     }
 
     assertDataFiles(
@@ -170,7 +177,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      assertThat(testHarness.extractOutputValues()).isEmpty();
+      List<Trigger> triggers = testHarness.extractOutputValues();
+      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+      assertThat(triggers.get(0).taskId()).isNull();
     }
 
     // This should be committed on close

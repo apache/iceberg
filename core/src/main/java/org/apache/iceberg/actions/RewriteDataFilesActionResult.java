@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-public class RewriteDataFilesActionResult {
+public class RewriteDataFilesActionResult implements ActionResult {
 
   private static final RewriteDataFilesActionResult EMPTY =
       new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());

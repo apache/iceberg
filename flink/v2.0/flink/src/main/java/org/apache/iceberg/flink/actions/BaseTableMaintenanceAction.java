@@ -33,7 +33,7 @@ import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-abstract class BaseTableMaintenanceAction<T> {
+public class BaseTableMaintenanceAction<T> {
 
   private final StreamExecutionEnvironment env;
   private final TableLoader tableLoader;
@@ -42,7 +42,7 @@ abstract class BaseTableMaintenanceAction<T> {
   private static final int DEFAULT_TASK_INDEX = 0;
   private final MaintenanceTaskBuilder<?> builder;
 
-  BaseTableMaintenanceAction(
+  public BaseTableMaintenanceAction(
       StreamExecutionEnvironment env,
       TableLoader tableLoader,
       MaintenanceTaskBuilder<?> builder,

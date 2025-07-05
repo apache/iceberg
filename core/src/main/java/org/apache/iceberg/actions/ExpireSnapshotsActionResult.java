@@ -16,19 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+public class ExpireSnapshotsActionResult implements ActionResult {
 
-public class RewriteDataFilesActionV2 extends BaseTableMaintenanceAction<RewriteDataFilesActionV2> {
+  private static final ExpireSnapshotsActionResult EMPTY = new ExpireSnapshotsActionResult(0L);
 
-  public RewriteDataFilesActionV2(
-      StreamExecutionEnvironment env,
-      TableLoader tableLoader,
-      RewriteDataFiles.Builder builder,
-      long triggerTimestamp) {
-    super(env, tableLoader, builder, triggerTimestamp);
+  private final long deletedFiles;
+
+  public ExpireSnapshotsActionResult(long deletedFiles) {
+    this.deletedFiles = deletedFiles;
+  }
+
+  static ExpireSnapshotsActionResult empty() {
+    return EMPTY;
+  }
+
+  public long deletedFiles() {
+    return deletedFiles;
   }
 }

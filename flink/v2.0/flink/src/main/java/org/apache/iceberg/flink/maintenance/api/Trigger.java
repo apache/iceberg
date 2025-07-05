@@ -18,28 +18,38 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.actions.ActionResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class Trigger {
   private final long timestamp;
   private final Integer taskId;
   private final boolean isRecovery;
+  private final @Nullable ActionResult actionResult;
 
-  private Trigger(long timestamp, Integer taskId, boolean isRecovery) {
+  private Trigger(
+      long timestamp, Integer taskId, boolean isRecovery, @Nullable ActionResult actionResult) {
     this.timestamp = timestamp;
     this.taskId = taskId;
     this.isRecovery = isRecovery;
+    this.actionResult = actionResult;
   }
 
   @Internal
   public static Trigger create(long timestamp, int taskId) {
-    return new Trigger(timestamp, taskId, false);
+    return new Trigger(timestamp, taskId, false, null);
+  }
+
+  @Internal
+  public static Trigger create(ActionResult actionResult) {
+    return new Trigger(-1, null, false, actionResult);
   }
 
   @Internal
   public static Trigger recovery(long timestamp) {
-    return new Trigger(timestamp, null, true);
+    return new Trigger(timestamp, null, true, null);
   }
 
   public long timestamp() {
@@ -52,6 +62,10 @@ public class Trigger {
 
   public boolean isRecovery() {
     return isRecovery;
+  }
+
+  public ActionResult actionResult() {
+    return actionResult;
   }
 
   @Override

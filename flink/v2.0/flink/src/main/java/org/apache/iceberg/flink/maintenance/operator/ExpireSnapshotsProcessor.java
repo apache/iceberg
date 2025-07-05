@@ -29,6 +29,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -116,7 +117,12 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
           ctx.timestamp(),
           deleteFileCounter.get());
       out.collect(
-          new TaskResult(trigger.taskId(), trigger.timestamp(), true, Collections.emptyList()));
+          new TaskResult(
+              trigger.taskId(),
+              trigger.timestamp(),
+              true,
+              Collections.emptyList(),
+              new ExpireSnapshotsActionResult(deleteFileCounter.get())));
     } catch (Exception e) {
       LOG.error("Failed to expiring snapshots for {} at {}", table, ctx.timestamp(), e);
       out.collect(
