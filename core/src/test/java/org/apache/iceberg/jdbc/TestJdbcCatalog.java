@@ -1109,6 +1109,42 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
   }
 
+  @Test
+  public void testRegisterTableToNonExistingNamespace() {
+    try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
+      TableIdentifier identifier = TableIdentifier.of("a", "t1");
+      jdbcCatalog.createNamespace(identifier.namespace());
+      jdbcCatalog.createTable(identifier, SCHEMA);
+      Table table = jdbcCatalog.loadTable(identifier);
+      TableOperations ops = ((BaseTable) table).operations();
+      String metadataLocation = ops.current().metadataFileLocation();
+
+      TableIdentifier registeredTableId = TableIdentifier.of("non-existing", "t1");
+      Table registeredTable = jdbcCatalog.registerTable(registeredTableId, metadataLocation);
+
+      assertThat(registeredTable).isNotNull();
+      assertThat(jdbcCatalog.tableExists(registeredTableId))
+          .as("Registered table must exist")
+          .isTrue();
+    }
+  }
+
+  @Test
+  public void testRegisterTableToNonExistingNamespaceStrictMode() {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(
+            "strict_jdbc_catalog", ImmutableMap.of(JdbcUtil.STRICT_MODE_PROPERTY, "true"))) {
+
+      assertThatThrownBy(
+              () ->
+                  jdbcCatalog.registerTable(
+                      TableIdentifier.of("non-existing", "t1"),
+                      "table_metadata_from_different_catalogs"))
+          .isInstanceOf(NoSuchNamespaceException.class)
+          .hasMessageStartingWith("Cannot register table");
+    }
+  }
+
   private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
       throws SQLException {
     // temporary connection just to actually create a concrete metadata location
