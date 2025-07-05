@@ -431,6 +431,11 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="TestClassNamingConvention"/>
+            <property name="format" value="^\s*(public\s+)?(abstract\s+)?class\s+[A-Za-z0-9]*Test(\s|&lt;)"/>
+            <property name="message" value="Test class names should start with 'Test' prefix, not end with 'Test' suffix. Example: 'TestNewFeature' instead of 'NewFeatureTest'"/>
+        </module>
         <module name="IllegalToken">
             <property name="tokens" value="LITERAL_ASSERT"/>
         </module>

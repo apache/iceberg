@@ -25,8 +25,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestData;
 import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -35,7 +35,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestInternalParquet extends DataTest {
+public class TestInternalParquet extends TestData {
   @Override
   protected boolean supportsDefaultValues() {
     return true;
