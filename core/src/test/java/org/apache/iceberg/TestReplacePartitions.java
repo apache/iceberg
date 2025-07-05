@@ -24,8 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.jupiter.api.TestTemplate;
@@ -106,11 +107,9 @@ public class TestReplacePartitions extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, "main"},
-        new Object[] {1, "testBranch"},
-        new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "branch"}))
+        .collect(Collectors.toList());
   }
 
   @TestTemplate
@@ -825,5 +824,46 @@ public class TestReplacePartitions extends TestBase {
   @TestTemplate
   public void testEmptyPartitionPathWithUnpartitionedTable() {
     DataFiles.builder(PartitionSpec.unpartitioned()).withPartitionPath("");
+  }
+
+  @TestTemplate
+  public void replacingAndMergingOnePartitionAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    // ensure the overwrite results in a merge
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+
+    // FILE_E has the same partition as FILE_A. The dv for FILE_A will be removed from the delete
+    // manifest
+    commit(table, table.newReplacePartitions().addFile(FILE_E), branch);
+
+    Snapshot replaceSnapshot = latestSnapshot(table, branch);
+    assertThat(replaceSnapshot.dataManifests(table.io())).hasSize(1);
+    assertThat(replaceSnapshot.deleteManifests(table.io())).hasSize(1);
+
+    validateManifestEntries(
+        replaceSnapshot.dataManifests(table.io()).get(0),
+        ids(replaceSnapshot.snapshotId(), replaceSnapshot.snapshotId(), snapshot.snapshotId()),
+        files(FILE_E, FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
+
+    validateDeleteManifest(
+        replaceSnapshot.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(replaceSnapshot.snapshotId(), snapshot.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(Status.DELETED, Status.EXISTING));
   }
 }

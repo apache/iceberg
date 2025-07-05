@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -727,7 +728,7 @@ public class TestRowDelta extends TestBase {
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
-    // deleting a specific data file will not affect a delete file
+    // deleting a specific data file will not affect a delete file in v2 or less
     commit(table, table.newDelete().deleteFile(FILE_A), branch);
 
     Snapshot deleteSnap = latestSnapshot(table, branch);
@@ -743,21 +744,26 @@ public class TestRowDelta extends TestBase {
         files(FILE_A),
         statuses(Status.DELETED));
 
-    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    Iterator<Long> ids =
+        formatVersion >= 3
+            ? ids(deleteSnap.snapshotId(), deltaSnapshotId)
+            : ids(deltaSnapshotId, deltaSnapshotId);
+    Iterator<Status> statuses =
+        formatVersion >= 3
+            ? statuses(Status.DELETED, Status.EXISTING)
+            : statuses(Status.ADDED, Status.ADDED);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
-        ids(deltaSnapshotId, deltaSnapshotId),
+        ids,
         files(fileADeletes(), fileBDeletes()),
-        statuses(Status.ADDED, Status.ADDED));
+        statuses);
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number
-    // of all data files
-    // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed
-    // because it is too old
-    // to apply to any data files.
-    commit(table, table.newRowDelta().removeDeletes(FILE_B_DELETES), branch);
+    // of all data files to be 2, the largest known sequence number. This will cause FILE_A_DELETES
+    // to be removed because it is too old to apply to any data files.
+    commit(table, table.newRowDelta().removeDeletes(fileBDeletes()), branch);
 
     Snapshot nextSnap = latestSnapshot(table, branch);
     assertThat(nextSnap.sequenceNumber()).isEqualTo(3);
@@ -770,7 +776,7 @@ public class TestRowDelta extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(nextSnap.snapshotId(), nextSnap.snapshotId()),
-        files(fileADeletes(), fileBDeletes()),
+        formatVersion >= 3 ? files(fileBDeletes()) : files(fileADeletes(), fileBDeletes()),
         statuses(Status.DELETED, Status.DELETED));
   }
 
@@ -803,9 +809,9 @@ public class TestRowDelta extends TestBase {
         deleteSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L),
         fileSeqs(1L),
-        ids(deltaSnapshotId),
+        ids(formatVersion >= 3 ? deleteSnap.snapshotId() : deltaSnapshotId),
         files(fileADeletes()),
-        statuses(Status.ADDED));
+        statuses(formatVersion >= 3 ? Status.DELETED : Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next merging commit, but FastAppend will not
     // remove it
@@ -839,9 +845,9 @@ public class TestRowDelta extends TestBase {
         nextSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L),
         fileSeqs(1L),
-        ids(deltaSnapshotId),
+        ids(formatVersion >= 3 ? deleteSnap.snapshotId() : deltaSnapshotId),
         files(fileADeletes()),
-        statuses(Status.ADDED));
+        statuses(formatVersion >= 3 ? Status.DELETED : Status.ADDED));
   }
 
   @TestTemplate
