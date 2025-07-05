@@ -20,11 +20,13 @@ package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.auth.AuthScope;
@@ -49,8 +51,6 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.BasicHttpContext;
-import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.iceberg.IcebergBuild;
@@ -86,6 +86,7 @@ public class HTTPClient extends BaseHTTPClient {
   static final String REST_PROXY_PORT = "rest.client.proxy.port";
   static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
   static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
+  static final String REST_USER_AGENT = "rest.client.user-agent";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -100,6 +101,7 @@ public class HTTPClient extends BaseHTTPClient {
   private final ObjectMapper mapper;
   private final AuthSession authSession;
   private final boolean isRootClient;
+  private final ConcurrentMap<Class<?>, ObjectReader> objectReaderCache = Maps.newConcurrentMap();
 
   private HTTPClient(
       URI baseUri,
@@ -121,6 +123,11 @@ public class HTTPClient extends BaseHTTPClient {
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
+    String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
+    if (userAgent != null) {
+      clientBuilder.setUserAgent(userAgent);
+    }
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
@@ -191,10 +198,7 @@ public class HTTPClient extends BaseHTTPClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response,
-      String responseBody,
-      Consumer<ErrorResponse> errorHandler,
-      Object wasRetried) {
+      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -231,19 +235,10 @@ public class HTTPClient extends BaseHTTPClient {
       errorResponse = buildDefaultErrorResponse(response);
     }
 
-    ErrorResponse enrichedErrorResponse =
-        ErrorResponse.builder()
-            .wasRetried(wasRetried == Boolean.TRUE)
-            .responseCode(errorResponse.code())
-            .withMessage(errorResponse.message())
-            .withType(errorResponse.type())
-            .withStackTrace(errorResponse.stack())
-            .build();
-
-    errorHandler.accept(enrichedErrorResponse);
+    errorHandler.accept(errorResponse);
 
     // Throw an exception in case the provided error handler does not throw.
-    throw new RESTException("Unhandled error: %s", enrichedErrorResponse);
+    throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
   @Override
@@ -297,6 +292,17 @@ public class HTTPClient extends BaseHTTPClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
+    return execute(
+        req, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
+  }
+
+  @Override
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest req,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
     HttpUriRequestBase request = new HttpUriRequestBase(req.method().name(), req.requestUri());
 
     req.headers().entries().forEach(e -> request.addHeader(e.name(), e.value()));
@@ -306,8 +312,7 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    HttpContext context = new BasicHttpContext();
-    try (CloseableHttpResponse response = httpClient.execute(request, context)) {
+    try (CloseableHttpResponse response = httpClient.execute(request)) {
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
         respHeaders.put(header.getName(), header.getValue());
@@ -325,7 +330,7 @@ public class HTTPClient extends BaseHTTPClient {
 
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler, context.getAttribute("was-retried"));
+        throwFailure(response, responseBody, errorHandler);
       }
 
       if (responseBody == null) {
@@ -335,7 +340,11 @@ public class HTTPClient extends BaseHTTPClient {
       }
 
       try {
-        return mapper.readValue(responseBody, responseType);
+        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+        if (parserContext != null && !parserContext.isEmpty()) {
+          reader = reader.with(parserContext.toInjectableValues());
+        }
+        return reader.readValue(responseBody);
       } catch (JsonProcessingException e) {
         throw new RESTException(
             e,

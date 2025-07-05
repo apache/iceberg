@@ -20,8 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
@@ -31,11 +30,11 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 @Internal
 class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordInternal> {
@@ -126,11 +125,11 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     RowData rowData = rowDataSerializer.deserialize(dataInputView);
     boolean upsertMode = dataInputView.readBoolean();
     int numEqualityFields = dataInputView.readInt();
-    final List<Integer> equalityFieldIds;
+    final Set<Integer> equalityFieldIds;
     if (numEqualityFields > 0) {
-      equalityFieldIds = Lists.newArrayList();
+      equalityFieldIds = Sets.newHashSetWithExpectedSize(numEqualityFields);
     } else {
-      equalityFieldIds = Collections.emptyList();
+      equalityFieldIds = Collections.emptySet();
     }
 
     for (int i = 0; i < numEqualityFields; i++) {
@@ -173,11 +172,11 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     RowData rowData = rowDataSerializer.deserialize(dataInputView);
     boolean upsertMode = dataInputView.readBoolean();
     int numEqualityFields = dataInputView.readInt();
-    final List<Integer> equalityFieldIds;
+    final Set<Integer> equalityFieldIds;
     if (numEqualityFields > 0) {
-      equalityFieldIds = Lists.newArrayList();
+      equalityFieldIds = Sets.newHashSetWithExpectedSize(numEqualityFields);
     } else {
-      equalityFieldIds = Collections.emptyList();
+      equalityFieldIds = Collections.emptySet();
     }
     for (int i = 0; i < numEqualityFields; i++) {
       equalityFieldIds.add(dataInputView.readInt());
@@ -231,7 +230,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(writeSchemaAndSpec);
+    return Boolean.hashCode(writeSchemaAndSpec);
   }
 
   @Override

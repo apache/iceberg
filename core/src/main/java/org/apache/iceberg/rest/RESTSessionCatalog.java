@@ -194,7 +194,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // catalog service
     Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
+    this.closeables = new CloseableGroup();
+
     this.authManager = AuthManagers.loadAuthManager(name, props);
+    this.closeables.addCloseable(this.authManager);
 
     ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props);
@@ -220,9 +223,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     this.client = clientBuilder.apply(mergedProps);
+    this.closeables.addCloseable(this.client);
+
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     this.catalogAuth = authManager.catalogSession(client, mergedProps);
+    this.closeables.addCloseable(this.catalogAuth);
 
     this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
     if (pageSize != null) {
@@ -233,11 +239,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOTracker = new FileIOTracker();
-    this.closeables = new CloseableGroup();
-    this.closeables.addCloseable(this.catalogAuth);
-    this.closeables.addCloseable(this.authManager);
     this.closeables.addCloseable(this.io);
-    this.closeables.addCloseable(this.client);
     this.closeables.addCloseable(fileIOTracker);
     this.closeables.setSuppressCloseFailure(true);
 

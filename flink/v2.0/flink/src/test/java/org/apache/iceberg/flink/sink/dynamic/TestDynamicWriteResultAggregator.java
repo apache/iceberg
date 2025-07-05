@@ -24,11 +24,11 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -49,12 +49,11 @@ class TestDynamicWriteResultAggregator {
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
       testHarness.open();
 
-      WriteTarget writeTarget1 =
-          new WriteTarget("table", "branch", 42, 0, true, Lists.newArrayList());
+      WriteTarget writeTarget1 = new WriteTarget("table", "branch", 42, 0, true, Sets.newHashSet());
       DynamicWriteResult dynamicWriteResult1 =
           new DynamicWriteResult(writeTarget1, WriteResult.builder().build());
       WriteTarget writeTarget2 =
-          new WriteTarget("table2", "branch", 42, 0, true, Lists.newArrayList(1, 2));
+          new WriteTarget("table2", "branch", 42, 0, true, Sets.newHashSet(1, 2));
       DynamicWriteResult dynamicWriteResult2 =
           new DynamicWriteResult(writeTarget2, WriteResult.builder().build());
 

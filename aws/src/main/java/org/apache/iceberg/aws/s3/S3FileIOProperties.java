@@ -49,7 +49,6 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
-import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -1022,30 +1021,16 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the endpoint for an S3 client.
+   * Override the endpoint for an S3 sync or async client.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
-   * </pre>
-   */
-  public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {
-    if (endpoint != null) {
-      builder.endpointOverride(URI.create(endpoint));
-    }
-  }
-
-  /**
-   * Override the endpoint for an S3 async client
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
    *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
    * </pre>
    */
-  public <T extends S3AsyncClientBuilder> void applyEndpointConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyEndpointConfigurations(T builder) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }

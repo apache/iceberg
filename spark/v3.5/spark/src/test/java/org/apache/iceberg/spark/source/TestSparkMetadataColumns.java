@@ -76,7 +76,7 @@ public class TestSparkMetadataColumns extends TestBase {
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "category", Types.StringType.get()),
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
@@ -314,6 +314,18 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         ImmutableList.of(row(0, null, -1)),
         sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testIdentifierFields() {
+    table.updateSchema().setIdentifierFields("id").commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, 0, null)),
+        sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
   }
 
   @TestTemplate

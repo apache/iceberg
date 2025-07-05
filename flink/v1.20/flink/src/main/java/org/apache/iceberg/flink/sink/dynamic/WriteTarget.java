@@ -20,12 +20,12 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class WriteTarget implements Serializable {
 
@@ -34,7 +34,7 @@ class WriteTarget implements Serializable {
   private final Integer schemaId;
   private final Integer specId;
   private final boolean upsertMode;
-  private final List<Integer> equalityFields;
+  private final Set<Integer> equalityFields;
 
   WriteTarget(
       String tableName,
@@ -42,7 +42,7 @@ class WriteTarget implements Serializable {
       Integer schemaId,
       Integer specId,
       boolean upsertMode,
-      List<Integer> equalityFields) {
+      Set<Integer> equalityFields) {
     this.tableName = tableName;
     this.branch = branch != null ? branch : "main";
     this.schemaId = schemaId;
@@ -71,7 +71,7 @@ class WriteTarget implements Serializable {
     return upsertMode;
   }
 
-  List<Integer> equalityFields() {
+  Set<Integer> equalityFields() {
     return equalityFields;
   }
 
@@ -94,12 +94,12 @@ class WriteTarget implements Serializable {
         view.readInt(),
         view.readInt(),
         view.readBoolean(),
-        readList(view));
+        readSet(view));
   }
 
-  private static List<Integer> readList(DataInputView view) throws IOException {
+  private static Set<Integer> readSet(DataInputView view) throws IOException {
     int numFields = view.readInt();
-    List<Integer> equalityFields = Lists.newArrayList();
+    Set<Integer> equalityFields = Sets.newHashSetWithExpectedSize(numFields);
     for (int i = 0; i < numFields; i++) {
       equalityFields.add(view.readInt());
     }

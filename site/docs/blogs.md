@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Querying Apache Iceberg with Sub-Second Performance](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance)
+**Date:** June 11, 2025, **Company**: Firebolt
+**Author**: [Lorenz Hübschle](https://www.linkedin.com/in/lorenzhs)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [What Are Apache Iceberg Tables? Benefits and challenges](https://www.redpanda.com/blog/apache-iceberg-tables-benefits-challenges)
 **Date:** May 21, 2025, **Company**: Redpanda
 **Author**: [Redpanda](https://redpanda.com)
