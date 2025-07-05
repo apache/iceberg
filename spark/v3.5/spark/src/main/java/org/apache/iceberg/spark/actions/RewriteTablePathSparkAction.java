@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,12 +80,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Tuple2;
 
 public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePath>
     implements RewriteTablePath {
@@ -312,20 +313,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
-    List<Tuple2<String, String>> fileList =
-        filesToMove.stream()
-            .map(p -> Tuple2.apply(p.first(), p.second()))
-            .collect(Collectors.toList());
-    Dataset<Tuple2<String, String>> fileListDataset =
-        spark().createDataset(fileList, Encoders.tuple(Encoders.STRING(), Encoders.STRING()));
     String fileListPath = stagingDir + RESULT_LOCATION;
-    fileListDataset
-        .repartition(1)
-        .write()
-        .mode(SaveMode.Overwrite)
-        .format("csv")
-        .save(fileListPath);
+    OutputFile fileList = table.io().newOutputFile(fileListPath);
+    writeAsCsv(filesToMove, fileList);
     return fileListPath;
+  }
+
+  private void writeAsCsv(Set<Pair<String, String>> rows, OutputFile outputFile) {
+    try (BufferedWriter writer =
+        new BufferedWriter(
+            new OutputStreamWriter(outputFile.createOrOverwrite(), StandardCharsets.UTF_8))) {
+      for (Pair<String, String> pair : rows) {
+        writer.write(String.join(",", pair.first(), pair.second()));
+        writer.newLine();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
   }
 
   private Set<Snapshot> deltaSnapshots(TableMetadata startMetadata, Set<Snapshot> allSnapshots) {
