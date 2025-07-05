@@ -30,6 +30,7 @@ import java.util.Set;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
@@ -79,7 +80,7 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .retainLast(1);
 
     TaskResult result =
-        new ExpireSnapshotsAction(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -89,6 +90,9 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+
+    ExpireSnapshotsActionResult actionResult = (ExpireSnapshotsActionResult) result.actionResult();
+    assertThat(actionResult.deletedFiles()).isEqualTo(3);
 
     table.refresh();
     assertThat(Sets.newHashSet(table.snapshots())).hasSize(1);
@@ -117,7 +121,7 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .parallelism(1);
 
     TaskResult result =
-        new ExpireSnapshotsAction(
+        new BaseTableMaintenanceAction<>(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
@@ -127,6 +131,9 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
     assertThat(result.exceptions()).isEmpty();
+
+    ExpireSnapshotsActionResult actionResult = (ExpireSnapshotsActionResult) result.actionResult();
+    assertThat(actionResult.deletedFiles()).isEqualTo(1);
 
     // Check the metrics
     Awaitility.await()
