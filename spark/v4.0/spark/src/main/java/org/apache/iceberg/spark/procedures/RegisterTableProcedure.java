@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -29,17 +30,22 @@ import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 class RegisterTableProcedure extends BaseProcedure {
+
+  static final String NAME = "register_table";
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("metadata_file", DataTypes.StringType)
+        requiredInParameter("table", DataTypes.StringType),
+        requiredInParameter("metadata_file", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -64,17 +70,17 @@ class RegisterTableProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     TableIdentifier tableName =
         Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));
     String metadataFile = args.getString(1);
@@ -100,7 +106,13 @@ class RegisterTableProcedure extends BaseProcedure {
           Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
 
-    return new InternalRow[] {newInternalRow(currentSnapshotId, totalRecords, totalDataFiles)};
+    return asScanIterator(
+        OUTPUT_TYPE, newInternalRow(currentSnapshotId, totalRecords, totalDataFiles));
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

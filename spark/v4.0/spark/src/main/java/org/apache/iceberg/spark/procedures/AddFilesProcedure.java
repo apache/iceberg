@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,7 +45,9 @@ import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -53,16 +56,18 @@ import scala.collection.JavaConverters;
 
 class AddFilesProcedure extends BaseProcedure {
 
+  static final String NAME = "add_files";
+
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
-      ProcedureParameter.required("source_table", DataTypes.StringType);
+      requiredInParameter("source_table", DataTypes.StringType);
   private static final ProcedureParameter PARTITION_FILTER_PARAM =
-      ProcedureParameter.optional("partition_filter", STRING_MAP);
+      optionalInParameter("partition_filter", STRING_MAP);
   private static final ProcedureParameter CHECK_DUPLICATE_FILES_PARAM =
-      ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType);
+      optionalInParameter("check_duplicate_files", DataTypes.BooleanType);
   private static final ProcedureParameter PARALLELISM =
-      ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+      optionalInParameter("parallelism", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -94,17 +99,17 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     Identifier tableIdent = input.ident(TABLE_PARAM);
@@ -120,8 +125,10 @@ class AddFilesProcedure extends BaseProcedure {
     int parallelism = input.asInt(PARALLELISM, 1);
     Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
 
-    return importToIceberg(
-        tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
+    return asScanIterator(
+        OUTPUT_TYPE,
+        importToIceberg(
+            tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism));
   }
 
   private InternalRow[] toOutputRows(Snapshot snapshot) {
@@ -257,6 +264,11 @@ class AddFilesProcedure extends BaseProcedure {
     String defaultValue = LocationUtil.stripTrailingSlash(table.location()) + "/metadata";
     return LocationUtil.stripTrailingSlash(
         table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue));
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

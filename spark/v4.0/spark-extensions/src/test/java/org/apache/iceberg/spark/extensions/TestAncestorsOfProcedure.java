@@ -147,14 +147,17 @@ public class TestAncestorsOfProcedure extends ExtensionsTestBase {
   public void testInvalidAncestorOfCases() {
     assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `ancestors_of` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
-    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("Wrong arg type for snapshot_id: cannot cast");
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.ancestors_of('%s', '1.1')", catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "[CAST_INVALID_INPUT] The value '1.1' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed.");
   }
 }

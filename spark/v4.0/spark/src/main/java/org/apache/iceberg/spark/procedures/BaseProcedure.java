@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,18 +46,36 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
+import org.apache.spark.sql.connector.read.LocalScan;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import scala.Option;
 
-abstract class BaseProcedure implements Procedure {
+abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
   protected static final DataType STRING_MAP =
       DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
   protected static final DataType STRING_ARRAY = DataTypes.createArrayType(DataTypes.StringType);
+
+  protected static ProcedureParameter requiredInParameter(String name, DataType dataType) {
+    return ProcedureParameter.in(name, dataType).build();
+  }
+
+  protected static ProcedureParameter optionalInParameter(String name, DataType dataType) {
+    return optionalInParameter(name, dataType, "NULL");
+  }
+
+  protected static ProcedureParameter optionalInParameter(
+      String name, DataType dataType, String defaultValue) {
+    return ProcedureParameter.in(name, dataType).defaultValue(defaultValue).build();
+  }
 
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
@@ -66,6 +86,11 @@ abstract class BaseProcedure implements Procedure {
   protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
     this.tableCatalog = tableCatalog;
+  }
+
+  @Override
+  public boolean isDeterministic() {
+    return false;
   }
 
   protected SparkSession spark() {
@@ -176,6 +201,30 @@ abstract class BaseProcedure implements Procedure {
 
   protected InternalRow newInternalRow(Object... values) {
     return new GenericInternalRow(values);
+  }
+
+  protected static class Result implements LocalScan {
+    private final StructType readSchema;
+    private final InternalRow[] rows;
+
+    public Result(StructType readSchema, InternalRow[] rows) {
+      this.readSchema = readSchema;
+      this.rows = rows;
+    }
+
+    @Override
+    public StructType readSchema() {
+      return this.readSchema;
+    }
+
+    @Override
+    public InternalRow[] rows() {
+      return this.rows;
+    }
+  }
+
+  protected Iterator<Scan> asScanIterator(StructType readSchema, InternalRow... rows) {
+    return Collections.<Scan>singleton(new Result(readSchema, rows)).iterator();
   }
 
   protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {

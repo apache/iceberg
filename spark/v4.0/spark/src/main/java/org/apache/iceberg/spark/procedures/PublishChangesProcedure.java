@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.Optional;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -27,7 +28,9 @@ import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -44,10 +47,12 @@ import org.apache.spark.sql.types.StructType;
  */
 class PublishChangesProcedure extends BaseProcedure {
 
+  static final String NAME = "publish_changes";
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("wap_id", DataTypes.StringType)
+        requiredInParameter("table", DataTypes.StringType),
+        requiredInParameter("wap_id", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -71,17 +76,17 @@ class PublishChangesProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     String wapId = args.getString(1);
 
@@ -104,8 +109,13 @@ class PublishChangesProcedure extends BaseProcedure {
           Snapshot currentSnapshot = table.currentSnapshot();
 
           InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
-          return new InternalRow[] {outputRow};
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

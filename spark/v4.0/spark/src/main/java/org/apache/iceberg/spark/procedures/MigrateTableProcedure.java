@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,7 +29,9 @@ import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -36,16 +39,18 @@ import org.apache.spark.sql.types.StructType;
 
 class MigrateTableProcedure extends BaseProcedure {
 
+  static final String NAME = "migrate";
+
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter PROPERTIES_PARAM =
-      ProcedureParameter.optional("properties", STRING_MAP);
+      optionalInParameter("properties", STRING_MAP);
   private static final ProcedureParameter DROP_BACKUP_PARAM =
-      ProcedureParameter.optional("drop_backup", DataTypes.BooleanType);
+      optionalInParameter("drop_backup", DataTypes.BooleanType);
   private static final ProcedureParameter BACKUP_TABLE_NAME_PARAM =
-      ProcedureParameter.optional("backup_table_name", DataTypes.StringType);
+      optionalInParameter("backup_table_name", DataTypes.StringType);
   private static final ProcedureParameter PARALLELISM_PARAM =
-      ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+      optionalInParameter("parallelism", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -72,17 +77,17 @@ class MigrateTableProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     String tableName = input.asString(TABLE_PARAM, null);
     Preconditions.checkArgument(
@@ -113,7 +118,12 @@ class MigrateTableProcedure extends BaseProcedure {
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();
-    return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
+    return asScanIterator(OUTPUT_TYPE, newInternalRow(result.migratedDataFilesCount()));
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override
