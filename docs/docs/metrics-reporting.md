@@ -123,6 +123,19 @@ This is the default when using the [`RESTCatalog`](https://github.com/apache/ice
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 
+### KafkaMetricsReporter
+The `KafkaMetricsReporter` is a custom implementation of the `MetricsReporter` interface that allows reporting Iceberg metrics to a Kafka topic. This reporter is designed to serialize metrics reports into JSON format and send them as Kafka messages.
+
+#### Configuration
+
+The `IcebergKafkaMetricsReporter` can be configured using the following properties:
+
+- **`metrics-reporter.kafka.topic`**: Specifies the Kafka topic to which metrics will be sent. Defaults to `iceberg-metrics`.
+- **`metrics-reporter.kafka.*`**: Any additional Kafka producer properties can be set using this prefix. For example:
+  - `metrics-reporter.kafka.bootstrap.servers`: Specifies the Kafka bootstrap servers.
+
+q
+
 
 ## Implementing a custom Metrics Reporter
 
