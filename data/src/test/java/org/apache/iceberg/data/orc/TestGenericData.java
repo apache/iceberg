@@ -34,11 +34,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestData;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
@@ -52,7 +52,7 @@ import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.jupiter.api.Test;
 
-public class TestGenericData extends DataTest {
+public class TestGenericData extends TestData {
   @Override
   protected boolean supportsVariant() {
     return true;

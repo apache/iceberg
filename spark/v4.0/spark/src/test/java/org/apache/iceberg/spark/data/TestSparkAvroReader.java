@@ -33,7 +33,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class TestSparkAvroReader extends AvroDataTest {
+public class TestSparkAvroReader extends TestAvroData {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);

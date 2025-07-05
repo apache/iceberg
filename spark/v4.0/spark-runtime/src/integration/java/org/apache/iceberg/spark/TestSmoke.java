@@ -31,7 +31,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class SmokeTest extends ExtensionsTestBase {
+public class TestSmoke extends ExtensionsTestBase {
   @AfterEach
   public void dropTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);

@@ -26,7 +26,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
 
-public abstract class RecordWrapperTest {
+public abstract class TestRecordWrapper {
 
   private static final Types.StructType PRIMITIVE_WITHOUT_TIME =
       Types.StructType.of(

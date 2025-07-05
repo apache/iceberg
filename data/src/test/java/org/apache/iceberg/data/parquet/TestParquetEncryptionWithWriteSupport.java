@@ -35,11 +35,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestData;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
@@ -52,7 +52,7 @@ import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetEncryptionWithWriteSupport extends DataTest {
+public class TestParquetEncryptionWithWriteSupport extends TestData {
   private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
   private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
