@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -41,6 +42,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
+  @Internal
   public abstract String maintenanceTaskName();
 
   /**
@@ -195,6 +197,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return triggerEvaluator.build();
   }
 
+  @Internal
   public DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       String newTableName,

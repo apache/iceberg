@@ -16,19 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
-
-public class ExpireSnapshotsAction extends BaseTableMaintenanceAction<ExpireSnapshotsAction> {
-
-  public ExpireSnapshotsAction(
-      StreamExecutionEnvironment env,
-      TableLoader tableLoader,
-      ExpireSnapshots.Builder builder,
-      long triggerTimestamp) {
-    super(env, tableLoader, builder, triggerTimestamp);
-  }
-}
+public interface ActionResult {}

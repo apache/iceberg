@@ -30,13 +30,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,10 +136,11 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     try {
       if (commitService != null) {
         commitService.close();
-        output.collect(
-            TaskResultAggregator.RESULT_AGG_STREAM,
-            new StreamRecord<>(
-                new RewriteDataFiles.RewriteDataFilesResult(addedDataFiles, removedDataFiles)));
+        RewriteDataFilesActionResult actionRes =
+            new RewriteDataFilesActionResult(
+                Lists.newArrayList(removedDataFiles.iterator()),
+                Lists.newArrayList(addedDataFiles.iterator()));
+        output.collect(new StreamRecord<>(Trigger.create(actionRes)));
       }
 
       LOG.info(
@@ -171,6 +173,11 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   public void close() throws IOException {
     if (commitService != null) {
       commitService.close();
+      RewriteDataFilesActionResult actionRes =
+          new RewriteDataFilesActionResult(
+              Lists.newArrayList(addedDataFiles.iterator()),
+              Lists.newArrayList(removedDataFiles.iterator()));
+      output.collect(new StreamRecord<>(Trigger.create(actionRes)));
     }
   }
 
