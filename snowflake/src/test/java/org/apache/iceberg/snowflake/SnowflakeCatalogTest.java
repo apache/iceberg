@@ -20,6 +20,7 @@ package org.apache.iceberg.snowflake;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,6 +31,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -294,5 +296,17 @@ public class SnowflakeCatalogTest {
     assertThat(catalog.namespaceExists(Namespace.of("DB_1", "SCHEMA_1"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("DB_1", "NONEXISTENT_SCHEMA"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("NONEXISTENT_DB", "SCHEMA_1"))).isFalse();
+  }
+
+  @Test
+  public void testRegisterTableToNonexistentDB() {
+    String dbName = "NONEXISTENT_DB";
+    TableIdentifier targetIdentifier = TableIdentifier.of(dbName, "table");
+    assertThatThrownBy(
+            () ->
+                catalog.registerTable(
+                    targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
   }
 }

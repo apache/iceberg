@@ -86,7 +86,7 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRegisterTableToNonexistentNamespace()
+  public void testRegisterTableToNonExistingNamespace()
       throws NoSuchTableException, ParseException {
     long numRows = 1000;
 
@@ -102,7 +102,7 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
 
     String targetNameWithNonexistentNamespace =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".")
-            + "missing_namespace."
+            + "non_existing_namespace."
             + "register_table";
 
     assertThatThrownBy(
@@ -111,6 +111,6 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
                     "CALL %s.system.register_table('%s', '%s')",
                     catalogName, targetNameWithNonexistentNamespace, metadataJson))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Namespace does not exist: ");
+        .hasMessageContaining("Cannot register table");
   }
 }

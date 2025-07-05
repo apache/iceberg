@@ -32,6 +32,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -678,5 +679,20 @@ public class TestGlueCatalog {
             S3FileIOProperties.WRITE_TAGS_PREFIX.concat(
                 S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE),
             "db");
+  }
+
+  @Test
+  public void testRegisterTableToNonExistingNamespace() {
+    TableIdentifier targetIdentifier = TableIdentifier.of("non_existing", "table");
+    Mockito.doThrow(NoSuchNamespaceException.class)
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+
+    assertThatThrownBy(
+            () ->
+                glueCatalog.registerTable(
+                    targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
   }
 }

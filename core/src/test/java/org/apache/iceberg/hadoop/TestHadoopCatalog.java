@@ -678,4 +678,16 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .hasMessage("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
+
+  @Test
+  public void testRegisterTableToNonexistentDB() throws IOException {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier targetIdentifier = TableIdentifier.of("non_existing", "table");
+    assertThatThrownBy(
+            () ->
+                catalog.registerTable(
+                    targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
+  }
 }
