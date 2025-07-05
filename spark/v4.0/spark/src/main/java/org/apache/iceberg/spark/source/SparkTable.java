@@ -266,12 +266,18 @@ public class SparkTable
         new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
         new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false));
 
-    if (TableUtil.formatVersion(table()) >= 3) {
-      metadataColumns.add(
-          new SparkMetadataColumn(MetadataColumns.ROW_ID.name(), DataTypes.LongType, true));
+    if (TableUtil.supportsRowLineage(icebergTable)) {
       metadataColumns.add(
           new SparkMetadataColumn(
-              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true));
+              MetadataColumns.ROW_ID.name(), DataTypes.LongType, true, true, true, false));
+      metadataColumns.add(
+          new SparkMetadataColumn(
+              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+              DataTypes.LongType,
+              true,
+              false,
+              false,
+              false));
     }
 
     return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
