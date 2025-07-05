@@ -22,9 +22,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -78,6 +81,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
+    targetNamespaceExists(identifier);
+
     // Throw an exception if this table already exists in the catalog.
     if (tableExists(identifier)) {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
@@ -89,6 +94,16 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     ops.commit(null, metadata);
 
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+  }
+
+  protected void targetNamespaceExists(TableIdentifier identifier) {
+    Namespace namespace = identifier.namespace();
+    if (this instanceof SupportsNamespaces
+        && !(((SupportsNamespaces) this).namespaceExists(namespace))) {
+      throw new NoSuchNamespaceException(
+          "Cannot register table %s to catalog %s. Namespace %s does not exist",
+          identifier, name(), namespace);
+    }
   }
 
   @Override

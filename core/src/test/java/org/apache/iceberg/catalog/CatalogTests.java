@@ -3148,6 +3148,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testRegisterTableToNonExistingNamespace() {
+    assumeThat(requiresNamespaceCreate())
+        .isTrue(); // exclude TestJdbcCatalog and TestJdbcCatalogWithV1Schema
+    TableIdentifier targetIdentifier = TableIdentifier.of("non_existing", "table");
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .registerTable(targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
+  }
+
+  @Test
   public void testRegisterExistingTable() {
     C catalog = catalog();
 

@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -87,10 +88,6 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testRegisterTableToNonexistentNamespace()
       throws NoSuchTableException, ParseException {
-    String targetNameWithNonexistentNamespace =
-        (catalogName.equals("spark_catalog") ? "" : catalogName + ".")
-            + "missing_namespace."
-            + "register_table";
     long numRows = 1000;
 
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
@@ -103,12 +100,17 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String metadataJson = TableUtil.metadataFileLocation(table);
 
+    String targetNameWithNonexistentNamespace =
+        (catalogName.equals("spark_catalog") ? "" : catalogName + ".")
+            + "missing_namespace."
+            + "register_table";
+
     assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.register_table('%s', '%s')",
                     catalogName, targetNameWithNonexistentNamespace, metadataJson))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot register table to nonexistent target namespace");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: ");
   }
 }
