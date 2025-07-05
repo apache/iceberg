@@ -36,9 +36,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestData;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -56,7 +56,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 
-public class TestFlinkParquetReader extends DataTest {
+public class TestFlinkParquetReader extends TestData {
   private static final int NUM_RECORDS = 100;
 
   @Override
