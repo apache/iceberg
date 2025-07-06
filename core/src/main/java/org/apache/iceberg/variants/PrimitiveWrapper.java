@@ -53,7 +53,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte TIMESTAMPNTZ_NANOS_HEADER =
       VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NANOS);
   private static final byte UUID_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_UUID);
-  private static final int MAX_SHORT_STRING_LENGTH = 64;
+  private static final int MAX_SHORT_STRING_LENGTH = 63;
 
   private final PhysicalType type;
   private final T value;
@@ -115,7 +115,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
-        if (buffer.remaining() < MAX_SHORT_STRING_LENGTH) {
+        if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           return 1 + buffer.remaining(); // 1 header + value length
         }
         return 5 + buffer.remaining(); // 1 header + 4 length + value length
@@ -214,7 +214,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
-        if (buffer.remaining() < MAX_SHORT_STRING_LENGTH) {
+        if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
           VariantUtil.writeBufferAbsolute(outBuffer, offset + 1, buffer);
           return 1 + buffer.remaining();

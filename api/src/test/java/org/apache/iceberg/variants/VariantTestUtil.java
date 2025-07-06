@@ -32,6 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class VariantTestUtil {
+
+  private static final int MAX_SHORT_STRING_LENGTH = 63;
+
   private VariantTestUtil() {}
 
   public static void assertEqual(VariantMetadata expected, VariantMetadata actual) {
@@ -79,11 +82,10 @@ public class VariantTestUtil {
   }
 
   public static void assertVariantString(VariantValue actual, String expected) {
-    int maxShortStringLength = 64;
     int expectedLength = expected.length();
     assertThat(actual.type()).isEqualTo(PhysicalType.STRING);
     assertThat(actual.asPrimitive().get()).isEqualTo(expected);
-    if (expectedLength < maxShortStringLength) {
+    if (expectedLength <= MAX_SHORT_STRING_LENGTH) {
       assertThat(actual.getClass()).isEqualTo(SerializedShortString.class);
       assertThat(actual.asPrimitive().sizeInBytes()).isEqualTo(1 + expectedLength);
     } else {
@@ -124,7 +126,7 @@ public class VariantTestUtil {
   /** Creates a short string primitive of max 63 bytes to use only 1 header */
   static SerializedShortString createShortString(String string) {
     Preconditions.checkArgument(
-        string.length() <= 63,
+        string.length() <= MAX_SHORT_STRING_LENGTH,
         "Short String length is " + string.length() + ",  should not be greater than 63");
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
