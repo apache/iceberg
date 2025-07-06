@@ -38,6 +38,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
@@ -1195,6 +1196,22 @@ public class TestExpressionUtil {
         VariantTestUtil.createSerializedPrimitive(
             13, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
     data.put(
+            "event_time",
+            VariantTestUtil.createSerializedPrimitive(
+                    17, new byte[] { (byte) 0x80, (byte) 0xa8, (byte) 0x4b, (byte) 0xb7, (byte) 0x02, (byte) 0x00, (byte) 0x00, 0x00}));
+    data.put(
+            "event_timestamp_tz_nanos",
+            VariantTestUtil.createSerializedPrimitive(
+                    18, new byte[] {0x15, (byte) 0x8f, (byte) 0x35, (byte) 0x77, (byte) 0x9e, (byte) 0xf6, (byte) 0xdb, 0x14}));
+    data.put(
+            "event_timestamp_ntz_nanos",
+            VariantTestUtil.createSerializedPrimitive(
+                    19, new byte[] {0x15, (byte) 0x8f, (byte) 0x35, (byte) 0x77, (byte) 0x9e, (byte) 0xf6, (byte) 0xdb, 0x14}));
+    data.put(
+            "event_uuid",
+            VariantTestUtil.createSerializedPrimitive(
+                    20, new byte[] {(byte) 0xf2, 0x4f, (byte) 0x9b, 0x64, (byte) 0x81, (byte) 0xfa, 0x49, (byte) 0xd1, (byte) 0xb7, 0x4e, (byte) 0x8c, 0x09, (byte) 0xa6, (byte) 0xe3, 0x1c, 0x56}));
+    data.put(
         "event_binary",
         VariantTestUtil.createSerializedPrimitive(
             15, new byte[] {0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'}));
@@ -1221,8 +1238,12 @@ public class TestExpressionUtil {
                 + "(hash-event_id_dec4): (6-digit-DECIMAL4), "
                 + "(hash-event_id_dec8): (10-digit-DECIMAL8), "
                 + "(hash-event_name): (hash-79b17dd6), "
+                + "(hash-event_time): (time), "
                 + "(hash-event_timestamp_ntz): (timestamp), "
-                + "(hash-event_timestamp_tz): (timestamp)}"),
+                + "(hash-event_timestamp_ntz_nanos): (timestamp), "
+                + "(hash-event_timestamp_tz): (timestamp), "
+                + "(hash-event_timestamp_tz_nanos): (timestamp), "
+                + "(hash-event_uuid): (hash-54e07fa7)}"),
         ExpressionUtil.sanitize(bound));
   }
 

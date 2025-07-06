@@ -724,9 +724,13 @@ public class ExpressionUtil {
         break;
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
         builder.append(
             sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
         break;
+      case TIME:
+        return "(time)";
       case ARRAY:
         builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
         break;
