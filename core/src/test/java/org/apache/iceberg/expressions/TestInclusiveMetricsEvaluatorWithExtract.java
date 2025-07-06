@@ -1565,5 +1565,24 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                 equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID)))
         .as("Should read: uuid equal to lower bound")
         .isTrue();
+    assertThat(
+            shouldRead(
+                    equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), UUID.randomUUID())))
+            .as("Should not read: uuid not equal to lower or upper bound")
+            .isFalse();
+  }
+
+  @Test
+  public void testUUIDNotEq() {
+    assertThat(
+            shouldRead(
+                    notEqual(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID)))
+            .as("Should read: uuid equal to lower bound")
+            .isTrue();
+    assertThat(
+            shouldRead(
+                    notEqual(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), UUID.randomUUID())))
+            .as("Should read: uuid not equal to lower or upper bound")
+            .isTrue();
   }
 }
