@@ -272,7 +272,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
     return SLASH.join(
-        defaultNamespaceLocation(table.namespace()), formatTableName(table, uniqueTableLocation));
+        defaultNamespaceLocation(table.namespace()),
+        LocationUtil.getTableNameComponent(table, uniqueTableLocation));
   }
 
   @Override

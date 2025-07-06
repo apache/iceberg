@@ -137,14 +137,6 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
   protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
 
-  protected String formatTableName(TableIdentifier table, boolean uniqueTableLocation) {
-    if (uniqueTableLocation) {
-      return String.format("%s-%s", table.name(), UUID.randomUUID().toString().replace("-", ""));
-    } else {
-      return table.name();
-    }
-  }
-
   protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
     private final TableIdentifier identifier;
     private final Schema schema;

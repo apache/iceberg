@@ -292,10 +292,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
                         tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
                 .build());
     String dbLocationUri = response.database().locationUri();
+    String tableNameComponent =
+        LocationUtil.getTableNameComponent(tableIdentifier, uniqueTableLocation);
     if (dbLocationUri != null) {
       dbLocationUri = LocationUtil.stripTrailingSlash(dbLocationUri);
-      return String.format(
-          "%s/%s", dbLocationUri, formatTableName(tableIdentifier, uniqueTableLocation));
+      return String.format("%s/%s", dbLocationUri, tableNameComponent);
     }
 
     ValidationException.check(
@@ -307,7 +308,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         warehousePath,
         IcebergToGlueConverter.getDatabaseName(
             tableIdentifier, awsProperties.glueCatalogSkipNameValidation()),
-        formatTableName(tableIdentifier, uniqueTableLocation));
+        tableNameComponent);
   }
 
   @Override

@@ -710,14 +710,14 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     // - Create the metadata in HMS, and this way committing the changes
 
     // Create a new location based on the namespace / database if it is set on database level
+    String tableNameComponent =
+        LocationUtil.getTableNameComponent(tableIdentifier, uniqueTableLocation);
     try {
       Database databaseData =
           clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
-        return String.format(
-            "%s/%s",
-            databaseData.getLocationUri(), formatTableName(tableIdentifier, uniqueTableLocation));
+        return String.format("%s/%s", databaseData.getLocationUri(), tableNameComponent);
       }
 
     } catch (NoSuchObjectException e) {
@@ -734,8 +734,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
     String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
-    return String.format(
-        "%s/%s", databaseLocation, formatTableName(tableIdentifier, uniqueTableLocation));
+    return String.format("%s/%s", databaseLocation, tableNameComponent);
   }
 
   private String databaseLocation(String databaseName) {

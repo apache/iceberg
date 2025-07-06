@@ -147,7 +147,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     return String.format(
         "%s/%s",
         namespacePrefix(tableIdentifier.namespace()),
-        formatTableName(tableIdentifier, uniqueTableLocation));
+        LocationUtil.getTableNameComponent(tableIdentifier, uniqueTableLocation));
   }
 
   /** Iterate all table objects with the namespace prefix. */
