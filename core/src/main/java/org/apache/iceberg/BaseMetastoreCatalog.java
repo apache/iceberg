@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
