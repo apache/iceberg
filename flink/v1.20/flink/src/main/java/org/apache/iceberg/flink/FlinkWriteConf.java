@@ -55,6 +55,10 @@ public class FlinkWriteConf {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
+  public FlinkWriteConf(Map<String, String> writeOptions, ReadableConfig readableConfig) {
+    this.confParser = new FlinkConfParser(writeOptions, readableConfig);
+  }
+
   public boolean overwriteMode() {
     return confParser
         .booleanConf()
@@ -206,6 +210,15 @@ public class FlinkWriteConf {
 
   public Integer writeParallelism() {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
+  }
+
+  public boolean compactMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.COMPACTION_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.COMPACTION_ENABLE)
+        .defaultValue(FlinkWriteOptions.COMPACTION_ENABLE.defaultValue())
+        .parse();
   }
 
   /**

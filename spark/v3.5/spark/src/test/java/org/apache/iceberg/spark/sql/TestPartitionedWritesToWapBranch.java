@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -29,7 +30,9 @@ import org.apache.iceberg.spark.SparkSQLProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
@@ -50,11 +53,6 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
     super.removeTables();
     spark.conf().unset(SparkSQLProperties.WAP_BRANCH);
     spark.conf().unset(SparkSQLProperties.WAP_ID);
-  }
-
-  @Override
-  protected String commitTarget() {
-    return tableName;
   }
 
   @Override

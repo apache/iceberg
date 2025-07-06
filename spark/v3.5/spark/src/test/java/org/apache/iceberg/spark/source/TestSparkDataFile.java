@@ -136,7 +136,7 @@ public class TestSparkDataFile {
   private String tableLocation = null;
 
   @BeforeEach
-  public void setupTableLocation() throws Exception {
+  public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
   }
 

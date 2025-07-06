@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.withPrecision;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -38,7 +37,6 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -61,11 +59,12 @@ public class TestRowProjection {
       appender.add(row);
     }
 
-    Iterable<RowData> records =
+    Avro.ReadBuilder builder =
         Avro.read(Files.localInput(file))
             .project(readSchema)
-            .createReaderFunc(FlinkAvroReader::new)
-            .build();
+            .createResolvingReader(FlinkPlannedAvroReader::create);
+
+    Iterable<RowData> records = builder.build();
 
     return Iterables.getOnlyElement(records);
   }
@@ -345,18 +344,6 @@ public class TestRowProjection {
     projected = writeAndRead("map_only", writeSchema, mapOnly, row);
     assertThat(projected.getArity()).as("Should not project id").isEqualTo(1);
     assertThat(projected.getMap(0)).isEqualTo(properties);
-  }
-
-  private Map<String, ?> toStringMap(Map<?, ?> map) {
-    Map<String, Object> stringMap = Maps.newHashMap();
-    for (Map.Entry<?, ?> entry : map.entrySet()) {
-      if (entry.getValue() instanceof CharSequence) {
-        stringMap.put(entry.getKey().toString(), entry.getValue().toString());
-      } else {
-        stringMap.put(entry.getKey().toString(), entry.getValue());
-      }
-    }
-    return stringMap;
   }
 
   @Test

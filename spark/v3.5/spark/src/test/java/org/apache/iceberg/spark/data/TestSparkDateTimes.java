@@ -47,9 +47,9 @@ public class TestSparkDateTimes {
 
   public void checkSparkDate(String dateString) {
     Literal<Integer> date = Literal.of(dateString).to(Types.DateType.get());
-    String sparkDate = DateTimeUtils.toJavaDate(date.value()).toString();
-    assertThat(sparkDate)
+    assertThat(DateTimeUtils.toJavaDate(date.value()))
         .as("Should be the same date (" + date.value() + ")")
+        .asString()
         .isEqualTo(dateString);
   }
 

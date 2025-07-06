@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class SetStatistics implements UpdateStatistics {
@@ -33,9 +32,8 @@ public class SetStatistics implements UpdateStatistics {
   }
 
   @Override
-  public UpdateStatistics setStatistics(long snapshotId, StatisticsFile statisticsFile) {
-    Preconditions.checkArgument(snapshotId == statisticsFile.snapshotId());
-    statisticsToSet.put(snapshotId, Optional.of(statisticsFile));
+  public UpdateStatistics setStatistics(StatisticsFile statisticsFile) {
+    statisticsToSet.put(statisticsFile.snapshotId(), Optional.of(statisticsFile));
     return this;
   }
 
@@ -62,7 +60,7 @@ public class SetStatistics implements UpdateStatistics {
     statisticsToSet.forEach(
         (snapshotId, statistics) -> {
           if (statistics.isPresent()) {
-            builder.setStatistics(snapshotId, statistics.get());
+            builder.setStatistics(statistics.get());
           } else {
             builder.removeStatistics(snapshotId);
           }

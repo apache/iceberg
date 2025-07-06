@@ -36,6 +36,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [DataFrame append](#appending-data)              | ✔️        |                                                                             |
 | [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
+| [DataFrame merge into](#merging-data)            | ✔️        | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
 
 ## Writing with SQL
@@ -95,6 +96,11 @@ WHEN NOT MATCHED AND s.event_time > still_valid_threshold THEN INSERT (id, count
 
 Only one record in the source data can update any given row of the target table, or else an error will be thrown.
 
+Spark 3.5 added support for `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update or delete rows that are not present in the source data:
+
+```sql
+WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
+```
 
 ### `INSERT OVERWRITE`
 
@@ -224,7 +230,7 @@ UPDATE prod.db.table.branch_audit AS t1
 SET val = 'c'
 
 -- DELETE FROM audit branch
-DELETE FROM prod.dbl.table.branch_audit WHERE id = 2;
+DELETE FROM prod.db.table.branch_audit WHERE id = 2;
 
 -- WAP Branch write
 SET spark.wap.branch = audit-branch
@@ -324,6 +330,26 @@ The Iceberg table location can also be specified by the `location` table propert
 data.writeTo("prod.db.table")
     .tableProperty("location", "/path/to/location")
     .createOrReplace()
+```
+
+### Merging data
+
+Spark 4.0 added support for performing a MERGE INTO query using the `DataFrameWriterV2` API.
+
+A MERGE INTO query updates a _target_ table using a set of updates from the _source_, which in this case, is a `DataFrame`:
+
+```scala
+val source: DataFrame = ...                               // e.g., read from a table, "source"
+source.mergeInto("target", $"source.id" === $"target.id") // second argument is the ON condition
+    .whenMatched($"target.id" === 1)                      // argument is the additional condition
+    .updateAll()                                          // UPDATE SET *
+    .whenMatched($"target.id" === 2)
+    .delete()
+    .whenNotMatched()
+    .insertAll()                                          // INSERT *
+    .whenNotMatchedBySource($"target.id" === 3)
+    .update(Map("status" -> lit("invalid")))              // set column name(s) to expression(s)
+    .merge()
 ```
 
 ### Schema Merge

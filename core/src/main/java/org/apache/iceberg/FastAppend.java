@@ -29,23 +29,22 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.DataFileSet;
 
-/** {@link AppendFiles Append} implementation that adds a new manifest file for the write. */
+/** {@link AppendFiles Append} implementation that adds new manifest files for writes. */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
-  private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
-  private final DataFileSet newFiles = DataFileSet.create();
+  private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
-  private List<ManifestFile> newManifests = null;
+  private final List<ManifestFile> newManifests = Lists.newArrayList();
   private boolean hasNewFiles = false;
 
   FastAppend(String tableName, TableOperations ops) {
     super(ops);
     this.tableName = tableName;
-    this.spec = ops().current().spec();
   }
 
   @Override
@@ -78,12 +77,26 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public FastAppend appendFile(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    if (newFiles.add(file)) {
+    PartitionSpec spec = spec(file.specId());
+    Preconditions.checkArgument(
+        spec != null,
+        "Cannot find partition spec %s for data file: %s",
+        file.specId(),
+        file.location());
+
+    DataFileSet dataFiles =
+        newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
+
+    if (dataFiles.add(file)) {
       this.hasNewFiles = true;
       summaryBuilder.addedFile(spec, file);
     }
 
     return this;
+  }
+
+  private PartitionSpec spec(int specId) {
+    return ops().current().spec(specId);
   }
 
   @Override
@@ -176,7 +189,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         }
       }
       if (hasDeletes) {
-        this.newManifests = null;
+        this.newManifests.clear();
       }
     }
 
@@ -200,13 +213,14 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   private List<ManifestFile> writeNewManifests() throws IOException {
-    if (hasNewFiles && newManifests != null) {
+    if (hasNewFiles && !newManifests.isEmpty()) {
       newManifests.forEach(file -> deleteFile(file.path()));
-      newManifests = null;
+      newManifests.clear();
     }
 
-    if (newManifests == null && !newFiles.isEmpty()) {
-      this.newManifests = writeDataManifests(newFiles, spec);
+    if (newManifests.isEmpty() && !newDataFilesBySpec.isEmpty()) {
+      newDataFilesBySpec.forEach(
+          (specId, dataFiles) -> newManifests.addAll(writeDataManifests(dataFiles, spec(specId))));
       hasNewFiles = false;
     }
 

@@ -49,8 +49,8 @@ public abstract class DeleteFileIndexTestBase<
     extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   static final DeleteFile FILE_A_EQ_1 =
@@ -591,7 +591,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(5)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate
@@ -625,7 +627,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(SPEC, file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(SPEC, file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate

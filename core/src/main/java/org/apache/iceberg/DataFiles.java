@@ -154,6 +154,7 @@ public class DataFiles {
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
+    private Long firstRowId = null;
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -178,6 +179,7 @@ public class DataFiles {
       this.upperBounds = null;
       this.splitOffsets = null;
       this.sortOrderId = SortOrder.unsorted().orderId();
+      this.firstRowId = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -201,6 +203,7 @@ public class DataFiles {
       this.splitOffsets =
           toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
+      this.firstRowId = toCopy.firstRowId();
       return this;
     }
 
@@ -315,6 +318,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withFirstRowId(Long nextRowId) {
+      this.firstRowId = nextRowId;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -340,7 +348,8 @@ public class DataFiles {
               upperBounds),
           keyMetadata,
           splitOffsets,
-          sortOrderId);
+          sortOrderId,
+          firstRowId);
     }
   }
 }

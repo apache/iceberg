@@ -75,10 +75,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
-
-
-
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields. 
 
 ## Writing with DataStream
 
@@ -142,7 +139,8 @@ env.execute("Test Iceberg DataStream");
 ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
+
 
 
 ### Write with Avro GenericRecord
@@ -371,3 +369,30 @@ and [deleting orphan files](maintenance.md#delete-orphan-files) could possibly c
 the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
+
+# Flink Writes (SinkV2 based implementation)
+
+At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
+limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
+on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
+
+In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
+was introduced. This interface is used in the new `IcebergSink` implementation which is available in the `iceberg-flink` module.
+The new implementation is a base for further work on features such as [table maintenance](maintenance.md).
+The SinkV2 based implementation is currently an experimental feature so use it with caution.
+
+## Writing with SQL
+
+To turn on SinkV2 based implementation in SQL, set this configuration option:
+```sql
+SET table.exec.iceberg.use-v2-sink = true;
+```
+
+## Writing with DataStream
+
+To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
+!!! warning
+    There are some slight differences between these implementations:
+
+     - The `RANGE` distribution mode is not yet available for the `IcebergSink`
+     - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`

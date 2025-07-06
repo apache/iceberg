@@ -20,8 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -36,8 +34,8 @@ public class TestCommitReporting extends TestBase {
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   @TestTemplate
@@ -170,40 +168,31 @@ public class TestCommitReporting extends TestBase {
   }
 
   @TestTemplate
-  public void addAndDeleteManifests() throws IOException {
+  public void addAndDeleteManifests() {
     String tableName = "add-and-delete-manifests";
     Table table =
         TestTables.create(
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
 
     table.newAppend().appendFile(FILE_A).commit();
-    Snapshot snap1 = table.currentSnapshot();
     table.newAppend().appendFile(FILE_B).commit();
-    Snapshot snap2 = table.currentSnapshot();
 
-    ManifestFile newManifest =
-        writeManifest(
-            "manifest-file.avro",
-            manifestEntry(ManifestEntry.Status.EXISTING, snap1.snapshotId(), FILE_A),
-            manifestEntry(ManifestEntry.Status.EXISTING, snap2.snapshotId(), FILE_B));
-
-    RewriteManifests rewriteManifests = table.rewriteManifests();
-    for (ManifestFile manifest : snap2.dataManifests(table.io())) {
-      rewriteManifests.deleteManifest(manifest);
-    }
-
-    rewriteManifests.addManifest(newManifest).commit();
+    table.rewriteManifests().clusterBy(file -> "file").rewriteIf(ignored -> true).commit();
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
-    assertThat(report.operation()).isEqualTo("append");
-    assertThat(report.snapshotId()).isEqualTo(2L);
-    assertThat(report.sequenceNumber()).isEqualTo(2L);
+    assertThat(report.operation()).isEqualTo("replace");
+    assertThat(report.snapshotId()).isEqualTo(3L);
+    assertThat(report.sequenceNumber()).isEqualTo(3L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
     CommitMetricsResult metrics = report.commitMetrics();
-    assertThat(metrics.addedDataFiles().value()).isEqualTo(1L);
-    assertThat(metrics.addedRecords().value()).isEqualTo(1L);
-    assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(10L);
+    assertThat(metrics.totalDataFiles().value()).isEqualTo(2L);
+    assertThat(metrics.totalRecords().value()).isEqualTo(2L);
+    assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(20L);
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+    assertThat(metrics.manifestsReplaced().value()).isEqualTo(2L);
+    assertThat(metrics.manifestEntriesProcessed().value()).isEqualTo(2L);
   }
 }

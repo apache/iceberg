@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
@@ -70,8 +71,20 @@ public class EncryptionUtil {
     return kmsClient;
   }
 
+  /**
+   * Create a standard encryption manager.
+   *
+   * @deprecated will be removed in 1.11.0; use {@link #createEncryptionManager(List, Map,
+   *     KeyManagementClient)} instead.
+   */
+  @Deprecated
   public static EncryptionManager createEncryptionManager(
       Map<String, String> tableProperties, KeyManagementClient kmsClient) {
+    return createEncryptionManager(List.of(), tableProperties, kmsClient);
+  }
+
+  static EncryptionManager createEncryptionManager(
+      List<EncryptedKey> keys, Map<String, String> tableProperties, KeyManagementClient kmsClient) {
     Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
     String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
 

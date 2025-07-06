@@ -28,6 +28,7 @@ import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
@@ -42,8 +43,9 @@ import org.slf4j.LoggerFactory;
 public class JdbcLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
 
-  @VisibleForTesting
-  static final String INIT_LOCK_TABLES_PROPERTY = "flink-maintenance.lock.jdbc.init-lock-tables";
+  @Internal
+  public static final String INIT_LOCK_TABLES_PROPERTY =
+      "flink-maintenance.lock.jdbc.init-lock-tables";
 
   private static final String LOCK_TABLE_NAME = "flink_maintenance_lock";
   private static final int LOCK_ID_MAX_LENGTH = 100;
@@ -235,8 +237,8 @@ public class JdbcLockFactory implements TriggerLockFactory {
         //
         // Steps:
         // 1. `unlock` removes the lock in the database, but there is a temporary connection failure
-        // 2. `lock` founds that there is no lock, so creates a new lock
-        // 3. `unlock` retires the lock removal and removes the new lock
+        // 2. `lock` finds that there is no lock, so creates a new lock
+        // 3. `unlock` retries the lock removal and removes the new lock
         //
         // To prevent the situation above we fetch the current lockId, and remove the lock
         // only with the given id.

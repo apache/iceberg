@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
@@ -64,6 +65,11 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   }
 
   @Override
+  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    return RCKUtils.initCatalogClient(additionalProperties);
+  }
+
+  @Override
   protected boolean requiresNamespaceCreate() {
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(),
@@ -83,5 +89,12 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
         restCatalog.properties(),
         RESTCompatibilityKitSuite.RCK_OVERRIDES_REQUESTED_LOCATION,
         false);
+  }
+
+  @Override
+  protected boolean supportsNamesWithDot() {
+    // underlying JDBC catalog doesn't support namespaces with a dot
+    return PropertyUtil.propertyAsBoolean(
+        restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_NAMES_WITH_DOT, false);
   }
 }

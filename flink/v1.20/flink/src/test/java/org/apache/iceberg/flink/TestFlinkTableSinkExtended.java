@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
+import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -52,6 +54,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -91,11 +94,20 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
   private TableEnvironment tEnv;
 
-  @Parameter protected boolean isStreamingJob;
+  @Parameter(index = 0)
+  protected boolean isStreamingJob;
 
-  @Parameters(name = "isStreamingJob={0}")
+  @Parameter(index = 1)
+  protected Boolean useV2Sink;
+
+  @Parameters(name = "isStreamingJob={0}, useV2Sink={1}")
   protected static List<Object[]> parameters() {
-    return Arrays.asList(new Boolean[] {true}, new Boolean[] {false});
+    return Arrays.asList(
+        new Object[] {true, false},
+        new Object[] {false, false},
+        new Object[] {true, true},
+        new Object[] {false, true},
+        new Object[] {true, null});
   }
 
   protected synchronized TableEnvironment getTableEnv() {
@@ -115,6 +127,13 @@ public class TestFlinkTableSinkExtended extends SqlBase {
         tEnv = TableEnvironment.create(settingsBuilder.build());
       }
     }
+
+    if (useV2Sink != null) {
+      tEnv.getConfig()
+          .getConfiguration()
+          .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
+    }
+
     return tEnv;
   }
 
@@ -147,6 +166,32 @@ public class TestFlinkTableSinkExtended extends SqlBase {
   }
 
   @TestTemplate
+  public void testUsedFlinkSinkInterface() {
+    String dataId = BoundedTableFactory.registerDataSet(Collections.emptyList());
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
+
+    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) getTableEnv()).getPlanner();
+    String insertSQL = String.format("INSERT INTO %s SELECT * FROM %s", TABLE, SOURCE_TABLE);
+    ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
+    Transformation<?> transformation =
+        planner.translate(Collections.singletonList(operation)).get(0);
+    assertThat(transformation).as("Should use SinkV2 API").isInstanceOf(SinkTransformation.class);
+    SinkTransformation<?, ?> sinkTransformation = (SinkTransformation<?, ?>) transformation;
+    if (useV2Sink != null && useV2Sink) {
+      assertThat(sinkTransformation.getSink())
+          .as("Should use SinkV2 API based implementation")
+          .isInstanceOf(IcebergSink.class);
+    } else {
+      assertThat(sinkTransformation.getSink())
+          .as("Should use custom chain of StreamOperators terminated by DiscardingSink")
+          .isInstanceOf(DiscardingSink.class);
+    }
+  }
+
+  @TestTemplate
   public void testWriteParallelism() {
     List<Row> dataSet =
         IntStream.range(1, 1000)
@@ -165,18 +210,25 @@ public class TestFlinkTableSinkExtended extends SqlBase {
             "INSERT INTO %s /*+ OPTIONS('write-parallelism'='1') */ SELECT * FROM %s",
             TABLE, SOURCE_TABLE);
     ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
-    Transformation<?> dummySink = planner.translate(Collections.singletonList(operation)).get(0);
-    Transformation<?> committer = dummySink.getInputs().get(0);
-    Transformation<?> writer = committer.getInputs().get(0);
+    Transformation<?> sink = planner.translate(Collections.singletonList(operation)).get(0);
+    if (useV2Sink != null && useV2Sink) {
+      assertThat(sink.getParallelism()).as("Should have the expected 1 parallelism.").isEqualTo(1);
+      Transformation<?> writerInput = sink.getInputs().get(0);
+      assertThat(writerInput.getParallelism())
+          .as("Should have the expected parallelism.")
+          .isEqualTo(isStreamingJob ? 2 : 4);
+    } else {
+      Transformation<?> committer = sink.getInputs().get(0);
+      Transformation<?> writer = committer.getInputs().get(0);
 
-    assertThat(writer.getParallelism()).as("Should have the expected 1 parallelism.").isEqualTo(1);
-    writer
-        .getInputs()
-        .forEach(
-            input ->
-                assertThat(input.getParallelism())
-                    .as("Should have the expected parallelism.")
-                    .isEqualTo(isStreamingJob ? 2 : 4));
+      assertThat(writer.getParallelism())
+          .as("Should have the expected 1 parallelism.")
+          .isEqualTo(1);
+      Transformation<?> writerInput = writer.getInputs().get(0);
+      assertThat(writerInput.getParallelism())
+          .as("Should have the expected parallelism.")
+          .isEqualTo(isStreamingJob ? 2 : 4);
+    }
   }
 
   @TestTemplate

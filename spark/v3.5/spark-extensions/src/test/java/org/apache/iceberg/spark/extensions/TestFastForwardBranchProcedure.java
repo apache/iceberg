@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -32,7 +33,9 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
 
   @AfterEach
@@ -172,11 +175,12 @@ public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
             () ->
                 sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
               assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
             });
 
     assertThatThrownBy(() -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))

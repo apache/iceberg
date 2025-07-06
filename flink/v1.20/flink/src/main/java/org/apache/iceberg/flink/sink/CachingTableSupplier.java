@@ -19,10 +19,10 @@
 package org.apache.iceberg.flink.sink;
 
 import java.time.Duration;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;

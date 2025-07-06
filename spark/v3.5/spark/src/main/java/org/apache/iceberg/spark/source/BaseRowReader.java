@@ -77,7 +77,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .reuseContainers()
         .project(projection)
         .split(start, length)
-        .createReaderFunc(readSchema -> SparkPlannedAvroReader.create(projection, idToConstant))
+        .createResolvingReader(schema -> SparkPlannedAvroReader.create(schema, idToConstant))
         .withNameMapping(nameMapping())
         .build();
   }

@@ -152,6 +152,18 @@ Table create commands support the commonly used [Flink create clauses](https://n
 * `COMMENT 'table document'` to set a table description.
 * `WITH ('key'='value', ...)` to set [table configuration](configuration.md) which will be stored in Iceberg table properties.
 
+To specify the table location, use `WITH ('location'='fully-qualified-uri')`:
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT COMMENT 'unique id',
+    data STRING NOT NULL
+) WITH (
+    'format-version'='2', 
+    'location'='hdfs//nn:8020/custom-path'
+);
+```
+
 Currently, it does not support computed column and watermark definition etc.
 
 #### `PRIMARY KEY`

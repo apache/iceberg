@@ -76,13 +76,9 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
-    /**
-     * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
-     */
-    @Deprecated // will become package-private
     @Override
     @SuppressWarnings("unchecked")
-    public <R> R invokeChecked(Object target, Object... args) throws Exception {
+    <R> R invokeChecked(Object target, Object... args) throws Exception {
       Preconditions.checkArgument(
           target == null, "Invalid call to constructor: target must be null");
       return (R) newInstanceChecked(args);
@@ -146,7 +142,7 @@ public class DynConstructors {
       }
 
       try {
-        Class<?> targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = classForName(className);
         impl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -177,7 +173,7 @@ public class DynConstructors {
       }
 
       try {
-        Class<?> targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = classForName(className);
         hiddenImpl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -220,6 +216,18 @@ public class DynConstructors {
         return (Ctor<C>) ctor;
       }
       throw buildRuntimeException(baseClass, problems);
+    }
+
+    private Class<?> classForName(String className) throws ClassNotFoundException {
+      try {
+        return Class.forName(className, true, loader);
+      } catch (ClassNotFoundException e) {
+        if (loader != Thread.currentThread().getContextClassLoader()) {
+          return Class.forName(className, true, Thread.currentThread().getContextClassLoader());
+        } else {
+          throw e;
+        }
+      }
     }
   }
 

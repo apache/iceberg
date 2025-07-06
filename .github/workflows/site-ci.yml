@@ -24,6 +24,7 @@ on:
     paths:
       - docs/**
       - site/**
+      - format/**
   workflow_dispatch:
 jobs:
   deploy:

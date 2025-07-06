@@ -40,7 +40,6 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkTableSink extends CatalogTestBase {
 
-  private static final String SOURCE_TABLE = "default_catalog.default_database.bounded_source";
   private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
   private Table icebergTable;
@@ -51,7 +50,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
   @Parameter(index = 3)
   private boolean isStreamingJob;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+  @Parameter(index = 4)
+  private boolean useV2Sink;
+
+  @Parameters(
+      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, useV2Sink={4}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
@@ -60,10 +63,24 @@ public class TestFlinkTableSink extends CatalogTestBase {
         for (Object[] catalogParams : CatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+          parameters.add(
+              new Object[] {
+                catalogName, baseNamespace, format, isStreaming, false /* don't use v2 sink */
+              });
         }
       }
     }
+
+    for (FileFormat format :
+        new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+      for (Boolean isStreaming : new Boolean[] {true, false}) {
+        String catalogName = "testhadoop_basenamespace";
+        Namespace baseNamespace = Namespace.of("l0", "l1");
+        parameters.add(
+            new Object[] {catalogName, baseNamespace, format, isStreaming, true /* use v2 sink */});
+      }
+    }
+
     return parameters;
   }
 
@@ -87,6 +104,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
         }
       }
     }
+
+    tEnv.getConfig()
+        .getConfiguration()
+        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
+
     return tEnv;
   }
 
@@ -120,7 +142,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
             "sourceTable",
             getTableEnv()
                 .fromValues(
-                    SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
                     Expressions.row(1, "hello"),
                     Expressions.row(2, "world"),
                     Expressions.row(3, (String) null),

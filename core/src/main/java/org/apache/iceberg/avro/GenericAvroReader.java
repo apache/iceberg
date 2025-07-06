@@ -164,6 +164,12 @@ public class GenericAvroReader<T>
     }
 
     @Override
+    public ValueReader<?> variant(
+        Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return ValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -181,7 +187,8 @@ public class GenericAvroReader<T>
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
-            // Spark uses the same representation
+          case "timestamp-nanos":
+            // both are handled in memory as long values, using the type to track units
             return ValueReaders.longs();
 
           case "decimal":

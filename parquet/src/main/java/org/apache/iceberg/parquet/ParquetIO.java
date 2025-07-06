@@ -50,7 +50,8 @@ class ParquetIO {
         return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(
             hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet input file for %s", file.location());
       }
     }
     return new ParquetInputFile(file);
@@ -63,7 +64,8 @@ class ParquetIO {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
             hfile.getPath(), hfile.getConf());
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet output file for %s", file.location());
       }
     }
     return new ParquetOutputFile(file);
@@ -75,7 +77,8 @@ class ParquetIO {
       try {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet output file for %s", file.location());
       }
     }
     return new ParquetOutputFile(file);

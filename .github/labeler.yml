@@ -26,8 +26,6 @@ INFRA:
       '.gitignore',
       'baseline.gradle',
       'deploy.gradle',
-      'jitpack.yml',
-      'travis.yml',
       '.baseline/**/*',
       '.github/**/*',
       'dev/**/*'
@@ -100,10 +98,7 @@ ORC:
 HIVE:
   - changed-files:
     - any-glob-to-any-file: [
-      'hive3/**/*',
       'hive-metastore/**/*',
-      'hive-runtime/**/*',
-      'hive3-orc-bundle/**/*'
     ]
 
 DATA:
@@ -153,7 +148,8 @@ GCP:
   - changed-files:
     - any-glob-to-any-file: [
       'gcp/**/*',
-      'gcp-bundle/**/*'
+      'gcp-bundle/**/*',
+      'bigquery/**/*'
     ]
 
 DELL:

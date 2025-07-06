@@ -111,7 +111,8 @@ public class TestBloomRowGroupFilter {
           optional(24, "binary", Types.BinaryType.get()),
           optional(25, "int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "long_decimal", Types.DecimalType.of(14, 2)),
-          optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)));
+          optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)),
+          optional(28, "incompatible-name", Types.DecimalType.of(8, 2)));
 
   private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(16, "_int_field", IntegerType.get()));
@@ -142,7 +143,8 @@ public class TestBloomRowGroupFilter {
           optional(24, "_binary", Types.BinaryType.get()),
           optional(25, "_int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "_long_decimal", Types.DecimalType.of(14, 2)),
-          optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)));
+          optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)),
+          optional(28, "_incompatible-name", Types.DecimalType.of(8, 2)));
 
   private static final String TOO_LONG_FOR_STATS;
 
@@ -193,6 +195,7 @@ public class TestBloomRowGroupFilter {
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
+    String compatibleFieldName = "_incompatible_x2Dname";
 
     OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
@@ -224,6 +227,7 @@ public class TestBloomRowGroupFilter {
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_int_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_fixed_decimal", "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_incompatible-name", "true")
             .build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 50 records
@@ -259,6 +263,7 @@ public class TestBloomRowGroupFilter {
         builder.set("_int_decimal", new BigDecimal(String.valueOf(77.77 + i)));
         builder.set("_long_decimal", new BigDecimal(String.valueOf(88.88 + i)));
         builder.set("_fixed_decimal", new BigDecimal(String.valueOf(99.99 + i)));
+        builder.set(compatibleFieldName, new BigDecimal(String.valueOf(77.77 + i)));
 
         appender.add(builder.build());
       }
@@ -683,7 +688,7 @@ public class TestBloomRowGroupFilter {
   }
 
   @Test
-  public void testIntDeciamlEq() {
+  public void testIntDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
@@ -699,7 +704,7 @@ public class TestBloomRowGroupFilter {
   }
 
   @Test
-  public void testLongDeciamlEq() {
+  public void testLongDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
@@ -715,7 +720,7 @@ public class TestBloomRowGroupFilter {
   }
 
   @Test
-  public void testFixedDeciamlEq() {
+  public void testFixedDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
@@ -1188,5 +1193,22 @@ public class TestBloomRowGroupFilter {
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
+  }
+
+  @Test
+  public void testIncompatibleColumnNameEq() {
+    for (int i = 0; i < INT_VALUE_COUNT; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(
+                  SCHEMA, equal("incompatible-name", new BigDecimal(String.valueOf(77.77 + i))))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      assertThat(shouldRead).as("Should read: decimal within range").isTrue();
+    }
+
+    boolean shouldRead =
+        new ParquetBloomRowGroupFilter(
+                SCHEMA, equal("incompatible-name", new BigDecimal("1234.56")))
+            .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
   }
 }

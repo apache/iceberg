@@ -45,7 +45,7 @@ public class IcebergSourceParquetMultiDeleteFileBenchmark extends IcebergSourceD
 
       table().refresh();
       for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
-        writePosDeletes(file.path(), NUM_ROWS, 0.25, numDeleteFile);
+        writePosDeletes(file.location(), NUM_ROWS, 0.25, numDeleteFile);
       }
     }
   }

@@ -49,6 +49,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
@@ -381,7 +382,7 @@ public class SparkScanBuilder
     AtomicInteger nextId = new AtomicInteger();
     return new Schema(
         metaColumnFields,
-        table.schema().identifierFieldIds(),
+        ImmutableSet.of(),
         oldId -> {
           if (!idsToReassign.contains(oldId)) {
             return oldId;
@@ -561,14 +562,11 @@ public class SparkScanBuilder
 
     boolean emptyScan = false;
     if (startTimestamp != null) {
-      if (table.currentSnapshot() != null
-          && table.currentSnapshot().timestampMillis() < startTimestamp) {
+      if (table.currentSnapshot() == null
+          || startTimestamp > table.currentSnapshot().timestampMillis()) {
         emptyScan = true;
       }
       startSnapshotId = getStartSnapshotId(startTimestamp);
-      if (startSnapshotId == null && endTimestamp == null) {
-        emptyScan = true;
-      }
     }
 
     if (endTimestamp != null) {

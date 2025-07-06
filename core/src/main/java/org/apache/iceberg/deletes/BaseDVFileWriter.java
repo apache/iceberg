@@ -143,8 +143,7 @@ public class BaseDVFileWriter implements DVFileWriter {
 
   private PuffinWriter newWriter() {
     EncryptedOutputFile outputFile = fileFactory.newOutputFile();
-    String ident = "Iceberg " + IcebergBuild.fullVersion();
-    return Puffin.write(outputFile).createdBy(ident).build();
+    return Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
   }
 
   private Blob toBlob(PositionDeleteIndex positions, String path) {

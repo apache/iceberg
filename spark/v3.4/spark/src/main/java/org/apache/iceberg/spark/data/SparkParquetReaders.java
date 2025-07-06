@@ -25,7 +25,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -44,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
@@ -107,16 +107,14 @@ public class SparkParquetReaders {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields =
           Lists.newArrayListWithExpectedSize(fieldReaders.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
         int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        types.add(fieldType);
       }
 
-      return new InternalRowReader(types, newFields);
+      return new InternalRowReader(newFields);
     }
   }
 
@@ -138,10 +136,12 @@ public class SparkParquetReaders {
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+      if (null == expected) {
+        return new InternalRowReader(ImmutableList.of());
+      }
+
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
-      Map<Integer, Type> typesById = Maps.newHashMap();
-      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
@@ -149,48 +149,37 @@ public class SparkParquetReaders {
         if (fieldType.getId() != null) {
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-          typesById.put(id, fieldType);
-          if (idToConstant.containsKey(id)) {
-            maxDefinitionLevelsById.put(id, fieldD);
-          }
         }
       }
 
-      List<Types.NestedField> expectedFields =
-          expected != null ? expected.fields() : ImmutableList.of();
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      List<Types.NestedField> expectedFields = expected.fields();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Defaulting to parent max definition level
-      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        if (idToConstant.containsKey(id)) {
-          // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
-          reorderedFields.add(
-              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
-        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
-        } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
-        } else {
-          ParquetValueReader<?> reader = readersById.get(id);
-          if (reader != null) {
-            reorderedFields.add(reader);
-            types.add(typesById.get(id));
-          } else {
-            reorderedFields.add(ParquetValueReaders.nulls());
-            types.add(null);
-          }
-        }
+        ParquetValueReader<?> reader =
+            ParquetValueReaders.replaceWithMetadataReader(
+                id, readersById.get(id), idToConstant, constantDefinitionLevel);
+        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
-      return new InternalRowReader(types, reorderedFields);
+      return new InternalRowReader(reorderedFields);
+    }
+
+    private ParquetValueReader<?> defaultReader(
+        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
+      if (reader != null) {
+        return reader;
+      } else if (field.initialDefault() != null) {
+        return ParquetValueReaders.constant(
+            SparkUtil.internalToSpark(field.type(), field.initialDefault()), constantDL);
+      } else if (field.isOptional()) {
+        return ParquetValueReaders.nulls();
+      }
+
+      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
     }
 
     @Override
@@ -250,7 +239,7 @@ public class SparkParquetReaders {
             if (expected != null && expected.typeId() == Types.LongType.get().typeId()) {
               return new IntAsLongReader(desc);
             } else {
-              return new UnboxedReader(desc);
+              return new UnboxedReader<>(desc);
             }
           case DATE:
           case INT_64:
@@ -547,8 +536,8 @@ public class SparkParquetReaders {
   private static class InternalRowReader extends StructReader<InternalRow, GenericInternalRow> {
     private final int numFields;
 
-    InternalRowReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
+    InternalRowReader(List<ParquetValueReader<?>> readers) {
+      super(readers);
       this.numFields = readers.size();
     }
 

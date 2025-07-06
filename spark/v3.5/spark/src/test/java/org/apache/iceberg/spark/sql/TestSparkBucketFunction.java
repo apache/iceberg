@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
@@ -33,7 +34,9 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkBucketFunction extends TestBaseWithCatalog {
   @BeforeEach
   public void useCatalog() {
@@ -77,6 +80,10 @@ public class TestSparkBucketFunction extends TestBaseWithCatalog {
     assertThat(new BucketFunction.BucketString().hash("iceberg"))
         .as("Spec example: hash(\"iceberg\") = 1210000089")
         .isEqualTo(1210000089);
+
+    assertThat(new BucketFunction.BucketString().hash("iceberg".getBytes(StandardCharsets.UTF_8)))
+        .as("Verify that the hash string and hash raw bytes produce the same result")
+        .isEqualTo(new BucketFunction.BucketString().hash("iceberg"));
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
     assertThat(new BucketFunction.BucketBinary().hash(bytes))

@@ -22,7 +22,10 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
@@ -59,6 +62,8 @@ public class GCPProperties implements Serializable {
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
 
+  private final Map<String, String> allProperties;
+
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
@@ -78,10 +83,13 @@ public class GCPProperties implements Serializable {
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  public GCPProperties() {}
+  public GCPProperties() {
+    this.allProperties = ImmutableMap.of();
+  }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
+    this.allProperties = ImmutableMap.copyOf(properties);
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
@@ -104,7 +112,10 @@ public class GCPProperties implements Serializable {
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
 
-    gcsOauth2RefreshCredentialsEndpoint = properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
+    gcsOauth2RefreshCredentialsEndpoint =
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI),
+            properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
     gcsOauth2RefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
@@ -173,5 +184,9 @@ public class GCPProperties implements Serializable {
 
   public boolean oauth2RefreshCredentialsEnabled() {
     return gcsOauth2RefreshCredentialsEnabled;
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
   }
 }

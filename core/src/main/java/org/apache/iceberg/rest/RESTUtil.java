@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -146,12 +144,7 @@ public class RESTUtil {
    */
   public static String encodeString(String toEncode) {
     Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
-    try {
-      return URLEncoder.encode(toEncode, StandardCharsets.UTF_8.name());
-    } catch (UnsupportedEncodingException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to URL encode '%s': UTF-8 encoding is not supported", toEncode), e);
-    }
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8);
   }
 
   /**
@@ -164,12 +157,7 @@ public class RESTUtil {
    */
   public static String decodeString(String encoded) {
     Preconditions.checkArgument(encoded != null, "Invalid string to decode: null");
-    try {
-      return URLDecoder.decode(encoded, StandardCharsets.UTF_8.name());
-    } catch (UnsupportedEncodingException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to URL decode '%s': UTF-8 encoding is not supported", encoded), e);
-    }
+    return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
   }
 
   /**
@@ -214,5 +202,36 @@ public class RESTUtil {
     }
 
     return Namespace.of(levels);
+  }
+
+  /**
+   * Returns the catalog URI suffixed by the relative endpoint path. If the endpoint path is an
+   * absolute path, then the absolute endpoint path is returned without using the catalog URI.
+   *
+   * @param catalogUri The catalog URI that is typically passed through {@link
+   *     org.apache.iceberg.CatalogProperties#URI}
+   * @param endpointPath Either an absolute or relative endpoint path
+   * @return The actual endpoint path if it's an absolute path or the catalog uri suffixed by the
+   *     endpoint path if the path is relative.
+   */
+  public static String resolveEndpoint(String catalogUri, String endpointPath) {
+    if (null == endpointPath) {
+      return null;
+    }
+
+    if (null == catalogUri
+        || endpointPath.startsWith("http://")
+        || endpointPath.startsWith("https://")) {
+      return endpointPath;
+    }
+
+    return String.format(
+        "%s%s",
+        RESTUtil.stripTrailingSlash(catalogUri),
+        endpointPath.startsWith("/") ? endpointPath : "/" + endpointPath);
+  }
+
+  public static Map<String, String> configHeaders(Map<String, String> properties) {
+    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 }

@@ -35,11 +35,14 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
@@ -72,6 +75,7 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
   public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
   public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
+  public static final String ICEBERG_CATALOG_TYPE_BIGQUERY = "bigquery";
 
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
@@ -79,6 +83,8 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
   public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
   public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
+  public static final String ICEBERG_CATALOG_BIGQUERY =
+      "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog";
 
   private CatalogUtil() {}
 
@@ -312,6 +318,9 @@ public class CatalogUtil {
         case ICEBERG_CATALOG_TYPE_JDBC:
           catalogImpl = ICEBERG_CATALOG_JDBC;
           break;
+        case ICEBERG_CATALOG_TYPE_BIGQUERY:
+          catalogImpl = ICEBERG_CATALOG_BIGQUERY;
+          break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
@@ -343,6 +352,33 @@ public class CatalogUtil {
    *     loaded class cannot be cast to the given interface type
    */
   public static FileIO loadFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
+    return loadFileIO(impl, properties, hadoopConf, ImmutableList.of());
+  }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor. If the class implements Configurable, a
+   * Hadoop config will be passed using Configurable.setConf. If the class implements {@link
+   * SupportsStorageCredentials}, the storage credentials will be passed using {@link
+   * SupportsStorageCredentials#setCredentials(List)}. {@link FileIO#initialize(Map properties)} is
+   * called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param properties used to initialize the FileIO implementation
+   * @param hadoopConf a hadoop Configuration
+   * @param storageCredentials the storage credentials to configure if the FileIO implementation
+   *     implements {@link SupportsStorageCredentials}
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  @SuppressWarnings("unchecked")
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Object hadoopConf,
+      List<StorageCredential> storageCredentials) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {
@@ -365,6 +401,9 @@ public class CatalogUtil {
     }
 
     configureHadoopConf(fileIO, hadoopConf);
+    if (fileIO instanceof SupportsStorageCredentials) {
+      ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
+    }
 
     fileIO.initialize(properties);
     return fileIO;

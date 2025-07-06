@@ -29,6 +29,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.FileFormat;
@@ -52,7 +53,10 @@ class TestFlinkIcebergSinkV2Base {
 
   static final int FORMAT_V2 = 2;
   static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
+              .map(ExternalTypeInfo::of)
+              .toArray(TypeInformation[]::new));
 
   static final int ROW_ID_POS = 0;
   static final int ROW_DATA_POS = 1;
@@ -73,21 +77,41 @@ class TestFlinkIcebergSinkV2Base {
   @Parameter(index = 3)
   String writeDistributionMode;
 
-  @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}")
+  @Parameter(index = 4)
+  boolean isTableSchema;
+
+  @Parameters(
+      name =
+          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, IsTableSchema={4}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
+      // Remove after the deprecation of TableSchema - BEGIN
+      {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
+      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
+      {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
+      {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
+      {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
+      {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
+      {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
+      {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
+      {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      // Remove after the deprecation of TableSchema - END
+
+      {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
+      {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
+      {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
     };
   }
 
@@ -271,7 +295,7 @@ class TestFlinkIcebergSinkV2Base {
                       branch))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageStartingWith(
-              "In 'hash' distribution mode with equality fields set, partition field")
+              "In 'hash' distribution mode with equality fields set, source column")
           .hasMessageContaining("should be included in equality fields:");
 
     } else {
@@ -332,14 +356,25 @@ class TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .equalityFieldColumns(equalityFieldColumns)
-        .upsert(insertAsUpsert)
-        .toBranch(branch)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .tableLoader(tableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .tableLoader(tableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");

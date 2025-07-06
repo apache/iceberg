@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -31,7 +33,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
@@ -40,8 +43,9 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -68,15 +72,18 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
 
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
-    TableSchema tableSchema =
-        TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            context.getCatalogTable().getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     Configuration configuration = Configuration.fromMap(context.getCatalogTable().getOptions());
-    String dataId = configuration.getString(DATA_ID);
+    String dataId = configuration.get(DATA_ID);
     Preconditions.checkArgument(
         DATA_SETS.containsKey(dataId), "data-id %s does not found in registered data set.", dataId);
 
-    return new BoundedTableSource(DATA_SETS.get(dataId), tableSchema);
+    return new BoundedTableSource(DATA_SETS.get(dataId), resolvedSchema);
   }
 
   @Override
@@ -97,16 +104,17 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
   private static class BoundedTableSource implements ScanTableSource {
 
     private final List<List<Row>> elementsPerCheckpoint;
-    private final TableSchema tableSchema;
+    private final ResolvedSchema resolvedSchema;
 
-    private BoundedTableSource(List<List<Row>> elementsPerCheckpoint, TableSchema tableSchema) {
+    private BoundedTableSource(
+        List<List<Row>> elementsPerCheckpoint, ResolvedSchema resolvedSchema) {
       this.elementsPerCheckpoint = elementsPerCheckpoint;
-      this.tableSchema = tableSchema;
+      this.resolvedSchema = resolvedSchema;
     }
 
     private BoundedTableSource(BoundedTableSource toCopy) {
       this.elementsPerCheckpoint = toCopy.elementsPerCheckpoint;
-      this.tableSchema = toCopy.tableSchema;
+      this.resolvedSchema = toCopy.resolvedSchema;
     }
 
     @Override
@@ -141,12 +149,18 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
           SourceFunction<Row> source =
               new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
 
-          RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
+          RowType rowType = (RowType) resolvedSchema.toSourceRowDataType().getLogicalType();
           // Converter to convert the Row to RowData.
           DataFormatConverters.RowConverter rowConverter =
-              new DataFormatConverters.RowConverter(tableSchema.getFieldDataTypes());
+              new DataFormatConverters.RowConverter(
+                  resolvedSchema.getColumnDataTypes().toArray(DataType[]::new));
 
-          return env.addSource(source, new RowTypeInfo(tableSchema.getFieldTypes()))
+          return env.addSource(
+                  source,
+                  new RowTypeInfo(
+                      resolvedSchema.getColumnDataTypes().stream()
+                          .map(ExternalTypeInfo::of)
+                          .toArray(TypeInformation[]::new)))
               .map(rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType));
         }
 

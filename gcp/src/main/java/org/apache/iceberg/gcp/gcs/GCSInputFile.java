@@ -29,21 +29,17 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
   private Long blobSize;
 
   static GCSInputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), null, gcpProperties, metrics);
+      String location, PrefixedStorage storage, MetricsContext metrics) {
+    return fromLocation(location, 0L, storage, metrics);
   }
 
   static GCSInputFile fromLocation(
-      String location,
-      long length,
-      Storage storage,
-      GCPProperties gcpProperties,
-      MetricsContext metrics) {
+      String location, long length, PrefixedStorage storage, MetricsContext metrics) {
     return new GCSInputFile(
-        storage,
+        storage.storage(),
         BlobId.fromGsUtilUri(location),
         length > 0 ? length : null,
-        gcpProperties,
+        storage.gcpProperties(),
         metrics);
   }
 

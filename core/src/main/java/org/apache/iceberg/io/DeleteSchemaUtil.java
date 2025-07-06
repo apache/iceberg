@@ -43,4 +43,15 @@ public class DeleteSchemaUtil {
   public static Schema posDeleteSchema(Schema rowSchema) {
     return rowSchema == null ? pathPosSchema() : pathPosSchema(rowSchema);
   }
+
+  public static Schema posDeleteReadSchema(Schema rowSchema) {
+    return new Schema(
+        MetadataColumns.DELETE_FILE_PATH,
+        MetadataColumns.DELETE_FILE_POS,
+        Types.NestedField.optional(
+            MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
+            MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
+            rowSchema.asStruct(),
+            MetadataColumns.DELETE_FILE_ROW_DOC));
+  }
 }

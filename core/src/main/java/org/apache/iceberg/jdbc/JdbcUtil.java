@@ -500,6 +500,10 @@ final class JdbcUtil {
 
   static Namespace stringToNamespace(String namespace) {
     Preconditions.checkArgument(namespace != null, "Invalid namespace %s", namespace);
+    if (namespace.isEmpty()) {
+      return Namespace.empty();
+    }
+
     return Namespace.of(Iterables.toArray(SPLITTER_DOT.split(namespace), String.class));
   }
 

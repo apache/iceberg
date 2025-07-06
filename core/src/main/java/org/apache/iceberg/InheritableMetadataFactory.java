@@ -41,6 +41,7 @@ class InheritableMetadataFactory {
         manifest.path());
   }
 
+  /** Returns {@link InheritableMetadata} for rewriting a manifest before it is committed. */
   static InheritableMetadata forCopy(long snapshotId) {
     return new CopyMetadata(snapshotId);
   }

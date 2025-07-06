@@ -32,8 +32,9 @@ import org.apache.iceberg.metrics.MetricsContext;
 class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   static GCSOutputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
+      String location, PrefixedStorage storage, MetricsContext metrics) {
+    return new GCSOutputFile(
+        storage.storage(), BlobId.fromGsUtilUri(location), storage.gcpProperties(), metrics);
   }
 
   GCSOutputFile(

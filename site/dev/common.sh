@@ -103,6 +103,14 @@ create_nightly () {
   # Update version information within the 'nightly' documentation
   update_version "nightly"  
   cd -
+
+  # Remove any existing javadoc 'nightly' link
+  rm -fr docs/javadoc/nightly
+
+  # Create symbolic link to 'nightly' javadoc
+  cd docs/javadoc
+  ln -s latest nightly
+  cd -
 }
 
 # Finds and retrieves the latest version of the documentation based on the directory structure.
@@ -144,6 +152,14 @@ create_latest () {
 
   # Update version information within the 'latest' documentation
   update_version "latest"  
+  cd -
+
+  # Remove any javadoc 'latest' symbolic link
+  rm -rf docs/javadoc/latest
+
+  # Create symbolic link for the 'latest' javadoc
+  cd docs/javadoc
+  ln -s "${ICEBERG_VERSION}" latest
   cd -
 }
 

@@ -50,6 +50,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -121,6 +122,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
+  private boolean usePrefixListing = false;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -203,6 +205,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         lastModifiedField.dataType());
 
     this.compareToFileList = files;
+    return this;
+  }
+
+  public DeleteOrphanFilesSparkAction usePrefixListing(boolean newUsePrefixListing) {
+    this.usePrefixListing = newUsePrefixListing;
     return this;
   }
 
@@ -303,39 +310,91 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
-    Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
-    // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
-    // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
-    listDirRecursively(
-        location,
-        predicate,
-        hadoopConf.value(),
-        MAX_DRIVER_LISTING_DEPTH,
-        MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
-        subDirs,
-        pathFilter,
-        matchingFiles);
+    if (usePrefixListing) {
+      Preconditions.checkArgument(
+          table.io() instanceof SupportsPrefixOperations,
+          "Cannot use prefix listing with FileIO {} which does not support prefix operations.",
+          table.io());
 
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      Predicate<org.apache.iceberg.io.FileInfo> predicate =
+          fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
+      listDirRecursivelyWithFileIO(
+          (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
 
-    if (subDirs.isEmpty()) {
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+    } else {
+      Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
+
+      // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
+      // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
+      listDirRecursivelyWithHadoop(
+          location,
+          predicate,
+          hadoopConf.value(),
+          MAX_DRIVER_LISTING_DEPTH,
+          MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
+          subDirs,
+          pathFilter,
+          matchingFiles);
+
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+
+      if (subDirs.isEmpty()) {
+        return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+      }
+
+      int parallelism = Math.min(subDirs.size(), listingParallelism);
+      JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
+
+      Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
+      ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
+      JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
+
+      JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
+      return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
-
-    int parallelism = Math.min(subDirs.size(), listingParallelism);
-    JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
-
-    Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
-    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
-
-    JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
   }
 
-  private static void listDirRecursively(
+  private static void listDirRecursivelyWithFileIO(
+      SupportsPrefixOperations io,
+      String dir,
+      Predicate<org.apache.iceberg.io.FileInfo> predicate,
+      PathFilter pathFilter,
+      List<String> matchingFiles) {
+    String listPath = dir;
+    if (!dir.endsWith("/")) {
+      listPath = dir + "/";
+    }
+
+    Iterable<org.apache.iceberg.io.FileInfo> files = io.listPrefix(listPath);
+    for (org.apache.iceberg.io.FileInfo file : files) {
+      Path path = new Path(file.location());
+      if (!isHiddenPath(dir, path, pathFilter) && predicate.test(file)) {
+        matchingFiles.add(file.location());
+      }
+    }
+  }
+
+  private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
+    boolean isHiddenPath = false;
+    Path currentPath = path;
+    while (currentPath.getParent().toString().contains(baseDir)) {
+      if (!pathFilter.accept(currentPath)) {
+        isHiddenPath = true;
+        break;
+      }
+
+      currentPath = currentPath.getParent();
+    }
+
+    return isHiddenPath;
+  }
+
+  @VisibleForTesting
+  static void listDirRecursivelyWithHadoop(
       String dir,
       Predicate<FileStatus> predicate,
       Configuration conf,
@@ -372,7 +431,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(
+        listDirRecursivelyWithHadoop(
             subDir,
             predicate,
             conf,
@@ -458,7 +517,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
       while (dirs.hasNext()) {
-        listDirRecursively(
+        listDirRecursivelyWithHadoop(
             dirs.next(),
             predicate,
             hadoopConf.value().value(),

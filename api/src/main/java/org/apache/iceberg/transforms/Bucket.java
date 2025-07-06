@@ -43,6 +43,12 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     return new Bucket<>(numBuckets);
   }
 
+  /**
+   * Instantiates a new Bucket Transform
+   *
+   * @deprecated will be removed in 2.0.0; use {@link #get(int)} instead
+   */
+  @Deprecated
   @SuppressWarnings("unchecked")
   static <T, B extends Bucket<T> & SerializableFunction<T, Integer>> B get(
       Type type, int numBuckets) {
@@ -94,6 +100,14 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         "hash(value) is not supported on the base Bucket class");
   }
 
+  /**
+   * Transforms a value to its corresponding partition value.
+   *
+   * @param value a source value
+   * @return a transformed partition value
+   * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
+   */
+  @Deprecated
   @Override
   public Integer apply(T value) {
     if (value == null) {

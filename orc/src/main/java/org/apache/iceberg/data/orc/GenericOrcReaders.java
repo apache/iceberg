@@ -20,6 +20,7 @@ package org.apache.iceberg.data.orc;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -39,12 +40,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 public class GenericOrcReaders {
@@ -95,6 +100,10 @@ public class GenericOrcReaders {
 
   public static OrcValueReader<LocalDateTime> timestamps() {
     return TimestampReader.INSTANCE;
+  }
+
+  public static OrcValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   private static class TimestampTzReader implements OrcValueReader<OffsetDateTime> {
@@ -198,6 +207,24 @@ public class GenericOrcReaders {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
       return ByteBuffer.wrap(
           bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+    }
+  }
+
+  private static class VariantReader implements OrcValueReader<Variant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
+    @Override
+    public Variant nonNullRead(ColumnVector vector, int row) {
+      StructColumnVector struct = (StructColumnVector) vector;
+      VariantMetadata metadata =
+          VariantMetadata.from(
+              BytesReader.INSTANCE.read(struct.fields[0], row).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata,
+              BytesReader.INSTANCE.read(struct.fields[1], row).order(ByteOrder.LITTLE_ENDIAN));
+
+      return Variant.of(metadata, value);
     }
   }
 

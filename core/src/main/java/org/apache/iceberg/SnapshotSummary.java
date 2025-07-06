@@ -62,6 +62,10 @@ public class SnapshotSummary {
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
+  public static final String CREATED_MANIFESTS_COUNT = "manifests-created";
+  public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
+  public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
+  public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 

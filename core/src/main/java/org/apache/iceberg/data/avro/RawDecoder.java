@@ -33,6 +33,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
   private static final ThreadLocal<BinaryDecoder> DECODER = new ThreadLocal<>();
 
+  /**
+   * Creates a new {@link MessageDecoder} that constructs datum instances described by the {@link
+   * Schema readSchema}.
+   *
+   * <p>The {@code readSchema} is used for the expected schema and the {@code writeSchema} is the
+   * schema used to decode buffers. The {@code writeSchema} must be the schema that was used to
+   * encode all buffers decoded by this class.
+   *
+   * @param readSchema an Iceberg schema to produce when reading
+   * @param readerFunction a function that produces a DatumReader from the read schema
+   * @param writeSchema an Avro schema that describes serialized data to be read
+   */
+  public static <D> RawDecoder<D> create(
+      org.apache.iceberg.Schema readSchema,
+      Function<org.apache.iceberg.Schema, DatumReader<D>> readerFunction,
+      Schema writeSchema) {
+    DatumReader<D> reader = readerFunction.apply(readSchema);
+    reader.setSchema(writeSchema);
+    return new RawDecoder<>(reader);
+  }
+
   private final DatumReader<D> reader;
 
   /**
@@ -42,13 +63,24 @@ public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * <p>The {@code readSchema} is used for the expected schema and the {@code writeSchema} is the
    * schema used to decode buffers. The {@code writeSchema} must be the schema that was used to
    * encode all buffers decoded by this class.
+   *
+   * @deprecated will be removed in 2.0.0; use {@link #create(org.apache.iceberg.Schema, Function,
+   *     Schema)} instead
    */
+  @Deprecated
   public RawDecoder(
       org.apache.iceberg.Schema readSchema,
       Function<Schema, DatumReader<?>> readerFunction,
       Schema writeSchema) {
     this.reader = new ProjectionDatumReader<>(readerFunction, readSchema, ImmutableMap.of(), null);
     this.reader.setSchema(writeSchema);
+  }
+
+  /**
+   * Creates a new {@link MessageDecoder} that constructs datum instances using the {@code reader}.
+   */
+  private RawDecoder(DatumReader<D> reader) {
+    this.reader = reader;
   }
 
   @Override

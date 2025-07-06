@@ -415,12 +415,23 @@ License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: org.apache.commons  Name: commons-configuration2  Version: 2.10.1
+Project URL: https://commons.apache.org/proper/commons-configuration/
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: org.apache.hadoop  Name: hadoop-common  Version: 3.3.6
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents.client5  Name: httpclient5  Version: 5.4
+Group: org.apache.hadoop  Name: hadoop-auth  Version: 3.3.6
+License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents.client5  Name: httpclient5  Version: 5.4.3
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -439,42 +450,42 @@ License (from POM): The MIT License - http://opensource.org/licenses/MIT
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-http  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-http  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-io  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-io  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-security  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-security  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-server  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-server  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-servlet  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-servlet  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.eclipse.jetty  Name: jetty-util  Version: 11.0.24
+Group: org.eclipse.jetty  Name: jetty-util  Version: 11.0.25
 Project URL: https://eclipse.dev/jetty/
 License (from POM): Apache Software License - Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 License (from POM): Eclipse Public License - Version 2.0 - https://www.eclipse.org/legal/epl-2.0/
@@ -542,7 +553,7 @@ License (from POM): Apache 2 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.slf4j  Name: slf4j-api  Version: 2.0.16
+Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
 Project URL: http://www.slf4j.org
 License (from POM): MIT License - http://www.opensource.org/licenses/mit-license.php
 
@@ -552,4 +563,334 @@ Group: org.xerial  Name: sqlite-jdbc  Version: 3.47.0.0
 Project URL (from POM): https://github.com/xerial/sqlite-jdbc
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: annotations  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: arns  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: auth  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: checksums  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: crt-core  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: glue  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-auth  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: iam  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: identity-spi  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: kms  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: profiles  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: regions  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: retries  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: s3  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: sso  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: sts  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.29.6
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: utils  Version: 2.29.6
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.eventstream  Name: eventstream  Version: 1.0.1
+Project URL (from POM): https://github.com/awslabs/aws-eventstream-java
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api  Name: api-common  Version: 2.40.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api  Name: gax  Version: 2.57.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api  Name: gax-grpc  Version: 2.57.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api  Name: gax-httpjson  Version: 2.57.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api-client  Name: google-api-client  Version: 2.7.0
+Project URL (from manifest): https://developers.google.com/api-client-library/java/
+License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.44.1-beta
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.44.1-beta
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.44.1-beta
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.48.0
+Project URL (from POM): https://github.com/googleapis/sdk-platform-java
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.43.0
+Project URL (from POM): https://github.com/googleapis/sdk-platform-java
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20241008-2.0.0
+License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.29.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD New license - http://opensource.org/licenses/BSD-3-Clause
+
+--------------------------------------------------------------------------------
+
+Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.29.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License (from POM): BSD New license - http://opensource.org/licenses/BSD-3-Clause
+
+--------------------------------------------------------------------------------
+
+Group: com.google.auto.value  Name: auto-value-annotations  Version: 1.11.0
+Project URL (from POM): https://github.com/google/auto/tree/main/value
+License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.47.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.47.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.47.0
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.47.1
+Project URL (from POM): https://github.com/googleapis/java-storage
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+Group: com.microsoft.azure  Name: msal4j  Version: 1.17.2
+Project URL (from manifest): https://github.com/AzureAD/microsoft-authentication-library-for-java
+Manifest License: "MIT License" (Not packaged)
+Project URL (from POM): https://github.com/AzureAD/microsoft-authentication-library-for-java
+License (from POM): MIT License
+--------------------------------------------------------------------------------
+
+Group: com.microsoft.azure  Name: msal4j-persistence-extension  Version: 1.3.0
+Project URL (from POM): https://github.com/AzureAD/microsoft-authentication-library-for-java
+License (from POM): MIT License
 --------------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -39,8 +40,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkPlanningUtil extends TestBaseWithCatalog {
 
   private static final Schema SCHEMA =
@@ -68,8 +71,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors if there are no deletes
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
   @TestTemplate
@@ -137,9 +139,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors if the table is unpartitioned
-    assertThat(locations.length).isEqualTo(2);
-    assertThat(locations[0]).isEmpty();
-    assertThat(locations[1]).isEmpty();
+    assertThat(locations).hasDimensions(2, 0);
   }
 
   @TestTemplate
@@ -155,8 +155,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors for data tasks
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
   @TestTemplate
@@ -168,8 +167,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
 
     // should not assign executors for unknown tasks
-    assertThat(locations.length).isEqualTo(1);
-    assertThat(locations[0]).isEmpty();
+    assertThat(locations).hasDimensions(1, 0);
   }
 
   private static DataFile mockDataFile(StructLike partition) {

@@ -177,7 +177,7 @@ public class TestChangelogReader extends TestBase {
       reader.close();
     }
 
-    assertThat(rows).as("Should have no rows").hasSize(0);
+    assertThat(rows).as("Should have no rows").isEmpty();
   }
 
   @Test

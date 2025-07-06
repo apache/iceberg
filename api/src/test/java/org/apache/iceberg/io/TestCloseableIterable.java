@@ -92,7 +92,9 @@ public class TestCloseableIterable {
     CloseableIterable<Integer> concat5 =
         CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
 
-    assertThatThrownBy(() -> Iterables.getLast(concat5)).isInstanceOf(NoSuchElementException.class);
+    assertThatThrownBy(() -> Iterables.getLast(concat5))
+        .isInstanceOf(NoSuchElementException.class)
+        .hasMessage(null);
   }
 
   @Test

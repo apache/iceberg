@@ -86,6 +86,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final int maxQueueSize;
 
     private ParallelIterator(
         Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
@@ -97,6 +98,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
+      this.maxQueueSize = maxQueueSize;
     }
 
     @Override
@@ -153,6 +155,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             try {
               Optional<Task<T>> continuation = taskFutures[i].get();
               continuation.ifPresent(yieldedTasks::addLast);
+              taskFutures[i] = null;
             } catch (ExecutionException e) {
               if (e.getCause() instanceof RuntimeException) {
                 // rethrow a runtime exception
@@ -165,7 +168,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             }
           }
 
-          taskFutures[i] = submitNextTask();
+          // submit a new task if there is space in the queue
+          if (queue.size() < maxQueueSize) {
+            taskFutures[i] = submitNextTask();
+          }
         }
 
         if (taskFutures[i] != null) {
@@ -257,17 +263,24 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     @Override
     public Optional<Task<T>> get() {
       try {
+        if (queue.size() >= approximateMaxQueueSize) {
+          // Yield when queue is over the size limit. Task will be resubmitted later and continue
+          // the work.
+          //
+          // Tasks might hold references (via iterator) to constrained resources
+          // (e.g. pooled connections). Hence, tasks should yield only when
+          // iterator is not instantiated. Otherwise, there could be
+          // a deadlock when yielded tasks are waiting to be executed while
+          // currently executed tasks are waiting for the resources that are held
+          // by the yielded tasks.
+          return Optional.of(this);
+        }
+
         if (iterator == null) {
           iterator = input.iterator();
         }
 
         while (iterator.hasNext()) {
-          if (queue.size() >= approximateMaxQueueSize) {
-            // Yield when queue is over the size limit. Task will be resubmitted later and continue
-            // the work.
-            return Optional.of(this);
-          }
-
           T next = iterator.next();
           if (closed.get()) {
             break;

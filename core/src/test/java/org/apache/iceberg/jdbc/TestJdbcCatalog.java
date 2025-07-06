@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -50,8 +49,6 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -68,9 +65,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.metrics.MetricsReport;
-import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -109,13 +103,19 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
-  protected boolean supportsNamespaceProperties() {
+  protected boolean supportsNestedNamespaces() {
     return true;
   }
 
   @Override
-  protected boolean supportsNestedNamespaces() {
+  protected boolean supportsEmptyNamespace() {
     return true;
+  }
+
+  @Override
+  protected boolean supportsNamesWithDot() {
+    // namespaces with a dot are not supported
+    return false;
   }
 
   protected List<String> metadataVersionFiles(String location) {
@@ -139,7 +139,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog = initCatalog("test_jdbc_catalog", Maps.newHashMap());
   }
 
-  private JdbcCatalog initCatalog(String catalogName, Map<String, String> props) {
+  @Override
+  protected JdbcCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
         CatalogProperties.URI,
@@ -149,8 +150,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    properties.put(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4", "catalog-override-key4");
+
     properties.put("type", "jdbc");
-    properties.putAll(props);
+    properties.putAll(additionalProperties);
 
     return (JdbcCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf);
   }
@@ -519,7 +529,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     assertThatThrownBy(() -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -538,7 +548,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable, true);
   }
@@ -768,11 +778,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet2).hasSize(5).contains("db", "db2", "d_", "d%", "");
+    assertThat(tblSet2).hasSize(4).contains("db", "db2", "d_", "d%");
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet3).hasSize(5).contains("db", "db2", "d_", "d%", "");
+    assertThat(tblSet3).hasSize(4).contains("db", "db2", "d_", "d%");
 
     List<Namespace> nsp5 = catalog.listNamespaces(Namespace.of("d_"));
     assertThat(nsp5).hasSize(1);
@@ -1060,36 +1070,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testCatalogWithCustomMetricsReporter() throws IOException {
-    JdbcCatalog catalogWithCustomReporter =
-        initCatalog(
-            "test_jdbc_catalog_with_custom_reporter",
-            ImmutableMap.of(
-                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName()));
-    try {
-      catalogWithCustomReporter.buildTable(TABLE, SCHEMA).create();
-      Table table = catalogWithCustomReporter.loadTable(TABLE);
-      table
-          .newFastAppend()
-          .appendFile(
-              DataFiles.builder(PartitionSpec.unpartitioned())
-                  .withPath(FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()))
-                  .withFileSizeInBytes(10)
-                  .withRecordCount(2)
-                  .build())
-          .commit();
-      try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-        assertThat(tasks.iterator()).hasNext();
-      }
-    } finally {
-      catalogWithCustomReporter.dropTable(TABLE);
-    }
-    // counter of custom metrics reporter should have been increased
-    // 1x for commit metrics / 1x for scan metrics
-    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
-  }
-
-  @Test
   public void testCommitExceptionWithoutMessage() {
     TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
     BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
@@ -1126,15 +1106,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)
           .hasMessageStartingWith("Table already exists: " + tableIdent);
-    }
-  }
-
-  public static class CustomMetricsReporter implements MetricsReporter {
-    static final AtomicInteger COUNTER = new AtomicInteger(0);
-
-    @Override
-    public void report(MetricsReport report) {
-      COUNTER.incrementAndGet();
     }
   }
 

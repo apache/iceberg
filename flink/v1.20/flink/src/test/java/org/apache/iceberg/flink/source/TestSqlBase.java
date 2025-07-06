@@ -63,6 +63,8 @@ public abstract class TestSqlBase {
 
   private volatile TableEnvironment tEnv;
 
+  private volatile TableEnvironment streamingTEnv;
+
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
@@ -73,6 +75,19 @@ public abstract class TestSqlBase {
       }
     }
     return tEnv;
+  }
+
+  protected TableEnvironment getStreamingTableEnv() {
+    if (streamingTEnv == null) {
+      synchronized (this) {
+        if (streamingTEnv == null) {
+          this.streamingTEnv =
+              TableEnvironment.create(EnvironmentSettings.newInstance().inStreamingMode().build());
+        }
+      }
+    }
+
+    return streamingTEnv;
   }
 
   @BeforeEach

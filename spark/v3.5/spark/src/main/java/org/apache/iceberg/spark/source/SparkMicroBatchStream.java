@@ -58,9 +58,12 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
 import org.apache.spark.sql.connector.read.streaming.SupportsAdmissionControl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -309,6 +312,47 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
   }
 
+  private static int getMaxFiles(ReadLimit readLimit) {
+    if (readLimit instanceof ReadMaxFiles) {
+      return ((ReadMaxFiles) readLimit).maxFiles();
+    }
+
+    if (readLimit instanceof CompositeReadLimit) {
+      // We do not expect a CompositeReadLimit to contain a nested CompositeReadLimit.
+      // In fact, it should only be a composite of two or more of ReadMinRows, ReadMaxRows and
+      // ReadMaxFiles, with no more than one of each.
+      ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
+      for (ReadLimit limit : limits) {
+        if (limit instanceof ReadMaxFiles) {
+          return ((ReadMaxFiles) limit).maxFiles();
+        }
+      }
+    }
+
+    // there is no ReadMaxFiles, so return the default
+    return Integer.MAX_VALUE;
+  }
+
+  private static int getMaxRows(ReadLimit readLimit) {
+    if (readLimit instanceof ReadMaxRows) {
+      long maxRows = ((ReadMaxRows) readLimit).maxRows();
+      return Math.toIntExact(maxRows);
+    }
+
+    if (readLimit instanceof CompositeReadLimit) {
+      ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
+      for (ReadLimit limit : limits) {
+        if (limit instanceof ReadMaxRows) {
+          long maxRows = ((ReadMaxRows) limit).maxRows();
+          return Math.toIntExact(maxRows);
+        }
+      }
+    }
+
+    // There is no ReadMaxRows, so return the default
+    return Integer.MAX_VALUE;
+  }
+
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
@@ -343,7 +387,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
-    int curRecordCount = 0;
+    long curRecordCount = 0;
     int curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
@@ -368,16 +412,23 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              // TODO : use readLimit provided in function param, the readLimits are derived from
-              // these 2 properties.
-              if ((curFilesAdded + 1) > maxFilesPerMicroBatch
-                  || (curRecordCount + task.file().recordCount()) > maxRecordsPerMicroBatch) {
+              if ((curFilesAdded + 1) > getMaxFiles(limit)) {
+                // On including the file it might happen that we might exceed, the configured
+                // soft limit on the number of records, since this is a soft limit its acceptable.
                 shouldContinueReading = false;
                 break;
               }
 
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
+
+              if (curRecordCount >= getMaxRows(limit)) {
+                // we included the file, so increment the number of files
+                // read in the current snapshot.
+                ++curPos;
+                shouldContinueReading = false;
+                break;
+              }
             }
             ++curPos;
           }
@@ -394,7 +445,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       if (shouldContinueReading) {
         Snapshot nextValid = nextValidSnapshot(curSnapshot);
         if (nextValid == null) {
-          // nextValide implies all the remaining snapshots should be skipped.
+          // nextValid implies all the remaining snapshots should be skipped.
           break;
         }
         // we found the next available snapshot, continue from there.
@@ -458,7 +509,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
       ReadLimit[] readLimits = new ReadLimit[2];
       readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
-      readLimits[1] = ReadLimit.maxRows(maxFilesPerMicroBatch);
+      readLimits[1] = ReadLimit.maxRows(maxRecordsPerMicroBatch);
       return ReadLimit.compositeLimit(readLimits);
     } else if (maxFilesPerMicroBatch != Integer.MAX_VALUE) {
       return ReadLimit.maxFiles(maxFilesPerMicroBatch);

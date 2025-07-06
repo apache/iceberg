@@ -291,12 +291,11 @@ public class TestTagDDL extends ExtensionsTestBase {
     String tagName = "t1";
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
     SnapshotRef ref = table.refs().get(tagName);
-    assertThat(ref.snapshotId()).as("").isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
 
     sql("ALTER TABLE %s DROP TAG %s", tableName, tagName);
     table.refresh();
-    ref = table.refs().get(tagName);
-    assertThat(ref).as("The tag needs to be dropped.").isNull();
+    assertThat(table.refs()).doesNotContainKey(tagName);
   }
 
   @TestTemplate
@@ -328,11 +327,11 @@ public class TestTagDDL extends ExtensionsTestBase {
   public void testDropTagIfExists() throws NoSuchTableException {
     String tagName = "nonExistingTag";
     Table table = insertRows();
-    assertThat(table.refs().get(tagName)).as("The tag does not exists.").isNull();
+    assertThat(table.refs()).doesNotContainKey(tagName);
 
     sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
     table.refresh();
-    assertThat(table.refs().get(tagName)).as("The tag still does not exist.").isNull();
+    assertThat(table.refs()).doesNotContainKey(tagName);
 
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
     assertThat(table.refs().get(tagName).snapshotId())
@@ -341,7 +340,7 @@ public class TestTagDDL extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
     table.refresh();
-    assertThat(table.refs().get(tagName)).as("The tag needs to be dropped.").isNull();
+    assertThat(table.refs()).doesNotContainKey(tagName);
   }
 
   @TestTemplate

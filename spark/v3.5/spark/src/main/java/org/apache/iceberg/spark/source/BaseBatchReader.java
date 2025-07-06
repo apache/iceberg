@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
@@ -32,16 +31,18 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
-  private final int batchSize;
+  private final ParquetBatchReadConf parquetConf;
+  private final OrcBatchReadConf orcConf;
 
   BaseBatchReader(
       Table table,
@@ -49,9 +50,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      int batchSize) {
+      ParquetBatchReadConf parquetConf,
+      OrcBatchReadConf orcConf) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
-    this.batchSize = batchSize;
+    this.parquetConf = parquetConf;
+    this.orcConf = orcConf;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -84,27 +87,21 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    boolean hasPositionDelete = deleteFilter != null ? deleteFilter.hasPosDeletes() : false;
-    Schema projectedSchema = requiredSchema;
-    if (hasPositionDelete) {
-      // We need to add MetadataColumns.ROW_POSITION in the schema for
-      // ReadConf.generateOffsetToStartPos(Schema schema). This is not needed any
-      // more after #10107 is merged.
-      List<Types.NestedField> columns = Lists.newArrayList(requiredSchema.columns());
-      if (!columns.contains(MetadataColumns.ROW_POSITION)) {
-        columns.add(MetadataColumns.ROW_POSITION);
-        projectedSchema = new Schema(columns);
-      }
-    }
 
     return Parquet.read(inputFile)
-        .project(projectedSchema)
+        .project(requiredSchema)
         .split(start, length)
         .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
-        .recordsPerBatch(batchSize)
+            fileSchema -> {
+              if (parquetConf.readerType() == ParquetReaderType.COMET) {
+                return VectorizedSparkParquetReaders.buildCometReader(
+                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+              } else {
+                return VectorizedSparkParquetReaders.buildReader(
+                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+              }
+            })
+        .recordsPerBatch(parquetConf.batchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
         // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
@@ -134,7 +131,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema, idToConstant))
-        .recordsPerBatch(batchSize)
+        .recordsPerBatch(orcConf.batchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())

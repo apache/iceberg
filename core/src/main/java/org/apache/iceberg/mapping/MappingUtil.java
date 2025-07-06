@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,7 +65,7 @@ public class MappingUtil {
   public static NameMapping update(
       NameMapping mapping,
       Map<Integer, Types.NestedField> updates,
-      Multimap<Integer, Types.NestedField> adds) {
+      Multimap<Integer, Integer> adds) {
     return new NameMapping(visit(mapping, new UpdateMapping(updates, adds)));
   }
 
@@ -78,10 +79,10 @@ public class MappingUtil {
 
   private static class UpdateMapping implements Visitor<MappedFields, MappedField> {
     private final Map<Integer, Types.NestedField> updates;
-    private final Multimap<Integer, Types.NestedField> adds;
+    private final Multimap<Integer, Integer> adds;
 
     private UpdateMapping(
-        Map<Integer, Types.NestedField> updates, Multimap<Integer, Types.NestedField> adds) {
+        Map<Integer, Types.NestedField> updates, Multimap<Integer, Integer> adds) {
       this.updates = updates;
       this.adds = adds;
     }
@@ -121,8 +122,9 @@ public class MappingUtil {
     }
 
     private MappedFields addNewFields(MappedFields mapping, int parentId) {
-      Collection<Types.NestedField> fieldsToAdd = adds.get(parentId);
-      if (fieldsToAdd == null || fieldsToAdd.isEmpty()) {
+      Collection<Types.NestedField> fieldsToAdd =
+          adds.get(parentId).stream().map(updates::get).collect(Collectors.toList());
+      if (fieldsToAdd.isEmpty()) {
         return mapping;
       }
 
@@ -300,6 +302,11 @@ public class MappingUtil {
       return MappedFields.of(
           MappedField.of(map.keyId(), "key", keyResult),
           MappedField.of(map.valueId(), "value", valueResult));
+    }
+
+    @Override
+    public MappedFields variant(Types.VariantType variant) {
+      return null; // no mapping because variant has no nested fields with IDs
     }
 
     @Override

@@ -23,12 +23,17 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.extract;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +43,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestExpressionBinding {
   private static final StructType STRUCT =
@@ -45,7 +52,10 @@ public class TestExpressionBinding {
           required(0, "x", Types.IntegerType.get()),
           required(1, "y", Types.IntegerType.get()),
           required(2, "z", Types.IntegerType.get()),
-          required(3, "data", Types.StringType.get()));
+          required(3, "data", Types.StringType.get()),
+          required(4, "var", Types.VariantType.get()),
+          optional(5, "nullable", Types.IntegerType.get()),
+          optional(6, "always_null", Types.UnknownType.get()));
 
   @Test
   public void testMissingReference() {
@@ -211,5 +221,204 @@ public class TestExpressionBinding {
     assertThat(transformExpr.transform())
         .as("Should use a bucket[16] transform")
         .hasToString("bucket[16]");
+  }
+
+  @Test
+  public void testIsNullWithUnknown() {
+    Expression bound = Binder.bind(STRUCT, isNull("always_null"));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testNotNullWithUnknown() {
+    Expression bound = Binder.bind(STRUCT, notNull("always_null"));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysFalse());
+  }
+
+  @Test
+  public void testIsNullWithNullable() {
+    Expression bound = Binder.bind(STRUCT, isNull("nullable"));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.IS_NULL);
+  }
+
+  @Test
+  public void testIsNullWithRequired() {
+    Expression bound = Binder.bind(STRUCT, isNull("x"));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysFalse());
+  }
+
+  @Test
+  public void testNotNullWithNullable() {
+    Expression bound = Binder.bind(STRUCT, notNull("nullable"));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.NOT_NULL);
+  }
+
+  @Test
+  public void testNotNullWithRequired() {
+    Expression bound = Binder.bind(STRUCT, notNull("x"));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testIsNullWithNullableTransformedOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, isNull(truncate("nullable", 10)));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.IS_NULL);
+  }
+
+  @Test
+  public void testIsNullWithRequiredTransformedOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, isNull(truncate("x", 10)));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysFalse());
+  }
+
+  @Test
+  public void testNotNullWithNullableTransformedOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, notNull(truncate("nullable", 10)));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.NOT_NULL);
+  }
+
+  @Test
+  public void testNotNullWithRequiredTransformedOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, notNull(truncate("x", 10)));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    assertThat(bound).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testIsNullWithRequiredTransformedNonOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, isNull(bucket("x", 10)));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.IS_NULL);
+  }
+
+  @Test
+  public void testNotNullWithRequiredTransformedNonOrderPreserving() {
+    Expression bound = Binder.bind(STRUCT, notNull(bucket("x", 10)));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.NOT_NULL);
+  }
+
+  @Test
+  public void testIsNullWithRequiredVariant() {
+    Expression bound = Binder.bind(STRUCT, isNull(extract("var", "$.event_id", "long")));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.IS_NULL);
+  }
+
+  @Test
+  public void testNotNullWithRequiredVariant() {
+    Expression bound = Binder.bind(STRUCT, notNull(extract("var", "$.event_id", "long")));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.NOT_NULL);
+  }
+
+  @Test
+  public void testExtractExpressionBinding() {
+    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", "$.event_id", "long"), 100));
+    TestHelpers.assertAllReferencesBound("BoundExtract", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.LT);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(100L); // cast to long
+    assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
+    BoundExtract<?> boundExtract = (BoundExtract<?>) pred.term();
+    assertThat(boundExtract.ref().fieldId()).isEqualTo(4);
+    assertThat(boundExtract.path()).isEqualTo("$['event_id']");
+    assertThat(boundExtract.type()).isEqualTo(Types.LongType.get());
+  }
+
+  @Test
+  public void testExtractExpressionNonVariant() {
+    assertThatThrownBy(() -> Binder.bind(STRUCT, lessThan(extract("x", "$.event_id", "long"), 100)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot bind extract, not a variant: x");
+  }
+
+  private static final String[] VALID_PATHS =
+      new String[] {
+        "$", // root path
+        "$.event_id",
+        "$.event.id"
+      };
+
+  @ParameterizedTest
+  @FieldSource("VALID_PATHS")
+  public void testExtractExpressionBindingPaths(String path) {
+    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", path, "long"), 100));
+    TestHelpers.assertAllReferencesBound("BoundExtract", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
+  }
+
+  private static final String[] UNSUPPORTED_PATHS =
+      new String[] {
+        null,
+        "",
+        "event_id", // missing root
+        "$['event_id']", // uses bracket notation
+        "$..event_id", // uses recursive descent
+        "$.events[0].event_id", // uses position accessor
+        "$.events.*" // uses wildcard
+      };
+
+  @ParameterizedTest
+  @FieldSource("UNSUPPORTED_PATHS")
+  public void testExtractBindingWithInvalidPath(String path) {
+    assertThatThrownBy(() -> Binder.bind(STRUCT, lessThan(extract("var", path, "long"), 100)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
+  }
+
+  @Test
+  public void testExtractUnknown() {
+    assertThatThrownBy(() -> Binder.bind(STRUCT, isNull(extract("var", "$.field", "unknown"))))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid type to extract: unknown");
+  }
+
+  private static final String[] VALID_TYPES =
+      new String[] {
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "decimal(9,2)",
+        "date",
+        "time",
+        "timestamp",
+        "timestamptz",
+        "timestamp_ns",
+        "timestamptz_ns",
+        "string",
+        "uuid",
+        "fixed[4]",
+        "binary",
+      };
+
+  @ParameterizedTest
+  @FieldSource("VALID_TYPES")
+  public void testExtractBindingWithTypes(String typeName) {
+    Expression bound = Binder.bind(STRUCT, notNull(extract("var", "$.field", typeName)));
+    TestHelpers.assertAllReferencesBound("BoundExtract", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
+    assertThat(pred.term().type()).isEqualTo(Types.fromPrimitiveString(typeName));
   }
 }

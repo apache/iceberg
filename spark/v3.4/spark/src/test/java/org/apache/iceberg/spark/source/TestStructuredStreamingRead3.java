@@ -37,7 +37,10 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -49,7 +52,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
@@ -59,20 +62,14 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
-  public TestStructuredStreamingRead3(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+@ExtendWith(ParameterizedTestExtension.class)
+public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
   private Table table;
 
@@ -114,37 +111,38 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
               Lists.newArrayList(
                   new SimpleRecord(15, "fifteen"), new SimpleRecord(16, "sixteen"))));
 
-  @BeforeClass
+  @BeforeAll
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
   }
 
-  @Before
+  @BeforeEach
   public void setupTable() {
     sql(
         "CREATE TABLE %s "
             + "(id INT, data STRING) "
             + "USING iceberg "
-            + "PARTITIONED BY (bucket(3, id))",
+            + "PARTITIONED BY (bucket(3, id)) "
+            + "TBLPROPERTIES ('commit.manifest.min-count-to-merge'='3', 'commit.manifest-merge.enabled'='true')",
         tableName);
     this.table = validationCatalog.loadTable(tableIdent);
     microBatches.set(0);
   }
 
-  @After
+  @AfterEach
   public void stopStreams() throws TimeoutException {
     for (StreamingQuery query : spark.streams().active()) {
       query.stop();
     }
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
@@ -155,58 +153,77 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_1()
-      throws Exception {
+  @TestTemplate
+  public void testReadStreamWithMaxFiles1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(
-        6,
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")));
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
   }
 
-  @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_2()
-      throws Exception {
+  @TestTemplate
+  public void testReadStreamWithMaxFiles2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(
-        3,
-        microBatchCount(
-            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2")));
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L));
   }
 
-  @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_1()
-      throws Exception {
+  @TestTemplate
+  public void testReadStreamWithMaxRows1() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
 
-    // only 1 micro-batch will be formed and we will read data partially
-    Assert.assertEquals(
-        1,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1")));
-
+    // soft limit of 1 is being enforced, the stream is not blocked.
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
 
-    // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
     assertThat(actual)
-        .containsExactlyInAnyOrderElementsOf(
-            Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
   }
 
-  @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_4()
-      throws Exception {
+  @TestTemplate
+  public void testReadStreamWithMaxRows2() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(
-        2,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")));
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L));
+
+    StreamingQuery query =
+        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
+
+    List<SimpleRecord> actual = rowsAvailable(query);
+    assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
   }
 
-  @Test
+  @TestTemplate
+  public void testReadStreamWithMaxRows4() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"), List.of(4L, 3L));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithCompositeReadLimit() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(
+            SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+            "4",
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+            "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
   public void testReadStreamOnIcebergThenAddData() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
 
@@ -218,7 +235,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testReadingStreamFromTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp =
         Lists.newArrayList(
@@ -245,7 +262,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testReadingStreamFromFutureTimetsamp() throws Exception {
     long futureTimestamp = System.currentTimeMillis() + 10000;
 
@@ -277,7 +294,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
   }
 
-  @Test
+  @TestTemplate
   public void testReadingStreamFromTimestampFutureWithExistingSnapshots() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp =
         Lists.newArrayList(
@@ -290,7 +307,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     StreamingQuery query =
         startStream(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp));
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assert.assertEquals(Collections.emptyList(), actual);
+    assertThat(actual).isEmpty();
 
     // Stream should contain data added after the timestamp elapses
     waitUntilAfter(streamStartTimestamp);
@@ -300,7 +317,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testReadingStreamFromTimestampOfExistingSnapshot() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
 
@@ -322,7 +339,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testReadingStreamWithExpiredSnapshotFromTimestamp() throws TimeoutException {
     List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(new SimpleRecord(1, "one"));
 
@@ -351,11 +368,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     assertThat(actual).containsExactlyInAnyOrderElementsOf(expectedRecordList);
   }
 
-  @Test
+  @TestTemplate
   public void testResumingStreamReadFromCheckpoint() throws Exception {
-    File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
+    File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
-    File output = temp.newFolder();
+    File output = temp.resolve("junit").toFile();
 
     DataStreamWriter querySource =
         spark
@@ -391,11 +408,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testFailReadingCheckpointInvalidSnapshot() throws IOException, TimeoutException {
-    File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
+    File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
-    File output = temp.newFolder();
+    File output = temp.resolve("junit").toFile();
 
     DataStreamWriter querySource =
         spark
@@ -431,7 +448,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
                 firstSnapshotid));
   }
 
-  @Test
+  @TestTemplate
   public void testParquetOrcAvroDataInOneTable() throws Exception {
     List<SimpleRecord> parquetFileRecords =
         Lists.newArrayList(
@@ -453,14 +470,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
             Iterables.concat(parquetFileRecords, orcFileRecords, avroFileRecords));
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamFromEmptyTable() throws Exception {
     StreamingQuery stream = startStream();
     List<SimpleRecord> actual = rowsAvailable(stream);
-    Assert.assertEquals(Collections.emptyList(), actual);
+    assertThat(actual).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
     // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
@@ -481,14 +498,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
             dataDeletes,
             deleteRowSchema);
 
     DataFile dataFile =
         DataFiles.builder(table.spec())
-            .withPath(temp.newFile().toString())
+            .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .withFormat(FileFormat.PARQUET)
@@ -498,7 +515,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // check pre-condition - that the above Delete file write - actually resulted in snapshot of
     // type OVERWRITE
-    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
 
     StreamingQuery query = startStream();
 
@@ -508,7 +525,81 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .hasMessageStartingWith("Cannot process overwrite snapshot");
   }
 
-  @Test
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplace() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "4"),
+        List.of(5L, 2L));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(
+            SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+            "4",
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+            "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotType2RewriteDataFilesIgnoresReplace() throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+    makeRewriteDataFiles();
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceFollowedByAppend()
+      throws Exception {
+    // fill table with some data
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    makeRewriteDataFiles();
+
+    appendDataAsMultipleSnapshots(expected);
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L, 1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
@@ -518,14 +609,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     table.rewriteManifests().clusterBy(f -> 1).commit();
 
     // check pre-condition
-    Assert.assertEquals(DataOperations.REPLACE, table.currentSnapshot().operation());
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.REPLACE);
 
     StreamingQuery query = startStream();
     List<SimpleRecord> actual = rowsAvailable(query);
     assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
 
@@ -538,7 +629,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type
     // DELETE.
-    Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
 
     StreamingQuery query = startStream();
 
@@ -548,7 +639,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .hasMessageStartingWith("Cannot process delete snapshot");
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeDeleteAndSkipDeleteOption() throws Exception {
     table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
 
@@ -561,14 +652,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type
     // DELETE.
-    Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
 
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true");
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeDeleteAndSkipOverwriteOption() throws Exception {
     table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
 
@@ -578,7 +669,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     DataFile dataFile =
         DataFiles.builder(table.spec())
-            .withPath(temp.newFile().toString())
+            .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .withFormat(FileFormat.PARQUET)
@@ -593,11 +684,34 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type
     // OVERWRITE.
-    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
 
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
+  /**
+   * We are testing that all the files in a rewrite snapshot are skipped Create a rewrite data files
+   * snapshot using existing files.
+   */
+  public void makeRewriteDataFiles() {
+    table.refresh();
+
+    // we are testing that all the files in a rewrite snapshot are skipped
+    // create a rewrite data files snapshot using existing files
+    RewriteFiles rewrite = table.newRewrite();
+    Iterable<Snapshot> it = table.snapshots();
+    for (Snapshot snapshot : it) {
+      if (snapshot.operation().equals(DataOperations.APPEND)) {
+        Iterable<DataFile> datafiles = snapshot.addedDataFiles(table.io());
+        for (DataFile datafile : datafiles) {
+          rewrite.addFile(datafile);
+          rewrite.deleteFile(datafile);
+        }
+      }
+    }
+    rewrite.commit();
   }
 
   /**
@@ -649,8 +763,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         ImmutableMap.of(key, value, SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"));
   }
 
-  private int microBatchCount(Map<String, String> options) throws TimeoutException {
+  private void assertMicroBatchRecordSizes(
+      Map<String, String> options, List<Long> expectedMicroBatchRecordSize)
+      throws TimeoutException {
     Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
+    List<Long> syncList = Collections.synchronizedList(Lists.newArrayList());
 
     ds.writeStream()
         .options(options)
@@ -658,12 +775,13 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
             (VoidFunction2<Dataset<Row>, Long>)
                 (dataset, batchId) -> {
                   microBatches.getAndIncrement();
+                  syncList.add(dataset.count());
                 })
         .start()
         .processAllAvailable();
 
     stopStreams();
-    return microBatches.get();
+    assertThat(syncList).containsExactlyInAnyOrderElementsOf(expectedMicroBatchRecordSize);
   }
 
   private List<SimpleRecord> rowsAvailable(StreamingQuery query) {

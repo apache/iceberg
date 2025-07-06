@@ -32,10 +32,15 @@ public class ResourcePaths {
       "/v1/{prefix}/namespaces/{namespace}/properties";
   public static final String V1_TABLES = "/v1/{prefix}/namespaces/{namespace}/tables";
   public static final String V1_TABLE = "/v1/{prefix}/namespaces/{namespace}/tables/{table}";
+  public static final String V1_TABLE_CREDENTIALS =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials";
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
+  public static final String V1_TABLE_SCAN_PLAN_SUBMIT = "/v1/{prefix}/tables/{table}/plan";
+  public static final String V1_TABLE_SCAN_PLAN = "/v1/{prefix}/tables/{table}/plan/{plan-id}";
+  public static final String V1_TABLE_SCAN_PLAN_TASKS = "/v1/{prefix}/tables/{table}/tasks";
   public static final String V1_TRANSACTIONS_COMMIT = "/v1/{prefix}/transactions/commit";
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";

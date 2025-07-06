@@ -251,6 +251,16 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
+  public List<String> variant(Types.VariantType readVariant) {
+    if (currentType.isVariantType()) {
+      return NO_ERRORS;
+    }
+
+    // Currently promotion is not allowed to variant type
+    return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readVariant));
+  }
+
+  @Override
   public List<String> primitive(Type.PrimitiveType readPrimitive) {
     if (currentType.equals(readPrimitive)) {
       return NO_ERRORS;

@@ -24,7 +24,7 @@ import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
-/** MapDataStatistics uses map to count key frequency */
+/** SketchDataStatistics uses reservoir sampling algorithm to count key frequency */
 class SketchDataStatistics implements DataStatistics {
 
   private final ReservoirItemsSketch<SortKey> sketch;

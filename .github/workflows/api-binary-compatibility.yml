@@ -54,7 +54,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: zulu
-          java-version: 11
+          java-version: 17
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
       - run: ./gradlew revapi --rerun-tasks

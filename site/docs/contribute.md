@@ -422,6 +422,49 @@ Use `this` when assigning values to instance variables, making it clear when the
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 
+#### Block Spacing
+
+To improve readability and maintain consistency, always place a newline after control blocks (if, for, while, switch, etc.). 
+This helps separate logical sections of the code, making it easier to read and debug.
+
+```java
+  // BAD: No newline separator after `if` block
+  public static WriteBuilder write(OutputFile file) {
+     if (file instanceof EncryptedOutputFile) {
+        return write((EncryptedOutputFile) file);
+     }
+     return new WriteBuilder(file);
+  }
+
+  // GOOD: newline separator after `if` block
+  public static WriteBuilder write(OutputFile file) {
+     if (file instanceof EncryptedOutputFile) {
+        return write((EncryptedOutputFile) file);
+     }
+     
+     return new WriteBuilder(file);
+  }
+
+  // BAD: No newline separator after `for` block
+  public static Schema convert(Schema schema) {
+     ImmutableList.Builder<Field> fields = ImmutableList.builder();
+     for (NestedField f : schema.columns()) {
+        fields.add(convert(f));
+     }
+     return new Schema(fields.build());
+  }
+
+  // GOOD: newline separator after `for` block
+  public static Schema convert(Schema schema) {
+     ImmutableList.Builder<Field> fields = ImmutableList.builder();
+     for (NestedField f : schema.columns()) {
+        fields.add(convert(f));
+     }
+
+     return new Schema(fields.build());
+  }
+```
+
 ## Testing
 
 ### AssertJ
@@ -454,6 +497,18 @@ assertThat(metadataFileLocations).isNotNull().hasSize(4);
 
 // or
 assertThat(metadataFileLocations).isNotNull().hasSameSizeAs(expected).hasSize(4);
+```
+```java
+// if the specific element doesn't match the value, it won't show the content and its index of array 
+assertThat(array).hasSize(2);
+assertThat(array[0]).isEqualTo("value0");
+assertThat(array[1]).isEqualTo("value1");
+
+// better: all checks can be combined and the content of the array will be shown if any check fails
+assertThat(array).hasSize(2).containsExactly("value0", "value1");
+
+// better: if a specific element is checked, the content and its index will be also shown
+assertThat(array).contains("value1", atIndex(1));
 ```
 ```java
 // if any key doesn't exist, it won't show the content of the map

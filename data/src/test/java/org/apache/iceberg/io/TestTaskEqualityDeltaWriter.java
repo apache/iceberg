@@ -45,7 +45,7 @@ import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -178,7 +178,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Check records in the data file.
     DataFile dataFile = result.dataFiles()[0];
-    assertThat(readRecordsAsList(table.schema(), dataFile.path()))
+    assertThat(readRecordsAsList(table.schema(), dataFile.location()))
         .isEqualTo(
             ImmutableList.of(
                 createRecord(1, "aaa"),
@@ -192,13 +192,13 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Check records in the pos-delete file.
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.path()))
+    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
         .isEqualTo(
             ImmutableList.of(
-                posRecord.copy("file_path", dataFile.path(), "pos", 0L),
-                posRecord.copy("file_path", dataFile.path(), "pos", 1L),
-                posRecord.copy("file_path", dataFile.path(), "pos", 2L),
-                posRecord.copy("file_path", dataFile.path(), "pos", 3L)));
+                posRecord.copy("file_path", dataFile.location(), "pos", 0L),
+                posRecord.copy("file_path", dataFile.location(), "pos", 1L),
+                posRecord.copy("file_path", dataFile.location(), "pos", 2L),
+                posRecord.copy("file_path", dataFile.location(), "pos", 3L)));
   }
 
   @TestTemplate
@@ -226,13 +226,13 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Check records in the data file.
     DataFile dataFile = result.dataFiles()[0];
-    assertThat(readRecordsAsList(table.schema(), dataFile.path()))
+    assertThat(readRecordsAsList(table.schema(), dataFile.location()))
         .isEqualTo(ImmutableList.of(record, record));
 
     // Check records in the pos-delete file.
     DeleteFile posDeleteFile = result.deleteFiles()[0];
-    assertThat(readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.path(), "pos", 0L)));
+    assertThat(readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.location()))
+        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
 
     deltaWriter =
         createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
@@ -312,7 +312,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Check records in the data file.
     DataFile dataFile = result.dataFiles()[0];
-    assertThat(readRecordsAsList(table.schema(), dataFile.path()))
+    assertThat(readRecordsAsList(table.schema(), dataFile.location()))
         .isEqualTo(
             ImmutableList.of(
                 createRecord(5, "aaa"), createRecord(6, "aaa"), createRecord(7, "ccc")));
@@ -320,7 +320,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     // Check records in the eq-delete file.
     DeleteFile eqDeleteFile = result.deleteFiles()[0];
     assertThat(eqDeleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    assertThat(readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.path()))
+    assertThat(readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.location()))
         .isEqualTo(
             ImmutableList.of(keyFunc.apply("aaa"), keyFunc.apply("ccc"), keyFunc.apply("bbb")));
 
@@ -328,8 +328,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     DeleteFile posDeleteFile = result.deleteFiles()[1];
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
     assertThat(posDeleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.path()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.path(), "pos", 0L)));
+    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
+        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
   }
 
   @TestTemplate
@@ -397,7 +397,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Check records in the data file.
     DataFile dataFile = result.dataFiles()[0];
-    assertThat(readRecordsAsList(table.schema(), dataFile.path()))
+    assertThat(readRecordsAsList(table.schema(), dataFile.location()))
         .isEqualTo(
             ImmutableList.of(
                 createRecord(5, "aaa"), createRecord(6, "aaa"), createRecord(7, "ccc")));
@@ -405,7 +405,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     // Check records in the eq-delete file.
     DeleteFile eqDeleteFile = result.deleteFiles()[0];
     assertThat(eqDeleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    assertThat(readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.path()))
+    assertThat(readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.location()))
         .isEqualTo(
             ImmutableList.of(
                 createRecord(3, "aaa"), createRecord(4, "ccc"), createRecord(2, "bbb")));
@@ -414,8 +414,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     DeleteFile posDeleteFile = result.deleteFiles()[1];
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
     assertThat(posDeleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.path()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.path(), "pos", 0L)));
+    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
+        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
   }
 
   @TestTemplate
@@ -610,7 +610,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
       case AVRO:
         iterable =
-            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build();
         break;
 
       case ORC:

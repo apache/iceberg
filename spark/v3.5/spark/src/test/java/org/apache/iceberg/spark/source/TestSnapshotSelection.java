@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +97,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionById() throws IOException {
+  public void testSnapshotSelectionById() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -145,7 +144,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByTimestamp() throws IOException {
+  public void testSnapshotSelectionByTimestamp() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -197,7 +196,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByInvalidSnapshotId() throws IOException {
+  public void testSnapshotSelectionByInvalidSnapshotId() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -212,7 +211,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByInvalidTimestamp() throws IOException {
+  public void testSnapshotSelectionByInvalidTimestamp() {
     long timestamp = System.currentTimeMillis();
 
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
@@ -232,7 +231,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionBySnapshotIdAndTimestamp() throws IOException {
+  public void testSnapshotSelectionBySnapshotIdAndTimestamp() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -264,7 +263,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByTag() throws IOException {
+  public void testSnapshotSelectionByTag() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -300,7 +299,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByBranch() throws IOException {
+  public void testSnapshotSelectionByBranch() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -336,7 +335,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByBranchAndTagFails() throws IOException {
+  public void testSnapshotSelectionByBranchAndTagFails() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -367,7 +366,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByTimestampAndBranchOrTagFails() throws IOException {
+  public void testSnapshotSelectionByTimestampAndBranchOrTagFails() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -410,7 +409,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByBranchWithSchemaChange() throws IOException {
+  public void testSnapshotSelectionByBranchWithSchemaChange() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -467,7 +466,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testWritingToBranchAfterSchemaChange() throws IOException {
+  public void testWritingToBranchAfterSchemaChange() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -541,7 +540,7 @@ public class TestSnapshotSelection {
   }
 
   @TestTemplate
-  public void testSnapshotSelectionByTagWithSchemaChange() throws IOException {
+  public void testSnapshotSelectionByTagWithSchemaChange() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);

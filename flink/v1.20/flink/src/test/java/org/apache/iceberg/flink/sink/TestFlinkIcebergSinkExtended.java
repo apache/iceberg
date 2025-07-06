@@ -32,6 +32,9 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -47,16 +50,26 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * This class tests the more extended features of Flink sink. Extract them separately since it is
  * unnecessary to test all the parameters combinations in {@link TestFlinkIcebergSink}. Each test
  * method in {@link TestFlinkIcebergSink} runs 12 combinations, which are expensive and slow.
  */
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
   private final boolean partitioned = true;
   private final int parallelism = 2;
   private final FileFormat format = FileFormat.PARQUET;
+
+  @Parameter private boolean isTableSchema;
+
+  @Parameters(name = "isTableSchema={0}")
+  private static Object[][] parameters() {
+    return new Object[][] {{true}, {false}};
+  }
 
   @BeforeEach
   public void before() throws IOException {
@@ -81,7 +94,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     this.tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
-  @Test
+  @TestTemplate
   public void testTwoSinksInDisjointedDAG() throws Exception {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
 
@@ -124,29 +137,52 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
         env.fromCollection(leftRows, ROW_TYPE_INFO)
             .name("leftCustomSource")
             .uid("leftCustomSource");
-    FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(leftTable)
-        .tableLoader(leftTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .distributionMode(DistributionMode.NONE)
-        .uidPrefix("leftIcebergSink")
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(leftTable)
+          .tableLoader(leftTableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .distributionMode(DistributionMode.NONE)
+          .uidPrefix("leftIcebergSink")
+          .append();
+    } else {
+      FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(leftTable)
+          .tableLoader(leftTableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .distributionMode(DistributionMode.NONE)
+          .uidPrefix("leftIcebergSink")
+          .append();
+    }
 
     List<Row> rightRows = createRows("right-");
     DataStream<Row> rightStream =
         env.fromCollection(rightRows, ROW_TYPE_INFO)
             .name("rightCustomSource")
             .uid("rightCustomSource");
-    FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(rightTable)
-        .tableLoader(rightTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .distributionMode(DistributionMode.HASH)
-        .uidPrefix("rightIcebergSink")
-        .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
-        .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(rightTable)
+          .tableLoader(rightTableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .writeParallelism(parallelism)
+          .distributionMode(DistributionMode.HASH)
+          .uidPrefix("rightIcebergSink")
+          .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
+          .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
+          .append();
+    } else {
+      FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(rightTable)
+          .tableLoader(rightTableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(parallelism)
+          .distributionMode(DistributionMode.HASH)
+          .uidPrefix("rightIcebergSink")
+          .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
+          .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
@@ -162,7 +198,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
         .containsEntry("direction", "rightTable");
   }
 
-  @Test
+  @TestTemplate
   public void testOverrideWriteConfigWithUnknownFileFormat() {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
@@ -171,11 +207,17 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism)
-            .setAll(newProps);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism)
+                .setAll(newProps)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism)
+                .setAll(newProps);
 
     assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)

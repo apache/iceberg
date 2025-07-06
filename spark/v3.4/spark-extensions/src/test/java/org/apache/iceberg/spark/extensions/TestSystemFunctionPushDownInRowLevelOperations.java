@@ -23,9 +23,10 @@ import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -38,12 +39,13 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke;
 import org.apache.spark.sql.execution.CommandResultExec;
 import org.apache.spark.sql.execution.datasources.v2.V2TableWriteExec;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSystemFunctionPushDownInRowLevelOperations extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTestBase {
 
   private static final String CHANGES_TABLE_NAME = "changes";
 
@@ -58,161 +60,156 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends SparkExtensi
     };
   }
 
-  public TestSystemFunctionPushDownInRowLevelOperations(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void beforeEach() {
     sql("USE %s", catalogName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s PURGE", tableName);
     sql("DROP TABLE IF EXISTS %s PURGE", tableName(CHANGES_TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteBucketTransformInPredicate() {
     initTable("bucket(4, dep)");
     checkDelete(COPY_ON_WRITE, "system.bucket(4, dep) IN (2, 3)");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteBucketTransformInPredicate() {
     initTable("bucket(4, dep)");
     checkDelete(MERGE_ON_READ, "system.bucket(4, dep) IN (2, 3)");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteBucketTransformEqPredicate() {
     initTable("bucket(4, dep)");
     checkDelete(COPY_ON_WRITE, "system.bucket(4, dep) = 2");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteBucketTransformEqPredicate() {
     initTable("bucket(4, dep)");
     checkDelete(MERGE_ON_READ, "system.bucket(4, dep) = 2");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteYearsTransform() {
     initTable("years(ts)");
     checkDelete(COPY_ON_WRITE, "system.years(ts) > 30");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteYearsTransform() {
     initTable("years(ts)");
     checkDelete(MERGE_ON_READ, "system.years(ts) <= 30");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteMonthsTransform() {
     initTable("months(ts)");
     checkDelete(COPY_ON_WRITE, "system.months(ts) <= 250");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteMonthsTransform() {
     initTable("months(ts)");
     checkDelete(MERGE_ON_READ, "system.months(ts) > 250");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteDaysTransform() {
     initTable("days(ts)");
     checkDelete(COPY_ON_WRITE, "system.days(ts) <= date('2000-01-03 00:00:00')");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteDaysTransform() {
     initTable("days(ts)");
     checkDelete(MERGE_ON_READ, "system.days(ts) > date('2000-01-03 00:00:00')");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteHoursTransform() {
     initTable("hours(ts)");
     checkDelete(COPY_ON_WRITE, "system.hours(ts) <= 100000");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteHoursTransform() {
     initTable("hours(ts)");
     checkDelete(MERGE_ON_READ, "system.hours(ts) > 100000");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteTruncateTransform() {
     initTable("truncate(1, dep)");
     checkDelete(COPY_ON_WRITE, "system.truncate(1, dep) = 'i'");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteTruncateTransform() {
     initTable("truncate(1, dep)");
     checkDelete(MERGE_ON_READ, "system.truncate(1, dep) = 'i'");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteUpdateBucketTransform() {
     initTable("bucket(4, dep)");
     checkUpdate(COPY_ON_WRITE, "system.bucket(4, dep) IN (2, 3)");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadUpdateBucketTransform() {
     initTable("bucket(4, dep)");
     checkUpdate(MERGE_ON_READ, "system.bucket(4, dep) = 2");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteUpdateYearsTransform() {
     initTable("years(ts)");
     checkUpdate(COPY_ON_WRITE, "system.years(ts) > 30");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadUpdateYearsTransform() {
     initTable("years(ts)");
     checkUpdate(MERGE_ON_READ, "system.years(ts) <= 30");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMergeBucketTransform() {
     initTable("bucket(4, dep)");
     checkMerge(COPY_ON_WRITE, "system.bucket(4, dep) IN (2, 3)");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMergeBucketTransform() {
     initTable("bucket(4, dep)");
     checkMerge(MERGE_ON_READ, "system.bucket(4, dep) = 2");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMergeYearsTransform() {
     initTable("years(ts)");
     checkMerge(COPY_ON_WRITE, "system.years(ts) > 30");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMergeYearsTransform() {
     initTable("years(ts)");
     checkMerge(MERGE_ON_READ, "system.years(ts) <= 30");
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMergeTruncateTransform() {
     initTable("truncate(1, dep)");
     checkMerge(COPY_ON_WRITE, "system.truncate(1, dep) = 'i'");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMergeTruncateTransform() {
     initTable("truncate(1, dep)");
     checkMerge(MERGE_ON_READ, "system.truncate(1, dep) = 'i'");
