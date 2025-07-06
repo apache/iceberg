@@ -185,7 +185,6 @@ The table identifier for the storage table that stores the precomputed results.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _optional_  | `catalog`      | A string specifying the name of the catalog. If set to `null`, the catalog is the same as the view's catalog |
 | _required_  | `namespace`    | A list of strings for namespace levels |
 | _required_  | `name`         | A string specifying the name of the table/view |
 
