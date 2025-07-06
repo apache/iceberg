@@ -184,7 +184,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
         s3Properties,
         client,
         lock,
-        CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+        PropertyUtil.propertyAsBoolean(
+            catalogProps,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT));
   }
 
   @VisibleForTesting
