@@ -192,7 +192,7 @@ The table identifier for the storage table that stores the precomputed results.
 ### Storage table metadata
 
 This section describes additional metadata for the storage table that supplements the regular table metadata and is required for materialzied views.
-The property "refresh-state" is set on the table [snapshot summary](https://iceberg.apache.org/spec/#snapshots) to determine the freshness of the precomputed data of the storage table.
+The property "refresh-state" is set on the [snapshot summary](https://iceberg.apache.org/spec/#snapshots) property of every storage table snapshot to determine the freshness of the precomputed data of the storage table.
 
 | Requirement | Field name      | Description |
 |-------------|-----------------|-------------|
