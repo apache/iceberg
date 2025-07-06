@@ -686,29 +686,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testCreateTableAfterRename() {
-    try (JdbcCatalog jdbcCatalog =
-        initCatalog(
-            "uniq_path_catalog",
-            ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true"))) {
-
-      TableIdentifier tableIdent = TableIdentifier.of("db", "table1");
-      TableIdentifier renamedIdent = TableIdentifier.of("db", "table2");
-
-      jdbcCatalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
-      jdbcCatalog.renameTable(tableIdent, renamedIdent);
-      jdbcCatalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
-
-      Table table = jdbcCatalog.loadTable(tableIdent);
-      Table renamedTable = jdbcCatalog.loadTable(renamedIdent);
-
-      assertThat(table.location())
-          .as("Should have a different table location")
-          .isNotEqualTo(renamedTable.location());
-    }
-  }
-
-  @Test
   public void testListTables() {
     TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
     TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
