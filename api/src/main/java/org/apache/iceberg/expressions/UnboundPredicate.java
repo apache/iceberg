@@ -27,6 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -111,7 +113,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
-      return bindUnaryOperation(bound);
+      return bindUnaryOperation(struct, bound);
     }
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
@@ -121,16 +123,22 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
+  private Expression bindUnaryOperation(StructType struct, BoundTerm<T> boundTerm) {
     switch (op()) {
       case IS_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (!boundTerm.producesNull()
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysFalse();
+        } else if (boundTerm.type().equals(Types.UnknownType.get())) {
+          return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (!boundTerm.producesNull()
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysTrue();
+        } else if (boundTerm.type().equals(Types.UnknownType.get())) {
+          return Expressions.alwaysFalse();
         }
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
       case IS_NAN:
@@ -150,11 +158,24 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     }
   }
 
+  private boolean allAncestorFieldsAreRequired(StructType struct, int fieldId) {
+    return TypeUtil.ancestorFields(struct.asSchema(), fieldId).stream()
+        .allMatch(Types.NestedField::isRequired);
+  }
+
   private boolean floatingType(Type.TypeID typeID) {
     return Type.TypeID.DOUBLE.equals(typeID) || Type.TypeID.FLOAT.equals(typeID);
   }
 
   private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
+    if (op() == Operation.STARTS_WITH || op() == Operation.NOT_STARTS_WITH) {
+      ValidationException.check(
+          boundTerm.type().equals(Types.StringType.get()),
+          "Term for STARTS_WITH or NOT_STARTS_WITH must produce a string: %s: %s",
+          boundTerm,
+          boundTerm.type());
+    }
+
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {

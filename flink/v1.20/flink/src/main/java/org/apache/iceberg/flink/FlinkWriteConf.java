@@ -55,6 +55,10 @@ public class FlinkWriteConf {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
+  public FlinkWriteConf(Map<String, String> writeOptions, ReadableConfig readableConfig) {
+    this.confParser = new FlinkConfParser(writeOptions, readableConfig);
+  }
+
   public boolean overwriteMode() {
     return confParser
         .booleanConf()
@@ -204,8 +208,52 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  public String uidSuffix() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.UID_SUFFIX.key())
+        .defaultValue(FlinkWriteOptions.UID_SUFFIX.defaultValue())
+        .parse();
+  }
+
   public Integer writeParallelism() {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
+  }
+
+  public boolean expireSnapshotsMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE)
+        .defaultValue(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.defaultValue())
+        .parse();
+  }
+
+  public boolean deleteOrphanFilesMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE)
+        .defaultValue(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.defaultValue())
+        .parse();
+  }
+
+  public boolean compactMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.COMPACTION_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.COMPACTION_ENABLE)
+        .defaultValue(FlinkWriteOptions.COMPACTION_ENABLE.defaultValue())
+        .parse();
+  }
+
+  public boolean convertEqualityDeletesMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE)
+        .defaultValue(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.defaultValue())
+        .parse();
   }
 
   /**

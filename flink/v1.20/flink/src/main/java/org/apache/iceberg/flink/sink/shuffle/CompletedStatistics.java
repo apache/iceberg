@@ -108,4 +108,21 @@ class CompletedStatistics {
       return keyFrequency().isEmpty();
     }
   }
+
+  boolean isValid() {
+    if (type == StatisticsType.Sketch) {
+      if (null == keySamples) {
+        return false;
+      }
+    } else {
+      if (null == keyFrequency()) {
+        return false;
+      }
+      if (keyFrequency().values().contains(null)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }

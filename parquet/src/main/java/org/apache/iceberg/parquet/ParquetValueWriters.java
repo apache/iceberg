@@ -21,23 +21,31 @@ package org.apache.iceberg.parquet;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.GeometryFieldMetrics;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.ValueSizeFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
@@ -67,6 +75,10 @@ public class ParquetValueWriters {
     return new ShortWriter(desc);
   }
 
+  public static <T> ParquetValueWriter<T> unboxed(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
   public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
     return new UnboxedWriter<>(desc);
   }
@@ -85,6 +97,10 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<CharSequence> strings(ColumnDescriptor desc) {
     return new StringWriter(desc);
+  }
+
+  public static PrimitiveWriter<UUID> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
   }
 
   public static PrimitiveWriter<BigDecimal> decimalAsInteger(
@@ -106,6 +122,19 @@ public class ParquetValueWriters {
     return new BytesWriter(desc);
   }
 
+  public static PrimitiveWriter<ByteBuffer> geospatial(ColumnDescriptor desc) {
+    return new GeospatialWriter(desc);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> geometry(
+      ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+    return new GeometryWriter(desc, geometryType);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
+    return new FixedBufferWriter(desc);
+  }
+
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
     return new CollectionWriter<>(dl, rl, writer);
   }
@@ -113,6 +142,11 @@ public class ParquetValueWriters {
   public static <K, V> MapWriter<K, V> maps(
       int dl, int rl, ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter) {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
+  }
+
+  public static <T extends StructLike> StructWriter<T> recordWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return new RecordWriter<>(struct, writers);
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
@@ -313,6 +347,70 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class GeospatialWriter extends PrimitiveWriter<ByteBuffer> {
+    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+
+    private GeospatialWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.metricsBuilder =
+          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      metricsBuilder.addValueSize(buffer.remaining());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
+    }
+  }
+
+  private static class GeometryWriter extends PrimitiveWriter<ByteBuffer> {
+    private final GeometryFieldMetrics.Builder metricsBuilder;
+
+    private GeometryWriter(ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+      super(desc);
+      this.metricsBuilder =
+          new GeometryFieldMetrics.Builder(
+              desc.getPrimitiveType().getId().intValue(), geometryType);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      // Accumulate the bounding box before writing, so it reads the buffer's coordinates while the
+      // position is intact (the scanner reads a duplicate and leaves this buffer untouched).
+      metricsBuilder.addValue(buffer);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
+    }
+  }
+
+  private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedBufferWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      Preconditions.checkArgument(
+          buffer.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          buffer.remaining(),
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
   private static class StringWriter extends PrimitiveWriter<CharSequence> {
     private StringWriter(ColumnDescriptor desc) {
       super(desc);
@@ -327,6 +425,37 @@ public class ParquetValueWriters {
       } else {
         column.writeBinary(repetitionLevel, Binary.fromString(value.toString()));
       }
+    }
+  }
+
+  private static class UUIDWriter extends PrimitiveWriter<UUID> {
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
+
+    private UUIDWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, UUID value) {
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(value, BUFFER.get());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class RecordWriter<T extends StructLike> extends StructWriter<T> {
+    private RecordWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+      super(struct, writers);
+    }
+
+    @Override
+    protected Object get(T struct, int index) {
+      return struct.get(index, Object.class);
     }
   }
 
@@ -368,34 +497,32 @@ public class ParquetValueWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       if (writer instanceof PrimitiveWriter) {
-        List<FieldMetrics<?>> fieldMetricsFromWriter =
-            writer.metrics().collect(Collectors.toList());
-
-        if (fieldMetricsFromWriter.isEmpty()) {
-          // we are not tracking field metrics for this type ourselves
-          return Stream.empty();
-        } else if (fieldMetricsFromWriter.size() == 1) {
-          FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
-          return Stream.of(
-              new FieldMetrics<>(
-                  metrics.id(),
-                  metrics.valueCount() + nullValueCount,
-                  nullValueCount,
-                  metrics.nanValueCount(),
-                  metrics.lowerBound(),
-                  metrics.upperBound()));
-        } else {
-          throw new IllegalStateException(
-              String.format(
-                  "OptionWriter should only expect at most one field metric from a primitive writer."
-                      + "Current number of fields: %s, primitive writer type: %s",
-                  fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
-        }
+        List<FieldMetrics<?>> primitiveMetrics = writer.metrics().collect(Collectors.toList());
+        Preconditions.checkState(
+            primitiveMetrics.size() <= 1,
+            "Invalid number of field metrics from primitive writer %s: %s",
+            writer.getClass().getSimpleName(),
+            primitiveMetrics.size());
+        return primitiveMetrics.stream().map(this::addNulls);
       }
 
-      // skipping updating null stats for non-primitive types since we don't use them today, to
-      // avoid unnecessary work
-      return writer.metrics();
+      return writer.metrics().map(this::addNulls);
+    }
+
+    private FieldMetrics<?> addNulls(FieldMetrics<?> metrics) {
+      long updatedNullValueCount =
+          metrics.nullValueCount() < 0
+              ? metrics.nullValueCount()
+              : metrics.nullValueCount() + nullValueCount;
+      return new FieldMetrics<>(
+          metrics.id(),
+          metrics.valueCount() + nullValueCount,
+          updatedNullValueCount,
+          metrics.nanValueCount(),
+          metrics.lowerBound(),
+          metrics.upperBound(),
+          metrics.originalType(),
+          metrics.totalBytes());
     }
   }
 
@@ -450,6 +577,15 @@ public class ParquetValueWriters {
       writer.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the elements of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's elements
+     */
     protected abstract Iterator<E> elements(L value);
 
     @Override
@@ -531,6 +667,17 @@ public class ParquetValueWriters {
       valueWriter.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the key-value pairs of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance. The entries it produces are passed to
+     * the key and value writers before the next entry is requested, so implementations may also
+     * return a reused entry instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's key-value pairs
+     */
     protected abstract Iterator<Map.Entry<K, V>> pairs(M value);
 
     @Override
@@ -555,11 +702,21 @@ public class ParquetValueWriters {
   }
 
   public abstract static class StructWriter<S> implements ParquetValueWriter<S> {
+    private final int[] fieldIndexes;
     private final ParquetValueWriter<Object>[] writers;
     private final List<TripleWriter<?>> children;
 
-    @SuppressWarnings("unchecked")
     protected StructWriter(List<ParquetValueWriter<?>> writers) {
+      this((Types.StructType) null, writers);
+    }
+
+    protected StructWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+      this(writerToFieldIndex(struct, writers.size()), writers);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected StructWriter(int[] fieldIndexes, List<ParquetValueWriter<?>> writers) {
+      this.fieldIndexes = fieldIndexes;
       this.writers =
           (ParquetValueWriter<Object>[])
               Array.newInstance(ParquetValueWriter.class, writers.size());
@@ -577,7 +734,7 @@ public class ParquetValueWriters {
     @Override
     public void write(int repetitionLevel, S value) {
       for (int i = 0; i < writers.length; i += 1) {
-        Object fieldValue = get(value, i);
+        Object fieldValue = get(value, fieldIndexes[i]);
         writers[i].write(repetitionLevel, fieldValue);
       }
     }
@@ -618,10 +775,29 @@ public class ParquetValueWriters {
           return pathTransformFunc.apply(delete.path());
         case 1:
           return delete.pos();
-        case 2:
-          return delete.row();
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }
+  }
+
+  /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+  static int[] writerToFieldIndex(Types.StructType struct, int numWriters) {
+    if (null == struct) {
+      return IntStream.rangeClosed(0, numWriters).toArray();
+    }
+
+    List<Types.NestedField> recordFields = struct.fields();
+
+    // value writer index to record field index
+    int[] indexes = new int[numWriters];
+    int writerIndex = 0;
+    for (int pos = 0; pos < recordFields.size(); pos += 1) {
+      if (recordFields.get(pos).type().typeId() != org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+        indexes[writerIndex] = pos;
+        writerIndex += 1;
+      }
+    }
+
+    return indexes;
   }
 }

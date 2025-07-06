@@ -87,6 +87,11 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.executor-cache.max-total-size";
   public static final long EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
+  // Controls whether to enable executor cache for delete files
+  public static final String EXECUTOR_CACHE_DELETE_FILES_ENABLED =
+      "spark.sql.iceberg.executor-cache.delete-files.enabled";
+  public static final boolean EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT = true;
+
   // Controls whether to merge schema during write operation
   public static final String MERGE_SCHEMA = "spark.sql.iceberg.merge-schema";
   public static final boolean MERGE_SCHEMA_DEFAULT = false;
@@ -98,4 +103,31 @@ public class SparkSQLProperties {
   // Controls whether to report available column statistics to Spark for query optimization.
   public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
   public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
+
+  // Controls whether to enable async micro batch planning for session
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+      "spark.sql.iceberg.async-micro-batch-planning-enabled";
+  public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
+  // Controls whether adaptive split sizing is enabled
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
+      "spark.sql.iceberg.read.adaptive-split-size.enabled";
+
+  // Overrides the split target size for scan planning
+  public static final String READ_SPLIT_SIZE = "spark.sql.iceberg.read.split-size";
+
+  // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
+  // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
+      "spark.sql.iceberg.read.adaptive-split-size.parallelism";
+
+  // Controls how a view's stored schema is applied to the columns its SQL produces
+  public static final String VIEW_SCHEMA_BINDING_MODE =
+      "spark.sql.iceberg.view.schema-binding-mode";
+
+  // Permits only widening casts
+  public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";
+
+  // Permits any ANSI cast, which can truncate values or fail at runtime
+  public static final String VIEW_SCHEMA_MODE_COMPENSATION = "COMPENSATION";
 }

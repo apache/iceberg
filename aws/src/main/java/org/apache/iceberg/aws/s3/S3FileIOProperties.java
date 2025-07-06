@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -48,8 +49,10 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -71,6 +74,43 @@ public class S3FileIOProperties implements Serializable {
   public static final String S3_ACCESS_GRANTS_ENABLED = "s3.access-grants.enabled";
 
   public static final boolean S3_ACCESS_GRANTS_ENABLED_DEFAULT = false;
+
+  /**
+   * This property is used to enable using the S3 Analytics Accelerator library to accelerate data
+   * access from client applications to Amazon S3.
+   *
+   * <p>For more details, see: https://github.com/awslabs/analytics-accelerator-s3
+   */
+  public static final String S3_ANALYTICS_ACCELERATOR_ENABLED = "s3.analytics-accelerator.enabled";
+
+  public static final boolean S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT = false;
+
+  /**
+   * This prefix allows users to configure the internal properties of the s3 analytics accelerator.
+   *
+   * <p>Example: s3.analytics-accelerator.logicalio.prefetching.mode=all
+   *
+   * <p>For more details, see:
+   * https://github.com/awslabs/analytics-accelerator-s3/blob/main/doc/CONFIGURATION.md
+   */
+  public static final String S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX =
+      "s3.analytics-accelerator.";
+
+  /** This property is used to specify if the S3 Async clients should be created using CRT. */
+  public static final String S3_CRT_ENABLED = "s3.crt.enabled";
+
+  public static final boolean S3_CRT_ENABLED_DEFAULT = true;
+
+  /** This property is used to specify the max concurrency for S3 CRT clients. */
+  public static final String S3_CRT_MAX_CONCURRENCY = "s3.crt.max-concurrency";
+
+  /**
+   * To fully benefit from the analytics-accelerator-s3 library where this S3 CRT client is used, it
+   * is recommended to initialize with higher concurrency.
+   *
+   * <p>For more details, see: https://github.com/awslabs/analytics-accelerator-s3
+   */
+  public static final int S3_CRT_MAX_CONCURRENCY_DEFAULT = 500;
 
   /**
    * The fallback-to-iam property allows users to customize whether or not they would like their
@@ -230,7 +270,7 @@ public class S3FileIOProperties implements Serializable {
    * This expiration time is currently only used in {@link VendedCredentialsProvider} for refreshing
    * vended credentials.
    */
-  static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
+  public static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
 
   /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
@@ -254,6 +294,18 @@ public class S3FileIOProperties implements Serializable {
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
+
+  /**
+   * Enables or disables chunked encoding for S3 requests.
+   *
+   * <p>This feature is enabled by default to match the AWS SDK default behavior.
+   *
+   * <p>For more details see:
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#chunkedEncodingEnabled()
+   */
+  public static final String CHUNKED_ENCODING_ENABLED = "s3.chunked-encoding-enabled";
+
+  public static final boolean CHUNKED_ENCODING_ENABLED_DEFAULT = true;
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String DELETE_BATCH_SIZE = "s3.delete.batch-size";
@@ -469,6 +521,7 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private boolean isChunkedEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
   private boolean isWriteNamespaceTagEnabled;
@@ -484,6 +537,10 @@ public class S3FileIOProperties implements Serializable {
   private final boolean isAccelerationEnabled;
   private final String endpoint;
   private final boolean isRemoteSigningEnabled;
+  private final boolean isS3AnalyticsAcceleratorEnabled;
+  private final Map<String, String> s3AnalyticsacceleratorProperties;
+  private final boolean isS3CRTEnabled;
+  private final int s3CrtMaxConcurrency;
   private String writeStorageClass;
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
@@ -507,6 +564,7 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.isChunkedEncodingEnabled = CHUNKED_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
     this.isWriteNamespaceTagEnabled = WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
@@ -528,6 +586,10 @@ public class S3FileIOProperties implements Serializable {
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
     this.s3DirectoryBucketListPrefixAsDirectory =
         S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
+    this.isS3AnalyticsAcceleratorEnabled = S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT;
+    this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
+    this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
+    this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -593,6 +655,9 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.isChunkedEncodingEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CHUNKED_ENCODING_ENABLED, CHUNKED_ENCODING_ENABLED_DEFAULT);
     this.deleteBatchSize =
         PropertyUtil.propertyAsInt(properties, DELETE_BATCH_SIZE, DELETE_BATCH_SIZE_DEFAULT);
     Preconditions.checkArgument(
@@ -640,6 +705,16 @@ public class S3FileIOProperties implements Serializable {
             properties,
             S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY,
             S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT);
+    this.isS3AnalyticsAcceleratorEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_ANALYTICS_ACCELERATOR_ENABLED, S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT);
+    this.s3AnalyticsacceleratorProperties =
+        PropertyUtil.propertiesWithPrefix(properties, S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX);
+    this.isS3CRTEnabled =
+        PropertyUtil.propertyAsBoolean(properties, S3_CRT_ENABLED, S3_CRT_ENABLED_DEFAULT);
+    this.s3CrtMaxConcurrency =
+        PropertyUtil.propertyAsInt(
+            properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -750,8 +825,28 @@ public class S3FileIOProperties implements Serializable {
     return this.isChecksumEnabled;
   }
 
+  public boolean isChunkedEncodingEnabled() {
+    return this.isChunkedEncodingEnabled;
+  }
+
   public boolean isRemoteSigningEnabled() {
     return this.isRemoteSigningEnabled;
+  }
+
+  public boolean isS3AnalyticsAcceleratorEnabled() {
+    return isS3AnalyticsAcceleratorEnabled;
+  }
+
+  public Map<String, String> s3AnalyticsacceleratorProperties() {
+    return s3AnalyticsacceleratorProperties;
+  }
+
+  public boolean isS3CRTEnabled() {
+    return isS3CRTEnabled;
+  }
+
+  public int s3CrtMaxConcurrency() {
+    return s3CrtMaxConcurrency;
   }
 
   public String endpoint() {
@@ -885,12 +980,20 @@ public class S3FileIOProperties implements Serializable {
     return (accessKeyId == null) == (secretAccessKey == null);
   }
 
-  public <T extends S3ClientBuilder> void applyCredentialConfigurations(
+  public <T extends S3BaseClientBuilder<T, ?>> void applyCredentialConfigurations(
       AwsClientProperties awsClientProperties, T builder) {
-    builder.credentialsProvider(
-        isRemoteSigningEnabled
-            ? AnonymousCredentialsProvider.create()
-            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
+    builder.credentialsProvider(getCredentialsProvider(awsClientProperties));
+  }
+
+  public <T extends S3CrtAsyncClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
+    builder.credentialsProvider(getCredentialsProvider(awsClientProperties));
+  }
+
+  private AwsCredentialsProvider getCredentialsProvider(AwsClientProperties awsClientProperties) {
+    return isRemoteSigningEnabled
+        ? AnonymousCredentialsProvider.create()
+        : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken);
   }
 
   /**
@@ -912,6 +1015,7 @@ public class S3FileIOProperties implements Serializable {
                 .pathStyleAccessEnabled(isPathStyleAccess)
                 .useArnRegionEnabled(isUseArnRegionEnabled)
                 .accelerateModeEnabled(isAccelerationEnabled)
+                .chunkedEncodingEnabled(isChunkedEncodingEnabled)
                 .build());
   }
 
@@ -924,6 +1028,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
       ClientOverrideConfiguration.Builder configBuilder =
@@ -939,15 +1044,31 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the endpoint for an S3 client.
+   * Override the endpoint for an S3 sync or async client.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyEndpointConfigurations(T builder) {
+    if (endpoint != null) {
+      builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  /**
+   * Override the endpoint for an S3 CRT client
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyEndpointConfigurations(T builder) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
@@ -962,6 +1083,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()
@@ -1047,6 +1169,10 @@ public class S3FileIOProperties implements Serializable {
             .build());
   }
 
+  public S3CrtAsyncClientBuilder applyS3CrtConfigurations(S3CrtAsyncClientBuilder builder) {
+    return builder.maxConcurrency(s3CrtMaxConcurrency());
+  }
+
   /**
    * Dynamically load the http client builder to avoid runtime deps requirements of any optional SDK
    * Plugins
@@ -1066,5 +1192,9 @@ public class S3FileIOProperties implements Serializable {
               "Cannot create %s to generate and configure the client SDK Plugin builder", impl),
           e);
     }
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
   }
 }

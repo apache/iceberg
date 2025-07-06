@@ -26,13 +26,25 @@ import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.util.Random;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.encryption.AesGcmOutputFile;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestPuffinWriter {
+
+  @TempDir private Path temp;
+
   @Test
   public void testEmptyFooterCompressed() {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
@@ -84,6 +96,37 @@ public class TestPuffinWriter {
   @Test
   public void testWriteMetricDataCompressedZstd() throws Exception {
     testWriteMetric(ZSTD, "v1/sample-metric-data-compressed-zstd.bin");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true, 158", "false, 122"})
+  public void testFileSizeCalculation(boolean isEncrypted, long expectedSize) throws Exception {
+    final OutputFile outputFile;
+
+    if (isEncrypted) {
+      File testFile = temp.resolve("test" + System.nanoTime()).toFile();
+      Random random = new Random();
+      byte[] key = new byte[16];
+      random.nextBytes(key);
+      byte[] aadPrefix = new byte[16];
+      random.nextBytes(aadPrefix);
+      outputFile = new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
+    } else {
+      outputFile = new InMemoryOutputFile();
+    }
+
+    PuffinWriter writer = Puffin.write(outputFile).build();
+    writer.write(
+        new Blob(
+            "blob",
+            ImmutableList.of(1),
+            2,
+            1,
+            ByteBuffer.wrap("blob".getBytes()),
+            null,
+            ImmutableMap.of()));
+    writer.close();
+    assertThat(writer.length()).isEqualTo(expectedSize);
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource)

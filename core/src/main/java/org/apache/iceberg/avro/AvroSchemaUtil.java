@@ -128,16 +128,6 @@ public class AvroSchemaUtil {
     return new PruneColumns(selectedIds, null).rootSchema(schema);
   }
 
-  /**
-   * @deprecated will be removed in 2.0.0; use applyNameMapping and pruneColumns(Schema, Set)
-   *     instead.
-   */
-  @Deprecated
-  public static Schema pruneColumns(
-      Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
-    return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
-  }
-
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
@@ -154,7 +144,8 @@ public class AvroSchemaUtil {
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType instanceof LogicalTypes.TimestampMillis
-        || logicalType instanceof LogicalTypes.TimestampMicros) {
+        || logicalType instanceof LogicalTypes.TimestampMicros
+        || logicalType instanceof LogicalTypes.TimestampNanos) {
       // timestamptz is adjusted to UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 
@@ -172,6 +163,10 @@ public class AvroSchemaUtil {
     return false;
   }
 
+  public static boolean isOptional(Schema schema) {
+    return isOptionSchema(schema) || schema.getType() == Schema.Type.NULL;
+  }
+
   public static boolean isOptionSchema(Schema schema) {
     if (schema.getType() == UNION && schema.getTypes().size() == 2) {
       if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
@@ -184,12 +179,15 @@ public class AvroSchemaUtil {
   }
 
   static Schema toOption(Schema schema) {
-    if (schema.getType() == UNION) {
-      Preconditions.checkArgument(
-          isOptionSchema(schema), "Union schemas are not supported: %s", schema);
-      return schema;
-    } else {
-      return Schema.createUnion(NULL, schema);
+    switch (schema.getType()) {
+      case UNION:
+        Preconditions.checkArgument(
+            isOptionSchema(schema), "Union schemas are not supported: %s", schema);
+        return schema;
+      case NULL:
+        return schema;
+      default:
+        return Schema.createUnion(NULL, schema);
     }
   }
 
@@ -217,6 +215,20 @@ public class AvroSchemaUtil {
 
   public static boolean isKeyValueSchema(Schema schema) {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
+  }
+
+  static boolean isVariantSchema(Schema schema) {
+    if (schema.getType() != Schema.Type.RECORD || schema.getFields().size() != 2) {
+      return false;
+    }
+
+    Schema.Field metadataField = schema.getField("metadata");
+    Schema.Field valueField = schema.getField("value");
+
+    return metadataField != null
+        && metadataField.schema().getType() == Schema.Type.BYTES
+        && valueField != null
+        && valueField.schema().getType() == Schema.Type.BYTES;
   }
 
   static Schema createMap(int keyId, Schema keySchema, int valueId, Schema valueSchema) {

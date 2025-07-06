@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -42,6 +43,7 @@ public class FindFiles {
     private Expression rowFilter = Expressions.alwaysTrue();
     private Expression fileFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
+    private ExecutorService executorService;
 
     public Builder(Table table) {
       this.table = table;
@@ -190,6 +192,11 @@ public class FindFiles {
       return this;
     }
 
+    public Builder planWith(ExecutorService newExecutorService) {
+      this.executorService = newExecutorService;
+      return this;
+    }
+
     /** Returns all files in the table that match all of the filters. */
     public CloseableIterable<DataFile> collect() {
       Snapshot snapshot =
@@ -201,17 +208,18 @@ public class FindFiles {
       }
 
       // when snapshot is not null
-      CloseableIterable<ManifestEntry<DataFile>> entries =
-          new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
-              .specsById(ops.current().specsById())
-              .filterData(rowFilter)
-              .filterFiles(fileFilter)
-              .filterPartitions(partitionFilter)
-              .ignoreDeleted()
-              .caseSensitive(caseSensitive)
-              .entries();
-
-      return CloseableIterable.transform(entries, entry -> entry.file().copy(includeColumnStats));
+      return new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
+          .specsById(ops.current().specsById())
+          .filterData(rowFilter)
+          .filterFiles(fileFilter)
+          .filterPartitions(partitionFilter)
+          .ignoreDeleted()
+          .caseSensitive(caseSensitive)
+          .planWith(executorService)
+          .entries(
+              entries ->
+                  CloseableIterable.transform(
+                      entries, entry -> entry.file().copy(includeColumnStats)));
     }
   }
 }

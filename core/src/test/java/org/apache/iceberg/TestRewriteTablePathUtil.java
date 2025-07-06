@@ -1,0 +1,634 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.Pair;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteTablePathUtil extends TestBase {
+
+  @Test
+  public void testStagingPathPreservesDirectoryStructure() {
+    String sourcePrefix = "/source/table";
+    String stagingDir = "/staging/";
+
+    // Two files with same name but different paths
+    String file1 = "/source/table/hash1/delete_0_0_0.parquet";
+    String file2 = "/source/table/hash2/delete_0_0_0.parquet";
+
+    String stagingPath1 = RewriteTablePathUtil.stagingPath(file1, sourcePrefix, stagingDir);
+    String stagingPath2 = RewriteTablePathUtil.stagingPath(file2, sourcePrefix, stagingDir);
+
+    // Should preserve directory structure to avoid conflicts
+    assertThat(stagingPath1)
+        .startsWith(stagingDir)
+        .isEqualTo("/staging/hash1/delete_0_0_0.parquet")
+        .isNotEqualTo(stagingPath2);
+    assertThat(stagingPath2)
+        .startsWith(stagingDir)
+        .isEqualTo("/staging/hash2/delete_0_0_0.parquet");
+  }
+
+  @Test
+  public void testStagingPathBackwardCompatibility() {
+    // Test that the deprecated method still works
+    String originalPath = "/some/path/file.parquet";
+    String sourcePrefix = "/some/path";
+    String stagingDir = "/staging/";
+
+    String result = RewriteTablePathUtil.stagingPath(originalPath, sourcePrefix, stagingDir);
+
+    assertThat(result).isEqualTo("/staging/file.parquet");
+  }
+
+  @Test
+  public void testStagingPathWithComplexPaths() {
+    String sourcePrefix = "/warehouse/db/table";
+    String stagingDir = "/tmp/staging/";
+
+    String filePath = "/warehouse/db/table/data/year=2023/month=01/part-00001.parquet";
+    String result = RewriteTablePathUtil.stagingPath(filePath, sourcePrefix, stagingDir);
+
+    assertThat(result).isEqualTo("/tmp/staging/data/year=2023/month=01/part-00001.parquet");
+  }
+
+  @Test
+  public void testStagingPathWithNoMiddlePart() {
+    // Test case where file is directly under source prefix (no middle directory structure)
+    String sourcePrefix = "/source/table";
+    String stagingDir = "/staging/";
+    String fileDirectlyUnderPrefix = "/source/table/file.parquet";
+
+    String newMethodResult =
+        RewriteTablePathUtil.stagingPath(fileDirectlyUnderPrefix, sourcePrefix, stagingDir);
+    assertThat(newMethodResult).isEqualTo("/staging/file.parquet");
+  }
+
+  @Test
+  public void testRelativize() {
+    // Normal case: path is under prefix
+    assertThat(RewriteTablePathUtil.relativize("/a/b/c", "/a")).isEqualTo("b/c");
+    assertThat(RewriteTablePathUtil.relativize("/a/b", "/a")).isEqualTo("b");
+
+    // Edge case: path equals prefix exactly (issue #15172)
+    assertThat(RewriteTablePathUtil.relativize("/a", "/a")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("s3://bucket/warehouse", "s3://bucket/warehouse"))
+        .isEqualTo("");
+
+    // Trailing separator variations - all combinations should work
+    assertThat(RewriteTablePathUtil.relativize("/a/", "/a")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("/a/", "/a/")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("/a", "/a/")).isEqualTo("");
+  }
+
+  @Test
+  public void testRelativizeInvalid() {
+    // Path does not start with prefix
+    assertThatThrownBy(() -> RewriteTablePathUtil.relativize("/other/path", "/source/table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+
+    // Overlapping names: /table-old should NOT match prefix /table
+    assertThatThrownBy(() -> RewriteTablePathUtil.relativize("/table-old/data", "/table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testNewPath() {
+    // Normal case: path is under prefix
+    assertThat(RewriteTablePathUtil.newPath("/src/data/file.parquet", "/src", "/tgt"))
+        .isEqualTo("/tgt/data/file.parquet");
+
+    // Trailing separator on path
+    assertThat(RewriteTablePathUtil.newPath("/src/data/", "/src", "/tgt")).isEqualTo("/tgt/data/");
+
+    // Both path and prefix with trailing separator - result preserves target format
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt");
+  }
+
+  @Test
+  public void testNewPathEqualsPrefix() {
+    // Issue #15172: path equals prefix (e.g., write.data.path = table location)
+    // Result preserves the target prefix format (no trailing separator added)
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt");
+
+    // S3 paths - storage migration scenario
+    assertThat(
+            RewriteTablePathUtil.newPath(
+                "s3://bucket/warehouse/db/table",
+                "s3://bucket/warehouse/db/table",
+                "s3://bucket-dr/warehouse/db/table"))
+        .isEqualTo("s3://bucket-dr/warehouse/db/table");
+  }
+
+  @Test
+  public void testNewPathTrailingSeparatorCombinations() {
+    // All combinations of trailing separators should work consistently
+    // Path equals prefix - result preserves target format
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src/", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt");
+
+    // Path under prefix - all should preserve relative structure
+    assertThat(RewriteTablePathUtil.newPath("/src/data", "/src", "/tgt")).isEqualTo("/tgt/data");
+    assertThat(RewriteTablePathUtil.newPath("/src/data", "/src/", "/tgt")).isEqualTo("/tgt/data");
+
+    // Target with trailing separator - preserved when path equals prefix
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt/")).isEqualTo("/tgt/");
+    assertThat(RewriteTablePathUtil.newPath("/src/data", "/src", "/tgt/")).isEqualTo("/tgt/data");
+  }
+
+  @Test
+  public void testNewPathInvalid() {
+    // Path does not start with source prefix
+    assertThatThrownBy(() -> RewriteTablePathUtil.newPath("/other/path", "/src", "/tgt"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+
+    // Overlapping names: /table-old should NOT match prefix /table
+    assertThatThrownBy(() -> RewriteTablePathUtil.newPath("/table-old/data", "/table", "/tgt"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testNewPathBackupRestore() {
+    // Backup: rewriting to a subdirectory of the original location
+    assertThat(RewriteTablePathUtil.newPath("/table/data/file.parquet", "/table", "/table/backup"))
+        .isEqualTo("/table/backup/data/file.parquet");
+    assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/table/backup"))
+        .isEqualTo("/table/backup");
+
+    // Restore: rewriting from subdirectory to parent
+    assertThat(
+            RewriteTablePathUtil.newPath(
+                "/table/backup/data/file.parquet", "/table/backup", "/table"))
+        .isEqualTo("/table/data/file.parquet");
+    assertThat(RewriteTablePathUtil.newPath("/table/backup", "/table/backup", "/table"))
+        .isEqualTo("/table");
+  }
+
+  @Test
+  public void testReplacePathsTreatsPrefixAsLiteral() {
+    // The '.' in the prefix is a literal character, not a regex wildcard; a location matching the
+    // prefix literally is rewritten to the target.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsRejectsRegexOnlyPrefixMatch() {
+    // Read as a regex, "warehouse.db" would match "warehouseXdb" ('.' matches 'X'). As a literal
+    // prefix it must not, so a location that only matches under regex semantics is rejected.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "s3://bucket/warehouseXdb/table",
+            ImmutableMap.of());
+
+    assertThatThrownBy(
+            () -> RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testReplacePathsTargetWithDollarSign() {
+    // '$1' in the target is a literal path segment, not a regex replacement group reference
+    // (which previously threw IndexOutOfBoundsException: No group 1).
+    String sourcePrefix = "s3://bucket/db/table";
+    String targetPrefix = "s3://bucket/cost$1/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithUnbalancedBracket() {
+    // An unbalanced '[' in the prefix would be an invalid regex (PatternSyntaxException); as a
+    // literal it matches itself.
+    String sourcePrefix = "s3://bucket/db/table[0";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithCharacterClass() {
+    // '[0]' is a valid regex character class matching '0', so as a regex it silently missed the
+    // real directory "table[0]" (while matching an unrelated "table0"); as a literal prefix it
+    // must match "table[0]".
+    String sourcePrefix = "s3://bucket/db/table[0]";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsWithTrailingSeparatorInPrefix() {
+    // A source prefix with a trailing separator still matches the table location.
+    String location = "s3://bucket/warehouse/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(metadata, location + "/", "s3://bucket/restored/table");
+    assertThat(replaced.location()).isEqualTo("s3://bucket/restored/table");
+  }
+
+  @Test
+  public void testNewPathTableRename() {
+    // Rename /tableX to /table (target is substring of source name)
+    assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))
+        .isEqualTo("/table/data/file.parquet");
+    assertThat(RewriteTablePathUtil.newPath("/tableX", "/tableX", "/table")).isEqualTo("/table");
+    assertThat(RewriteTablePathUtil.newPath("/tableX/metadata/v1.json", "/tableX", "/table"))
+        .isEqualTo("/table/metadata/v1.json");
+
+    // Rename /table to /tableX (source is substring of target name)
+    assertThat(RewriteTablePathUtil.newPath("/table/data/file.parquet", "/table", "/tableX"))
+        .isEqualTo("/tableX/data/file.parquet");
+    assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/tableX")).isEqualTo("/tableX");
+  }
+
+  @Test
+  public void testCombinePaths() {
+    // Normal case: adds separator between base and relative path
+    assertThat(RewriteTablePathUtil.combinePaths("/base", "relative/path"))
+        .isEqualTo("/base/relative/path");
+
+    // Base already has trailing separator - no double separator
+    assertThat(RewriteTablePathUtil.combinePaths("/base/", "relative/path"))
+        .isEqualTo("/base/relative/path");
+
+    // Empty relative path - returns absolutePath unchanged (no trailing separator added)
+    // This preserves the original path format when combining with empty relative
+    assertThat(RewriteTablePathUtil.combinePaths("/base", "")).isEqualTo("/base");
+    assertThat(RewriteTablePathUtil.combinePaths("/base/", "")).isEqualTo("/base/");
+
+    // S3 paths
+    assertThat(RewriteTablePathUtil.combinePaths("s3://bucket/prefix", "data/file.parquet"))
+        .isEqualTo("s3://bucket/prefix/data/file.parquet");
+    assertThat(RewriteTablePathUtil.combinePaths("s3://bucket/prefix", ""))
+        .isEqualTo("s3://bucket/prefix");
+
+    // Single-level relative path
+    assertThat(RewriteTablePathUtil.combinePaths("/base", "file.parquet"))
+        .isEqualTo("/base/file.parquet");
+  }
+
+  @Test
+  public void testFileName() {
+    // Normal file paths
+    assertThat(RewriteTablePathUtil.fileName("/path/to/file.parquet")).isEqualTo("file.parquet");
+    assertThat(RewriteTablePathUtil.fileName("/a/b/c/data.json")).isEqualTo("data.json");
+
+    // S3 paths
+    assertThat(RewriteTablePathUtil.fileName("s3://bucket/warehouse/file.avro"))
+        .isEqualTo("file.avro");
+
+    // File directly at root
+    assertThat(RewriteTablePathUtil.fileName("/file.txt")).isEqualTo("file.txt");
+
+    // No separator (just filename)
+    assertThat(RewriteTablePathUtil.fileName("file.parquet")).isEqualTo("file.parquet");
+  }
+
+  @TestTemplate
+  public void testRewritingMultiplePositionDeleteEntriesWithinManifestFile() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String stagingDir = "/staging/";
+    String targetPrefix = "/path/new/";
+
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
+        RewriteTablePathUtil.rewriteDeleteManifest(
+            manifest,
+            Set.of(1000L),
+            output,
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir,
+            ImmutableMap.of());
+
+    assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
+    assertThat(deleteFileRewriteResult.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
+  }
+
+  // A position delete entry that is not rewritten (e.g. a DELETED entry not copied to the target)
+  // is absent from the measured-size map and must keep its original file_size_in_bytes.
+  @TestTemplate
+  public void testRewriteDeleteManifestFallsBackToOriginalSizeForDeletedEntries()
+      throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2+")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String targetPrefix = "/path/new/";
+    String stagingDir = "/staging/";
+
+    // FILE_A_DELETES is live, so its rewritten size is measured and supplied; FILE_B_DELETES is a
+    // DELETED entry, absent from the size map.
+    ManifestFile manifest = deleteManifestWithLiveAndDeletedEntry(FILE_A_DELETES, FILE_B_DELETES);
+
+    long measuredSizeForA = 9999L;
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.rewriteDeleteManifest(
+        manifest,
+        Set.of(1000L),
+        output,
+        table.io(),
+        formatVersion,
+        table.specs(),
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        ImmutableMap.of(FILE_A_DELETES.location(), measuredSizeForA));
+
+    InputFile rewrittenInput = output.toInputFile();
+    ManifestFile rewritten =
+        new GenericManifestFile(
+            rewrittenInput.location(),
+            rewrittenInput.getLength(),
+            SPEC.specId(),
+            ManifestContent.DELETES,
+            0L,
+            0L,
+            1000L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    int seen = 0;
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(rewritten, table.io(), table.specs())) {
+      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
+        seen++;
+        if (entry.status() == ManifestEntry.Status.DELETED) {
+          assertThat(entry.file().fileSizeInBytes())
+              .as("DELETED entry should fall back to its original size")
+              .isEqualTo(FILE_B_DELETES.fileSizeInBytes());
+        } else {
+          assertThat(entry.file().fileSizeInBytes())
+              .as("Live entry should use the measured rewritten size")
+              .isEqualTo(measuredSizeForA);
+        }
+      }
+    }
+
+    assertThat(seen).as("Both the live and deleted entries should be present").isEqualTo(2);
+  }
+
+  private ManifestFile deleteManifestWithLiveAndDeletedEntry(DeleteFile live, DeleteFile deleted)
+      throws IOException {
+    OutputFile manifestFile =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    ManifestWriter<DeleteFile> writer =
+        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, 1000L);
+    try {
+      writer.add(live);
+      writer.delete(deleted, 1, null);
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListStampsMeasuredManifestLengths() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(2);
+    ManifestFile measured = manifests.get(0);
+    ManifestFile unmeasured = manifests.get(1);
+
+    String manifestPath = measured.path();
+    String sourcePrefix = manifestPath.substring(0, manifestPath.lastIndexOf("/metadata/"));
+    String targetPrefix = sourcePrefix + "/relocated";
+    String stagingDir = temp.resolve("staging").toString();
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    long rewrittenLength = measured.length() + 4242L;
+
+    RewriteTablePathUtil.RewriteResult<ManifestFile> result =
+        RewriteTablePathUtil.rewriteManifestList(
+            snapshot,
+            table.io(),
+            table.ops().current(),
+            ImmutableMap.of(measured.path(), rewrittenLength),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir,
+            outputPath);
+
+    List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
+    assertThat(rewritten).hasSize(2);
+    Map<String, Long> lengthByPath =
+        rewritten.stream().collect(Collectors.toMap(ManifestFile::path, ManifestFile::length));
+
+    String measuredTargetPath =
+        RewriteTablePathUtil.newPath(measured.path(), sourcePrefix, targetPrefix);
+    String unmeasuredTargetPath =
+        RewriteTablePathUtil.newPath(unmeasured.path(), sourcePrefix, targetPrefix);
+    assertThat(lengthByPath)
+        .as("measured manifest should take the mapped length, keyed by its source path")
+        .containsEntry(measuredTargetPath, rewrittenLength);
+    assertThat(lengthByPath)
+        .as("unmeasured manifest should keep its source length")
+        .containsEntry(unmeasuredTargetPath, unmeasured.length());
+
+    assertThat(result.toRewrite())
+        .as("only manifests with a measured length should be rewritten")
+        .extracting(ManifestFile::path)
+        .containsExactly(measured.path());
+    assertThat(result.copyPlan())
+        .as("the copy plan should cover the staged copy of that manifest only")
+        .containsExactly(
+            Pair.of(
+                RewriteTablePathUtil.stagingPath(measured.path(), sourcePrefix, stagingDir),
+                measuredTargetPath));
+  }
+
+  @TestTemplate
+  public void testRewriteDataManifestRecordsRewrittenLength() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    ManifestFile manifest = table.currentSnapshot().allManifests(table.io()).get(0);
+
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.RewriteResult<DataFile> result =
+        RewriteTablePathUtil.rewriteDataManifest(
+            manifest,
+            Set.of(table.currentSnapshot().snapshotId()),
+            output,
+            table.io(),
+            formatVersion,
+            table.specs(),
+            "/path/to/",
+            "/path/new/");
+
+    assertThat(result.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
+  }
+
+  @Test
+  public void testRewriteResultAppendMergesManifestLengths() {
+    RewriteTablePathUtil.RewriteResult<DataFile> first = new RewriteTablePathUtil.RewriteResult<>();
+    first.addRewrittenManifestLength("/path/to/m1.avro", 10L);
+    RewriteTablePathUtil.RewriteResult<DataFile> second =
+        new RewriteTablePathUtil.RewriteResult<>();
+    second.addRewrittenManifestLength("/path/to/m2.avro", 20L);
+
+    assertThat(first.append(second).rewrittenManifestLengths())
+        .containsExactlyInAnyOrderEntriesOf(
+            ImmutableMap.of("/path/to/m1.avro", 10L, "/path/to/m2.avro", 20L));
+    assertThat(first.rewrittenManifestLengths()).isUnmodifiable();
+  }
+
+  @Test
+  void rewritePositionDeleteRejectsRowData() {
+    // Simulates a position delete file written by 1.11 or earlier, which could carry the deleted
+    // row.
+    Schema posDeleteSchema = DeleteSchemaUtil.posDeleteReadSchema(SCHEMA);
+    GenericRecord deleteRecord = GenericRecord.create(posDeleteSchema);
+    deleteRecord.set(0, "/source/table/data/file.parquet");
+    deleteRecord.set(1, 0L);
+    deleteRecord.set(2, GenericRecord.create(SCHEMA));
+
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath("/source/table/data/deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewritePositionDelete(
+                    deleteFile,
+                    Files.localOutput(java.io.File.createTempFile("junit", null, temp.toFile())),
+                    table.io(),
+                    PartitionSpec.unpartitioned(),
+                    "/source/table",
+                    "/target/table",
+                    new RowCarryingReaderWriter(deleteRecord)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rewrite position delete file with row data for");
+  }
+
+  /** Returns one position delete record that carries row data, as 1.11 and earlier could write. */
+  private static class RowCarryingReaderWriter
+      implements RewriteTablePathUtil.PositionDeleteReaderWriter {
+    private final Record record;
+
+    RowCarryingReaderWriter(Record record) {
+      this.record = record;
+    }
+
+    @Override
+    public CloseableIterable<Record> reader(
+        InputFile inputFile, FileFormat format, PartitionSpec spec) {
+      return CloseableIterable.withNoopClose(ImmutableList.of(record));
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition) {
+      throw new AssertionError("Should not open a writer for a file that carries row data");
+    }
+  }
+}

@@ -33,10 +33,12 @@ import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
+import org.apache.iceberg.avro.VariantConversion;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.variants.Variant;
 
 class ParquetAvro {
 
@@ -192,10 +194,12 @@ class ParquetAvro {
         private final Conversion<?> intDecimalConversion = new IntDecimalConversion();
         private final Conversion<?> longDecimalConversion = new LongDecimalConversion();
         private final Conversion<?> uuidConversion = new UUIDConversion();
+        private final Conversion<?> variantConversion = new VariantConversion();
 
         {
           addLogicalTypeConversion(fixedDecimalConversion);
           addLogicalTypeConversion(uuidConversion);
+          addLogicalTypeConversion(variantConversion);
         }
 
         @Override
@@ -217,6 +221,9 @@ class ParquetAvro {
             }
           } else if ("uuid".equals(logicalType.getName())) {
             return (Conversion<T>) uuidConversion;
+          } else if ("variant".equals(logicalType.getName())
+              && Variant.class.isAssignableFrom(datumClass)) {
+            return (Conversion<T>) variantConversion;
           }
           return super.getConversionByClass(datumClass, logicalType);
         }
@@ -296,6 +303,11 @@ class ParquetAvro {
         return Schema.createMap(value);
       }
       return map;
+    }
+
+    @Override
+    public Schema variant(Schema variant, Schema metadataResult, Schema valueResult) {
+      return variant;
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -45,15 +46,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         StructLike,
         SpecificData.SchemaConstructable,
         Serializable {
-  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
+
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
-  static final PartitionData EMPTY_PARTITION_DATA =
-      new PartitionData(EMPTY_STRUCT_TYPE) {
-        @Override
-        public PartitionData copy() {
-          return this; // this does not change
-        }
-      };
 
   private Types.StructType partitionType;
 
@@ -76,10 +70,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private Map<Integer, Long> totalBytes = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private Long firstRowId = null;
   private String referencedDataFile = null;
   private Long contentOffset = null;
   private Long contentSizeInBytes = null;
@@ -111,6 +107,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.SPLIT_OFFSETS,
           DataFile.EQUALITY_IDS,
           DataFile.SORT_ORDER_ID,
+          DataFile.FIRST_ROW_ID,
           DataFile.REFERENCED_DATA_FILE,
           DataFile.CONTENT_OFFSET,
           DataFile.CONTENT_SIZE,
@@ -152,10 +149,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
+      Map<Integer, Long> totalBytes,
       List<Long> splitOffsets,
       int[] equalityFieldIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata,
+      Long firstRowId,
       String referencedDataFile,
       Long contentOffset,
       Long contentSizeInBytes) {
@@ -167,8 +166,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
     // this constructor is used by DataFiles.Builder, which passes null for unpartitioned data
     if (partition == null) {
-      this.partitionData = EMPTY_PARTITION_DATA;
-      this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
+      this.partitionData = PartitionData.EMPTY;
+      this.partitionType = PartitionData.EMPTY.getPartitionType();
     } else {
       this.partitionData = partition;
       this.partitionType = partition.getPartitionType();
@@ -183,10 +182,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.nanValueCounts = nanValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
+    this.totalBytes = totalBytes;
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.firstRowId = firstRowId;
     this.referencedDataFile = referencedDataFile;
     this.contentOffset = contentOffset;
     this.contentSizeInBytes = contentSizeInBytes;
@@ -219,6 +220,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
+      this.totalBytes = copyTotalBytes(toCopy.totalBytes, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -226,6 +228,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.totalBytes = null;
     }
     this.keyMetadata =
         toCopy.keyMetadata == null
@@ -242,6 +245,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.sortOrderId = toCopy.sortOrderId;
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
+    this.firstRowId = toCopy.firstRowId;
     this.referencedDataFile = toCopy.referencedDataFile;
     this.contentOffset = toCopy.contentOffset;
     this.contentSizeInBytes = toCopy.contentSizeInBytes;
@@ -283,6 +287,15 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.fileSequenceNumber = fileSequenceNumber;
   }
 
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
+  }
+
+  public void setFirstRowId(Long firstRowId) {
+    this.firstRowId = firstRowId;
+  }
+
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
 
   @Override
@@ -302,7 +315,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
+        this.content = value != null ? FileContent.fromId((Integer) value) : FileContent.DATA;
         return;
       case 1:
         // always coerce to String for Serializable
@@ -315,7 +328,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
-        this.partitionData = (PartitionData) value;
+        // Preserve the constructor-initialized partitionData when the reader returns null
+        // (e.g., v4 Parquet manifests for unpartitioned tables omit the partition field).
+        if (value != null) {
+          this.partitionData = (PartitionData) value;
+        }
         return;
       case 5:
         this.recordCount = (Long) value;
@@ -354,15 +371,18 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.sortOrderId = (Integer) value;
         return;
       case 17:
-        this.referencedDataFile = value != null ? value.toString() : null;
+        this.firstRowId = (Long) value;
         return;
       case 18:
-        this.contentOffset = (Long) value;
+        this.referencedDataFile = value != null ? value.toString() : null;
         return;
       case 19:
-        this.contentSizeInBytes = (Long) value;
+        this.contentOffset = (Long) value;
         return;
       case 20:
+        this.contentSizeInBytes = (Long) value;
+        return;
+      case 21:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -412,12 +432,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 16:
         return sortOrderId;
       case 17:
-        return referencedDataFile;
+        return firstRowId;
       case 18:
-        return contentOffset;
+        return referencedDataFile;
       case 19:
-        return contentSizeInBytes;
+        return contentOffset;
       case 20:
+        return contentSizeInBytes;
+      case 21:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
@@ -505,6 +527,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
+  public Map<Integer, Long> totalBytes() {
+    return toReadableMap(totalBytes);
+  }
+
+  @Override
   public ByteBuffer keyMetadata() {
     return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
@@ -536,7 +563,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return ArrayUtil.toIntList(equalityIds);
+    return ArrayUtil.toUnmodifiableIntList(equalityIds);
   }
 
   @Override
@@ -560,11 +587,44 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
 
-  private static Map<Integer, ByteBuffer> copyByteBufferMap(
-      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
-    return SerializableByteBufferMap.wrap(copyMap(map, keys));
+  private static Map<Integer, Long> copyTotalBytes(Map<Integer, Long> map, Set<Integer> keys) {
+    Map<Integer, Long> copy = copyMap(map, keys);
+    return copy == null || copy.isEmpty() ? null : copy;
   }
 
+  private static Map<Integer, ByteBuffer> copyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    if (map == null) {
+      return null;
+    }
+
+    return SerializableByteBufferMap.wrap(deepCopyByteBufferMap(map, keys));
+  }
+
+  // Required as long as we have Map<Integer, ByteBuffer> in the API since Parquet reuses buffers.
+  private static Map<Integer, ByteBuffer> deepCopyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    Map<Integer, ByteBuffer> deepCopy = Maps.newHashMapWithExpectedSize(map.size());
+    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
+      if (keys == null || keys.contains(entry.getKey())) {
+        ByteBuffer buf = entry.getValue();
+        if (buf != null) {
+          ByteBuffer copy = ByteBuffer.allocate(buf.remaining());
+          copy.put(buf.duplicate());
+          copy.flip();
+          deepCopy.put(entry.getKey(), copy);
+        } else {
+          deepCopy.put(entry.getKey(), null);
+        }
+      }
+    }
+
+    return deepCopy;
+  }
+
+  // Returns an unmodifiable view of the map. The SerializableMap check is needed because
+  // internal maps may be wrapped for serialization after being populated by a format reader
+  // with container reuse enabled, and immutableMap() provides a stable snapshot.
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
     if (map == null) {
       return null;
@@ -575,6 +635,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     }
   }
 
+  // Separate from toReadableMap because SerializableByteBufferMap is its own wrapper type
+  // (not a SerializableMap subclass) to handle ByteBuffer-specific serialization. ByteBuffer
+  // values are mutable and can be overwritten by Parquet container reuse, so callers that
+  // retain references must use copyByteBufferMap to get independent copies.
   private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
     if (map == null) {
       return null;
@@ -601,12 +665,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("nan_value_counts", nanValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
+        .add("total_bytes", totalBytes)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
+        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
         .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
         .add("content_offset", contentOffset == null ? "null" : contentOffset)
         .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)

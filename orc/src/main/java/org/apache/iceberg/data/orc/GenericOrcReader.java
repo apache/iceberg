@@ -76,7 +76,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         TypeDescription record,
         List<String> names,
         List<OrcValueReader<?>> fields) {
-      return GenericOrcReaders.struct(fields, expected, idToConstant);
+      return GenericOrcReaders.struct(record, fields, expected, idToConstant);
     }
 
     @Override
@@ -95,7 +95,20 @@ public class GenericOrcReader implements OrcRowReader<Record> {
     }
 
     @Override
+    public OrcValueReader<?> variant(
+        Types.VariantType iVariant,
+        TypeDescription variant,
+        OrcValueReader<?> metadata,
+        OrcValueReader<?> value) {
+      return GenericOrcReaders.variants();
+    }
+
+    @Override
     public OrcValueReader<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+      if (iPrimitive == null) {
+        return null;
+      }
+
       switch (primitive.getCategory()) {
         case BOOLEAN:
           return OrcValueReaders.booleans();

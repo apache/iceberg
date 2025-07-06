@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestInMemoryFileIO {
@@ -57,14 +59,16 @@ public class TestInMemoryFileIO {
   public void testNewInputFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)
-        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"));
+        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"))
+        .withMessageContaining("No in-memory file found");
   }
 
   @Test
   public void testDeleteFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)
-        .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"));
+        .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"))
+        .withMessageContaining("No in-memory file found");
   }
 
   @Test
@@ -73,7 +77,8 @@ public class TestInMemoryFileIO {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     assertThatExceptionOfType(AlreadyExistsException.class)
-        .isThrownBy(() -> fileIO.newOutputFile(location).create());
+        .isThrownBy(() -> fileIO.newOutputFile(location).create())
+        .withMessage("Already exists");
   }
 
   @Test
@@ -124,6 +129,14 @@ public class TestInMemoryFileIO {
     assertThat(fileIO2.fileExists(location))
         .isTrue()
         .as("Files should be shared across all InMemoryFileIO instances");
+  }
+
+  @Test
+  public void properties() {
+    InMemoryFileIO io = new InMemoryFileIO();
+    Map<String, String> properties = ImmutableMap.of("key1", "value1", "key2", "value2");
+    io.initialize(properties);
+    assertThat(io.properties()).isEqualTo(properties);
   }
 
   private String randomLocation() {

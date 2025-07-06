@@ -92,7 +92,9 @@ public class TestCloseableGroup {
     closeableGroup.addCloseable(closeable2);
     closeableGroup.addCloseable(closeable3);
 
-    assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
+    assertThatThrownBy(closeableGroup::close)
+        .hasMessage(ioException.getMessage())
+        .isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verifyNoInteractions(closeable3);
@@ -112,7 +114,9 @@ public class TestCloseableGroup {
     closeableGroup.addCloseable(closeable2);
     closeableGroup.addCloseable(closeable3);
 
-    assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
+    assertThatThrownBy(closeableGroup::close)
+        .hasMessage(ioException.getMessage())
+        .isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verifyNoInteractions(closeable3);
@@ -129,6 +133,7 @@ public class TestCloseableGroup {
 
     assertThatThrownBy(closeableGroup::close)
         .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(generalException.getMessage())
         .hasRootCause(generalException);
   }
 

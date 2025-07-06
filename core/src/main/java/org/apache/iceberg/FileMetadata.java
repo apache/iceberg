@@ -28,6 +28,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -56,6 +57,8 @@ public class FileMetadata {
     private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private Map<Integer, Long> totalBytes = null;
+    private Map<Integer, Type> originalTypes = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
@@ -84,6 +87,7 @@ public class FileMetadata {
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.totalBytes = null;
       this.sortOrderId = null;
     }
 
@@ -104,9 +108,15 @@ public class FileMetadata {
       this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
+      this.totalBytes = toCopy.totalBytes();
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
+      this.splitOffsets = toCopy.splitOffsets();
+      // Preserve DV-specific fields for deletion vectors
+      this.referencedDataFile = toCopy.referencedDataFile();
+      this.contentOffset = toCopy.contentOffset();
+      this.contentSizeInBytes = toCopy.contentSizeInBytes();
       return this;
     }
 
@@ -195,6 +205,8 @@ public class FileMetadata {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
+      this.totalBytes = metrics.totalBytes();
+      this.originalTypes = metrics.originalTypes();
       return this;
     }
 
@@ -255,6 +267,8 @@ public class FileMetadata {
       if (format == FileFormat.PUFFIN) {
         Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
         Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
+        Preconditions.checkArgument(
+            referencedDataFile != null, "Referenced data file is required for DV");
       } else {
         Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");
         Preconditions.checkArgument(
@@ -289,7 +303,9 @@ public class FileMetadata {
               nullValueCounts,
               nanValueCounts,
               lowerBounds,
-              upperBounds),
+              upperBounds,
+              totalBytes,
+              originalTypes),
           equalityFieldIds,
           sortOrderId,
           splitOffsets,

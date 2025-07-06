@@ -74,6 +74,28 @@ public class TestSortKeySerializerSnapshot {
   }
 
   @Test
+  public void testRestoredOldSerializer() throws Exception {
+    RowData rowData = GenericRowData.of(StringData.fromString("str"), 1);
+    RowDataWrapper rowDataWrapper = new RowDataWrapper(ROW_TYPE, SCHEMA.asStruct());
+    StructLike struct = rowDataWrapper.wrap(rowData);
+    SortKey sortKey = SORT_KEY.copy();
+    sortKey.wrap(struct);
+
+    SortKeySerializer originalSerializer = new SortKeySerializer(SCHEMA, SORT_ORDER, 1);
+    TypeSerializerSnapshot<SortKey> snapshot =
+        roundTrip(originalSerializer.snapshotConfiguration());
+    TypeSerializer<SortKey> restoredSerializer = snapshot.restoreSerializer();
+    ((SortKeySerializer) restoredSerializer).setVersion(1);
+    DataOutputSerializer output = new DataOutputSerializer(1024);
+    originalSerializer.serialize(sortKey, output);
+    byte[] serializedBytes = output.getCopyOfBuffer();
+
+    DataInputDeserializer input = new DataInputDeserializer(serializedBytes);
+    SortKey deserialized = restoredSerializer.deserialize(input);
+    assertThat(deserialized).isEqualTo(sortKey);
+  }
+
+  @Test
   public void testSnapshotIsCompatibleWithSameSortOrder() throws Exception {
     SortKeySerializer.SortKeySerializerSnapshot oldSnapshot =
         new SortKeySerializer.SortKeySerializerSnapshot(schema, sortOrder);

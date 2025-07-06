@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 
 /**
  * API for overwriting files in a table.
@@ -74,6 +76,19 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * @return this for method chaining
    */
   OverwriteFiles deleteFile(DataFile file);
+
+  /**
+   * Deletes a set of data files from the table with their respective delete files.
+   *
+   * @param dataFilesToDelete the data files to be deleted from the table
+   * @param deleteFilesToDelete the delete files corresponding to the data files to be deleted from
+   *     the table
+   * @return this for method chaining
+   */
+  default OverwriteFiles deleteFiles(
+      DataFileSet dataFilesToDelete, DeleteFileSet deleteFilesToDelete) {
+    throw new UnsupportedOperationException("Deleting data and delete files is not supported");
+  }
 
   /**
    * Signal that each file added to the table must match the overwrite expression.

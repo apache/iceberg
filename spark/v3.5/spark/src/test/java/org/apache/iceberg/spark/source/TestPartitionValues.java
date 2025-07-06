@@ -18,19 +18,20 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.spark.data.TestVectorizedOrcDataReader.temp;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -45,6 +46,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -70,11 +72,11 @@ public class TestPartitionValues {
   @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {FileFormat.PARQUET, false},
+      {FileFormat.PARQUET, true},
+      {FileFormat.AVRO, false},
+      {FileFormat.ORC, false},
+      {FileFormat.ORC, true}
     };
   }
 
@@ -107,7 +109,12 @@ public class TestPartitionValues {
 
   @BeforeAll
   public static void startSpark() {
-    TestPartitionValues.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionValues.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
+            .getOrCreate();
   }
 
   @AfterAll
@@ -120,7 +127,7 @@ public class TestPartitionValues {
   @TempDir private Path temp;
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat format;
 
   @Parameter(index = 1)
   private boolean vectorized;
@@ -135,7 +142,7 @@ public class TestPartitionValues {
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -162,8 +169,7 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
@@ -176,7 +182,7 @@ public class TestPartitionValues {
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -201,8 +207,7 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
@@ -215,7 +220,7 @@ public class TestPartitionValues {
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -241,8 +246,7 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
@@ -295,7 +299,7 @@ public class TestPartitionValues {
       PartitionSpec spec = PartitionSpec.builderFor(SUPPORTED_PRIMITIVES).identity(column).build();
 
       Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
-      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
       // disable distribution/ordering and fanout writers to preserve the original ordering
       sourceDF
@@ -375,7 +379,7 @@ public class TestPartitionValues {
           PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
 
       Table table = tables.create(nestedSchema, spec, location.toString());
-      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
       // disable distribution/ordering and fanout writers to preserve the original ordering
       sourceDF
@@ -458,7 +462,7 @@ public class TestPartitionValues {
 
   @TestTemplate
   public void testReadPartitionColumn() throws Exception {
-    assumeThat(format).as("Temporary skip ORC").isNotEqualTo("orc");
+    assumeThat(format).as("Temporary skip ORC").isNotEqualTo(FileFormat.ORC);
 
     Schema nestedSchema =
         new Schema(
@@ -476,7 +480,7 @@ public class TestPartitionValues {
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     String baseLocation = temp.resolve("partition_by_nested_string").toString();
     Table table = tables.create(nestedSchema, spec, baseLocation);
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     // write into iceberg
     MapFunction<Long, ComplexRecord> func =

@@ -40,7 +40,6 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkTableSink extends CatalogTestBase {
 
-  private static final String SOURCE_TABLE = "default_catalog.default_database.bounded_source";
   private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
   private Table icebergTable;
@@ -51,19 +50,41 @@ public class TestFlinkTableSink extends CatalogTestBase {
   @Parameter(index = 3)
   private boolean isStreamingJob;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+  @Parameter(index = 4)
+  private boolean useV2Sink;
+
+  @Parameters(
+      name = "catalogType={0}, baseNamespace={1}, format={2}, isStreaming={3}, useV2Sink={4}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         for (Object[] catalogParams : CatalogTestBase.parameters()) {
-          String catalogName = (String) catalogParams[0];
+          CatalogType catalogType = (CatalogType) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+          parameters.add(
+              new Object[] {
+                catalogType, baseNamespace, format, isStreaming, false /* don't use v2 sink */
+              });
         }
       }
     }
+
+    for (FileFormat format :
+        new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+      for (Boolean isStreaming : new Boolean[] {true, false}) {
+        parameters.add(
+            new Object[] {
+              CatalogType.HADOOP,
+              Namespace.of("l0", "l1"),
+              format,
+              isStreaming,
+              true /* use v2 sink */
+            });
+      }
+    }
+
     return parameters;
   }
 
@@ -87,6 +108,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
         }
       }
     }
+
+    tEnv.getConfig()
+        .getConfiguration()
+        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
+
     return tEnv;
   }
 
@@ -120,7 +146,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
             "sourceTable",
             getTableEnv()
                 .fromValues(
-                    SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
                     Expressions.row(1, "hello"),
                     Expressions.row(2, "world"),
                     Expressions.row(3, (String) null),
@@ -240,5 +266,60 @@ public class TestFlinkTableSink extends CatalogTestBase {
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
+  }
+
+  // Test multiple IcebergSink instances writing to the same table in separate DAG branches.
+  // This ensures the v2 sink can handle multiple sink operators for the same table
+  // without naming collisions or operator conflicts when using statement set execution.
+  @TestTemplate
+  public void testIcebergSinkDifferentDAG() throws Exception {
+    assumeThat(useV2Sink).isTrue();
+
+    // Disable sink reuse optimization to force creation of two separate IcebergSink instances
+    getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .setString("table.optimizer.reuse-sink-enabled", "false");
+
+    // Register the rows into a temporary table.
+    getTableEnv()
+        .createTemporaryView(
+            "sourceTable",
+            getTableEnv()
+                .fromValues(
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
+                    Expressions.row(1, "hello"),
+                    Expressions.row(2, "world"),
+                    Expressions.row(3, (String) null),
+                    Expressions.row(null, "bar")));
+
+    getTableEnv()
+        .createTemporaryView(
+            "sourceTable1",
+            getTableEnv()
+                .fromValues(
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
+                    Expressions.row(1, "hello"),
+                    Expressions.row(2, "world"),
+                    Expressions.row(3, (String) null),
+                    Expressions.row(null, "bar")));
+
+    // Redirect the records from source table to destination table.
+    sql(
+        "EXECUTE STATEMENT SET\n"
+            + "BEGIN\n"
+            + "INSERT INTO %s /*+ OPTIONS('uid-suffix'='source1') */ SELECT id,data from sourceTable;\n"
+            + "INSERT INTO %s /*+ OPTIONS('uid-suffix'='source2') */ SELECT id,data from sourceTable1;\n"
+            + "END;",
+        TABLE_NAME, TABLE_NAME);
+
+    // Assert the table records as expected.
+    SimpleDataUtil.assertTableRecords(
+        icebergTable,
+        Lists.newArrayList(
+            SimpleDataUtil.createRecord(1, "hello"),
+            SimpleDataUtil.createRecord(2, "world"),
+            SimpleDataUtil.createRecord(3, null),
+            SimpleDataUtil.createRecord(null, "bar")));
   }
 }

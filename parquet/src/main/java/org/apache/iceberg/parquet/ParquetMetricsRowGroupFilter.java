@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
+import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
@@ -86,9 +88,10 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_CANNOT_MATCH;
       }
 
-      this.stats = Maps.newHashMap();
-      this.valueCounts = Maps.newHashMap();
-      this.conversions = Maps.newHashMap();
+      int columnCount = rowGroup.getColumns().size();
+      this.stats = Maps.newHashMapWithExpectedSize(columnCount);
+      this.valueCounts = Maps.newHashMapWithExpectedSize(columnCount);
+      this.conversions = Maps.newHashMapWithExpectedSize(columnCount);
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
@@ -129,6 +132,34 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      if (pred.term() instanceof BoundReference) {
+        int id = ((BoundReference<T>) pred.term()).fieldId();
+        Types.NestedField field = schema.findField(id);
+        if (field != null && field.initialDefault() != null && !valueCounts.containsKey(id)) {
+          boolean matchesDefault = pred.test((T) field.initialDefault());
+
+          // A nested field also reads as null whenever any ancestor struct is null, so its value
+          // is either the default (all ancestors present) or null.
+          boolean isNestedField = schema.asStruct().field(id) == null;
+          if (isNestedField) {
+            return matchesDefault || matchesNull(pred);
+          }
+
+          return matchesDefault ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return super.predicate(pred);
+    }
+
+    private <T> boolean matchesNull(BoundPredicate<T> pred) {
+      // The existing handlers treat a column missing from the file as null.
+      return super.predicate(pred);
+    }
+
+    @Override
     public <T> Boolean isNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
@@ -155,10 +186,10 @@ public class ParquetMetricsRowGroupFilter {
       // if the column has no non-null values, the expression cannot match
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      // When filtering nested types or variant types, notNull() is an implicit filter passed
+      // even though complex filters aren't pushed down in Parquet. Leave these type filters
+      // to be evaluated post scan.
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -325,10 +356,9 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -375,10 +405,9 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -437,7 +466,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -447,6 +475,7 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_CANNOT_MATCH;
       }
 
+      @SuppressWarnings("unchecked")
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (allNulls(colStats, valueCount)) {
@@ -486,7 +515,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
       Long valueCount = valueCounts.get(id);
@@ -496,6 +524,7 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
+      @SuppressWarnings("unchecked")
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (mayContainNull(colStats)) {
@@ -562,6 +591,11 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean isNestedOrVariantType(int id) {
+      Type type = schema.findType(id);
+      return type instanceof Type.NestedType || type.isVariantType();
     }
   }
 

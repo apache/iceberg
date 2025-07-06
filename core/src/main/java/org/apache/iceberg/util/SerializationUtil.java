@@ -43,7 +43,7 @@ public class SerializationUtil {
    * @return serialized bytes
    */
   public static byte[] serializeToBytes(Object obj) {
-    return serializeToBytes(obj, conf -> new SerializableConfiguration(conf)::get);
+    return serializeToBytes(obj, SerializableConfiguration::new);
   }
 
   /**

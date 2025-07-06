@@ -49,6 +49,8 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
@@ -68,6 +70,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkExecutorCache.CacheValue;
 import org.apache.iceberg.spark.SparkExecutorCache.Conf;
+import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkEnv;
@@ -179,6 +183,71 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
           Conf conf = new Conf();
           assertThat(conf.maxTotalSize()).isEqualTo(512L);
         });
+  }
+
+  @TestTemplate
+  public void testDeleteFilesCacheDisabledConfig() throws Exception {
+    createAndInitTable(TableProperties.DELETE_MODE, COPY_ON_WRITE);
+    Table table = validationCatalog.loadTable(targetTableIdent);
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesDisabledByDefault() throws Exception {
+    List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
+
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(Spark3Util.loadIcebergTable(spark, targetTableName))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+
+    // both delete files apply to both data files and the cache is off, so each is opened per file
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 2);
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesEnabledByOption() throws Exception {
+    List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
+
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(Spark3Util.loadIcebergTable(spark, targetTableName))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 1);
   }
 
   @TestTemplate
@@ -349,6 +418,140 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
+  @TestTemplate
+  public void testCopyOnWriteDeleteWithDeleteFileCacheDisabled() {
+    checkDeleteWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadDeleteWithDeleteFileCacheDisabled() {
+    checkDeleteWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkDeleteWithDeleteFilesCacheDisabled(RowLevelOperationMode mode) {
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, mode);
+
+            sql("DELETE FROM %s WHERE id = 1 OR id = 4", targetTableName);
+
+            // When cache is disabled, delete files should be opened multiple times
+            // The cached CoW test has a maximum of 3 scans, so we expect more than that when
+            // disabled.
+            // The cached MoR test has a maximum of 1 scan, so we expect more than that when
+            // disabled.
+            int expectedMinStreamCount = mode == COPY_ON_WRITE ? 4 : 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(),
+                sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteUpdateWithDeleteFilesCacheDisabled() throws Exception {
+    checkUpdateWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadUpdateWithDeleteFilesCacheDisabled() throws Exception {
+    checkUpdateWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkUpdateWithDeleteFilesCacheDisabled(RowLevelOperationMode mode)
+      throws Exception {
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.UPDATE_MODE, mode);
+
+            Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
+            updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
+
+            sql(
+                "UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)",
+                targetTableName, UPDATES_VIEW_NAME);
+
+            // When cache is disabled, delete files should be opened multiple times
+            // Both CoW and MoR should open delete files at least 2 times without caching
+            int expectedMinStreamCount = 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(row(-1, "hr"), row(-1, "hr")),
+                sql("SELECT * FROM %s", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteMergeWithDeleteFilesCacheDisabled() throws Exception {
+    checkMergeWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadMergeWithDeleteFilesCacheDisabled() throws Exception {
+    checkMergeWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkMergeWithDeleteFilesCacheDisabled(RowLevelOperationMode mode) throws Exception {
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.MERGE_MODE, mode);
+
+            Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
+            updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
+
+            sql(
+                "MERGE INTO %s t USING %s s "
+                    + "ON t.id == s.value "
+                    + "WHEN MATCHED THEN "
+                    + "  UPDATE SET id = 100 "
+                    + "WHEN NOT MATCHED THEN "
+                    + "  INSERT (id, dep) VALUES (-1, 'unknown')",
+                targetTableName, UPDATES_VIEW_NAME);
+
+            // When the cache is disabled, delete files are opened more often because each Spark
+            // task reads them.
+            // The cached CoW MERGE test allows up to 3 scans, so we require at least 4 to confirm
+            // the cache is disabled.
+            // For MoR MERGE, the cached test allows 1 scan, so we require at least 2 to confirm the
+            // cache is disabled.
+            int expectedMinStreamCount = mode == COPY_ON_WRITE ? 4 : 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(row(100, "hr"), row(100, "hr")),
+                sql("SELECT * FROM %s", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
   private int streamCount(DeleteFile deleteFile) {
     CustomInputFile inputFile = INPUT_FILES.get(deleteFile.location());
     return inputFile.streamCount();
@@ -375,7 +578,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     List<Pair<CharSequence, Long>> posDeletes =
         dataFiles(table).stream()
-            .map(dataFile -> Pair.of(dataFile.path(), 0L))
+            .map(dataFile -> Pair.of((CharSequence) dataFile.location(), 0L))
             .collect(Collectors.toList());
     Pair<DeleteFile, CharSequenceSet> posDeleteResult = writePosDeletes(table, posDeletes);
     DeleteFile posDeleteFile = posDeleteResult.first();

@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.source.reader;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.formats.avro.RowDataToAvroConverters;
-import org.apache.flink.formats.avro.typeutils.AvroSchemaConverter;
 import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
@@ -31,6 +29,8 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.formats.avro.RowDataToAvroConverters;
+import org.apache.iceberg.flink.formats.avro.typeutils.AvroSchemaConverter;
 
 public class AvroGenericRecordConverter implements RowDataConverter<GenericRecord> {
   private final Schema avroSchema;

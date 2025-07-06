@@ -25,20 +25,36 @@ on:
     # we're publishing a new snapshot every night at 00:00 UTC
     - cron:  '0 0 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   publish-snapshot:
     if: github.repository_owner == 'apache'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    environment: maven-publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # we need to fetch all tags so that getProjectVersion() in build.gradle correctly determines the next SNAPSHOT version from the newest tag
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
-          java-version: 11
-      - run: |
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          # Read-only: small job; restore opportunistically from other jobs' caches but never write.
+          cache-read-only: true
+      - env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PW: ${{ secrets.NEXUS_PW }}
+        run: |
           ./gradlew printVersion
-          ./gradlew -DallModules publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
-          ./gradlew -DflinkVersions= -DsparkVersions=3.3,3.4,3.5 -DscalaVersion=2.13 -DkafkaVersions=3 -DhiveVersions= publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
+          ./gradlew -DallModules publishApachePublicationToMavenRepository -PmavenUser="$NEXUS_USER" -PmavenPassword="$NEXUS_PW"
+          ./gradlew -DflinkVersions= -DsparkVersions=3.5 -DscalaVersion=2.13 -DkafkaVersions= \
+            :iceberg-spark:iceberg-spark-3.5_2.13:publishApachePublicationToMavenRepository \
+            :iceberg-spark:iceberg-spark-extensions-3.5_2.13:publishApachePublicationToMavenRepository \
+            :iceberg-spark:iceberg-spark-runtime-3.5_2.13:publishApachePublicationToMavenRepository \
+            -PmavenUser="$NEXUS_USER" -PmavenPassword="$NEXUS_PW"

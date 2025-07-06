@@ -49,11 +49,12 @@ abstract class DataScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
       boolean withColumnStats) {
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(io(), dataManifests, deleteManifests)
+        new ManifestGroup(table().io(), dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
             .select(withColumnStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
             .filterData(filter())
-            .specsById(table().specs())
+            .schemasById(schemas())
+            .specsById(specs())
             .scanMetrics(scanMetrics())
             .ignoreDeleted()
             .columnsToKeepStats(columnsToKeepStats());

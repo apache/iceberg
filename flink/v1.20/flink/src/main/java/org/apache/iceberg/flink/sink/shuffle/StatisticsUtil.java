@@ -73,12 +73,29 @@ class StatisticsUtil {
   }
 
   static CompletedStatistics deserializeCompletedStatistics(
-      byte[] bytes, TypeSerializer<CompletedStatistics> statisticsSerializer) {
+      byte[] bytes, CompletedStatisticsSerializer statisticsSerializer) {
     try {
       DataInputDeserializer input = new DataInputDeserializer(bytes);
-      return statisticsSerializer.deserialize(input);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Fail to deserialize aggregated statistics", e);
+      CompletedStatistics completedStatistics = statisticsSerializer.deserialize(input);
+      if (!completedStatistics.isValid()) {
+        throw new RuntimeException("Fail to deserialize aggregated statistics,change to v1");
+      }
+
+      return completedStatistics;
+    } catch (Exception e) {
+      try {
+        // If we restore from a lower version, the new version of SortKeySerializer cannot correctly
+        // parse the checkpointData, so we need to first switch the version to v1. Once the state
+        // data is successfully parsed, we need to switch the serialization version to the latest
+        // version to parse the subsequent data passed from the TM.
+        statisticsSerializer.changeSortKeySerializerVersion(1);
+        DataInputDeserializer input = new DataInputDeserializer(bytes);
+        CompletedStatistics deserialize = statisticsSerializer.deserialize(input);
+        statisticsSerializer.changeSortKeySerializerVersionLatest();
+        return deserialize;
+      } catch (IOException ioException) {
+        throw new UncheckedIOException("Fail to deserialize aggregated statistics", ioException);
+      }
     }
   }
 

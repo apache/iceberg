@@ -44,7 +44,20 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
-`CREATE TABLE ... LIKE ...` syntax is not supported.
+Spark 4.2 and later can create an Iceberg table from an existing table:
+
+```sql
+CREATE TABLE prod.db.sample_copy LIKE prod.db.sample;
+```
+
+`CREATE TABLE ... LIKE ...` copies the source schema, partitioning, sort order, and
+table properties. The new table does not copy snapshots, data, metadata history,
+or the source table location. Unless `LOCATION` is specified for the new table,
+the target catalog assigns its default location.
+
+Copying column default values from a source that is not an Iceberg table is not
+supported yet, so `CREATE TABLE ... LIKE ...` fails if such a source has a column
+with a default value.
 
 ### `PARTITIONED BY`
 
@@ -82,7 +95,10 @@ Supported transformations are:
     * Strings are truncated to the given length
     * Integers and longs truncate to bins: `truncate(10, i)` produces partitions 0, 10, 20, 30, ...
 
-Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility. 
+Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility.
+
+The same transforms are also available as Spark SQL functions under the `system` namespace. See
+[Spark SQL functions](spark-queries.md#spark-sql-functions).
 
 ## `CREATE TABLE ... AS SELECT`
 
@@ -169,6 +185,27 @@ Iceberg has full `ALTER TABLE` support in Spark 3, including:
 * Making required columns optional
 
 In addition, [SQL extensions](spark-configuration.md#sql-extensions) can be used to add support for partition evolution and setting a table's write order
+
+!!! warning "Hive Catalog Limitation"
+    The Hive Metastore (HMS) validates schema changes by comparing column types **positionally**
+    (`hive.metastore.disallow.incompatible.col.type.changes`, default `true`). Any schema evolution
+    operation that shifts column positions will fail when using a Hive catalog. Affected operations
+    include:
+
+    - `ADD COLUMN` with `FIRST` or `AFTER` clauses
+    - `ALTER COLUMN` with `FIRST` or `AFTER` clauses (reordering)
+    - `DROP COLUMN` on a non-last column
+
+    To work around this, disable the HMS schema compatibility check by setting
+    `hive.metastore.disallow.incompatible.col.type.changes=false`:
+
+    - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
+    - **Embedded HMS:** Pass `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
+
+    **Trade-off:** After disabling this check, the Hive engine may no longer be able to read the table
+    correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink,
+    Trino, etc.) will continue to work correctly, as they read schema from Iceberg metadata rather
+    than HMS.
 
 ### `ALTER TABLE ... RENAME TO`
 
@@ -259,6 +296,11 @@ ALTER TABLE prod.db.sample
 ADD COLUMN nested.new_column bigint FIRST;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, adding a column with `FIRST` or `AFTER` may fail due to HMS positional
+    schema validation. See the warning above for details
+    and workaround.
+
 ### `ALTER TABLE ... RENAME COLUMN`
 
 Iceberg allows any field to be renamed. To rename a field, use `RENAME COLUMN`:
@@ -302,6 +344,10 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST;
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, reordering columns may fail due to HMS positional schema validation.
+    See the Hive Catalog Limitation note above for details and workaround.
+
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
@@ -322,6 +368,11 @@ To drop columns, use `ALTER TABLE ... DROP COLUMN`:
 ALTER TABLE prod.db.sample DROP COLUMN id;
 ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
+
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, dropping a non-last column may fail due to HMS positional schema
+    validation. See the earlier Hive Catalog Limitation warning above for details and
+    workaround.
 
 ## `ALTER TABLE` SQL extensions
 
@@ -352,11 +403,9 @@ Dynamic partition overwrite behavior will change when the table's partitioning c
 !!! note
     To migrate from daily to hourly partitioning with transforms, it is not necessary to drop the daily partition field. Keeping the field ensures existing metadata table queries continue to work.
 
-
 !!! danger
     **Dynamic partition overwrite behavior will change** when partitioning changes
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
-
 
 ### `ALTER TABLE ... DROP PARTITION FIELD`
 
@@ -378,10 +427,8 @@ Dropping a partition field is a metadata operation and does not change any of th
     **Dynamic partition overwrite behavior will change** when partitioning changes
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
 
-
 !!! danger
     Be careful when dropping a partition field because it will change the schema of metadata tables, like `files`, and may cause metadata queries to fail or produce different results.
-
 
 ### `ALTER TABLE ... REPLACE PARTITION FIELD`
 
@@ -409,7 +456,6 @@ ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NUL
 
 !!! info
     Table write order does not guarantee data order for queries. It only affects how data is written to the table.
-
 
 `WRITE ORDERED BY` sets a global ordering where rows are ordered across tasks, like using `ORDER BY` in an `INSERT` command:
 
@@ -457,7 +503,7 @@ ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id, data
 -- multiple columns
 ```
 
-Identifier fields must be `NOT NULL` columns when they are created or added. 
+Identifier fields must be `NOT NULL` columns when they are created or added.
 The later `ALTER` statement will overwrite the previous setting.
 
 ### `ALTER TABLE ... DROP IDENTIFIER FIELDS`
@@ -534,7 +580,7 @@ AS OF VERSION 1234 RETAIN 365 DAYS
 #### `ALTER TABLE ... REPLACE BRANCH`
 
 The snapshot which a branch references can be updated via
-the `REPLACE BRANCH` sql. Retention can also be updated in this statement. 
+the `REPLACE BRANCH` sql. Retention can also be updated in this statement.
 
 ```sql
 -- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days.
@@ -585,7 +631,6 @@ This section covers how to create and manage views in Spark using Spark 3.4 and 
      * [SHOW TBLPROPERTIES](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-tblproperties.html)
      * [SHOW CREATE TABLE](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-create-table.html)
 
-
 #### Creating a view
 
 Create a simple view without any comments or properties:
@@ -619,6 +664,18 @@ Display view properties:
 SHOW TBLPROPERTIES <viewName>
 ```
 
+#### Creating a view with location
+
+To specify the view metadata location, use `TBLPROPERTIES ('location'='fully-qualified-uri')`:
+
+```sql
+CREATE VIEW <viewName>
+    TBLPROPERTIES ('location' = '/path/to/custom-location')
+AS SELECT * FROM <tableName>
+```
+
+The view metadata is stored in the specified location with `/metadata` appended, such as `/path/to/custom-location/metadata`.
+
 #### Dropping a view
 
 Drop an existing view:
@@ -635,7 +692,7 @@ DROP VIEW IF EXISTS <viewName>
 
 Update a view's schema, its properties, or the underlying SQL statement using `CREATE OR REPLACE`:
 ```sql
-CREATE OR REPLACE <viewName> (updated_id COMMENT 'updated ID')
+CREATE OR REPLACE VIEW <viewName> (updated_id COMMENT 'updated ID')
     TBLPROPERTIES ('key1' = 'new_val1')
     AS SELECT id FROM <tableName>
 ```

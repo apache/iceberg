@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +46,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -93,7 +95,12 @@ public class TestForwardCompatibility {
 
   @BeforeAll
   public static void startSpark() {
-    TestForwardCompatibility.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestForwardCompatibility.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
+            .getOrCreate();
   }
 
   @AfterAll
@@ -108,7 +115,7 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
@@ -135,9 +142,9 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
     File checkpoint = new File(parent, "checkpoint");
-    checkpoint.mkdirs();
+    assertThat(checkpoint.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
@@ -167,7 +174,7 @@ public class TestForwardCompatibility {
     File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    assertThat(dataFolder.mkdirs()).isTrue();
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());

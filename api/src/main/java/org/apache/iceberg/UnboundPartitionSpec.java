@@ -46,6 +46,10 @@ public class UnboundPartitionSpec {
     return copyToBuilder(schema).build();
   }
 
+  public PartitionSpec bind(Schema schema, boolean ignoreMissingFields) {
+    return copyToBuilder(schema).build(ignoreMissingFields);
+  }
+
   PartitionSpec bindUnchecked(Schema schema) {
     return copyToBuilder(schema).buildUnchecked();
   }

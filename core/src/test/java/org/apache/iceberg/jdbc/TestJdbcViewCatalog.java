@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -57,6 +60,11 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.toAbsolutePath().toString());
     properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1");
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3");
+    properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3");
+    properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
 
     catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
@@ -75,6 +83,11 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
 
   @Override
   protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsEmptyNamespace() {
     return true;
   }
 
@@ -99,6 +112,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
           .thenThrow(new SQLException());
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Unknown failure");
@@ -126,9 +140,140 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
-          .isInstanceOf(AlreadyExistsException.class)
+          .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("View already exists: " + identifier);
     }
+  }
+
+  @Test
+  public void testCommitExceptionWithPostgresUniqueViolation() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewOperations ops = view.operations();
+    ViewMetadata metadataV1 = ops.current();
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("View already exists: " + identifier);
+    }
+  }
+
+  @Test
+  public void testCreateViewConstraintExceptionWithMessage() {
+    TableIdentifier existingIdent = TableIdentifier.of("namespace1", "existing_view");
+    BaseView existing =
+        (BaseView)
+            catalog
+                .buildView(existingIdent)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("namespace1", "new_view");
+    ViewOperations ops = catalog.newViewOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("View already exists: " + newIdent);
+    }
+  }
+
+  @Test
+  public void testCreateViewConstraintExceptionWithPostgresUniqueViolation() {
+    TableIdentifier existingIdent = TableIdentifier.of("namespace1", "existing_view2");
+    BaseView existing =
+        (BaseView)
+            catalog
+                .buildView(existingIdent)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("namespace1", "new_view2");
+    ViewOperations ops = catalog.newViewOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("View already exists: " + newIdent);
+    }
+  }
+
+  @Test
+  public void dropViewShouldNotDropMetadataFileIfGcNotEnabled() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .withProperty(TableProperties.GC_ENABLED, "false")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
+
+    catalog.dropView(identifier);
+    assertThat(currentMetadataLocation).exists();
+    assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void dropViewShouldDropMetadataFileIfGcEnabled() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .withProperty(TableProperties.GC_ENABLED, "true")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
+
+    catalog.dropView(identifier);
+    assertThat(currentMetadataLocation).doesNotExist();
+    assertThat(catalog.viewExists(identifier)).isFalse();
   }
 }

@@ -46,6 +46,8 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -85,11 +87,17 @@ public class Avro {
 
   static {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
+    LogicalTypes.register(VariantLogicalType.NAME, schema -> VariantLogicalType.get());
     DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
+    DEFAULT_MODEL.addLogicalTypeConversion(new VariantConversion());
   }
 
   public static WriteBuilder write(OutputFile file) {
+    if (file instanceof EncryptedOutputFile) {
+      return write((EncryptedOutputFile) file);
+    }
+
     return new WriteBuilder(file);
   }
 
@@ -97,7 +105,7 @@ public class Avro {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder {
+  public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -119,11 +127,13 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
+    @Override
     public WriteBuilder named(String newName) {
       this.name = newName;
       return this;
@@ -134,6 +144,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder set(String property, String value) {
       config.put(property, value);
       return this;
@@ -144,11 +155,13 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
       return this;
     }
 
+    @Override
     public WriteBuilder meta(Map<String, String> properties) {
       metadata.putAll(properties);
       return this;
@@ -159,6 +172,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
@@ -169,12 +183,12 @@ public class Avro {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
 
+    @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -203,7 +217,7 @@ public class Avro {
           overwrite);
     }
 
-    private static class Context {
+    static class Context {
       private final CodecFactory codec;
 
       private Context(CodecFactory codec) {
@@ -235,7 +249,7 @@ public class Avro {
       private static CodecFactory toCodec(String codecAsString, String compressionLevel) {
         CodecFactory codecFactory;
         try {
-          switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
+          switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ROOT))) {
             case UNCOMPRESSED:
               codecFactory = CodecFactory.nullCodec();
               break;
@@ -525,26 +539,16 @@ public class Avro {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
+      if (rowSchema != null) {
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+      }
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        appenderBuilder.createWriterFunc(
-            avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
-
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
-      }
+      // the createWriterFunc is ignored, since only the path and position are written
+      appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
@@ -554,7 +558,7 @@ public class Avro {
   }
 
   /** A {@link DatumWriter} implementation that wraps another to produce position deletes. */
-  private static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
+  static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
     private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
     private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
 
@@ -573,51 +577,15 @@ public class Avro {
     }
   }
 
-  /**
-   * A {@link DatumWriter} implementation that wraps another to produce position deletes with row
-   * data.
-   *
-   * @param <D> the type of datum written as a deleted row
-   */
-  private static class PositionAndRowDatumWriter<D>
-      implements MetricsAwareDatumWriter<PositionDelete<D>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
-
-    private final DatumWriter<D> rowWriter;
-
-    private PositionAndRowDatumWriter(DatumWriter<D> rowWriter) {
-      this.rowWriter = rowWriter;
-    }
-
-    @Override
-    public void setSchema(Schema schema) {
-      Schema.Field rowField = schema.getField("row");
-      if (rowField != null) {
-        rowWriter.setSchema(rowField.schema());
-      }
-    }
-
-    @Override
-    public void write(PositionDelete<D> delete, Encoder out) throws IOException {
-      PATH_WRITER.write(delete.path(), out);
-      POS_WRITER.write(delete.pos(), out);
-      rowWriter.write(delete.row(), out);
-    }
-
-    @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.concat(PATH_WRITER.metrics(), POS_WRITER.metrics());
-    }
-  }
-
   public static ReadBuilder read(InputFile file) {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
+  public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
+    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
+    private Class<? extends StructLike> rootType = null;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private NameMapping nameMapping;
     private boolean reuseContainers = false;
@@ -675,17 +643,20 @@ public class Avro {
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
+    @Override
     public ReadBuilder split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
+    @Override
     public ReadBuilder project(org.apache.iceberg.Schema projectedSchema) {
       this.schema = projectedSchema;
       return this;
     }
 
+    @Override
     public ReadBuilder reuseContainers() {
       this.reuseContainers = true;
       return this;
@@ -701,6 +672,19 @@ public class Avro {
       return this;
     }
 
+    @Override
+    public InternalData.ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
+      this.rootType = rootClass;
+      return this;
+    }
+
+    @Override
+    public InternalData.ReadBuilder setCustomType(
+        int fieldId, Class<? extends StructLike> structClass) {
+      typeMap.put(fieldId, structClass);
+      return this;
+    }
+
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
@@ -711,6 +695,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public <D> AvroIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -732,9 +717,18 @@ public class Avro {
         reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
       }
 
+      if (reader instanceof InternalReader) {
+        ((InternalReader<D>) reader)
+            .setConstant(MetadataColumns.FILE_PATH_COLUMN_ID, file.location());
+      }
+
       if (reader instanceof SupportsCustomRecords) {
         ((SupportsCustomRecords) reader).setClassLoader(loader);
         ((SupportsCustomRecords) reader).setRenames(renames);
+      }
+
+      if (reader instanceof SupportsCustomTypes) {
+        ((SupportsCustomTypes) reader).setCustomTypes(rootType, typeMap);
       }
 
       return new AvroIterable<>(

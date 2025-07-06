@@ -46,6 +46,12 @@ public class ExpireSnapshots {
     private Integer numSnapshots = null;
     private Integer planningWorkerPoolSize;
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
+    private Boolean cleanExpiredMetadata = null;
+
+    @Override
+    String maintenanceTaskName() {
+      return "ExpireSnapshots";
+    }
 
     /**
      * The snapshots older than this age will be removed.
@@ -89,34 +95,67 @@ public class ExpireSnapshots {
       return this;
     }
 
+    /**
+     * Expires unused table metadata such as partition specs and schemas.
+     *
+     * @param newCleanExpiredMetadata remove unused partition specs, schemas, or other metadata when
+     *     true
+     * @return this for method chaining
+     */
+    public Builder cleanExpiredMetadata(boolean newCleanExpiredMetadata) {
+      this.cleanExpiredMetadata = newCleanExpiredMetadata;
+      return this;
+    }
+
+    public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
+      scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount());
+      scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
+      deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
+      cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata());
+      planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
+
+      Integer retainLast = expireSnapshotsConfig.retainLast();
+      if (retainLast != null) {
+        retainLast(retainLast);
+      }
+
+      Long maxSnapshotAgeSeconds = expireSnapshotsConfig.maxSnapshotAgeSeconds();
+      if (maxSnapshotAgeSeconds != null) {
+        maxSnapshotAge(Duration.ofSeconds(maxSnapshotAgeSeconds));
+      }
+
+      return this;
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");
 
       SingleOutputStreamOperator<TaskResult> result =
-          trigger
-              .process(
-                  new ExpireSnapshotsProcessor(
-                      tableLoader(),
-                      maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
-                      numSnapshots,
-                      planningWorkerPoolSize))
-              .name(operatorName(EXECUTOR_OPERATOR_NAME))
-              .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(
+                      new ExpireSnapshotsProcessor(
+                          tableLoader(),
+                          maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
+                          numSnapshots,
+                          planningWorkerPoolSize,
+                          cleanExpiredMetadata))
+                  .name(operatorName(EXECUTOR_OPERATOR_NAME))
+                  .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
+                  .forceNonParallel());
 
-      result
-          .getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM)
-          .rebalance()
-          .transform(
-              operatorName(DELETE_FILES_OPERATOR_NAME),
-              TypeInformation.of(Void.class),
-              new DeleteFilesProcessor(
-                  index(), taskName(), tableLoader().loadTable(), deleteBatchSize))
-          .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
-          .slotSharingGroup(slotSharingGroup())
-          .setParallelism(parallelism());
+      setSlotSharingGroup(
+          result
+              .getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM)
+              .rebalance()
+              .transform(
+                  operatorName(DELETE_FILES_OPERATOR_NAME),
+                  TypeInformation.of(Void.class),
+                  new DeleteFilesProcessor(
+                      tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
+              .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
+              .setParallelism(parallelism()));
 
       // Ignore the file deletion result and return the DataStream<TaskResult> directly
       return result;

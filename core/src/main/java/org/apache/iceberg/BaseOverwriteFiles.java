@@ -26,6 +26,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     implements OverwriteFiles {
@@ -67,6 +68,20 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   @Override
   public OverwriteFiles addFile(DataFile file) {
     add(file);
+    return this;
+  }
+
+  @Override
+  public OverwriteFiles deleteFiles(
+      DataFileSet dataFilesToDelete, DeleteFileSet deleteFilesToDelete) {
+    for (DataFile dataFile : dataFilesToDelete) {
+      deleteFile(dataFile);
+    }
+
+    for (DeleteFile deleteFile : deleteFilesToDelete) {
+      delete(deleteFile);
+    }
+
     return this;
   }
 

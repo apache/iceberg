@@ -1,0 +1,2023 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.connect.data;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
+import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.mapping.MappedField;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.BooleanType;
+import org.apache.iceberg.types.Types.DateType;
+import org.apache.iceberg.types.Types.DecimalType;
+import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.types.Types.VariantType;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Time;
+import org.apache.kafka.connect.data.Timestamp;
+import org.apache.kafka.connect.json.JsonConverter;
+import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.storage.ConverterConfig;
+import org.apache.kafka.connect.storage.ConverterType;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+public class TestRecordConverter {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  private static final org.apache.iceberg.Schema SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(20, "i", IntegerType.get()),
+          NestedField.required(21, "l", LongType.get()),
+          NestedField.required(22, "d", DateType.get()),
+          NestedField.required(23, "t", TimeType.get()),
+          NestedField.required(24, "ts", TimestampType.withoutZone()),
+          NestedField.required(25, "tsz", TimestampType.withZone()),
+          NestedField.required(26, "fl", FloatType.get()),
+          NestedField.required(27, "do", DoubleType.get()),
+          NestedField.required(28, "dec", DecimalType.of(9, 2)),
+          NestedField.required(29, "s", StringType.get()),
+          NestedField.required(30, "b", BooleanType.get()),
+          NestedField.required(31, "u", UUIDType.get()),
+          NestedField.required(32, "f", FixedType.ofLength(3)),
+          NestedField.required(33, "bi", BinaryType.get()),
+          NestedField.required(34, "li", ListType.ofRequired(35, StringType.get())),
+          NestedField.required(
+              36, "ma", MapType.ofRequired(37, 38, StringType.get(), StringType.get())),
+          NestedField.optional(39, "extra", StringType.get()));
+
+  // we have 1 unmapped column so exclude that from the count
+  private static final int MAPPED_CNT = SCHEMA.columns().size() - 1;
+
+  private static final org.apache.iceberg.Schema NESTED_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(1, "ii", IntegerType.get()),
+          NestedField.required(2, "st", SCHEMA.asStruct()));
+
+  private static final org.apache.iceberg.Schema SIMPLE_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(1, "ii", IntegerType.get()),
+          NestedField.required(2, "st", StringType.get()));
+
+  private static final org.apache.iceberg.Schema ID_SCHEMA =
+      new org.apache.iceberg.Schema(NestedField.required(1, "ii", IntegerType.get()));
+
+  private static final org.apache.iceberg.Schema STRUCT_IN_LIST_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(100, "stli", ListType.ofRequired(101, NESTED_SCHEMA.asStruct())));
+
+  private static final org.apache.iceberg.Schema STRUCT_IN_LIST_BASIC_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(100, "stli", ListType.ofRequired(101, ID_SCHEMA.asStruct())));
+
+  private static final org.apache.iceberg.Schema STRUCT_IN_MAP_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(
+              100,
+              "stma",
+              MapType.ofRequired(101, 102, StringType.get(), NESTED_SCHEMA.asStruct())));
+
+  private static final org.apache.iceberg.Schema STRUCT_IN_MAP_BASIC_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(
+              100, "stma", MapType.ofRequired(101, 102, StringType.get(), ID_SCHEMA.asStruct())));
+
+  private static final org.apache.iceberg.Schema VARIANT_SCHEMA =
+      new org.apache.iceberg.Schema(NestedField.required(1, "v", VariantType.get()));
+
+  private static final Schema CONNECT_SCHEMA =
+      SchemaBuilder.struct()
+          .field("i", Schema.INT32_SCHEMA)
+          .field("l", Schema.INT64_SCHEMA)
+          .field("d", org.apache.kafka.connect.data.Date.SCHEMA)
+          .field("t", Time.SCHEMA)
+          .field("ts", Timestamp.SCHEMA)
+          .field("tsz", Timestamp.SCHEMA)
+          .field("fl", Schema.FLOAT32_SCHEMA)
+          .field("do", Schema.FLOAT64_SCHEMA)
+          .field("dec", Decimal.schema(2))
+          .field("s", Schema.STRING_SCHEMA)
+          .field("b", Schema.BOOLEAN_SCHEMA)
+          .field("u", Schema.STRING_SCHEMA)
+          .field("f", Schema.BYTES_SCHEMA)
+          .field("bi", Schema.BYTES_SCHEMA)
+          .field("li", SchemaBuilder.array(Schema.STRING_SCHEMA))
+          .field("ma", SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA));
+
+  private static final Schema CONNECT_NESTED_SCHEMA =
+      SchemaBuilder.struct().field("ii", Schema.INT32_SCHEMA).field("st", CONNECT_SCHEMA);
+
+  private static final Schema CONNECT_STRUCT_IN_LIST_SCHEMA =
+      SchemaBuilder.struct().field("stli", SchemaBuilder.array(CONNECT_NESTED_SCHEMA)).build();
+
+  private static final Schema CONNECT_STRUCT_IN_MAP_SCHEMA =
+      SchemaBuilder.struct()
+          .field("stma", SchemaBuilder.map(Schema.STRING_SCHEMA, CONNECT_NESTED_SCHEMA))
+          .build();
+
+  private static final LocalDate DATE_VAL = LocalDate.parse("2023-05-18");
+  private static final LocalTime TIME_VAL = LocalTime.parse("07:14:21");
+  private static final LocalDateTime TS_VAL = LocalDateTime.parse("2023-05-18T07:14:21");
+  private static final OffsetDateTime TSZ_VAL = OffsetDateTime.parse("2023-05-18T07:14:21Z");
+  private static final BigDecimal DEC_VAL = new BigDecimal("12.34");
+  private static final String STR_VAL = "foobar";
+  private static final UUID UUID_VAL = UUID.randomUUID();
+  private static final ByteBuffer BYTES_VAL = ByteBuffer.wrap(new byte[] {1, 2, 3});
+  private static final List<String> LIST_VAL = ImmutableList.of("hello", "world");
+  private static final Map<String, String> MAP_VAL = ImmutableMap.of("one", "1", "two", "2");
+
+  private static final JsonConverter JSON_CONVERTER = new JsonConverter();
+
+  private IcebergSinkConfig config;
+
+  @BeforeAll
+  public static void beforeAll() {
+    JSON_CONVERTER.configure(
+        ImmutableMap.of(
+            JsonConverterConfig.SCHEMAS_ENABLE_CONFIG,
+            false,
+            ConverterConfig.TYPE_CONFIG,
+            ConverterType.VALUE.getName()));
+  }
+
+  @BeforeEach
+  public void before() {
+    this.config = mock(IcebergSinkConfig.class);
+    when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    when(config.replaceNullWithDefault()).thenReturn(true);
+  }
+
+  @Test
+  public void testMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = createMapData();
+    Record record = converter.convert(data);
+    assertRecordValues(record);
+  }
+
+  @Test
+  public void testUUIDStringConversion() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+
+    Schema connectSchema =
+        SchemaBuilder.struct().field("uuid", SchemaBuilder.string().name("uuid").build()).build();
+    Struct data = new Struct(connectSchema).put("uuid", UUID_VAL.toString());
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Record record = converter.convert(data);
+
+    assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
+  }
+
+  @Test
+  public void testEmptyListAndMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = Maps.newHashMap(createMapData());
+    data.put("li", ImmutableList.of());
+    data.put("ma", ImmutableMap.of());
+
+    Record record = converter.convert(data);
+    assertThat((List<?>) record.getField("li")).isEmpty();
+    assertThat((Map<?, ?>) record.getField("ma")).isEmpty();
+  }
+
+  @Test
+  public void testUUIDConversionWithParquet() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+    when(config.writeProps())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_FILE_FORMAT,
+                FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Map<String, Object> data =
+        ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
+
+    Record record = converter.convert(data);
+    assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
+  }
+
+  @Test
+  public void testNestedMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(NESTED_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> nestedData = createNestedMapData();
+    Record record = converter.convert(nestedData);
+    assertNestedRecordValues(record);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testMapToString() throws Exception {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> nestedData = createNestedMapData();
+    Record record = converter.convert(nestedData);
+
+    String str = (String) record.getField("st");
+    Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
+    assertThat(map).hasSize(MAPPED_CNT);
+  }
+
+  @Test
+  public void testMapValueInListConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = createNestedMapData();
+    Record record = converter.convert(ImmutableMap.of("stli", ImmutableList.of(data, data)));
+    List<?> fieldVal = (List<?>) record.getField("stli");
+
+    Record elementVal = (Record) fieldVal.get(0);
+    assertNestedRecordValues(elementVal);
+  }
+
+  @Test
+  public void testMapValueInMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = createNestedMapData();
+    Record record =
+        converter.convert(ImmutableMap.of("stma", ImmutableMap.of("key1", data, "key2", data)));
+
+    Map<?, ?> fieldVal = (Map<?, ?>) record.getField("stma");
+    Record mapVal = (Record) fieldVal.get("key1");
+    assertNestedRecordValues(mapVal);
+  }
+
+  @Test
+  public void testStructConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct data = createStructData();
+    Record record = converter.convert(data);
+    assertRecordValues(record);
+  }
+
+  @Test
+  public void testNestedStructConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(NESTED_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct nestedData = createNestedStructData();
+    Record record = converter.convert(nestedData);
+    assertNestedRecordValues(record);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testStructToString() throws Exception {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct nestedData = createNestedStructData();
+    Record record = converter.convert(nestedData);
+
+    String str = (String) record.getField("st");
+    Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
+    assertThat(map).hasSize(MAPPED_CNT);
+  }
+
+  @Test
+  public void testStructValueInListConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct data = createNestedStructData();
+    Struct struct =
+        new Struct(CONNECT_STRUCT_IN_LIST_SCHEMA).put("stli", ImmutableList.of(data, data));
+    Record record = converter.convert(struct);
+
+    List<?> fieldVal = (List<?>) record.getField("stli");
+    Record elementVal = (Record) fieldVal.get(0);
+    assertNestedRecordValues(elementVal);
+  }
+
+  @Test
+  public void testStructValueInMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct data = createNestedStructData();
+    Struct struct =
+        new Struct(CONNECT_STRUCT_IN_MAP_SCHEMA)
+            .put("stma", ImmutableMap.of("key1", data, "key2", data));
+    Record record = converter.convert(struct);
+
+    Map<?, ?> fieldVal = (Map<?, ?>) record.getField("stma");
+    Record mapVal = (Record) fieldVal.get("key1");
+    assertNestedRecordValues(mapVal);
+  }
+
+  @Test
+  public void testNameMapping() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of("renamed_ii")));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = ImmutableMap.of("renamed_ii", 123);
+    Record record = converter.convert(data);
+    assertThat(record.getField("ii")).isEqualTo(123);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testCaseSensitivity(boolean caseInsensitive) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> mapData = ImmutableMap.of("II", 123);
+    Record record1 = converter.convert(mapData);
+
+    Struct structData =
+        new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build()).put("II", 123);
+    Record record2 = converter.convert(structData);
+
+    if (caseInsensitive) {
+      assertThat(record1.getField("ii")).isEqualTo(123);
+      assertThat(record2.getField("ii")).isEqualTo(123);
+    } else {
+      assertThat(record1.getField("ii")).isEqualTo(null);
+      assertThat(record2.getField("ii")).isEqualTo(null);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.optional(1, "s", StringType.get())));
+
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("s", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct data = new Struct(connectSchema).put("s", null);
+    Record record = converter.convert(data);
+
+    if (replaceNullWithDefault) {
+      assertThat(record.getField("s")).isEqualTo("");
+    } else {
+      assertThat(record.getField("s")).isNull();
+    }
+  }
+
+  @Test
+  public void testIntConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    int expectedInt = 123;
+
+    ImmutableList.of("123", 123.0f, 123.0d, 123L, expectedInt)
+        .forEach(
+            input -> {
+              int val = converter.convertInt(input);
+              assertThat(val).isEqualTo(expectedInt);
+            });
+  }
+
+  @Test
+  public void testLongConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    long expectedLong = 123L;
+
+    ImmutableList.of("123", 123.0f, 123.0d, 123, expectedLong)
+        .forEach(
+            input -> {
+              long val = converter.convertLong(input);
+              assertThat(val).isEqualTo(expectedLong);
+            });
+  }
+
+  @Test
+  public void testFloatConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    float expectedFloat = 123f;
+
+    ImmutableList.of("123", 123, 123L, 123d, expectedFloat)
+        .forEach(
+            input -> {
+              float val = converter.convertFloat(input);
+              assertThat(val).isEqualTo(expectedFloat);
+            });
+  }
+
+  @Test
+  public void testDoubleConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    double expectedDouble = 123d;
+
+    ImmutableList.of("123", 123, 123L, 123f, expectedDouble)
+        .forEach(
+            input -> {
+              double val = converter.convertDouble(input);
+              assertThat(val).isEqualTo(expectedDouble);
+            });
+  }
+
+  @Test
+  public void testDecimalConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    BigDecimal expected = new BigDecimal("123.45");
+
+    ImmutableList.of("123.45", 123.45d, expected)
+        .forEach(
+            input -> {
+              BigDecimal decimal = converter.convertDecimal(input, DecimalType.of(10, 2));
+              assertThat(decimal).isEqualTo(expected);
+            });
+
+    BigDecimal expected2 = new BigDecimal(123);
+
+    ImmutableList.of("123", 123, expected2)
+        .forEach(
+            input -> {
+              BigDecimal decimal = converter.convertDecimal(input, DecimalType.of(10, 0));
+              assertThat(decimal).isEqualTo(expected2);
+            });
+  }
+
+  @Test
+  public void testDateConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    LocalDate expected = LocalDate.of(2023, 11, 15);
+
+    List<Object> inputList =
+        ImmutableList.of(
+            "2023-11-15",
+            expected.toEpochDay(),
+            expected,
+            new Date(Duration.ofDays(expected.toEpochDay()).toMillis()));
+
+    inputList.forEach(
+        input -> {
+          Temporal ts = converter.convertDateValue(input);
+          assertThat(ts).isEqualTo(expected);
+        });
+  }
+
+  @Test
+  public void testTimeConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    LocalTime expected = LocalTime.of(7, 51, 30, 888_000_000);
+
+    List<Object> inputList =
+        ImmutableList.of(
+            "07:51:30.888",
+            expected.toNanoOfDay() / 1000 / 1000,
+            expected,
+            new Date(expected.toNanoOfDay() / 1000 / 1000));
+
+    inputList.forEach(
+        input -> {
+          Temporal ts = converter.convertTimeValue(input);
+          assertThat(ts).isEqualTo(expected);
+        });
+  }
+
+  @Test
+  public void testTimestampWithZoneConversion() {
+    OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T11:22:33Z");
+    long expectedMillis = expected.toInstant().toEpochMilli();
+    assertTimestampConvert(expected, expectedMillis, TimestampType.withZone());
+
+    // zone should be respected
+    expected = OffsetDateTime.parse("2023-05-18T03:22:33-08:00");
+    List<Object> additionalInput =
+        ImmutableList.of(
+            "2023-05-18T03:22:33-08",
+            "2023-05-18 03:22:33-08",
+            "2023-05-18T03:22:33-08:00",
+            "2023-05-18 03:22:33-08:00",
+            "2023-05-18T03:22:33-0800",
+            "2023-05-18 03:22:33-0800");
+    assertTimestampConvert(expected, additionalInput, TimestampType.withZone());
+  }
+
+  @Test
+  public void testTimestampWithZoneAndFractionalSecondsConversion() {
+    // Timestamps with sub-second precision and a colon-separated UTC offset (e.g. +00:00)
+    // were previously mis-parsed because ensureTimestampFormat only checked for the timezone
+    // sign at the fixed index 19, which is only valid when there are no fractional seconds.
+    OffsetDateTime expected = OffsetDateTime.parse("2026-03-31T03:17:37.260514+00:00");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+0000");
+    assertTimestampConvert(expected, inputs, TimestampType.withZone());
+  }
+
+  @Test
+  public void testTimestampWithoutZoneConversion() {
+    LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
+    long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+    assertTimestampConvert(expected, expectedMillis, TimestampType.withoutZone());
+
+    // zone should be ignored
+    List<Object> additionalInput =
+        ImmutableList.of(
+            "2023-05-18T11:22:33-08",
+            "2023-05-18 11:22:33-08",
+            "2023-05-18T11:22:33-08:00",
+            "2023-05-18 11:22:33-08:00",
+            "2023-05-18T11:22:33-0800",
+            "2023-05-18 11:22:33-0800");
+    assertTimestampConvert(expected, additionalInput, TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testTimestampWithoutZoneAndFractionalSecondsConversion() {
+    // Fractional seconds with a colon-separated offset: timezone must be stripped and
+    // the colon in +HH:MM must be normalized before OFFSET_TIMESTAMP_FORMAT can parse it.
+    LocalDateTime expected = LocalDateTime.parse("2026-03-31T03:17:37.260514");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514",
+            "2026-03-31 03:17:37.260514",
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31 03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z");
+    assertTimestampConvert(expected, inputs, TimestampType.withoutZone());
+  }
+
+  private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {
+    List<Object> inputList =
+        Lists.newArrayList(
+            "2023-05-18T11:22:33Z",
+            "2023-05-18 11:22:33Z",
+            "2023-05-18T11:22:33+00",
+            "2023-05-18 11:22:33+00",
+            "2023-05-18T11:22:33+00:00",
+            "2023-05-18 11:22:33+00:00",
+            "2023-05-18T11:22:33+0000",
+            "2023-05-18 11:22:33+0000",
+            "2023-05-18T11:22:33",
+            "2023-05-18 11:22:33",
+            expectedMillis,
+            new Date(expectedMillis),
+            OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC));
+
+    assertTimestampConvert(expected, inputList, type);
+  }
+
+  private void assertTimestampConvert(
+      Temporal expected, List<Object> inputList, TimestampType type) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    inputList.forEach(
+        input -> {
+          Temporal ts = converter.convertTimestampValue(input, type);
+          assertThat(ts).isEqualTo(expected);
+        });
+  }
+
+  @Test
+  public void testMissingColumnDetectionMap() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = Maps.newHashMap(createMapData());
+    data.put("null", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(MAPPED_CNT);
+
+    Map<String, AddColumn> newColMap = Maps.newHashMap();
+    addCols.forEach(addCol -> newColMap.put(addCol.name(), addCol));
+
+    assertTypesAddedFromMap(col -> newColMap.get(col).type());
+
+    // null values should be ignored
+    assertThat(newColMap).doesNotContainKey("null");
+  }
+
+  @Test
+  public void testMissingColumnDetectionMapNested() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> nestedData = createNestedMapData();
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(nestedData, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.name()).isEqualTo("st");
+
+    StructType addedType = addCol.type().asStructType();
+    assertThat(addedType.fields()).hasSize(MAPPED_CNT);
+    assertTypesAddedFromMap(col -> addedType.field(col).type());
+  }
+
+  @Test
+  public void testMissingColumnDetectionMapListValue() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_LIST_BASIC_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> nestedData = createNestedMapData();
+    Map<String, Object> map = ImmutableMap.of("stli", ImmutableList.of(nestedData, nestedData));
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(map, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("stli.element");
+    assertThat(addCol.name()).isEqualTo("st");
+
+    StructType nestedElementType = addCol.type().asStructType();
+    assertThat(nestedElementType.fields()).hasSize(MAPPED_CNT);
+    assertTypesAddedFromMap(col -> nestedElementType.field(col).type());
+  }
+
+  private void assertTypesAddedFromMap(Function<String, Type> fn) {
+    assertThat(fn.apply("i")).isInstanceOf(LongType.class);
+    assertThat(fn.apply("l")).isInstanceOf(LongType.class);
+    assertThat(fn.apply("d")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("t")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("ts")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("tsz")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("fl")).isInstanceOf(DoubleType.class);
+    assertThat(fn.apply("do")).isInstanceOf(DoubleType.class);
+    assertThat(fn.apply("dec")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("s")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("b")).isInstanceOf(BooleanType.class);
+    assertThat(fn.apply("u")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("f")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("bi")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("li")).isInstanceOf(ListType.class);
+    assertThat(fn.apply("ma")).isInstanceOf(StructType.class);
+  }
+
+  @Test
+  public void testMissingColumnDetectionStruct() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct data = createStructData();
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(MAPPED_CNT);
+
+    Map<String, AddColumn> newColMap = Maps.newHashMap();
+    addCols.forEach(addCol -> newColMap.put(addCol.name(), addCol));
+
+    assertTypesAddedFromStruct(col -> newColMap.get(col).type());
+  }
+
+  @Test
+  public void testMissingColumnDetectionStructNested() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct nestedData = createNestedStructData();
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(nestedData, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.name()).isEqualTo("st");
+
+    StructType addedType = addCol.type().asStructType();
+    assertThat(addedType.fields()).hasSize(MAPPED_CNT);
+    assertTypesAddedFromStruct(col -> addedType.field(col).type());
+  }
+
+  @Test
+  public void testMissingColumnDetectionStructListValue() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_LIST_BASIC_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct nestedData = createNestedStructData();
+    Struct struct =
+        new Struct(CONNECT_STRUCT_IN_LIST_SCHEMA)
+            .put("stli", ImmutableList.of(nestedData, nestedData));
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(struct, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("stli.element");
+    assertThat(addCol.name()).isEqualTo("st");
+
+    StructType nestedElementType = addCol.type().asStructType();
+    assertThat(nestedElementType.fields()).hasSize(MAPPED_CNT);
+    assertTypesAddedFromStruct(col -> nestedElementType.field(col).type());
+  }
+
+  @Test
+  public void testMissingColumnDetectionStructMapValue() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(STRUCT_IN_MAP_BASIC_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Struct nestedData = createNestedStructData();
+    Struct struct =
+        new Struct(CONNECT_STRUCT_IN_MAP_SCHEMA)
+            .put("stma", ImmutableMap.of("key1", nestedData, "key2", nestedData));
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(struct, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("stma.value");
+    assertThat(addCol.name()).isEqualTo("st");
+
+    StructType nestedValueType = addCol.type().asStructType();
+    assertThat(nestedValueType.fields()).hasSize(MAPPED_CNT);
+    assertTypesAddedFromStruct(col -> nestedValueType.field(col).type());
+  }
+
+  private void assertTypesAddedFromStruct(Function<String, Type> fn) {
+    assertThat(fn.apply("i")).isInstanceOf(IntegerType.class);
+    assertThat(fn.apply("l")).isInstanceOf(LongType.class);
+    assertThat(fn.apply("d")).isInstanceOf(DateType.class);
+    assertThat(fn.apply("t")).isInstanceOf(TimeType.class);
+    assertThat(fn.apply("ts")).isInstanceOf(TimestampType.class);
+    assertThat(fn.apply("tsz")).isInstanceOf(TimestampType.class);
+    assertThat(fn.apply("fl")).isInstanceOf(FloatType.class);
+    assertThat(fn.apply("do")).isInstanceOf(DoubleType.class);
+    assertThat(fn.apply("dec")).isInstanceOf(DecimalType.class);
+    assertThat(fn.apply("s")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("b")).isInstanceOf(BooleanType.class);
+    assertThat(fn.apply("u")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("f")).isInstanceOf(BinaryType.class);
+    assertThat(fn.apply("bi")).isInstanceOf(BinaryType.class);
+    assertThat(fn.apply("li")).isInstanceOf(ListType.class);
+    assertThat(fn.apply("ma")).isInstanceOf(MapType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionStructWithNullValue() {
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNoSchemaEvolutionStructWithNullValue() {
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct().optional().field("a", Schema.INT32_SCHEMA).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNoSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.optional(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct().optional().field("a", Schema.OPTIONAL_INT32_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42);
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNestedSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42).put("b", "def");
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    // the new column is discovered from the record schema either way
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testStructWithNullValueForRequiredColumn(boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(2, "data", StringType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("data", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
+
+    // without a schema default to substitute, the null reaches the required column either way
+    Record record = converter.convert(data);
+
+    assertThat(record.getField("id")).isEqualTo(1);
+    assertThat(record.getField("data")).isNull();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "items",
+                ListType.ofRequired(
+                    2,
+                    StructType.of(
+                        NestedField.required(3, "product_id", IntegerType.get()),
+                        NestedField.optional(
+                            4,
+                            "details",
+                            StructType.of(NestedField.required(5, "name", StringType.get())))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema detailsSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("price", Schema.OPTIONAL_FLOAT64_SCHEMA)
+            .build();
+    Schema itemSchema =
+        SchemaBuilder.struct()
+            .field("product_id", Schema.INT32_SCHEMA)
+            .field("details", detailsSchema)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct().field("items", SchemaBuilder.array(itemSchema).build()).build();
+
+    Struct item = new Struct(itemSchema).put("product_id", 101).put("details", null);
+    Struct data = new Struct(connectSchema).put("items", ImmutableList.of(item));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    List<Record> items = (List<Record>) result.getField("items");
+    assertThat(items).hasSize(1);
+    assertThat(items.get(0).getField("product_id")).isEqualTo(101);
+    assertThat(items.get(0).getField("details")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("items.element.details");
+    assertThat(addCol.name()).isEqualTo("price");
+    assertThat(addCol.type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testNestedSchemaEvolutionMapOfStructsWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.optional(
+                1,
+                "metadata",
+                MapType.ofRequired(
+                    2,
+                    3,
+                    StringType.get(),
+                    StructType.of(
+                        NestedField.required(4, "key", StringType.get()),
+                        NestedField.optional(
+                            5,
+                            "info",
+                            StructType.of(NestedField.required(6, "name", StringType.get())))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema infoSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("value", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema mapValueSchema =
+        SchemaBuilder.struct().field("key", Schema.STRING_SCHEMA).field("info", infoSchema).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("metadata", SchemaBuilder.map(Schema.STRING_SCHEMA, mapValueSchema).build())
+            .build();
+
+    Struct mapValue = new Struct(mapValueSchema).put("key", "source_system").put("info", null);
+    Struct data = new Struct(connectSchema).put("metadata", ImmutableMap.of("source", mapValue));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    Map<String, Record> metadata = (Map<String, Record>) result.getField("metadata");
+    assertThat(metadata).containsKey("source");
+    assertThat(metadata.get("source").getField("key")).isEqualTo("source_system");
+    assertThat(metadata.get("source").getField("info")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("metadata.value.info");
+    assertThat(addCol.name()).isEqualTo("value");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionStructInStructWithNullParent() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "customer",
+                StructType.of(
+                    NestedField.required(3, "customer_id", IntegerType.get()),
+                    NestedField.optional(
+                        4,
+                        "details",
+                        StructType.of(NestedField.required(5, "name", StringType.get()))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema detailsSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("email", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema customerSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("customer_id", Schema.INT32_SCHEMA)
+            .field("details", detailsSchema)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("customer", customerSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("customer", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("customer")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("customer.details");
+    assertThat(addCol.name()).isEqualTo("email");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionTypePromotionWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "nested",
+                StructType.of(
+                    NestedField.required(3, "a", IntegerType.get()),
+                    NestedField.required(4, "b", FloatType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT64_SCHEMA)
+            .field("b", Schema.FLOAT64_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<UpdateType> updates = consumer.updateTypes();
+    assertThat(updates).hasSize(2);
+    Map<String, UpdateType> updateMap = Maps.newHashMap();
+    updates.forEach(update -> updateMap.put(update.name(), update));
+    assertThat(updateMap.get("nested.a").type()).isInstanceOf(LongType.class);
+    assertThat(updateMap.get("nested.b").type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionMakeOptionalWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "nested",
+                StructType.of(
+                    NestedField.required(3, "a", IntegerType.get()),
+                    NestedField.required(4, "b", StringType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.OPTIONAL_INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    assertThat(makeOptionals).hasSize(2);
+    Map<String, SchemaUpdate.MakeOptional> optionalMap = Maps.newHashMap();
+    makeOptionals.forEach(mo -> optionalMap.put(mo.name(), mo));
+    assertThat(optionalMap).containsKey("nested.a");
+    assertThat(optionalMap).containsKey("nested.b");
+  }
+
+  @Test
+  public void testSchemaEvolutionForFieldAndNestedFieldsAcrossTwoRecords() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema nestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("x", Schema.INT32_SCHEMA)
+            .field("y", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", nestedSchema)
+            .build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("nested");
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(0);
+
+    org.apache.iceberg.Schema updatedSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+    when(table.schema()).thenReturn(updatedSchema);
+    RecordConverter converter2 = new RecordConverter(table, config);
+
+    SchemaUpdate.Consumer consumer2 = new SchemaUpdate.Consumer();
+    Record result2 = converter2.convert(data, consumer2);
+
+    assertThat(result2.getField("id")).isEqualTo(1);
+    assertThat(result2.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols2 = consumer2.addColumns();
+    assertThat(addCols2).hasSize(1);
+    AddColumn addCol2 = addCols2.iterator().next();
+    assertThat(addCol2.parentName()).isEqualTo("nested");
+    assertThat(addCol2.name()).isEqualTo("y");
+    assertThat(addCol2.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNoNestedSchemaEvolutionMapKeyWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "data",
+                MapType.ofRequired(
+                    3,
+                    4,
+                    StructType.of(NestedField.required(5, "k1", StringType.get())),
+                    StringType.get())));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema keySchema =
+        SchemaBuilder.struct()
+            .field("k1", Schema.STRING_SCHEMA)
+            .field("k2", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema mapSchema =
+        SchemaBuilder.map(keySchema, Schema.OPTIONAL_STRING_SCHEMA).optional().build();
+    Schema connectSchema =
+        SchemaBuilder.struct().field("id", Schema.INT32_SCHEMA).field("data", mapSchema).build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("data")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(0);
+  }
+
+  @Test
+  public void testEvolveTypeDetectionStruct() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "ii", IntegerType.get()),
+            NestedField.required(2, "ff", FloatType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema valueSchema =
+        SchemaBuilder.struct().field("ii", Schema.INT64_SCHEMA).field("ff", Schema.FLOAT64_SCHEMA);
+    Struct data = new Struct(valueSchema).put("ii", 11L).put("ff", 22d);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<UpdateType> updates = consumer.updateTypes();
+
+    assertThat(updates).hasSize(2);
+
+    Map<String, UpdateType> updateMap = Maps.newHashMap();
+    updates.forEach(update -> updateMap.put(update.name(), update));
+
+    assertThat(updateMap.get("ii").type()).isInstanceOf(LongType.class);
+    assertThat(updateMap.get("ff").type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  public void testEvolveTypeDetectionStructNested() {
+    org.apache.iceberg.Schema structColSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "ii", IntegerType.get()),
+            NestedField.required(2, "ff", FloatType.get()));
+
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(3, "i", IntegerType.get()),
+            NestedField.required(4, "st", structColSchema.asStruct()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema structSchema =
+        SchemaBuilder.struct().field("ii", Schema.INT64_SCHEMA).field("ff", Schema.FLOAT64_SCHEMA);
+    Schema schema =
+        SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA).field("st", structSchema);
+    Struct structValue = new Struct(structSchema).put("ii", 11L).put("ff", 22d);
+    Struct data = new Struct(schema).put("i", 1).put("st", structValue);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<UpdateType> updates = consumer.updateTypes();
+
+    assertThat(updates).hasSize(2);
+
+    Map<String, UpdateType> updateMap = Maps.newHashMap();
+    updates.forEach(update -> updateMap.put(update.name(), update));
+
+    assertThat(updateMap.get("st.ii").type()).isInstanceOf(LongType.class);
+    assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
+  }
+
+  private RecordConverter variantConverter() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    return new RecordConverter(table, config);
+  }
+
+  @Test
+  public void testConvertVariantValueFromNull() {
+    Variant variant = variantConverter().convertVariantValue(null);
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.NULL);
+  }
+
+  @Test
+  public void testConvertOrdersOutputByTableSchemaNotSourceFieldOrder() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "a", LongType.get()),
+            NestedField.required(2, "b", LongType.get()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Connect struct declares its fields in the opposite order of the table schema.
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("b", Schema.INT64_SCHEMA)
+            .field("a", Schema.INT64_SCHEMA)
+            .build();
+    Struct data = new Struct(connectSchema).put("b", 200L).put("a", 100L);
+
+    Record record = converter.convert(data);
+
+    assertThat(record.get(0)).isEqualTo(100L);
+    assertThat(record.get(1)).isEqualTo(200L);
+  }
+
+  @Test
+  public void testConvertVariantValuePassThrough() {
+    Variant original = variantConverter().convertVariantValue("hello");
+    assertThat(variantConverter().convertVariantValue(original)).isSameAs(original);
+  }
+
+  @Test
+  public void testConvertVariantValueOrdersFieldNamesByUtf8() {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); UTF-16 orders them oppositely
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    Map<String, Object> input = Maps.newLinkedHashMap();
+    input.put(fourByteName, 2);
+    input.put(threeByteName, 1);
+
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant.metadata().get(0)).isEqualTo(threeByteName);
+    assertThat(variant.metadata().get(1)).isEqualTo(fourByteName);
+    assertThat(variant.value().asObject().get(threeByteName).asPrimitive().get()).isEqualTo(1);
+    assertThat(variant.value().asObject().get(fourByteName).asPrimitive().get()).isEqualTo(2);
+  }
+
+  @Test
+  public void testConvertVariantValueFromPrimitiveString() {
+    Variant variant = variantConverter().convertVariantValue("hello");
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo("hello");
+  }
+
+  @Test
+  public void testConvertVariantValueFromPrimitiveNumber() {
+    Variant variant = variantConverter().convertVariantValue(123);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(123);
+  }
+
+  @Test
+  public void testConvertVariantValueFromBoolean() {
+    Variant variant = variantConverter().convertVariantValue(true);
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(true);
+  }
+
+  @Test
+  public void testConvertVariantValueFromInstant() {
+    Instant instant = Instant.parse("2025-04-04T12:34:56.789Z");
+    Variant variant = variantConverter().convertVariantValue(instant);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromInstant(instant));
+  }
+
+  @Test
+  public void testConvertVariantValueFromOffsetDateTime() {
+    OffsetDateTime odt = OffsetDateTime.parse("2025-04-04T12:34:56.789+09:00");
+    Variant variant = variantConverter().convertVariantValue(odt);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(odt));
+  }
+
+  @Test
+  public void testConvertVariantValueFromZonedDateTime() {
+    ZonedDateTime zdt = ZonedDateTime.parse("2025-04-04T12:34:56.789-05:00[America/New_York]");
+    Variant variant = variantConverter().convertVariantValue(zdt);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(zdt.toOffsetDateTime()));
+  }
+
+  @Test
+  public void testConvertVariantValueFromLocalDateTime() {
+    LocalDateTime ldt = LocalDateTime.parse("2025-04-04T12:34:56.789");
+    Variant variant = variantConverter().convertVariantValue(ldt);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
+    assertThat(variant.value().asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamp(ldt));
+  }
+
+  @Test
+  public void testConvertVariantValueFromLocalDate() {
+    LocalDate date = LocalDate.of(2025, 4, 4);
+    Variant variant = variantConverter().convertVariantValue(date);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.DATE);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(DateTimeUtil.daysFromDate(date));
+  }
+
+  @Test
+  public void testConvertVariantValueFromLocalTime() {
+    LocalTime time = LocalTime.of(12, 34, 56, 789_000_000);
+    Variant variant = variantConverter().convertVariantValue(time);
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.TIME);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(DateTimeUtil.microsFromTime(time));
+  }
+
+  @Test
+  public void testConvertVariantValueFromList() {
+    // array with heterogeneous element types (string, int, boolean, double, null, nested array/map,
+    // java.time primitives). Note: java.util.Date is not supported without Connect logical schema.
+    Instant instant = Instant.parse("2025-04-04T12:34:56.789Z");
+    OffsetDateTime offsetTs = OffsetDateTime.parse("2025-04-04T12:34:56.789+09:00");
+    ZonedDateTime zonedTs = ZonedDateTime.parse("2025-04-04T12:34:56.789-05:00[America/New_York]");
+    LocalDateTime localTs = LocalDateTime.parse("2025-04-04T12:34:56.789");
+    LocalDate localDate = LocalDate.of(2025, 4, 4);
+    LocalTime localTime = LocalTime.of(12, 34, 56, 789_000_000);
+
+    List<Object> input =
+        Lists.newArrayList(
+            "a",
+            1,
+            true,
+            2.5,
+            null,
+            ImmutableList.of("a", "b"),
+            ImmutableMap.of("key1", "value1", "key2", "value2"),
+            instant,
+            offsetTs,
+            zonedTs,
+            localTs,
+            localDate,
+            localTime);
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().numElements()).isEqualTo(13);
+
+    assertThat(variant.value().asArray().get(0).type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("a");
+
+    assertThat(variant.value().asArray().get(1).type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asArray().get(1).asPrimitive().get()).isEqualTo(1);
+
+    assertThat(variant.value().asArray().get(2).type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asArray().get(2).asPrimitive().get()).isEqualTo(true);
+
+    assertThat(variant.value().asArray().get(3).type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(variant.value().asArray().get(3).asPrimitive().get()).isEqualTo(2.5);
+
+    assertThat(variant.value().asArray().get(4).type()).isEqualTo(PhysicalType.NULL);
+
+    assertThat(variant.value().asArray().get(5).type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().get(5).asArray().numElements()).isEqualTo(2);
+    assertThat(variant.value().asArray().get(5).asArray().get(0).asPrimitive().get())
+        .isEqualTo("a");
+    assertThat(variant.value().asArray().get(5).asArray().get(1).asPrimitive().get())
+        .isEqualTo("b");
+
+    assertThat(variant.value().asArray().get(6).type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asArray().get(6).asObject().numFields()).isEqualTo(2);
+    assertThat(variant.value().asArray().get(6).asObject().get("key1").asPrimitive().get())
+        .isEqualTo("value1");
+    assertThat(variant.value().asArray().get(6).asObject().get("key2").asPrimitive().get())
+        .isEqualTo("value2");
+
+    assertThat(variant.value().asArray().get(7).type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asArray().get(7).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromInstant(instant));
+
+    assertThat(variant.value().asArray().get(8).type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asArray().get(8).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(offsetTs));
+
+    assertThat(variant.value().asArray().get(9).type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asArray().get(9).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(zonedTs.toOffsetDateTime()));
+
+    assertThat(variant.value().asArray().get(10).type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
+    assertThat(variant.value().asArray().get(10).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamp(localTs));
+
+    assertThat(variant.value().asArray().get(11).type()).isEqualTo(PhysicalType.DATE);
+    assertThat(variant.value().asArray().get(11).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.daysFromDate(localDate));
+
+    assertThat(variant.value().asArray().get(12).type()).isEqualTo(PhysicalType.TIME);
+    assertThat(variant.value().asArray().get(12).asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTime(localTime));
+  }
+
+  @Test
+  public void testConvertVariantValueFromMap() {
+    // heterogeneous top-level values, nested map, java.time primitives;
+    // metadata shares one sorted dictionary for the whole tree
+    Instant instant = Instant.parse("2025-04-04T12:34:56.789Z");
+    OffsetDateTime offsetTs = OffsetDateTime.parse("2025-04-04T12:34:56.789+09:00");
+    ZonedDateTime zonedTs = ZonedDateTime.parse("2025-04-04T12:34:56.789-05:00[America/New_York]");
+    LocalDateTime localTs = LocalDateTime.parse("2025-04-04T12:34:56.789");
+    LocalDate localDate = LocalDate.of(2025, 4, 4);
+    LocalTime localTime = LocalTime.of(12, 34, 56, 789_000_000);
+
+    Map<String, Object> input = Maps.newLinkedHashMap();
+    input.put("s", "text");
+    input.put("i", 1);
+    input.put("bool", true);
+    input.put("d", 2.5);
+    input.put("n", null);
+    input.put("hello", ImmutableMap.of("world", 1));
+    input.put("tags", ImmutableList.of("a", "b"));
+    input.put("instant", instant);
+    input.put("odt", offsetTs);
+    input.put("zdt", zonedTs);
+    input.put("ldt", localTs);
+    input.put("ldate", localDate);
+    input.put("ltime", localTime);
+
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(14);
+    assertThat(variant.metadata().get(0)).isEqualTo("bool");
+    assertThat(variant.metadata().get(1)).isEqualTo("d");
+    assertThat(variant.metadata().get(2)).isEqualTo("hello");
+    assertThat(variant.metadata().get(3)).isEqualTo("i");
+    assertThat(variant.metadata().get(4)).isEqualTo("instant");
+    assertThat(variant.metadata().get(5)).isEqualTo("ldate");
+    assertThat(variant.metadata().get(6)).isEqualTo("ldt");
+    assertThat(variant.metadata().get(7)).isEqualTo("ltime");
+    assertThat(variant.metadata().get(8)).isEqualTo("n");
+    assertThat(variant.metadata().get(9)).isEqualTo("odt");
+    assertThat(variant.metadata().get(10)).isEqualTo("s");
+    assertThat(variant.metadata().get(11)).isEqualTo("tags");
+    assertThat(variant.metadata().get(12)).isEqualTo("world");
+    assertThat(variant.metadata().get(13)).isEqualTo("zdt");
+
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().numFields()).isEqualTo(13);
+
+    assertThat(variant.value().asObject().get("bool").type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asObject().get("bool").asPrimitive().get()).isEqualTo(true);
+
+    assertThat(variant.value().asObject().get("d").type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(variant.value().asObject().get("d").asPrimitive().get()).isEqualTo(2.5);
+
+    assertThat(variant.value().asObject().get("i").type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asObject().get("i").asPrimitive().get()).isEqualTo(1);
+
+    assertThat(variant.value().asObject().get("n").type()).isEqualTo(PhysicalType.NULL);
+
+    assertThat(variant.value().asObject().get("s").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asObject().get("s").asPrimitive().get()).isEqualTo("text");
+
+    VariantValue tags = variant.value().asObject().get("tags");
+    assertThat(tags.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(tags.asArray().numElements()).isEqualTo(2);
+    assertThat(tags.asArray().get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(tags.asArray().get(1).asPrimitive().get()).isEqualTo("b");
+
+    assertThat(variant.value().asObject().get("instant").type())
+        .isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asObject().get("instant").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromInstant(instant));
+
+    assertThat(variant.value().asObject().get("odt").type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asObject().get("odt").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(offsetTs));
+
+    assertThat(variant.value().asObject().get("zdt").type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asObject().get("zdt").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamptz(zonedTs.toOffsetDateTime()));
+
+    assertThat(variant.value().asObject().get("ldt").type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
+    assertThat(variant.value().asObject().get("ldt").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTimestamp(localTs));
+
+    assertThat(variant.value().asObject().get("ldate").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(variant.value().asObject().get("ldate").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.daysFromDate(localDate));
+
+    assertThat(variant.value().asObject().get("ltime").type()).isEqualTo(PhysicalType.TIME);
+    assertThat(variant.value().asObject().get("ltime").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.microsFromTime(localTime));
+
+    VariantValue nested = variant.value().asObject().get("hello");
+    assertThat(nested.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(nested.asObject().get("world").asPrimitive().get()).isEqualTo(1);
+  }
+
+  @Test
+  public void testConvertVariantValueFromStruct() {
+    // Nested Connect struct: primitives, array, and Timestamp / Time / Date (java.util.Date +
+    // logical types)
+    // 2025-04-04 12:34:56.789 UTC (aligned with java.time variant tests)
+    long tsMillis = 1743770096789L;
+    long timeMillis = 45296789L;
+    long dateMillis = 20182L * 86_400_000;
+
+    Schema innerSchema =
+        SchemaBuilder.struct()
+            .field("i", Schema.INT32_SCHEMA)
+            .field("str", Schema.STRING_SCHEMA)
+            .field("tags", SchemaBuilder.array(Schema.STRING_SCHEMA).build())
+            .field("ts", Timestamp.SCHEMA)
+            .field("t", Time.SCHEMA)
+            .field("d", org.apache.kafka.connect.data.Date.SCHEMA)
+            .build();
+    Schema outerSchema =
+        SchemaBuilder.struct().field("inner", innerSchema).field("id", Schema.INT64_SCHEMA).build();
+    Struct inner =
+        new Struct(innerSchema)
+            .put("i", 1)
+            .put("str", "world")
+            .put("tags", ImmutableList.of("a", "b"))
+            .put("ts", new Date(tsMillis))
+            .put("t", new Date(timeMillis))
+            .put("d", new Date(dateMillis));
+    Struct outer = new Struct(outerSchema).put("inner", inner).put("id", 100L);
+
+    Variant variant = variantConverter().convertVariantValue(outer);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(8);
+    assertThat(variant.metadata().get(0)).isEqualTo("d");
+    assertThat(variant.metadata().get(1)).isEqualTo("i");
+    assertThat(variant.metadata().get(2)).isEqualTo("id");
+    assertThat(variant.metadata().get(3)).isEqualTo("inner");
+    assertThat(variant.metadata().get(4)).isEqualTo("str");
+    assertThat(variant.metadata().get(5)).isEqualTo("t");
+    assertThat(variant.metadata().get(6)).isEqualTo("tags");
+    assertThat(variant.metadata().get(7)).isEqualTo("ts");
+
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(100L);
+
+    VariantValue innerVal = variant.value().asObject().get("inner");
+    assertThat(innerVal.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(innerVal.asObject().get("i").asPrimitive().get()).isEqualTo(1);
+    assertThat(innerVal.asObject().get("str").asPrimitive().get()).isEqualTo("world");
+    assertThat(innerVal.asObject().get("tags").type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(innerVal.asObject().get("tags").asArray().numElements()).isEqualTo(2);
+    assertThat(innerVal.asObject().get("tags").asArray().get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(innerVal.asObject().get("tags").asArray().get(1).asPrimitive().get()).isEqualTo("b");
+
+    assertThat(innerVal.asObject().get("ts").type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(innerVal.asObject().get("ts").asPrimitive().get()).isEqualTo(tsMillis * 1000);
+
+    assertThat(innerVal.asObject().get("t").type()).isEqualTo(PhysicalType.TIME);
+    assertThat(innerVal.asObject().get("t").asPrimitive().get()).isEqualTo(timeMillis * 1000);
+
+    assertThat(innerVal.asObject().get("d").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(innerVal.asObject().get("d").asPrimitive().get()).isEqualTo(20182);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testConvertVariantValueFromStructReplaceNullWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("memo", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct struct = new Struct(schema).put("id", 100L).put("memo", null);
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(100L);
+    if (replaceNullWithDefault) {
+      assertThat(variant.value().asObject().get("memo").asPrimitive().get()).isEqualTo("");
+    } else {
+      assertThat(variant.value().asObject().get("memo").type()).isEqualTo(PhysicalType.NULL);
+    }
+  }
+
+  public static Map<String, Object> createMapData() {
+    return ImmutableMap.<String, Object>builder()
+        .put("i", 1)
+        .put("l", 2L)
+        .put("d", DATE_VAL.toString())
+        .put("t", TIME_VAL.toString())
+        .put("ts", TS_VAL.toString())
+        .put("tsz", TSZ_VAL.toString())
+        .put("fl", 1.1f)
+        .put("do", 2.2d)
+        .put("dec", DEC_VAL.toString())
+        .put("s", STR_VAL)
+        .put("b", true)
+        .put("u", UUID_VAL.toString())
+        .put("f", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
+        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
+        .put("li", LIST_VAL)
+        .put("ma", MAP_VAL)
+        .build();
+  }
+
+  private Map<String, Object> createNestedMapData() {
+    return ImmutableMap.<String, Object>builder().put("ii", 11).put("st", createMapData()).build();
+  }
+
+  private Struct createStructData() {
+    return new Struct(CONNECT_SCHEMA)
+        .put("i", 1)
+        .put("l", 2L)
+        .put("d", new Date(DATE_VAL.toEpochDay() * 24 * 60 * 60 * 1000L))
+        .put("t", new Date(TIME_VAL.toNanoOfDay() / 1_000_000))
+        .put("ts", Date.from(TS_VAL.atZone(ZoneOffset.UTC).toInstant()))
+        .put("tsz", Date.from(TSZ_VAL.toInstant()))
+        .put("fl", 1.1f)
+        .put("do", 2.2d)
+        .put("dec", DEC_VAL)
+        .put("s", STR_VAL)
+        .put("b", true)
+        .put("u", UUID_VAL.toString())
+        .put("f", BYTES_VAL)
+        .put("bi", BYTES_VAL)
+        .put("li", LIST_VAL)
+        .put("ma", MAP_VAL);
+  }
+
+  private Struct createNestedStructData() {
+    return new Struct(CONNECT_NESTED_SCHEMA).put("ii", 11).put("st", createStructData());
+  }
+
+  private void assertRecordValues(Record record) {
+    GenericRecord rec = (GenericRecord) record;
+    assertThat(rec.getField("i")).isEqualTo(1);
+    assertThat(rec.getField("l")).isEqualTo(2L);
+    assertThat(rec.getField("d")).isEqualTo(DATE_VAL);
+    assertThat(rec.getField("t")).isEqualTo(TIME_VAL);
+    assertThat(rec.getField("ts")).isEqualTo(TS_VAL);
+    assertThat(rec.getField("tsz")).isEqualTo(TSZ_VAL);
+    assertThat(rec.getField("fl")).isEqualTo(1.1f);
+    assertThat(rec.getField("do")).isEqualTo(2.2d);
+    assertThat(rec.getField("dec")).isEqualTo(DEC_VAL);
+    assertThat(rec.getField("s")).isEqualTo(STR_VAL);
+    assertThat(rec.getField("b")).isEqualTo(true);
+    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL.array());
+    assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
+    assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
+    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
+  }
+
+  private void assertNestedRecordValues(Record record) {
+    GenericRecord rec = (GenericRecord) record;
+    assertThat(rec.getField("ii")).isEqualTo(11);
+    assertRecordValues((GenericRecord) rec.getField("st"));
+  }
+}

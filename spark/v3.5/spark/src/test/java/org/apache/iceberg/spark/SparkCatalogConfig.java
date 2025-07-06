@@ -38,15 +38,18 @@ public enum SparkCatalogConfig {
       "testrest",
       SparkCatalog.class.getName(),
       ImmutableMap.of("type", "rest", "cache-enabled", "false")),
-  SPARK(
+  SPARK_SESSION(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),
       ImmutableMap.of(
-          "type", "hive",
-          "default-namespace", "default",
-          "parquet-enabled", "true",
+          "type",
+          "hive",
+          "default-namespace",
+          "default",
+          "parquet-enabled",
+          "true",
           "cache-enabled",
-              "false" // Spark will delete tables using v1, leaving the cache out of sync
+          "false" // Spark will delete tables using v1, leaving the cache out of sync
           )),
   SPARK_WITH_VIEWS(
       "spark_with_views",
@@ -57,7 +60,15 @@ public enum SparkCatalogConfig {
           "default-namespace",
           "default",
           "cache-enabled",
-          "false"));
+          "false")),
+  SPARK_SESSION_WITH_VIEWS(
+      "spark_catalog",
+      SparkSessionCatalog.class.getName(),
+      ImmutableMap.of("type", "rest", "default-namespace", "default", "cache-enabled", "false")),
+  SPARK_WITH_HIVE_VIEWS(
+      "spark_hive_with_views",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of("type", "hive", "default-namespace", "default", "cache-enabled", "false"));
 
   private final String catalogName;
   private final String implementation;

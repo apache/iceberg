@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,23 +49,21 @@ public class TestAlterTableSchema extends ExtensionsTestBase {
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
-        .as("Should have new identifier field")
-        .isEqualTo(Sets.newHashSet(table.schema().findField("id").fieldId()));
+        .containsExactly(table.schema().findField("id").fieldId());
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
         .as("Should have new identifier field")
-        .isEqualTo(
-            Sets.newHashSet(
-                table.schema().findField("id").fieldId(),
-                table.schema().findField("location.lon").fieldId()));
+        .containsExactlyInAnyOrder(
+            table.schema().findField("id").fieldId(),
+            table.schema().findField("location.lon").fieldId());
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS location.lon", tableName);
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
         .as("Should have new identifier field")
-        .isEqualTo(Sets.newHashSet(table.schema().findField("location.lon").fieldId()));
+        .containsExactly(table.schema().findField("location.lon").fieldId());
   }
 
   @TestTemplate
@@ -100,31 +97,27 @@ public class TestAlterTableSchema extends ExtensionsTestBase {
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
         .as("Should have new identifier fields")
-        .isEqualTo(
-            Sets.newHashSet(
-                table.schema().findField("id").fieldId(),
-                table.schema().findField("location.lon").fieldId()));
+        .containsExactlyInAnyOrder(
+            table.schema().findField("id").fieldId(),
+            table.schema().findField("location.lon").fieldId());
 
     sql("ALTER TABLE %s DROP IDENTIFIER FIELDS id", tableName);
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
         .as("Should removed identifier field")
-        .isEqualTo(Sets.newHashSet(table.schema().findField("location.lon").fieldId()));
+        .containsExactly(table.schema().findField("location.lon").fieldId());
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
     assertThat(table.schema().identifierFieldIds())
         .as("Should have new identifier fields")
-        .isEqualTo(
-            Sets.newHashSet(
-                table.schema().findField("id").fieldId(),
-                table.schema().findField("location.lon").fieldId()));
+        .containsExactlyInAnyOrder(
+            table.schema().findField("id").fieldId(),
+            table.schema().findField("location.lon").fieldId());
 
     sql("ALTER TABLE %s DROP IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
-    assertThat(table.schema().identifierFieldIds())
-        .as("Should have no identifier field")
-        .isEqualTo(Sets.newHashSet());
+    assertThat(table.schema().identifierFieldIds()).as("Should have no identifier field").isEmpty();
   }
 
   @TestTemplate

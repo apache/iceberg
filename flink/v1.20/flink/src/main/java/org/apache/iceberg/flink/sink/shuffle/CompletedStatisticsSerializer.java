@@ -48,6 +48,18 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
     this.keySamplesSerializer = new ListSerializer<>(sortKeySerializer);
   }
 
+  public void changeSortKeySerializerVersion(int version) {
+    if (sortKeySerializer instanceof SortKeySerializer) {
+      ((SortKeySerializer) sortKeySerializer).setVersion(version);
+    }
+  }
+
+  public void changeSortKeySerializerVersionLatest() {
+    if (sortKeySerializer instanceof SortKeySerializer) {
+      ((SortKeySerializer) sortKeySerializer).restoreToLatestVersion();
+    }
+  }
+
   @Override
   public boolean isImmutableType() {
     return false;

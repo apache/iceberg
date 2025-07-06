@@ -69,7 +69,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
               CatalogProperties.CLIENT_POOL_SIZE,
-              "1"));
+              "1",
+              "include-credentials",
+              "true",
+              "gcs.oauth2.token",
+              "dummyToken"));
 
   protected static RESTCatalog restCatalog;
 
@@ -118,7 +122,8 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
   private void configureValidationCatalog() {
     if (catalogConfig.containsKey(ICEBERG_CATALOG_TYPE)) {
-      switch (catalogConfig.get(ICEBERG_CATALOG_TYPE)) {
+      String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
+      switch (catalogType) {
         case ICEBERG_CATALOG_TYPE_HADOOP:
           this.validationCatalog =
               new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse);
@@ -130,7 +135,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
           this.validationCatalog = catalog;
           break;
         default:
-          throw new IllegalArgumentException("Unknown catalog type");
+          throw new IllegalArgumentException("Unknown catalog type: " + catalogType);
       }
     } else if (catalogConfig.containsKey(CATALOG_IMPL)) {
       switch (catalogConfig.get(CATALOG_IMPL)) {

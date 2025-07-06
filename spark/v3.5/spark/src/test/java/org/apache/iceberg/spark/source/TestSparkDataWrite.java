@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +36,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Parameter;
@@ -44,14 +45,17 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
@@ -87,7 +91,7 @@ public class TestSparkDataWrite {
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {FileFormat.PARQUET, null},
-      new Object[] {FileFormat.PARQUET, "main"},
+      new Object[] {FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
       new Object[] {FileFormat.PARQUET, "testBranch"},
       new Object[] {FileFormat.AVRO, null},
       new Object[] {FileFormat.ORC, "testBranch"}
@@ -96,7 +100,12 @@ public class TestSparkDataWrite {
 
   @BeforeAll
   public static void startSpark() {
-    TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkDataWrite.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
+            .getOrCreate();
   }
 
   @AfterEach
@@ -112,7 +121,7 @@ public class TestSparkDataWrite {
   }
 
   @TestTemplate
-  public void testBasicWrite() throws IOException {
+  public void testBasicWrite() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -141,16 +150,16 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
         }
         assertThat(file.recordCount()).as("Should have reported record count as 1").isEqualTo(1);
+        assertThat(file.sortOrderId()).isEqualTo(SortOrder.unsorted().orderId());
         // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
           assertThat(file.columnSizes()).as("Column sizes metric not present").isNotNull();
@@ -164,7 +173,7 @@ public class TestSparkDataWrite {
   }
 
   @TestTemplate
-  public void testAppend() throws IOException {
+  public void testAppend() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -211,12 +220,11 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
-  public void testEmptyOverwrite() throws IOException {
+  public void testEmptyOverwrite() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -257,12 +265,11 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
-  public void testOverwrite() throws IOException {
+  public void testOverwrite() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -310,12 +317,11 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
-  public void testUnpartitionedOverwrite() throws IOException {
+  public void testUnpartitionedOverwrite() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -353,12 +359,11 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
-  public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
+  public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -393,123 +398,42 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
 
-    assertThat(files).as("Should have 4 DataFiles").hasSize(4);
-    assertThat(files.stream())
-        .as("All DataFiles contain 1000 rows")
-        .allMatch(d -> d.recordCount() == 1000);
+    assertThat(files)
+        .hasSize(4)
+        .allSatisfy(
+            dataFile ->
+                assertThat(dataFile.recordCount())
+                    .as("All DataFiles contain 1000 rows")
+                    .isEqualTo(1000));
   }
 
   @TestTemplate
-  public void testPartitionedCreateWithTargetFileSizeViaOption() throws IOException {
+  public void testPartitionedCreateWithTargetFileSizeViaOption() {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.NONE);
   }
 
   @TestTemplate
-  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption() throws IOException {
+  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption() {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.TABLE);
   }
 
   @TestTemplate
-  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption2() throws IOException {
+  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption2() {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.JOB);
   }
 
   @TestTemplate
-  public void testWriteProjection() throws IOException {
-    assumeThat(spark.version())
-        .as("Not supported in Spark 3; analysis requires all columns are present")
-        .startsWith("2");
-
-    File parent = temp.resolve(format.toString()).toFile();
-    File location = new File(parent, "test");
-    String targetLocation = locationWithBranch(location);
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
-    List<SimpleRecord> expected =
-        Lists.newArrayList(
-            new SimpleRecord(1, null), new SimpleRecord(2, null), new SimpleRecord(3, null));
-
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-
-    df.select("id")
-        .write() // select only id column
-        .format("iceberg")
-        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
-        .mode(SaveMode.Append)
-        .save(location.toString());
-
-    createBranch(table);
-    table.refresh();
-
-    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
-
-    List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testWriteProjectionWithMiddle() throws IOException {
-    assumeThat(spark.version())
-        .as("Not supported in Spark 3; analysis requires all columns are present")
-        .startsWith("2");
-
-    File parent = temp.resolve(format.toString()).toFile();
-    File location = new File(parent, "test");
-    String targetLocation = locationWithBranch(location);
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Schema schema =
-        new Schema(
-            optional(1, "c1", Types.IntegerType.get()),
-            optional(2, "c2", Types.StringType.get()),
-            optional(3, "c3", Types.StringType.get()));
-    Table table = tables.create(schema, spec, location.toString());
-
-    List<ThreeColumnRecord> expected =
-        Lists.newArrayList(
-            new ThreeColumnRecord(1, null, "hello"),
-            new ThreeColumnRecord(2, null, "world"),
-            new ThreeColumnRecord(3, null, null));
-
-    Dataset<Row> df = spark.createDataFrame(expected, ThreeColumnRecord.class);
-
-    df.select("c1", "c3")
-        .write()
-        .format("iceberg")
-        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
-        .mode(SaveMode.Append)
-        .save(location.toString());
-
-    createBranch(table);
-    table.refresh();
-
-    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
-
-    List<ThreeColumnRecord> actual =
-        result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testViewsReturnRecentResults() throws IOException {
+  public void testViewsReturnRecentResults() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -540,8 +464,7 @@ public class TestSparkDataWrite {
     List<SimpleRecord> actual1 =
         spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expected1 = Lists.newArrayList(new SimpleRecord(1, "a"));
-    assertThat(actual1).as("Number of rows should match").hasSameSizeAs(expected1);
-    assertThat(actual1).as("Result rows should match").isEqualTo(expected1);
+    assertThat(actual1).hasSameSizeAs(expected1).isEqualTo(expected1);
 
     df.select("id", "data")
         .write()
@@ -554,12 +477,120 @@ public class TestSparkDataWrite {
         spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expected2 =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "a"));
-    assertThat(actual2).as("Number of rows should match").hasSameSizeAs(expected2);
-    assertThat(actual2).as("Result rows should match").isEqualTo(expected2);
+    assertThat(actual2).hasSameSizeAs(expected2).isEqualTo(expected2);
   }
 
-  public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option)
-      throws IOException {
+  @TestTemplate
+  public void testWriteDataFilesInTableSortOrder() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").build();
+    Table table = tables.create(SCHEMA, spec, sortOrder, ImmutableMap.of(), location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(10);
+    for (int i = 0; i < 10; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
+      assertThat(fileScanTasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("All DataFiles are written with the table sort order id")
+          .containsOnly(table.sortOrder().orderId());
+    }
+  }
+
+  @TestTemplate
+  public void testWriteDataFilesUnsortedTable() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(new SimpleRecord(1, "a"));
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("All DataFiles should have unsorted sort order id")
+          .containsOnly(SortOrder.unsorted().orderId());
+    }
+  }
+
+  @TestTemplate
+  public void testWriteDataFilesAfterSortOrderChange() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "a"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+    int unsortedId = SortOrder.unsorted().orderId();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks).extracting(task -> task.file().sortOrderId()).containsOnly(unsortedId);
+    }
+
+    table.replaceSortOrder().asc("id").commit();
+    int sortedId = table.sortOrder().orderId();
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("Should contain both unsorted and sorted files")
+          .containsOnly(unsortedId, sortedId);
+    }
+  }
+
+  public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option) {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
@@ -593,7 +624,7 @@ public class TestSparkDataWrite {
             .save(location.toString());
         break;
       case TABLE:
-        table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+        table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
         df.select("id", "data")
             .write()
             .format("iceberg")
@@ -622,25 +653,27 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
-    assertThat(actual).as("Result rows should match").isEqualTo(expected);
+        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
-    assertThat(files).as("Should have 8 DataFiles").hasSize(8);
-    assertThat(files.stream())
-        .as("All DataFiles contain 1000 rows")
-        .allMatch(d -> d.recordCount() == 1000);
+    assertThat(files)
+        .hasSize(8)
+        .allSatisfy(
+            dataFile ->
+                assertThat(dataFile.recordCount())
+                    .as("All DataFiles contain 1000 rows")
+                    .isEqualTo(1000));
   }
 
   @TestTemplate
-  public void testCommitUnknownException() throws IOException {
+  public void testCommitUnknownException() {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "commitunknown");
     String targetLocation = locationWithBranch(location);
@@ -709,9 +742,8 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).as("Number of rows should match").hasSize(records.size() + records2.size());
     assertThat(actual)
-        .describedAs("Result rows should match")
+        .hasSize(records.size() + records2.size())
         .containsExactlyInAnyOrder(
             ImmutableList.<SimpleRecord>builder()
                 .addAll(records)

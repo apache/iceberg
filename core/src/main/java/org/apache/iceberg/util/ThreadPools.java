@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.util;
 
+import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -31,14 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 public class ThreadPools {
 
   private ThreadPools() {}
-
-  /**
-   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE WORKER_THREAD_POOL_SIZE} instead;
-   *     will be removed in 2.0.0
-   */
-  @Deprecated
-  public static final String WORKER_THREAD_POOL_SIZE_PROP =
-      SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
 
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
@@ -50,6 +44,9 @@ public class ThreadPools {
 
   private static final ExecutorService DELETE_WORKER_POOL =
       newExitingWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
+
+  public static final int AUTH_REFRESH_THREAD_POOL_SIZE =
+      SystemConfigs.AUTH_REFRESH_THREAD_POOL_SIZE.value();
 
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
@@ -83,45 +80,17 @@ public class ThreadPools {
   }
 
   /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
-   *
-   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
-   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
-   * depending on the intended lifecycle of the thread pool.
-   *
-   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
-   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
-   *     int)} for short-lived thread pools where you manage the lifecycle.
+   * A shared {@link ScheduledExecutorService} that REST catalogs can use for refreshing their
+   * authentication data.
    */
-  @Deprecated
-  public static ExecutorService newWorkerPool(String namePrefix) {
-    return newExitingWorkerPool(namePrefix, WORKER_THREAD_POOL_SIZE);
+  public static ScheduledExecutorService authRefreshPool() {
+    return AuthRefreshPoolHolder.INSTANCE;
   }
 
-  /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
-   *
-   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
-   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
-   * depending on the intended lifecycle of the thread pool.
-   *
-   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
-   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
-   *     int)} for short-lived thread pools where you manage the lifecycle.
-   */
-  @Deprecated
-  public static ExecutorService newWorkerPool(String namePrefix, int poolSize) {
-    return newExitingWorkerPool(namePrefix, poolSize);
+  private static class AuthRefreshPoolHolder {
+    private static final ScheduledExecutorService INSTANCE =
+        ThreadPools.newExitingScheduledPool(
+            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ZERO);
   }
 
   /**
@@ -150,6 +119,23 @@ public class ThreadPools {
    */
   public static ScheduledExecutorService newScheduledPool(String namePrefix, int poolSize) {
     return new ScheduledThreadPoolExecutor(poolSize, newDaemonThreadFactory(namePrefix));
+  }
+
+  /**
+   * Create a new {@link ScheduledExecutorService} with the given name and pool size.
+   *
+   * <p>Threads used by this service will be daemon threads.
+   *
+   * <p>The service registers a shutdown hook to ensure that it terminates when the JVM exits. This
+   * is suitable for long-lived thread pools that should be automatically cleaned up on JVM
+   * shutdown.
+   */
+  public static ScheduledExecutorService newExitingScheduledPool(
+      String namePrefix, int poolSize, Duration terminationTimeout) {
+    return MoreExecutors.getExitingScheduledExecutorService(
+        (ScheduledThreadPoolExecutor) newScheduledPool(namePrefix, poolSize),
+        terminationTimeout.toMillis(),
+        TimeUnit.MILLISECONDS);
   }
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {

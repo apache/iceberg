@@ -20,7 +20,7 @@ title: "Flink DDL"
 
 ## DDL commands
 
-###  `CREATE Catalog`
+### `CREATE Catalog`
 
 #### Hive catalog
 
@@ -44,6 +44,23 @@ The following properties can be set if using the Hive catalog:
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwritten with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
 * `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values.
+
+!!! warning "Hive Catalog Limitation"
+    The Hive Metastore (HMS) validates schema changes by comparing column types **positionally**
+    (`hive.metastore.disallow.incompatible.col.type.changes`, default `true`). When using a Hive catalog,
+    schema evolution operations that change column positions — such as dropping a non-last column or
+    reordering columns — may fail regardless of which engine performs the change (Spark, Flink Java API, etc.).
+
+    To work around this, disable the HMS schema compatibility check by setting
+    `hive.metastore.disallow.incompatible.col.type.changes=false`:
+
+    - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
+    - **Embedded HMS:** Add the equivalent property to the Hive catalog configuration.
+
+    **Trade-off:** After disabling this check, the Hive engine may no longer be able to read the table
+    correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink,
+    Trino, etc.) will continue to work correctly, as they read schema from Iceberg metadata rather
+    than the Hive Metastore.
 
 #### Hadoop catalog
 
@@ -152,6 +169,18 @@ Table create commands support the commonly used [Flink create clauses](https://n
 * `COMMENT 'table document'` to set a table description.
 * `WITH ('key'='value', ...)` to set [table configuration](configuration.md) which will be stored in Iceberg table properties.
 
+To specify the table location, use `WITH ('location'='fully-qualified-uri')`:
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT COMMENT 'unique id',
+    data STRING NOT NULL
+) WITH (
+    'format-version'='2', 
+    'location'='hdfs//nn:8020/custom-path'
+);
+```
+
 Currently, it does not support computed column and watermark definition etc.
 
 #### `PRIMARY KEY`
@@ -197,13 +226,54 @@ CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`defaul
 
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sql/create/).
 
-
 ### `ALTER TABLE`
 
-Iceberg only support altering table properties:
+Iceberg supports altering table properties and columns in Flink. Altering partition fields, watermarks, and computed columns is not supported.
+
+#### `ALTER TABLE .. SET / RESET`
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
+ALTER TABLE `hive_catalog`.`default`.`sample` RESET ('write.format.default');
+```
+
+#### `ALTER TABLE .. ADD`
+
+Add new columns, optionally with a comment and a position (`FIRST` or `AFTER column`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (col1 STRING COMMENT 'new column', col2 BIGINT AFTER id);
+```
+
+Set the identifier fields by adding a primary key (all primary key columns must be declared `NOT NULL`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (PRIMARY KEY (id) NOT ENFORCED);
+```
+
+#### `ALTER TABLE .. DROP`
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` DROP (col1, col2);
+```
+
+#### `ALTER TABLE .. RENAME`
+
+Rename a column:
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` RENAME col1 TO col3;
+```
+
+#### `ALTER TABLE .. MODIFY`
+
+Change a column's type (only [safe type promotions](../../spec.md#schema-evolution) such as `INT` to `BIGINT`), position, or comment, make a required column optional (the reverse is not allowed), or replace the primary key (primary key columns must be `NOT NULL`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (id BIGINT);
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (col3 STRING FIRST);
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (col3 STRING COMMENT 'updated comment');
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (PRIMARY KEY (id, data) NOT ENFORCED);
 ```
 
 ### `ALTER TABLE .. RENAME TO`

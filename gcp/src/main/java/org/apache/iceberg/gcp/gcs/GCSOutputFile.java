@@ -32,13 +32,24 @@ import org.apache.iceberg.metrics.MetricsContext;
 class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   static GCSOutputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
+      String location, PrefixedStorage storage, MetricsContext metrics) {
+    return new GCSOutputFile(
+        storage.storage(),
+        storage.gcsFileSystem(),
+        BlobId.fromGsUtilUri(location),
+        storage.gcpProperties(),
+        metrics);
   }
 
   GCSOutputFile(
-      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
-    super(storage, blobId, gcpProperties, metrics);
+      Storage storage,
+      // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+      // AnalyticsCoreUtil.
+      AutoCloseable gcsFileSystem,
+      BlobId blobId,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
+    super(storage, gcsFileSystem, blobId, gcpProperties, metrics);
   }
 
   /**
@@ -67,6 +78,6 @@ class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new GCSInputFile(storage(), blobId(), null, gcpProperties(), metrics());
+    return new GCSInputFile(storage(), gcsFileSystem(), blobId(), null, gcpProperties(), metrics());
   }
 }

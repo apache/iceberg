@@ -50,7 +50,8 @@ public class NDVSketchUtil {
       SparkSession spark, Table table, Snapshot snapshot, List<String> columns) {
     Row sketches = computeNDVSketches(spark, table, snapshot, columns);
     Schema schema = table.schemas().get(snapshot.schemaId());
-    List<Blob> blobs = Lists.newArrayList();
+    List<Blob> blobs = Lists.newArrayListWithExpectedSize(columns.size());
+
     for (int i = 0; i < columns.size(); i++) {
       Types.NestedField field = schema.findField(columns.get(i));
       Sketch sketch = CompactSketch.wrap(Memory.wrap((byte[]) sketches.get(i)));

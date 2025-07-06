@@ -20,15 +20,11 @@ package org.apache.iceberg.aws.s3.signer;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -40,15 +36,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.RemoteSigningConfig;
+import org.apache.iceberg.rest.RemoteSigningConfigParser;
 import org.apache.iceberg.rest.ResourcePaths;
-import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
-import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ThreadPools;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,46 +66,53 @@ import software.amazon.awssdk.utils.IoUtils;
 
 @Value.Immutable
 public abstract class S3V4RestSignerClient
-    extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> {
+    extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
-  public static final String S3_SIGNER_URI = "s3.signer.uri";
-  public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
-  static final String S3_SIGNER_DEFAULT_ENDPOINT = "v1/aws/s3/sign";
-  static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
-  static final String CACHE_CONTROL = "Cache-Control";
-  static final String CACHE_CONTROL_PRIVATE = "private";
-  static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+
+  public static final String S3_PROVIDER = "s3";
+
+  @VisibleForTesting static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
+
+  private static final String CACHE_CONTROL = "Cache-Control";
+  private static final String CACHE_CONTROL_PRIVATE = "private";
 
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
   private static final String SCOPE = "sign";
 
-  @SuppressWarnings("immutables:incompat")
-  private static volatile ScheduledExecutorService tokenRefreshExecutor;
+  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
+  @VisibleForTesting
+  static volatile AuthManager authManager;
 
-  @SuppressWarnings("immutables:incompat")
-  private static volatile RESTClient httpClient;
-
-  @SuppressWarnings("immutables:incompat")
-  private static volatile Cache<String, AuthSession> authSessionCache;
+  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
+  @VisibleForTesting
+  static volatile RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
+  @Value.Derived
+  public RemoteSigningConfig remoteSigningConfig() {
+    String json = properties().get(RESTCatalogProperties.REMOTE_SIGNING_CONFIG);
+    return json == null ? RemoteSigningConfig.EMPTY : RemoteSigningConfigParser.fromJson(json);
+  }
+
   @Value.Default
   public Supplier<Map<String, String>> requestPropertiesSupplier() {
-    return Collections::emptyMap;
+    return remoteSigningConfig()::properties;
   }
 
   @Value.Lazy
   public String baseSignerUri() {
-    return properties().getOrDefault(S3_SIGNER_URI, properties().get(CatalogProperties.URI));
+    return properties().get(CatalogProperties.URI);
   }
 
   @Value.Lazy
   public String endpoint() {
-    return properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    String endpointPath = properties().get(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT);
+
+    return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
 
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
@@ -116,12 +125,16 @@ public abstract class S3V4RestSignerClient
   /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
   @Value.Lazy
   public String oauth2ServerUri() {
-    return properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    String oauth2ServerUri =
+        properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    return oauth2ServerUri.startsWith("http")
+        ? oauth2ServerUri
+        : RESTUtil.resolveEndpoint(baseSignerUri(), oauth2ServerUri);
   }
 
   @Value.Lazy
   public Map<String, String> optionalOAuthParams() {
-    return OAuth2Util.buildOptionalParam(properties());
+    return OAuth2Util.buildOptionalParam(properties(), SCOPE);
   }
 
   /** A Bearer token supplier which will be used for interaction with the server. */
@@ -138,60 +151,39 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
-  @VisibleForTesting
-  ScheduledExecutorService tokenRefreshExecutor() {
-    if (!keepTokenRefreshed()) {
-      return null;
-    }
-
-    if (null == tokenRefreshExecutor) {
-      synchronized (S3V4RestSignerClient.class) {
-        if (null == tokenRefreshExecutor) {
-          tokenRefreshExecutor = ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
-        }
-      }
-    }
-
-    return tokenRefreshExecutor;
+  /**
+   * Converts the catalog-provided static {@link RemoteSigningConfig#headers() headers} into headers
+   * for the request to the signing endpoint. Multivalued headers are joined using the standard HTTP
+   * comma separator.
+   */
+  @Value.Lazy
+  Map<String, String> signingEndpointHeaders() {
+    return remoteSigningConfig().headers().entrySet().stream()
+        .map(e -> Map.entry(e.getKey(), String.join(", ", e.getValue())))
+        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
-  private Cache<String, AuthSession> authSessionCache() {
-    if (null == authSessionCache) {
+  private AuthManager authManager() {
+    if (null == authManager) {
       synchronized (S3V4RestSignerClient.class) {
-        if (null == authSessionCache) {
-          long expirationIntervalMs =
-              PropertyUtil.propertyAsLong(
-                  properties(),
-                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
-                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
-
-          authSessionCache =
-              Caffeine.newBuilder()
-                  .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
-                  .removalListener(
-                      (RemovalListener<String, AuthSession>)
-                          (id, auth, cause) -> {
-                            if (null != auth) {
-                              LOG.trace("Stopping refresh for AuthSession");
-                              auth.stopRefreshing();
-                            }
-                          })
-                  .build();
+        if (null == authManager) {
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
         }
       }
     }
 
-    return authSessionCache;
+    return authManager;
   }
 
   private RESTClient httpClient() {
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
+          // Don't include a base URI because this client may be used for contacting different
+          // catalogs.
           httpClient =
               HTTPClient.builder(properties())
-                  .uri(baseSignerUri())
-                  .withObjectMapper(S3ObjectMapper.mapper())
+                  .withHeaders(RESTUtil.configHeaders(properties()))
                   .build();
         }
       }
@@ -200,82 +192,39 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
-  private AuthSession authSession() {
+  @VisibleForTesting
+  AuthSession authSession() {
+    ImmutableMap.Builder<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties())
+            .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+            .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
+            .put(OAuth2Properties.SCOPE, SCOPE)
+            .putAll(optionalOAuthParams());
     String token = token().get();
     if (null != token) {
-      return authSessionCache()
-          .get(
-              token,
-              id ->
-                  AuthSession.fromAccessToken(
-                      httpClient(),
-                      tokenRefreshExecutor(),
-                      token,
-                      expiresAtMillis(properties()),
-                      new AuthSession(
-                          ImmutableMap.of(),
-                          AuthConfig.builder()
-                              .token(token)
-                              .credential(credential())
-                              .scope(SCOPE)
-                              .oauth2ServerUri(oauth2ServerUri())
-                              .optionalOAuthParams(optionalOAuthParams())
-                              .build())));
+      properties.put(OAuth2Properties.TOKEN, token);
     }
 
     if (credentialProvided()) {
-      return authSessionCache()
-          .get(
-              credential(),
-              id -> {
-                AuthSession session =
-                    new AuthSession(
-                        ImmutableMap.of(),
-                        AuthConfig.builder()
-                            .credential(credential())
-                            .scope(SCOPE)
-                            .oauth2ServerUri(oauth2ServerUri())
-                            .optionalOAuthParams(optionalOAuthParams())
-                            .build());
-                long startTimeMillis = System.currentTimeMillis();
-                OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(
-                        httpClient(),
-                        session.headers(),
-                        credential(),
-                        SCOPE,
-                        oauth2ServerUri(),
-                        optionalOAuthParams());
-                return AuthSession.fromTokenResponse(
-                    httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
-              });
+      properties.put(OAuth2Properties.CREDENTIAL, credential());
     }
 
-    return AuthSession.empty();
+    return authManager().tableSession(httpClient(), properties.buildKeepingLast());
   }
 
   private boolean credentialProvided() {
     return null != credential() && !credential().isEmpty();
   }
 
-  private Long expiresAtMillis(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      long expiresInMillis =
-          PropertyUtil.propertyAsLong(
-              properties,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-      return System.currentTimeMillis() + expiresInMillis;
-    } else {
-      return null;
-    }
-  }
-
   @Value.Check
   protected void check() {
     Preconditions.checkArgument(
-        properties().containsKey(S3_SIGNER_URI) || properties().containsKey(CatalogProperties.URI),
-        "S3 signer service URI is required");
+        properties().containsKey(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT),
+        "Remote signing endpoint is required");
+
+    Preconditions.checkArgument(
+        properties().containsKey(CatalogProperties.URI), "S3 signer service URI is required");
   }
 
   @Override
@@ -288,6 +237,7 @@ public abstract class S3V4RestSignerClient
     checkSignerParams(signerParams);
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   protected void processRequestPayload(
       SdkHttpFullRequest.Builder mutableRequest,
@@ -317,14 +267,15 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
-    S3SignRequest remoteSigningRequest =
-        ImmutableS3SignRequest.builder()
+    RemoteSignRequest remoteSigningRequest =
+        ImmutableRemoteSignRequest.builder()
             .method(request.method().name())
             .region(signerParams.signingRegion().id())
             .uri(request.getUri())
             .headers(request.headers())
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
+            .provider(S3_PROVIDER)
             .build();
 
     Key cacheKey = Key.from(remoteSigningRequest);
@@ -334,22 +285,25 @@ public abstract class S3V4RestSignerClient
     if (null != cachedSignedComponent) {
       signedComponent = cachedSignedComponent;
     } else {
-      Map<String, String> responseHeaders = Maps.newHashMap();
+      // Case-insensitive because canBeCached looks Cache-Control up by its traditional spelling,
+      // while a server may hand the header over in any case (RFC 9110).
+      Map<String, String> responseHeaders = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      S3SignResponse s3SignResponse =
+      RemoteSignResponse remoteSignResponse =
           httpClient()
+              .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
-                  S3SignResponse.class,
-                  () -> authSession().headers(),
+                  RemoteSignResponse.class,
+                  signingEndpointHeaders(),
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
       signedComponent =
           ImmutableSignedComponent.builder()
-              .headers(s3SignResponse.headers())
-              .signedURI(s3SignResponse.uri())
+              .headers(remoteSignResponse.headers())
+              .signedURI(remoteSignResponse.uri())
               .build();
 
       if (canBeCached(responseHeaders)) {
@@ -366,6 +320,9 @@ public abstract class S3V4RestSignerClient
 
     return mutableRequest.build();
   }
+
+  @Override
+  public void close() throws Exception {}
 
   /**
    * Only add body for DeleteObjectsRequest. Refer to
@@ -423,7 +380,7 @@ public abstract class S3V4RestSignerClient
 
     String uri();
 
-    static Key from(S3SignRequest request) {
+    static Key from(RemoteSignRequest request) {
       return ImmutableKey.builder()
           .method(request.method())
           .region(request.region())

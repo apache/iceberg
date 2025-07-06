@@ -45,6 +45,7 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
+import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
@@ -56,6 +57,14 @@ abstract class BaseProcedure implements Procedure {
   protected static final DataType STRING_MAP =
       DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
   protected static final DataType STRING_ARRAY = DataTypes.createArrayType(DataTypes.StringType);
+
+  protected static ProcedureParameter requiredInParameter(String name, DataType dataType) {
+    return ProcedureParameter.required(name, dataType);
+  }
+
+  protected static ProcedureParameter optionalInParameter(String name, DataType dataType) {
+    return ProcedureParameter.optional(name, dataType);
+  }
 
   private final SparkSession spark;
   private final TableCatalog tableCatalog;

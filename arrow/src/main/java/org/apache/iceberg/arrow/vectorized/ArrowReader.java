@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.iceberg.CombinedScanTask;
@@ -40,13 +39,14 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -73,10 +73,14 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.LongType}, Arrow: {@link MinorType#BIGINT}
  *   <li>Iceberg: {@link Types.FloatType}, Arrow: {@link MinorType#FLOAT4}
  *   <li>Iceberg: {@link Types.DoubleType}, Arrow: {@link MinorType#FLOAT8}
+ *   <li>Iceberg: {@link Types.DecimalType}, Arrow: {@link MinorType#DECIMAL}
  *   <li>Iceberg: {@link Types.StringType}, Arrow: {@link MinorType#VARCHAR}
  *   <li>Iceberg: {@link Types.TimestampType} (both with and without timezone), Arrow: {@link
- *       MinorType#TIMEMICRO}
+ *       MinorType#TIMESTAMPMICRO} and {@link MinorType#TIMESTAMPMICROTZ}
+ *   <li>Iceberg: {@link Types.TimestampNanoType} (both with and without timezone), Arrow: {@link
+ *       MinorType#TIMESTAMPNANO} and {@link MinorType#TIMESTAMPNANOTZ}
  *   <li>Iceberg: {@link Types.BinaryType}, Arrow: {@link MinorType#VARBINARY}
+ *   <li>Iceberg: {@link Types.FixedType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
  *   <li>Iceberg: {@link Types.TimeType}, Arrow: {@link MinorType#TIMEMICRO}
  *   <li>Iceberg: {@link Types.UUIDType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}(16)
@@ -88,11 +92,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Type promotion: In case of type promotion, the Arrow vector corresponding to the data type
  *       in the parquet file is returned instead of the data type in the latest schema. See
  *       https://github.com/apache/iceberg/issues/2483.
- *   <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector type
- *       is int32 instead of the type as per the schema. See
- *       https://github.com/apache/iceberg/issues/2484.
- *   <li>Data types: {@link Types.ListType}, {@link Types.MapType}, {@link Types.StructType}, {@link
- *       Types.FixedType} and {@link Types.DecimalType} See
+ *   <li>Data types: {@link Types.ListType}, {@link Types.MapType} and {@link Types.StructType} See
  *       https://github.com/apache/iceberg/issues/2485 and
  *       https://github.com/apache/iceberg/issues/2486.
  *   <li>Delete files are not supported. See https://github.com/apache/iceberg/issues/2487.
@@ -114,7 +114,9 @@ public class ArrowReader extends CloseableGroup {
           TypeID.DATE,
           TypeID.UUID,
           TypeID.TIME,
-          TypeID.DECIMAL);
+          TypeID.DECIMAL,
+          TypeID.FIXED,
+          TypeID.TIMESTAMP_NANO);
 
   private final Schema schema;
   private final FileIO io;
@@ -187,8 +189,7 @@ public class ArrowReader extends CloseableGroup {
    * Reads the data file and returns an iterator of {@link VectorSchemaRoot}. Only Parquet data file
    * format is supported.
    */
-  private static final class VectorizedCombinedScanIterator
-      implements CloseableIterator<ColumnarBatch> {
+  static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
     private final Iterator<FileScanTask> fileItr;
     private final Map<String, InputFile> inputFiles;
@@ -322,19 +323,8 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
-                .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
-                .recordsPerBatch(batchSize)
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
+        ReadBuilder<ColumnarBatch, ?> builder =
+            FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
 
         if (reuseContainers) {
           builder.reuseContainers();
@@ -343,7 +333,14 @@ public class ArrowReader extends CloseableGroup {
           builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
         }
 
-        iter = builder.build();
+        iter =
+            builder
+                .project(expectedSchema)
+                .split(task.start(), task.length())
+                .recordsPerBatch(batchSize)
+                .caseSensitive(caseSensitive)
+                .filter(task.residual())
+                .build();
       } else {
         throw new UnsupportedOperationException(
             "Format: " + task.file().format() + " not supported for batched reads");
@@ -374,7 +371,7 @@ public class ArrowReader extends CloseableGroup {
      * @param fileSchema Schema of the data file.
      * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
      */
-    private static ArrowBatchReader buildReader(
+    static ArrowBatchReader buildReader(
         Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(

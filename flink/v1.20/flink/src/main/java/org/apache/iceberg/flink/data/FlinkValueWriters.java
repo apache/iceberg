@@ -31,6 +31,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 
@@ -48,6 +49,14 @@ public class FlinkValueWriters {
 
   static ValueWriter<TimestampData> timestampMicros() {
     return TimestampMicrosWriter.INSTANCE;
+  }
+
+  static ValueWriter<TimestampData> timestampNanos() {
+    return TimestampNanosWriter.INSTANCE;
+  }
+
+  static ValueWriter<byte[]> uuids() {
+    return UUIDWriter.INSTANCE;
   }
 
   static ValueWriter<DecimalData> decimal(int precision, int scale) {
@@ -126,6 +135,26 @@ public class FlinkValueWriters {
       long micros =
           timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
       encoder.writeLong(micros);
+    }
+  }
+
+  private static class TimestampNanosWriter implements ValueWriter<TimestampData> {
+    private static final TimestampNanosWriter INSTANCE = new TimestampNanosWriter();
+
+    @Override
+    public void write(TimestampData timestampData, Encoder encoder) throws IOException {
+      long nanos =
+          timestampData.getMillisecond() * 1_000_000 + timestampData.getNanoOfMillisecond();
+      encoder.writeLong(nanos);
+    }
+  }
+
+  private static class UUIDWriter implements ValueWriter<byte[]> {
+    private static final UUIDWriter INSTANCE = new UUIDWriter();
+
+    @Override
+    public void write(byte[] bytes, Encoder encoder) throws IOException {
+      encoder.writeFixed(bytes);
     }
   }
 
@@ -229,7 +258,7 @@ public class FlinkValueWriters {
       this.getters = new RowData.FieldGetter[writers.size()];
       for (int i = 0; i < writers.size(); i += 1) {
         this.writers[i] = writers.get(i);
-        this.getters[i] = RowData.createFieldGetter(types.get(i), i);
+        this.getters[i] = FlinkRowData.createFieldGetter(types.get(i), i);
       }
     }
 

@@ -21,9 +21,11 @@ package org.apache.iceberg.types;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.UnicodeUtil;
 
 public class Comparators {
@@ -46,6 +48,7 @@ public class Comparators {
           .put(Types.StringType.get(), Comparators.charSequences())
           .put(Types.UUIDType.get(), Comparator.naturalOrder())
           .put(Types.BinaryType.get(), Comparators.unsignedBytes())
+          .put(Types.UnknownType.get(), Comparator.nullsFirst(Comparator.naturalOrder()))
           .buildOrThrow();
 
   public static Comparator<StructLike> forType(Types.StructType struct) {
@@ -54,6 +57,10 @@ public class Comparators {
 
   public static <T> Comparator<List<T>> forType(Types.ListType list) {
     return new ListComparator<>(list);
+  }
+
+  public static <K, V> Comparator<Map<K, V>> forType(Types.MapType mapType) {
+    return new MapComparator<>(mapType);
   }
 
   @SuppressWarnings("unchecked")
@@ -78,6 +85,8 @@ public class Comparators {
       return (Comparator<T>) forType(type.asStructType());
     } else if (type.isListType()) {
       return (Comparator<T>) forType(type.asListType());
+    } else if (type.isMapType()) {
+      return (Comparator<T>) forType(type.asMapType());
     }
 
     throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
@@ -146,6 +155,51 @@ public class Comparators {
       }
 
       return Integer.compare(o1.size(), o2.size());
+    }
+  }
+
+  private static class MapComparator<K, V> implements Comparator<Map<K, V>> {
+    private final Comparator<K> keyComparator;
+    private final Comparator<V> valueComparator;
+    private final Comparator<List<K>> keyListComparator;
+
+    private MapComparator(Types.MapType mapType) {
+      this.keyComparator = internal(mapType.keyType());
+      this.valueComparator =
+          mapType.isValueOptional()
+              ? Comparators.<V>nullsFirst().thenComparing(internal(mapType.valueType()))
+              : internal(mapType.valueType());
+      this.keyListComparator =
+          internal(Types.ListType.ofRequired(mapType.keyId(), mapType.keyType()));
+    }
+
+    @Override
+    public int compare(Map<K, V> o1, Map<K, V> o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
+      List<K> keys1 = Lists.newArrayList(o1.keySet());
+      List<K> keys2 = Lists.newArrayList(o2.keySet());
+      keys1.sort(keyComparator);
+      keys2.sort(keyComparator);
+
+      int cmp = keyListComparator.compare(keys1, keys2);
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      for (K key : keys1) {
+        V value1 = o1.get(key);
+        V value2 = o2.get(key);
+
+        cmp = valueComparator.compare(value1, value2);
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      return 0;
     }
   }
 

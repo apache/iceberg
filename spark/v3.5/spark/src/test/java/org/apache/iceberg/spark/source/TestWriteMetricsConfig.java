@@ -24,7 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
@@ -41,6 +41,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -80,7 +81,12 @@ public class TestWriteMetricsConfig {
 
   @BeforeAll
   public static void startSpark() {
-    TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestWriteMetricsConfig.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
+            .getOrCreate();
     TestWriteMetricsConfig.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
@@ -93,7 +99,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testFullMetricsCollectionForParquet() throws IOException {
+  public void testFullMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -116,7 +122,6 @@ public class TestWriteMetricsConfig {
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-
       assertThat(file.nullValueCounts()).hasSize(2);
       assertThat(file.valueCounts()).hasSize(2);
       assertThat(file.lowerBounds()).hasSize(2);
@@ -125,7 +130,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCountMetricsCollectionForParquet() throws IOException {
+  public void testCountMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -156,7 +161,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testNoMetricsCollectionForParquet() throws IOException {
+  public void testNoMetricsCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -187,7 +192,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCustomMetricCollectionForParquet() throws IOException {
+  public void testCustomMetricCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -221,7 +226,7 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testBadCustomMetricCollectionForParquet() throws IOException {
+  public void testBadCustomMetricCollectionForParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -237,11 +242,11 @@ public class TestWriteMetricsConfig {
   }
 
   @Test
-  public void testCustomMetricCollectionForNestedParquet() throws IOException {
+  public void testCustomMetricCollectionForNestedParquet() {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     properties.put("write.metadata.metrics.column.longCol", "counts");
@@ -271,16 +276,12 @@ public class TestWriteMetricsConfig {
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
       assertThat(nullValueCounts)
           .hasSize(3)
-          .containsKey(longCol.fieldId())
-          .containsKey(recordId.fieldId())
-          .containsKey(recordData.fieldId());
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
       assertThat(valueCounts)
           .hasSize(3)
-          .containsKey(longCol.fieldId())
-          .containsKey(recordId.fieldId())
-          .containsKey(recordData.fieldId());
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
       assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());

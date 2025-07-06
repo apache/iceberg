@@ -27,6 +27,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ public class RewriteDataFilesCommitManager {
   private final long startingSnapshotId;
   private final boolean useStartingSequenceNumber;
   private final Map<String, String> snapshotProperties;
+  private final String branch;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -59,10 +61,20 @@ public class RewriteDataFilesCommitManager {
       long startingSnapshotId,
       boolean useStartingSequenceNumber,
       Map<String, String> snapshotProperties) {
+    this(table, startingSnapshotId, useStartingSequenceNumber, snapshotProperties, null);
+  }
+
+  public RewriteDataFilesCommitManager(
+      Table table,
+      long startingSnapshotId,
+      boolean useStartingSequenceNumber,
+      Map<String, String> snapshotProperties,
+      String branch) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
     this.useStartingSequenceNumber = useStartingSequenceNumber;
     this.snapshotProperties = snapshotProperties;
+    this.branch = branch;
   }
 
   /**
@@ -74,20 +86,28 @@ public class RewriteDataFilesCommitManager {
   public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
     DataFileSet rewrittenDataFiles = DataFileSet.create();
     DataFileSet addedDataFiles = DataFileSet.create();
+    DeleteFileSet danglingDVs = DeleteFileSet.create();
     for (RewriteFileGroup group : fileGroups) {
       rewrittenDataFiles.addAll(group.rewrittenFiles());
       addedDataFiles.addAll(group.addedFiles());
+      danglingDVs.addAll(group.danglingDVs());
     }
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
-    } else {
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
+      rewrite.dataSequenceNumber(sequenceNumber);
     }
 
+    rewrittenDataFiles.forEach(rewrite::deleteFile);
+    addedDataFiles.forEach(rewrite::addFile);
+    danglingDVs.forEach(rewrite::deleteFile);
+
     snapshotProperties.forEach(rewrite::set);
+
+    if (branch != null) {
+      rewrite.toBranch(branch);
+    }
 
     rewrite.commit();
   }

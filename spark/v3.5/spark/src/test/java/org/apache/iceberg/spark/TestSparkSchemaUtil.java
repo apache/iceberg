@@ -21,14 +21,15 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
@@ -45,21 +46,21 @@ public class TestSparkSchemaUtil {
           MetadataColumns.ROW_POSITION);
 
   @Test
-  public void testEstimateSizeMaxValue() throws IOException {
+  public void testEstimateSizeMaxValue() {
     assertThat(SparkSchemaUtil.estimateSize(null, Long.MAX_VALUE))
         .as("estimateSize returns Long max value")
         .isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
-  public void testEstimateSizeWithOverflow() throws IOException {
+  public void testEstimateSizeWithOverflow() {
     long tableSize =
         SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
     assertThat(tableSize).as("estimateSize handles overflow").isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
-  public void testEstimateSize() throws IOException {
+  public void testEstimateSize() {
     long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), 1);
     assertThat(tableSize).as("estimateSize matches with expected approximation").isEqualTo(24);
   }
@@ -80,5 +81,19 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testUnknownTypeToSpark() {
+    Schema schema = new Schema(optional(1, "col", Types.UnknownType.get()));
+    StructType sparkType = SparkSchemaUtil.convert(schema);
+    assertThat(sparkType.fields()[0].dataType()).isEqualTo(DataTypes.NullType);
+  }
+
+  @Test
+  public void testNullTypeToIceberg() {
+    StructType sparkType = new StructType().add("col", DataTypes.NullType, true);
+    Type icebergType = SparkSchemaUtil.convert(sparkType).findField("col").type();
+    assertThat(icebergType).isEqualTo(Types.UnknownType.get());
   }
 }

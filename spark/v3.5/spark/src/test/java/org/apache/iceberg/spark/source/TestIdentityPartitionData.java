@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -61,7 +62,7 @@ public class TestIdentityPartitionData extends TestBase {
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        "parquet",
+        FileFormat.PARQUET,
         false,
         ImmutableMap.of(
             TableProperties.DEFAULT_FILE_FORMAT, "parquet",
@@ -69,7 +70,7 @@ public class TestIdentityPartitionData extends TestBase {
             TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
       },
       {
-        "parquet",
+        FileFormat.PARQUET,
         true,
         ImmutableMap.of(
             TableProperties.DEFAULT_FILE_FORMAT, "parquet",
@@ -77,7 +78,7 @@ public class TestIdentityPartitionData extends TestBase {
             TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
       },
       {
-        "avro",
+        FileFormat.AVRO,
         false,
         ImmutableMap.of(
             TableProperties.DEFAULT_FILE_FORMAT, "avro",
@@ -85,7 +86,7 @@ public class TestIdentityPartitionData extends TestBase {
             TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
       },
       {
-        "orc",
+        FileFormat.ORC,
         false,
         ImmutableMap.of(
             TableProperties.DEFAULT_FILE_FORMAT, "orc",
@@ -93,7 +94,7 @@ public class TestIdentityPartitionData extends TestBase {
             TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
       },
       {
-        "orc",
+        FileFormat.ORC,
         true,
         ImmutableMap.of(
             TableProperties.DEFAULT_FILE_FORMAT, "orc",
@@ -104,7 +105,7 @@ public class TestIdentityPartitionData extends TestBase {
   }
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat format;
 
   @Parameter(index = 1)
   private boolean vectorized;
@@ -173,7 +174,7 @@ public class TestIdentityPartitionData extends TestBase {
 
   @BeforeEach
   public void setupTable() throws Exception {
-    if (format.equals("parquet")) {
+    if (format.equals(FileFormat.PARQUET)) {
       setupParquet();
     } else {
       File location = Files.createTempDirectory(temp, "logs").toFile();

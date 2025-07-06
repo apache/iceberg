@@ -22,6 +22,10 @@ name: Iceberg Improvement / Feature Request
 description: New features with Apache Iceberg
 labels: ["improvement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Do **NOT** share any sensitive information like passwords, security tokens, private URLs etc.
   - type: textarea
     attributes:
       label: Feature Request / Improvement

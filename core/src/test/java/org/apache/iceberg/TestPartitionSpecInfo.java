@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
@@ -42,8 +42,8 @@ public class TestPartitionSpecInfo {
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Parameter private int formatVersion;
@@ -104,8 +104,7 @@ public class TestPartitionSpecInfo {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () -> {
-              PartitionSpec spec =
-                  PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+              PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
             })
         .withMessage("Cannot find source column: DATA");
   }
@@ -122,7 +121,6 @@ public class TestPartitionSpecInfo {
         PartitionSpec.builderFor(table.schema()).identity("data").withSpecId(1).build();
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    int initialColSize = table.schema().columns().size();
     table.updateSchema().deleteColumn("id").commit();
 
     final Schema expectedSchema = new Schema(required(2, "data", Types.StringType.get()));

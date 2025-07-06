@@ -80,7 +80,7 @@ public class TestParquetMetrics extends TestMetrics {
         Parquet.write(file)
             .schema(schema)
             .setAll(properties)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .metricsConfig(metricsConfig)
             .build();
     try (FileAppender<Record> appender = writer) {

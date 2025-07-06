@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -79,6 +80,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
+  private Boolean cleanExpiredMetadata = null;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -129,6 +131,12 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return this;
   }
 
+  @Override
+  public ExpireSnapshotsSparkAction cleanExpiredMetadata(boolean clean) {
+    this.cleanExpiredMetadata = clean;
+    return this;
+  }
+
   /**
    * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
    *
@@ -158,7 +166,11 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots = expireSnapshots.retainLast(retainLastValue);
       }
 
-      expireSnapshots.cleanExpiredFiles(false).commit();
+      if (cleanExpiredMetadata != null) {
+        expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
+      }
+
+      expireSnapshots.cleanupLevel(CleanupLevel.NONE).commit();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
@@ -200,6 +212,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       } else {
         options.add(String.format("snapshot_id: %s", first));
       }
+    }
+
+    if (cleanExpiredMetadata != null) {
+      options.add("clean_expired_metadata=" + cleanExpiredMetadata);
     }
 
     return String.format("Expiring snapshots (%s) in %s", COMMA_JOINER.join(options), table.name());

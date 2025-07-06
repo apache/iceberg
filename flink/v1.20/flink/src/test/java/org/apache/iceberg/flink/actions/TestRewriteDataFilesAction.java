@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.flink.actions;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -48,10 +49,11 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -59,7 +61,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -92,16 +94,16 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     return super.getTableEnv();
   }
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, formatVersion={3}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, format={2}, formatVersion={3}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : CatalogTestBase.parameters()) {
-        for (int version : Arrays.asList(2, 3)) {
-          String catalogName = (String) catalogParams[0];
+        for (int version : TestHelpers.V2_AND_ABOVE) {
+          CatalogType catalogType = (CatalogType) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, version});
+          parameters.add(new Object[] {catalogType, baseNamespace, format, version});
         }
       }
     }
@@ -148,7 +150,22 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testFailureOnV3Table() {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    assertThatThrownBy(
+            () -> Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute())
+        .hasMessageContaining(
+            "Flink does not support compaction on row lineage enabled tables (V3+)")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesEmptyTable() throws Exception {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
     Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute();
     assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
@@ -156,6 +173,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesUnpartitionedTable() throws Exception {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
 
@@ -186,6 +206,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesPartitionedTable() throws Exception {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 3, 'world' ,'b'", TABLE_NAME_PARTITIONED);
@@ -228,6 +251,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesWithFilter() throws Exception {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 3, 'world' ,'a'", TABLE_NAME_PARTITIONED);
@@ -275,6 +301,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteLargeTableHasResiduals() throws IOException {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     // all records belong to the same partition
     List<String> records1 = Lists.newArrayList();
     List<String> records2 = Lists.newArrayList();
@@ -337,17 +366,24 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
    */
   @TestTemplate
   public void testRewriteAvoidRepeateCompress() throws IOException {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
-    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
     File file = File.createTempFile("junit", null, temp.toFile());
     int count = 0;
-    try (FileAppender<Record> fileAppender =
-        genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
+    try (DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataFileFormat(format)
+            .dataSchema(schema)
+            .build()
+            .newDataWriter(
+                encrypt(Files.localOutput(file)), icebergTableUnPartitioned.spec(), null)) {
       long filesize = 20000;
-      for (; fileAppender.length() < filesize; count++) {
+      for (; writer.length() < filesize; count++) {
         Record record = SimpleDataUtil.createRecord(count, UUID.randomUUID().toString());
-        fileAppender.add(record);
+        writer.write(record);
         expected.add(record);
       }
     }
@@ -390,7 +426,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     assertThat(dataFilesRewrote).hasSize(2);
     // the biggest file do not be rewrote
     List rewroteDataFileNames =
-        dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+        dataFilesRewrote.stream().map(ContentFile::location).collect(Collectors.toList());
     assertThat(rewroteDataFileNames).contains(file.getAbsolutePath());
 
     // Assert the table records as expected.
@@ -401,6 +437,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
+    // Flink does not support compaction on row lineage enabled tables (V3+)
+    assumeThat(formatVersion).isLessThan(3);
+
     // Add 2 data files
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_WITH_PK);
     sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_WITH_PK);
@@ -441,7 +480,8 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
                     .useStartingSequenceNumber(false)
                     .execute(),
             "Rewrite using new sequence number should fail")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot commit, found new delete for replaced data file");
 
     // Rewrite using the starting sequence number should succeed
     RewriteDataFilesActionResult result =

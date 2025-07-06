@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
@@ -151,9 +152,12 @@ public class DataFiles {
     private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private Map<Integer, Long> totalBytes = null;
+    private Map<Integer, Type> originalTypes = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
+    private Long firstRowId = null;
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -176,8 +180,10 @@ public class DataFiles {
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.totalBytes = null;
       this.splitOffsets = null;
       this.sortOrderId = SortOrder.unsorted().orderId();
+      this.firstRowId = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -196,11 +202,13 @@ public class DataFiles {
       this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
+      this.totalBytes = toCopy.totalBytes();
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets =
           toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
+      this.firstRowId = toCopy.firstRowId();
       return this;
     }
 
@@ -287,6 +295,8 @@ public class DataFiles {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
+      this.totalBytes = metrics.totalBytes();
+      this.originalTypes = metrics.originalTypes();
       return this;
     }
 
@@ -315,6 +325,16 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withSortOrderId(int newSortOrderId) {
+      this.sortOrderId = newSortOrderId;
+      return this;
+    }
+
+    public Builder withFirstRowId(Long nextRowId) {
+      this.firstRowId = nextRowId;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -337,10 +357,13 @@ public class DataFiles {
               nullValueCounts,
               nanValueCounts,
               lowerBounds,
-              upperBounds),
+              upperBounds,
+              totalBytes,
+              originalTypes),
           keyMetadata,
           splitOffsets,
-          sortOrderId);
+          sortOrderId,
+          firstRowId);
     }
   }
 }

@@ -24,7 +24,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -36,32 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.MessageType;
 
 /** Utilities for tests that need to write Parquet files. */
-class ParquetWritingTestUtils {
+public class ParquetWritingTestUtils {
 
   private ParquetWritingTestUtils() {}
-
-  static File writeRecords(Path temp, Schema schema, GenericData.Record... records)
-      throws IOException {
-    return writeRecords(temp, schema, Collections.emptyMap(), null, records);
-  }
-
-  static File writeRecords(
-      Path temp, Schema schema, Map<String, String> properties, GenericData.Record... records)
-      throws IOException {
-    return writeRecords(temp, schema, properties, null, records);
-  }
-
-  static File writeRecords(
-      Path temp,
-      Schema schema,
-      Map<String, String> properties,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
-      GenericData.Record... records)
-      throws IOException {
-    File file = createTempFile(temp);
-    write(file, schema, properties, createWriterFunc, records);
-    return file;
-  }
 
   static long write(
       File file,

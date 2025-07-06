@@ -388,7 +388,7 @@ public class TestMapRangePartitioner {
       Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults,
       double maxDriftPercentage) {
 
-    assertThat(partitionResults.size()).isEqualTo(expectedAssignmentInfo.size());
+    assertThat(partitionResults).hasSameSizeAs(expectedAssignmentInfo);
 
     List<Integer> expectedAssignedKeyCounts =
         Lists.newArrayListWithExpectedSize(expectedAssignmentInfo.size());

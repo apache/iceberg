@@ -78,7 +78,7 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
       this.sourceTable = (V1Table) this.sourceCatalog.loadTable(sourceTableIdent);
       this.sourceCatalogTable = sourceTable.v1Table();
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
-      throw new NoSuchTableException("Cannot not find source table '%s'", sourceTableIdent);
+      throw new NoSuchTableException("Cannot find source table '%s'", sourceTableIdent);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format("Cannot use non-v1 table '%s' as a source", sourceTableIdent), e);
@@ -134,6 +134,10 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
     Preconditions.checkArgument(
         !sourceCatalogTable.storage().locationUri().isEmpty(),
         "Cannot create an Iceberg table from a source without an explicit location");
+    Preconditions.checkArgument(
+        sourceCatalogTable.bucketSpec().isEmpty(),
+        "Cannot create an Iceberg table from a bucketed source table: %s",
+        (Object) sourceCatalogTable.bucketSpec().getOrElse(() -> null));
   }
 
   protected StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {

@@ -21,17 +21,25 @@ package org.apache.iceberg.util;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.types.Types;
@@ -50,7 +58,6 @@ public class TestSnapshotUtil {
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).build();
 
-  protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
   static final DataFile FILE_A =
@@ -80,7 +87,7 @@ public class TestSnapshotUtil {
 
   @BeforeEach
   public void before() throws Exception {
-    this.metadataDir = new File(tableDir, "metadata");
+    new File(tableDir, "metadata");
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
     Snapshot snapshotBase = appendFileToMain();
@@ -248,5 +255,133 @@ public class TestSnapshotUtil {
 
     assertThat(table.schema().asStruct()).isEqualTo(expected.asStruct());
     assertThat(SnapshotUtil.schemaFor(table, tag).asStruct()).isEqualTo(initialSchema.asStruct());
+  }
+
+  @Test
+  public void schemaForSnapshotId() {
+    Schema initialSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    assertThat(table.schema().asStruct()).isEqualTo(initialSchema.asStruct());
+
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    assertThat(SnapshotUtil.schemaFor(table, firstSnapshotId).asStruct())
+        .isEqualTo(initialSchema.asStruct());
+
+    table.updateSchema().addColumn("zip", Types.IntegerType.get()).commit();
+    appendFileToMain();
+
+    Schema updatedSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "zip", Types.IntegerType.get()));
+
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    assertThat(SnapshotUtil.schemaFor(table, firstSnapshotId).asStruct())
+        .isEqualTo(initialSchema.asStruct());
+    assertThat(SnapshotUtil.schemaFor(table, secondSnapshotId).asStruct())
+        .isEqualTo(updatedSchema.asStruct());
+  }
+
+  @Test
+  public void schemaForSnapshotIdInvalidSnapshot() {
+    long invalidSnapshotId = 999999L;
+    assertThat(table.snapshot(invalidSnapshotId)).isNull();
+
+    assertThatThrownBy(() -> SnapshotUtil.schemaFor(table, invalidSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find snapshot with ID " + invalidSnapshotId);
+  }
+
+  @Test
+  public void schemaForSnapshotIdMetadataTable() {
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().addColumn("zip", Types.IntegerType.get()).commit();
+    appendFileToMain();
+
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    Schema updatedSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "zip", Types.IntegerType.get()));
+
+    assertThat(table.schema().asStruct()).isEqualTo(updatedSchema.asStruct());
+
+    Table snapshotsTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.SNAPSHOTS);
+
+    assertThat(SnapshotUtil.schemaFor(snapshotsTable, secondSnapshotId).asStruct())
+        .isEqualTo(snapshotsTable.schema().asStruct());
+    assertThat(SnapshotUtil.schemaFor(snapshotsTable, firstSnapshotId).asStruct())
+        .isEqualTo(snapshotsTable.schema().asStruct());
+  }
+
+  @Test
+  public void snapshotIdAsOfTimeWithOutOfOrderHistory() {
+    long snapshotA = 1L;
+    long snapshotB = 2L;
+    long snapshotC = 3L;
+
+    long timeA = 1000L;
+    long timeB = 1010L;
+    long timeC = 1020L;
+
+    // history entries are out of chronological order: B appears before A
+    List<HistoryEntry> outOfOrderHistory =
+        Arrays.asList(
+            historyEntry(timeB, snapshotB),
+            historyEntry(timeA, snapshotA),
+            historyEntry(timeC, snapshotC));
+
+    Table mockTable = mock(Table.class);
+    when(mockTable.history()).thenReturn(outOfOrderHistory);
+
+    // querying at timeA should return snapshotA (max timestamp <= timeA)
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, timeA)).isEqualTo(snapshotA);
+
+    // querying at a point between A and B but closer to B should still return snapshotA
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, timeB - 1)).isEqualTo(snapshotA);
+
+    // querying at timeB should return snapshotB (max timestamp <= timeB)
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, timeB)).isEqualTo(snapshotB);
+
+    // querying at timeC should return snapshotC
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, timeC)).isEqualTo(snapshotC);
+
+    // querying between A and B should return snapshotA
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, timeA + 5)).isEqualTo(snapshotA);
+
+    // querying before any entry should return null
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, 999L)).isNull();
+  }
+
+  @Test
+  public void snapshotIdAsOfTimeWithDuplicateTimestamps() {
+    long snapshotA = 1L;
+    long snapshotB = 2L;
+
+    long sameTime = 1000L;
+
+    // two entries with the same timestamp — the first one encountered is returned
+    List<HistoryEntry> history =
+        Arrays.asList(historyEntry(sameTime, snapshotA), historyEntry(sameTime, snapshotB));
+
+    Table mockTable = mock(Table.class);
+    when(mockTable.history()).thenReturn(history);
+
+    assertThat(SnapshotUtil.nullableSnapshotIdAsOfTime(mockTable, sameTime)).isEqualTo(snapshotA);
+  }
+
+  private static HistoryEntry historyEntry(long timestampMillis, long snapshotId) {
+    HistoryEntry entry = mock(HistoryEntry.class);
+    when(entry.timestampMillis()).thenReturn(timestampMillis);
+    when(entry.snapshotId()).thenReturn(snapshotId);
+    return entry;
   }
 }

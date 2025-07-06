@@ -37,7 +37,13 @@ class RCKUtils {
   static final String RCK_LOCAL = "rck.local";
   static final String RCK_PURGE_TEST_NAMESPACES = "rck.purge-test-namespaces";
 
-  static final List<Namespace> TEST_NAMESPACES = List.of(Namespace.of("ns"), Namespace.of("newdb"));
+  static final List<Namespace> TEST_NAMESPACES =
+      List.of(
+          Namespace.of("ns"),
+          Namespace.of("newdb"),
+          Namespace.of("ns1"),
+          Namespace.of("ns2"),
+          Namespace.of("other_ns"));
 
   private RCKUtils() {}
 
@@ -69,8 +75,8 @@ class RCKUtils {
                 e ->
                     e.getKey()
                         .replaceFirst(CATALOG_ENV_PREFIX, "")
-                        .replaceAll("__", "-")
-                        .replaceAll("_", ".")
+                        .replace("__", "-")
+                        .replace('_', '.')
                         .toLowerCase(Locale.ROOT),
                 Map.Entry::getValue,
                 (m1, m2) -> {
@@ -96,6 +102,26 @@ class RCKUtils {
     catalogProperties.putIfAbsent(
         CatalogProperties.URI, String.format("http://localhost:%s/", port));
     catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, "rck_warehouse");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4", "catalog-override-key4");
 
     RESTCatalog catalog = new RESTCatalog();
     catalog.setConf(new Configuration());

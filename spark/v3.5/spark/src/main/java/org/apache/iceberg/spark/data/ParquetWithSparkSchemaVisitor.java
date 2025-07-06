@@ -24,13 +24,14 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Type.Repetition;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -59,106 +60,98 @@ public class ParquetWithSparkSchemaVisitor<T> {
     } else {
       // if not a primitive, the typeId must be a group
       GroupType group = type.asGroupType();
-      OriginalType annotation = group.getOriginalType();
-      if (annotation != null) {
-        switch (annotation) {
-          case LIST:
-            Preconditions.checkArgument(
-                !group.isRepetition(Repetition.REPEATED),
-                "Invalid list: top-level group is repeated: %s",
-                group);
-            Preconditions.checkArgument(
-                group.getFieldCount() == 1,
-                "Invalid list: does not contain single repeated field: %s",
-                group);
+      LogicalTypeAnnotation annotation = group.getLogicalTypeAnnotation();
+      if (LogicalTypeAnnotation.listType().equals(annotation)) {
+        Preconditions.checkArgument(
+            !group.isRepetition(Repetition.REPEATED),
+            "Invalid list: top-level group is repeated: %s",
+            group);
+        Preconditions.checkArgument(
+            group.getFieldCount() == 1,
+            "Invalid list: does not contain single repeated field: %s",
+            group);
 
-            GroupType repeatedElement = group.getFields().get(0).asGroupType();
-            Preconditions.checkArgument(
-                repeatedElement.isRepetition(Repetition.REPEATED),
-                "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(
-                repeatedElement.getFieldCount() <= 1,
-                "Invalid list: repeated group is not a single field: %s",
-                group);
+        GroupType repeatedElement = group.getFields().get(0).asGroupType();
+        Preconditions.checkArgument(
+            repeatedElement.isRepetition(Repetition.REPEATED),
+            "Invalid list: inner group is not repeated");
+        Preconditions.checkArgument(
+            repeatedElement.getFieldCount() <= 1,
+            "Invalid list: repeated group is not a single field: %s",
+            group);
 
-            Preconditions.checkArgument(
-                sType instanceof ArrayType, "Invalid list: %s is not an array", sType);
-            ArrayType array = (ArrayType) sType;
-            StructField element =
-                new StructField(
-                    "element", array.elementType(), array.containsNull(), Metadata.empty());
+        Preconditions.checkArgument(
+            sType instanceof ArrayType, "Invalid list: %s is not an array", sType);
+        ArrayType array = (ArrayType) sType;
+        StructField element =
+            new StructField("element", array.elementType(), array.containsNull(), Metadata.empty());
 
-            visitor.fieldNames.push(repeatedElement.getName());
-            try {
-              T elementResult = null;
-              if (repeatedElement.getFieldCount() > 0) {
-                elementResult = visitField(element, repeatedElement.getType(0), visitor);
+        visitor.fieldNames.push(repeatedElement.getName());
+        try {
+          T elementResult = null;
+          if (repeatedElement.getFieldCount() > 0) {
+            elementResult = visitField(element, repeatedElement.getType(0), visitor);
+          }
+
+          return visitor.list(array, group, elementResult);
+
+        } finally {
+          visitor.fieldNames.pop();
+        }
+      } else if (LogicalTypeAnnotation.mapType().equals(annotation)) {
+        Preconditions.checkArgument(
+            !group.isRepetition(Repetition.REPEATED),
+            "Invalid map: top-level group is repeated: %s",
+            group);
+        Preconditions.checkArgument(
+            group.getFieldCount() == 1,
+            "Invalid map: does not contain single repeated field: %s",
+            group);
+
+        GroupType repeatedKeyValue = group.getType(0).asGroupType();
+        Preconditions.checkArgument(
+            repeatedKeyValue.isRepetition(Repetition.REPEATED),
+            "Invalid map: inner group is not repeated");
+        Preconditions.checkArgument(
+            repeatedKeyValue.getFieldCount() <= 2,
+            "Invalid map: repeated group does not have 2 fields");
+
+        Preconditions.checkArgument(
+            sType instanceof MapType, "Invalid map: %s is not a map", sType);
+        MapType map = (MapType) sType;
+        StructField keyField = new StructField("key", map.keyType(), false, Metadata.empty());
+        StructField valueField =
+            new StructField("value", map.valueType(), map.valueContainsNull(), Metadata.empty());
+
+        visitor.fieldNames.push(repeatedKeyValue.getName());
+        try {
+          T keyResult = null;
+          T valueResult = null;
+          switch (repeatedKeyValue.getFieldCount()) {
+            case 2:
+              // if there are 2 fields, both key and value are projected
+              keyResult = visitField(keyField, repeatedKeyValue.getType(0), visitor);
+              valueResult = visitField(valueField, repeatedKeyValue.getType(1), visitor);
+              break;
+            case 1:
+              // if there is just one, use the name to determine what it is
+              Type keyOrValue = repeatedKeyValue.getType(0);
+              if (keyOrValue.getName().equalsIgnoreCase("key")) {
+                keyResult = visitField(keyField, keyOrValue, visitor);
+                // value result remains null
+              } else {
+                valueResult = visitField(valueField, keyOrValue, visitor);
+                // key result remains null
               }
+              break;
+            default:
+              // both results will remain null
+          }
 
-              return visitor.list(array, group, elementResult);
+          return visitor.map(map, group, keyResult, valueResult);
 
-            } finally {
-              visitor.fieldNames.pop();
-            }
-
-          case MAP:
-            Preconditions.checkArgument(
-                !group.isRepetition(Repetition.REPEATED),
-                "Invalid map: top-level group is repeated: %s",
-                group);
-            Preconditions.checkArgument(
-                group.getFieldCount() == 1,
-                "Invalid map: does not contain single repeated field: %s",
-                group);
-
-            GroupType repeatedKeyValue = group.getType(0).asGroupType();
-            Preconditions.checkArgument(
-                repeatedKeyValue.isRepetition(Repetition.REPEATED),
-                "Invalid map: inner group is not repeated");
-            Preconditions.checkArgument(
-                repeatedKeyValue.getFieldCount() <= 2,
-                "Invalid map: repeated group does not have 2 fields");
-
-            Preconditions.checkArgument(
-                sType instanceof MapType, "Invalid map: %s is not a map", sType);
-            MapType map = (MapType) sType;
-            StructField keyField = new StructField("key", map.keyType(), false, Metadata.empty());
-            StructField valueField =
-                new StructField(
-                    "value", map.valueType(), map.valueContainsNull(), Metadata.empty());
-
-            visitor.fieldNames.push(repeatedKeyValue.getName());
-            try {
-              T keyResult = null;
-              T valueResult = null;
-              switch (repeatedKeyValue.getFieldCount()) {
-                case 2:
-                  // if there are 2 fields, both key and value are projected
-                  keyResult = visitField(keyField, repeatedKeyValue.getType(0), visitor);
-                  valueResult = visitField(valueField, repeatedKeyValue.getType(1), visitor);
-                  break;
-                case 1:
-                  // if there is just one, use the name to determine what it is
-                  Type keyOrValue = repeatedKeyValue.getType(0);
-                  if (keyOrValue.getName().equalsIgnoreCase("key")) {
-                    keyResult = visitField(keyField, keyOrValue, visitor);
-                    // value result remains null
-                  } else {
-                    valueResult = visitField(valueField, keyOrValue, visitor);
-                    // key result remains null
-                  }
-                  break;
-                default:
-                  // both results will remain null
-              }
-
-              return visitor.map(map, group, keyResult, valueResult);
-
-            } finally {
-              visitor.fieldNames.pop();
-            }
-
-          default:
+        } finally {
+          visitor.fieldNames.pop();
         }
       }
 
@@ -181,20 +174,26 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
-    StructField[] sFields = struct.fields();
-    Preconditions.checkArgument(
-        sFields.length == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    for (int i = 0; i < sFields.length; i += 1) {
-      Type field = group.getFields().get(i);
-      StructField sField = sFields[i];
-      Preconditions.checkArgument(
-          field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
-          "Structs do not match: field %s != %s",
-          field.getName(),
-          sField.name());
-      results.add(visitField(sField, field, visitor));
+
+    int fieldIndex = 0;
+    for (StructField sField : struct.fields()) {
+      if (sField.dataType() != DataTypes.NullType) {
+        Type field = group.getFields().get(fieldIndex);
+        Preconditions.checkArgument(
+            field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
+            "Structs do not match: field %s != %s",
+            field.getName(),
+            sField.name());
+        results.add(visitField(sField, field, visitor));
+
+        fieldIndex += 1;
+      }
     }
+
+    // All the group fields should have been visited
+    Preconditions.checkArgument(
+        fieldIndex == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
 
     return results;
   }

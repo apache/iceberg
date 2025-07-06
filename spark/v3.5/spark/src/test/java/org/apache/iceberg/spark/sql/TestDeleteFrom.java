@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -32,7 +33,9 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestDeleteFrom extends CatalogTestBase {
   @AfterEach
   public void removeTables() {
@@ -158,5 +161,28 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testDeleteFromTablePartitionedByVarbinary() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data binary) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES(1, X'e3bcd1'), (2, X'bcd1')", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47}), row(2L, new byte[] {-68, -47})),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DELETE FROM %s WHERE data = X'bcd1'", tableName);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
+        sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
+        sql("SELECT * FROM %s where data = X'e3bcd1'", tableName));
   }
 }

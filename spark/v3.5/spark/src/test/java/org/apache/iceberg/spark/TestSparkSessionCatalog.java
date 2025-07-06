@@ -21,7 +21,18 @@ package org.apache.iceberg.spark;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
+import java.util.Collections;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,8 +60,8 @@ public class TestSparkSessionCatalog extends TestBase {
   @Test
   public void testValidateHmsUri() {
     // HMS uris match
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
 
     // HMS uris doesn't match
     spark.sessionState().catalogManager().reset();
@@ -69,15 +80,15 @@ public class TestSparkSessionCatalog extends TestBase {
     spark.sessionState().catalogManager().reset();
     spark.conf().set(catalogHmsUriKey, hmsUri);
     spark.conf().unset(envHmsUriKey);
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
 
     // no catalog HMS uri, only env HMS uri
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().unset(catalogHmsUriKey);
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
   }
 
   @Test
@@ -97,5 +108,33 @@ public class TestSparkSessionCatalog extends TestBase {
         .isEqualTo("XYZ");
 
     // TODO: fix loading Iceberg built-in functions in SessionCatalog
+  }
+
+  @Test
+  public void listViewsReturnsSessionCatalogViews() throws NoSuchNamespaceException {
+    Identifier viewIdent = Identifier.of(new String[] {"default"}, "session_catalog_list_views");
+    Identifier[] views = new Identifier[] {viewIdent};
+    TableCatalog sessionCatalog =
+        mock(
+            TableCatalog.class,
+            withSettings()
+                .extraInterfaces(
+                    FunctionCatalog.class, SupportsNamespaces.class, ViewCatalog.class));
+    when(((ViewCatalog) sessionCatalog).listViews("default")).thenReturn(views);
+
+    SparkSessionCatalog<?> catalog = new NoViewCatalog<>();
+    catalog.initialize("spark_catalog", new CaseInsensitiveStringMap(Collections.emptyMap()));
+    catalog.setDelegateCatalog(sessionCatalog);
+
+    assertThat(catalog.listViews("default")).containsExactly(viewIdent);
+  }
+
+  private static class NoViewCatalog<
+          T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
+      extends SparkSessionCatalog<T> {
+    @Override
+    protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
+      return mock(TableCatalog.class);
+    }
   }
 }

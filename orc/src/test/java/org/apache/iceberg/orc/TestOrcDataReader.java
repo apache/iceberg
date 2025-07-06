@@ -23,29 +23,36 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.OrcConf;
 import org.assertj.core.api.WithAssertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestOrcDataReader implements WithAssertions {
 
@@ -166,5 +173,55 @@ public class TestOrcDataReader implements WithAssertions {
     assertThat(readRecords.get(0).get(0)).isEqualTo(3L);
     assertThat(readRecords.get(0).get(1)).isEqualTo("c");
     assertThat(readRecords.get(0).get(3)).isEqualTo(Arrays.asList(3, 4, 5));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampNanoTypes")
+  void filtersTimestampNanosWithoutLosingPrecision(Types.TimestampNanoType timestampType)
+      throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "ts", timestampType));
+
+    long boundaryNanos = DateTimeUtil.isoTimestampToNanos("2026-01-01T00:00:00.000000000");
+    Object boundary = GenericDataUtil.internalToGeneric(timestampType, boundaryNanos);
+    Object matchingValue = GenericDataUtil.internalToGeneric(timestampType, boundaryNanos + 1);
+
+    GenericRecord recordTemplate = GenericRecord.create(schema);
+    OutputFile timestampFile =
+        Files.localOutput(File.createTempFile("timestamp-nano-", ".orc", temp));
+
+    try (FileAppender<Record> writer =
+        ORC.write(timestampFile)
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .build()) {
+      writer.add(recordTemplate.copy("id", 1L, "ts", boundary));
+      writer.add(recordTemplate.copy("id", 2L, "ts", matchingValue));
+      writer.add(recordTemplate.copy("id", 3L));
+    }
+
+    Expression filter =
+        Expressions.predicate(Expression.Operation.GT, "ts", Expressions.nanos(boundaryNanos));
+
+    List<Record> rows;
+    try (CloseableIterable<Record> reader =
+        ORC.read(timestampFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .filter(filter)
+            .config(OrcConf.ALLOW_SARG_TO_FILTER.getAttribute(), String.valueOf(true))
+            .config(OrcConf.READER_USE_SELECTED.getAttribute(), String.valueOf(true))
+            .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    assertThat(rows).extracting(row -> row.getField("id")).containsExactly(2L);
+  }
+
+  private static Stream<Types.TimestampNanoType> timestampNanoTypes() {
+    return Stream.of(Types.TimestampNanoType.withoutZone(), Types.TimestampNanoType.withZone());
   }
 }

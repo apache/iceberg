@@ -95,10 +95,9 @@ public class CachingCatalog implements Catalog {
     @Override
     public void onRemoval(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
       LOG.debug("Evicted {} from the table cache ({})", tableIdentifier, cause);
-      if (RemovalCause.EXPIRED.equals(cause)) {
-        if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
-          tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
-        }
+      if (RemovalCause.EXPIRED.equals(cause)
+          && !MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
+        tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
       }
     }
   }
@@ -144,14 +143,16 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
+    Table table = tableCache.get(canonicalized, catalog::loadTable);
+
+    if (table instanceof BaseMetadataTable) {
+      // Cache underlying table
       TableIdentifier originTableIdentifier =
           TableIdentifier.of(canonicalized.namespace().levels());
       Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
 
-      // share TableOperations instance of origin table for all metadata tables, so that metadata
-      // table instances are
-      // also refreshed as well when origin table instance is refreshed.
+      // Share TableOperations instance of origin table for all metadata tables, so that metadata
+      // table instances are refreshed as well when origin table instance is refreshed.
       if (originTable instanceof HasTableOperations) {
         TableOperations ops = ((HasTableOperations) originTable).operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
@@ -164,7 +165,7 @@ public class CachingCatalog implements Catalog {
       }
     }
 
-    return tableCache.get(canonicalized, catalog::loadTable);
+    return table;
   }
 
   @Override
@@ -191,6 +192,21 @@ public class CachingCatalog implements Catalog {
   @Override
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     Table table = catalog.registerTable(identifier, metadataFileLocation);
+    invalidateTable(identifier);
+    return table;
+  }
+
+  @Override
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    Table table = catalog.registerTable(identifier, metadataFileLocation, overwrite);
+    invalidateTable(identifier);
+    return table;
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier identifier) {
+    Table table = catalog.unregisterTable(identifier);
     invalidateTable(identifier);
     return table;
   }

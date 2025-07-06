@@ -26,10 +26,12 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -39,7 +41,7 @@ public class TestTables {
 
   private TestTables() {}
 
-  private static TestTable upgrade(File temp, String name, int newFormatVersion) {
+  public static TestTable upgrade(File temp, String name, int newFormatVersion) {
     TestTable table = load(temp, name);
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
@@ -59,17 +61,33 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion) {
+    return create(temp, null, name, schema, spec, sortOrder, formatVersion);
+  }
+
+  public static TestTable create(
+      File temp,
+      File metaTemp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
-    }
 
-    ops.commit(
-        null,
-        newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+    return createTable(
+        temp, metaTemp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
+  }
 
-    return new TestTable(ops, name);
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
+      TestTableOperations ops) {
+    return createTable(
+        temp, null, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
   }
 
   public static TestTable create(
@@ -81,16 +99,58 @@ public class TestTables {
       int formatVersion,
       MetricsReporter reporter) {
     TestTableOperations ops = new TestTableOperations(name, temp);
+
+    return createTable(
+        temp, null, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter, ops);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+
+    return createTable(
+        temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
+  }
+
+  private static TestTable createTable(
+      File temp,
+      File metaTemp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties,
+      SortOrder sortOrder,
+      MetricsReporter reporter,
+      TestTableOperations ops) {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    ops.commit(
-        null,
+    TableMetadata metadata =
         newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+            schema, spec, sortOrder, temp.toURI().toString(), properties, formatVersion);
 
-    return new TestTable(ops, name, reporter);
+    if (metaTemp != null) {
+      metadata =
+          TableMetadata.buildFrom(metadata)
+              .discardChanges()
+              .withMetadataLocation(metaTemp.toString())
+              .build();
+    }
+
+    ops.commit(null, metadata);
+
+    if (reporter != null) {
+      return new TestTable(ops, reporter);
+    } else {
+      return new TestTable(ops);
+    }
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -105,7 +165,7 @@ public class TestTables {
     }
 
     TableMetadata metadata =
-        newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
+        newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), ImmutableMap.of(), 1);
 
     return Transactions.createTableTransaction(name, ops, metadata);
   }
@@ -147,19 +207,19 @@ public class TestTables {
       metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
       return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
-      metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), properties);
+      metadata = newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), properties);
       return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
 
   public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTable tableWithCommitSucceedButStateUnknown(File temp, String name) {
     TestTableOperations ops = opsWithCommitSucceedButStateUnknown(temp, name);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTableOperations opsWithCommitSucceedButStateUnknown(File temp, String name) {
@@ -175,13 +235,13 @@ public class TestTables {
   public static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
-    private TestTable(TestTableOperations ops, String name) {
-      super(ops, name);
+    private TestTable(TestTableOperations ops) {
+      super(ops, ops.tableName);
       this.ops = ops;
     }
 
-    private TestTable(TestTableOperations ops, String name, MetricsReporter reporter) {
-      super(ops, name, reporter);
+    private TestTable(TestTableOperations ops, MetricsReporter reporter) {
+      super(ops, ops.tableName, reporter);
       this.ops = ops;
     }
 
@@ -217,23 +277,12 @@ public class TestTables {
     private final String tableName;
     private final File metadata;
     private final FileIO fileIO;
-    private TableMetadata current = null;
+    protected TableMetadata current = null;
     private long lastSnapshotId = 0;
     private int failCommits = 0;
 
     public TestTableOperations(String tableName, File location) {
-      this.tableName = tableName;
-      this.metadata = new File(location, "metadata");
-      this.fileIO = new LocalFileIO();
-      metadata.mkdirs();
-      refresh();
-      if (current != null) {
-        for (Snapshot snap : current.snapshots()) {
-          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
-        }
-      } else {
-        this.lastSnapshotId = 0;
-      }
+      this(tableName, location, new LocalFileIO());
     }
 
     public TestTableOperations(String tableName, File location, FileIO fileIO) {
@@ -282,7 +331,11 @@ public class TestTables {
           }
           Integer version = VERSIONS.get(tableName);
           // remove changes from the committed metadata
-          this.current = TableMetadata.buildFrom(updatedMetadata).discardChanges().build();
+          this.current =
+              TableMetadata.buildFrom(updatedMetadata)
+                  .discardChanges()
+                  .withMetadataLocation((current != null) ? current.metadataFileLocation() : null)
+                  .build();
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
           METADATA.put(tableName, current);
         } else {
@@ -311,9 +364,15 @@ public class TestTables {
 
     @Override
     public long newSnapshotId() {
-      long nextSnapshotId = lastSnapshotId + 1;
-      this.lastSnapshotId = nextSnapshotId;
-      return nextSnapshotId;
+      TableMetadata currentMetadata = current();
+      if (currentMetadata != null
+          && currentMetadata.propertyAsBoolean("random-snapshot-ids", false)) {
+        return SnapshotIdGeneratorUtil.generateSnapshotID();
+      } else {
+        long nextSnapshotId = lastSnapshotId + 1;
+        this.lastSnapshotId = nextSnapshotId;
+        return nextSnapshotId;
+      }
     }
   }
 
@@ -331,9 +390,24 @@ public class TestTables {
 
     @Override
     public void deleteFile(String path) {
-      if (!new File(path).delete()) {
+      String localPath = path.startsWith("file:") ? path.replaceFirst("file:", "") : path;
+      if (!new File(localPath).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
+    }
+  }
+
+  static class TestBulkLocalFileIO extends TestTables.LocalFileIO
+      implements SupportsBulkOperations {
+
+    @Override
+    public void deleteFile(String path) {
+      throw new RuntimeException("Expected to call the bulk delete interface.");
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      throw new RuntimeException("Expected to mock this function");
     }
   }
 }

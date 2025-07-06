@@ -42,7 +42,7 @@ public class ValidationHelpers {
   }
 
   public static List<String> files(ContentFile<?>... files) {
-    return Arrays.stream(files).map(file -> file.location()).collect(Collectors.toList());
+    return Arrays.stream(files).map(ContentFile::location).collect(Collectors.toList());
   }
 
   public static void validateDataManifest(
@@ -58,7 +58,8 @@ public class ValidationHelpers {
     List<Long> actualSnapshotIds = Lists.newArrayList();
     List<String> actualFiles = Lists.newArrayList();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, table.io()).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, table.io(), table.specs()).entries()) {
       actualDataSeqs.add(entry.dataSequenceNumber());
       actualFileSeqs.add(entry.fileSequenceNumber());
       actualSnapshotIds.add(entry.snapshotId());

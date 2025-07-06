@@ -28,10 +28,13 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
+import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.server.ServerConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +43,9 @@ public class RESTCatalogServer {
 
   public static final String REST_PORT = "rest.port";
   static final int REST_PORT_DEFAULT = 8181;
+
+  public static final String CATALOG_NAME = "catalog.name";
+  static final String CATALOG_NAME_DEFAULT = "rest_backend";
 
   private Server httpServer;
   private final Map<String, String> config;
@@ -86,15 +92,18 @@ public class RESTCatalogServer {
     if (warehouseLocation == null) {
       File tmp = java.nio.file.Files.createTempDirectory("iceberg_warehouse").toFile();
       tmp.deleteOnExit();
-      warehouseLocation = tmp.toPath().resolve("iceberg_data").toFile().getAbsolutePath();
+      warehouseLocation = new File(tmp, "iceberg_data").toURI().toString();
       catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
 
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
-    LOG.info("Creating catalog with properties: {}", catalogProperties);
+    String catalogName =
+        PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
+
+    LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
     return new CatalogContext(
-        CatalogUtil.buildIcebergCatalog("rest_backend", catalogProperties, new Configuration()),
+        CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration()),
         catalogProperties);
   }
 
@@ -107,12 +116,17 @@ public class RESTCatalogServer {
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     ServletHolder servletHolder = new ServletHolder(servlet);
     context.addServlet(servletHolder, "/*");
-    context.insertHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    context.insertHandler(compressionHandler);
 
     this.httpServer =
         new Server(
             PropertyUtil.propertyAsInt(catalogContext.configuration, REST_PORT, REST_PORT_DEFAULT));
     httpServer.setHandler(context);
+    for (Connector connector : httpServer.getConnectors()) {
+      ((ServerConnector) connector).setReusePort(true);
+    }
     httpServer.start();
 
     if (join) {

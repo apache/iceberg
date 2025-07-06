@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
@@ -27,10 +26,8 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 
-case class DropIdentifierFieldsExec(
-    catalog: TableCatalog,
-    ident: Identifier,
-    fields: Seq[String]) extends LeafV2CommandExec {
+case class DropIdentifierFieldsExec(catalog: TableCatalog, ident: Identifier, fields: Seq[String])
+    extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
@@ -42,18 +39,24 @@ case class DropIdentifierFieldsExec(
         val identifierFieldNames = Sets.newHashSet(schema.identifierFieldNames)
 
         for (name <- fields) {
-          Preconditions.checkArgument(schema.findField(name) != null,
-            "Cannot complete drop identifier fields operation: field %s not found", name)
-          Preconditions.checkArgument(identifierFieldNames.contains(name),
-            "Cannot complete drop identifier fields operation: %s is not an identifier field", name)
+          Preconditions.checkArgument(
+            schema.findField(name) != null,
+            "Cannot complete drop identifier fields operation: field %s not found",
+            name)
+          Preconditions.checkArgument(
+            identifierFieldNames.contains(name),
+            "Cannot complete drop identifier fields operation: %s is not an identifier field",
+            name)
           identifierFieldNames.remove(name)
         }
 
-        iceberg.table.updateSchema()
+        iceberg.table
+          .updateSchema()
           .setIdentifierFields(identifierFieldNames)
           .commit();
       case table =>
-        throw new UnsupportedOperationException(s"Cannot drop identifier fields in non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot drop identifier fields in non-Iceberg table: $table")
     }
 
     Nil

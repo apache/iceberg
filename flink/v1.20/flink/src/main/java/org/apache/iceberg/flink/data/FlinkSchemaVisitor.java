@@ -106,7 +106,9 @@ abstract class FlinkSchemaVisitor<T> {
 
       visitor.beforeField(iField);
       try {
-        results.add(visit(fieldFlinkType, iField.type(), visitor));
+        if (iField.type() != Types.UnknownType.get()) {
+          results.add(visit(fieldFlinkType, iField.type(), visitor));
+        }
       } finally {
         visitor.afterField(iField);
       }

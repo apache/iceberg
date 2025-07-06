@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
@@ -78,7 +79,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
-    catalog = initNessieCatalog("main");
+    catalog = initCatalog("nessie", ImmutableMap.of());
   }
 
   @AfterEach
@@ -112,18 +113,38 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
         .assign();
   }
 
-  private NessieCatalog initNessieCatalog(String ref) {
+  @Override
+  protected NessieCatalog initCatalog(
+      String catalogName, Map<String, String> additionalProperties) {
     Map<String, String> options =
         ImmutableMap.of(
             "type",
             "nessie",
             "ref",
-            ref,
+            SnapshotRef.MAIN_BRANCH,
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString());
-    return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
+            temp.toUri().toString(),
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
+            "catalog-default-key1",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
+            "catalog-default-key2",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
+            "catalog-default-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
+            "catalog-override-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
+            "catalog-override-key4");
+
+    return (NessieCatalog)
+        CatalogUtil.buildIcebergCatalog(
+            catalogName,
+            ImmutableMap.<String, String>builder()
+                .putAll(options)
+                .putAll(additionalProperties)
+                .build(),
+            hadoopConfig);
   }
 
   @Override

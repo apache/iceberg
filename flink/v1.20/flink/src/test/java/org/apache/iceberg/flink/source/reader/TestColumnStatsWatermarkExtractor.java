@@ -38,7 +38,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableExtension;
@@ -48,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -62,7 +62,12 @@ public class TestColumnStatsWatermarkExtractor {
           required(3, "long_column", Types.LongType.get()),
           required(4, "string_column", Types.StringType.get()));
 
-  private static final GenericAppenderFactory APPENDER_FACTORY = new GenericAppenderFactory(SCHEMA);
+  // Separate schema for nanosecond columns: TIMESTAMP_NANO requires table format v3, which the
+  // HadoopTableExtension above does not provision. Tested via constructor preconditions only.
+  private static final Schema NANO_SCHEMA =
+      new Schema(
+          required(1, "timestamp_ns_column", Types.TimestampNanoType.withoutZone()),
+          required(2, "timestamptz_ns_column", Types.TimestampNanoType.withZone()));
 
   private static final List<List<Record>> TEST_RECORDS =
       ImmutableList.of(
@@ -131,7 +136,7 @@ public class TestColumnStatsWatermarkExtractor {
     IcebergSourceSplit combinedSplit =
         IcebergSourceSplit.fromCombinedScanTask(
             ReaderUtil.createCombinedScanTask(
-                TEST_RECORDS, temporaryFolder, FileFormat.PARQUET, APPENDER_FACTORY));
+                TEST_RECORDS, temporaryFolder, FileFormat.PARQUET, SCHEMA));
 
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null);
@@ -150,7 +155,24 @@ public class TestColumnStatsWatermarkExtractor {
     assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Found STRING, expected a LONG or TIMESTAMP column for watermark generation.");
+            "Found STRING, expected a LONG, TIMESTAMP, or TIMESTAMP_NANO column for watermark generation.");
+  }
+
+  @Test
+  public void testMissingColumn() {
+    assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, "missing_column", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find watermark column: missing_column");
+  }
+
+  @TestTemplate
+  public void testTimestampNanoAccepted() {
+    // Run the precondition check exactly once across the parameterized matrix.
+    assumeThat(columnName).isEqualTo("timestamp_column");
+
+    // Both flavours of TIMESTAMP_NANO must be accepted by the extractor's precondition check.
+    new ColumnStatsWatermarkExtractor(NANO_SCHEMA, "timestamp_ns_column", null);
+    new ColumnStatsWatermarkExtractor(NANO_SCHEMA, "timestamptz_ns_column", null);
   }
 
   @TestTemplate
@@ -158,19 +180,19 @@ public class TestColumnStatsWatermarkExtractor {
     assumeThat(columnName).isEqualTo("timestamp_column");
 
     // Create an extractor for a column we do not have statistics
+    IcebergSourceSplit split = split(0);
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(10, "missing_field");
-    assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
+    assertThatThrownBy(() -> extractor.extractWatermark(split))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Missing statistics for column");
+        .hasMessage(
+            "Missing statistics for column name = missing_field with fieldId = 10 in file = "
+                + split.task().files().iterator().next().file());
   }
 
   private IcebergSourceSplit split(int id) throws IOException {
     return IcebergSourceSplit.fromCombinedScanTask(
         ReaderUtil.createCombinedScanTask(
-            ImmutableList.of(TEST_RECORDS.get(id)),
-            temporaryFolder,
-            FileFormat.PARQUET,
-            APPENDER_FACTORY));
+            ImmutableList.of(TEST_RECORDS.get(id)), temporaryFolder, FileFormat.PARQUET, SCHEMA));
   }
 }

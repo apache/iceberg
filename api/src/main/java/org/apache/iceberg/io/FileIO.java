@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -70,6 +71,15 @@ public interface FileIO extends Serializable, Closeable {
     return newInputFile(manifest.path(), manifest.length());
   }
 
+  default InputFile newInputFile(ManifestListFile manifestList) {
+    Preconditions.checkArgument(
+        manifestList.encryptionKeyID() == null,
+        "Cannot decrypt manifest list: %s (use EncryptingFileIO)",
+        manifestList.location());
+    // cannot pass length because it is not tracked outside of key metadata
+    return newInputFile(manifestList.location());
+  }
+
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */
   OutputFile newOutputFile(String path);
 
@@ -89,6 +99,7 @@ public interface FileIO extends Serializable, Closeable {
   /**
    * Returns the property map used to configure this FileIO
    *
+   * @return the property map used to configure this FileIO
    * @throws UnsupportedOperationException if this FileIO does not expose its configuration
    *     properties
    */

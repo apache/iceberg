@@ -19,7 +19,15 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -32,8 +40,12 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -158,6 +170,35 @@ public class TestCatalogUtil {
   }
 
   @Test
+  public void loadCustomFileIOSupportingStorageCredentials() {
+    StorageCredential gcsCredential =
+        StorageCredential.create(
+            "gs://custom-uri",
+            Map.of("gcs.oauth2.token", "gcsToken", "gcs.oauth2.token-expires-at", "1000"));
+    StorageCredential s3Credential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            Map.of(
+                "s3.access-key-id",
+                "keyId",
+                "s3.secret-access-key",
+                "accessKey",
+                "s3.session-token",
+                "sessionToken"));
+
+    List<StorageCredential> storageCredentials = List.of(gcsCredential, s3Credential);
+    FileIO fileIO =
+        CatalogUtil.loadFileIO(
+            TestFileIOWithStorageCredentials.class.getName(),
+            Maps.newHashMap(),
+            null,
+            storageCredentials);
+    assertThat(fileIO).isInstanceOf(TestFileIOWithStorageCredentials.class);
+    assertThat(((TestFileIOWithStorageCredentials) fileIO).credentials())
+        .isEqualTo(storageCredentials);
+  }
+
+  @Test
   public void loadCustomFileIO_badArg() {
     assertThatThrownBy(
             () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null))
@@ -249,6 +290,34 @@ public class TestCatalogUtil {
     String pathStyleCatalogName = "/test/db";
     assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
         .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+  }
+
+  @Test
+  public void noFailureWhenBulkDeletingMetadataFiles() {
+    FileIO io = mock(FileIO.class, withSettings().extraInterfaces(SupportsBulkOperations.class));
+
+    doThrow(new RuntimeException("Simulated bulk delete failure"))
+        .when((SupportsBulkOperations) io)
+        .deleteFiles(any());
+
+    TableMetadata.MetadataLogEntry entry1 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v1.json");
+    TableMetadata.MetadataLogEntry entry2 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v2.json");
+
+    TableMetadata base = mock(TableMetadata.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+
+    when(metadata.propertyAsBoolean(
+            eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
+        .thenReturn(true);
+    when(base.previousFiles()).thenReturn(ImmutableList.of(entry1, entry2));
+    when(metadata.previousFiles()).thenReturn(ImmutableList.of());
+
+    assertThatCode(() -> CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata))
+        .doesNotThrowAnyException();
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {
@@ -479,5 +548,36 @@ public class TestCatalogUtil {
 
     @Override
     public void report(MetricsReport report) {}
+  }
+
+  public static class TestFileIOWithStorageCredentials
+      implements FileIO, SupportsStorageCredentials {
+
+    private List<StorageCredential> storageCredentials;
+
+    public TestFileIOWithStorageCredentials() {}
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {}
+
+    @Override
+    public void setCredentials(List<StorageCredential> credentials) {
+      this.storageCredentials = credentials;
+    }
+
+    @Override
+    public List<StorageCredential> credentials() {
+      return storageCredentials;
+    }
   }
 }

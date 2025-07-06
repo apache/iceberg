@@ -1,0 +1,1070 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.parquet;
+
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.InternalWriter;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.UnicodeUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantPrimitive;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.schema.MessageType;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
+
+public class TestVariantMetrics {
+  private static final VariantMetadata METADATA =
+      VariantMetadata.from(VariantTestUtil.createMetadata(Set.of("a", "b", "c", "d", "e"), true));
+
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "var", Types.VariantType.get()));
+
+  private static final VariantMetadata EMPTY = Variants.emptyMetadata();
+
+  private static final String ROOT_FIELD = "$";
+
+  private static final byte[] BINARY_20_BYTES = new byte[20];
+  private static final byte[] BINARY_20_BYTES_ALL_FF = new byte[20];
+
+  static {
+    for (int i = 0; i < 20; i += 1) {
+      BINARY_20_BYTES[i] = (byte) (i + 1);
+      BINARY_20_BYTES_ALL_FF[i] = (byte) 0xFF;
+    }
+  }
+
+  private static final VariantValue[] PRIMITIVES =
+      new VariantValue[] {
+        Variants.of(true),
+        Variants.of(false),
+        Variants.of((byte) 34),
+        Variants.of((byte) -34),
+        Variants.of((short) 1234),
+        Variants.of((short) -1234),
+        Variants.of(12345),
+        Variants.of(-12345),
+        Variants.of(9876543210L),
+        Variants.of(-9876543210L),
+        Variants.of(10.11F),
+        Variants.of(-10.11F),
+        Variants.of(14.3D),
+        Variants.of(-14.3D),
+        Variants.ofIsoDate("2024-11-07"),
+        Variants.ofIsoDate("1957-11-07"),
+        Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00"),
+        Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00"),
+        Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456"),
+        Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456"),
+        Variants.of(new BigDecimal("123456.789")), // decimal4
+        Variants.of(new BigDecimal("-123456.789")), // decimal4
+        Variants.of(new BigDecimal("123456789.987654321")), // decimal8
+        Variants.of(new BigDecimal("-123456789.987654321")), // decimal8
+        Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
+        Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
+        Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
+        Variants.of("iceberg"),
+        Variants.ofIsoTime("12:33:54.123456"),
+        Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestamptzNanos("1957-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789"),
+        Variants.ofIsoTimestampntzNanos("1957-11-07T12:33:54.123456789"),
+        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
+      };
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testShreddedPrimitiveTypes(VariantValue value) throws IOException {
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 3L, 2, 3L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    assertThat(metrics.lowerBounds()).hasSize(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(
+            bytes -> {
+              VariantObject bounds = Variant.from(bytes).value().asObject();
+              return bounds.get(ROOT_FIELD);
+            })
+        .isEqualTo(value);
+
+    assertThat(metrics.upperBounds()).hasSize(2);
+    assertThat(metrics.upperBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(2L);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(
+            bytes -> {
+              VariantObject bounds = Variant.from(bytes).value().asObject();
+              return bounds.get(ROOT_FIELD);
+            })
+        .isEqualTo(value);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testShreddedPrimitiveRange(VariantValue value) throws IOException {
+    VariantValue largerValue = increment(value);
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, largerValue),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null,
+            Variant.of(EMPTY, value));
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 4L, 2, 4L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    assertThat(metrics.lowerBounds()).hasSize(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(
+            bytes -> {
+              VariantObject bounds = Variant.from(bytes).value().asObject();
+              return bounds.get(ROOT_FIELD);
+            })
+        .isEqualTo(value);
+
+    assertThat(metrics.upperBounds()).hasSize(2);
+    assertThat(metrics.upperBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(3L);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(
+            bytes -> {
+              VariantObject bounds = Variant.from(bytes).value().asObject();
+              return bounds.get(ROOT_FIELD);
+            })
+        .isEqualTo(largerValue);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testShreddedPrimitiveTypeMismatch(VariantValue value) throws IOException {
+    // a value of another type will cause lower/upper bounds to be omitted
+    VariantValue otherValue =
+        value.type() == PhysicalType.STRING ? Variants.of(34) : Variants.of("iceberg");
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, otherValue));
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 2L, 2, 2L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    assertThat(metrics.lowerBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
+    assertThat(metrics.upperBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsTruncation() throws IOException {
+    // binary longer than the 16-byte truncation length so the bounds are truncated
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
+  }
+
+  @Test
+  public void testShreddedBinaryUpperBoundOverflow() throws IOException {
+    // an all-0xFF binary cannot be truncated up so the upper bound is omitted
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(
+            Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isNull();
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsTruncateLength() throws IOException {
+    // a per-column truncate(8) overrides the default 16-byte truncation
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsFull() throws IOException {
+    // full mode leaves the bounds untruncated
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsCounts() throws IOException {
+    // counts mode drops shredded bounds
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).containsKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testShreddedStringBoundsTruncateLength() throws IOException {
+    // a per-column truncate(8) overrides the default 16-char truncation
+    VariantValue value = Variants.of("iceberg_variant");
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(UnicodeUtil.truncateStringMin("iceberg_variant", 8)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(UnicodeUtil.truncateStringMax("iceberg_variant", 8)));
+  }
+
+  @Test
+  public void testShreddedStringBoundsFull() throws IOException {
+    // full mode leaves the string bound untruncated
+    VariantValue value = Variants.of("iceberg_variant_full");
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of("iceberg_variant_full"));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of("iceberg_variant_full"));
+  }
+
+  @Test
+  public void testShreddedStringBoundsCounts() throws IOException {
+    // counts mode must not truncate the shredded string bound: truncate length 0 would throw
+    VariantValue value = Variants.of("iceberg_variant");
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
+            SCHEMA);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).containsKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testShreddedStringBoundsAcrossRowGroups() throws IOException {
+    // shredded string bounds must use UTF-8 order (Comparators.charSequences), like the scan path;
+    // String.compareTo (UTF-16) sorts a supplementary char below U+E000 and would invert the bounds
+    String belowSurrogate = new String(Character.toChars(0xE000));
+    String supplementary = new String(Character.toChars(0x10000));
+
+    Variant[] rows = new Variant[300];
+    for (int i = 0; i < rows.length; i += 1) {
+      rows[i] = Variant.of(EMPTY, Variants.of(i < 150 ? belowSurrogate : supplementary));
+    }
+
+    // a tiny row-group size forces multiple row groups so cross-chunk bound aggregation runs
+    Metrics metrics =
+        writeParquetWithRowGroupSize(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(Variants.of(belowSurrogate)),
+            "1",
+            rows);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(belowSurrogate));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(supplementary));
+  }
+
+  @Test
+  public void testMissingNullCountAcrossRowGroups() throws IOException {
+    // A variant column chunk may omit null_count in its footer statistics, which Parquet reports
+    // as -1. When one row group is missing the count and another has it, the total must be
+    // reported as unknown rather than summing the -1 into a lower count.
+    ParquetMetadata footer =
+        footer(Variant.of(EMPTY, Variants.of(1)), null, null); // 1 value, 2 nulls
+
+    // build a two row group footer: the first as written, the second with null_count removed
+    // from the variant sub columns
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the variant column (id 2) null count is unknown because one row group did not report it
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(2);
+    assertThat(metrics.valueCounts()).containsEntry(2, 6L);
+  }
+
+  @Test
+  public void testShreddedNullVariantsWithMissingNullCount() throws IOException {
+    // A shredded column's value column holds only null variants, so its null count comes from the
+    // value count, not the footer. Shredded bounds survive a row group that omits null_count.
+    VariantValue value = Variants.of(1234);
+    ParquetMetadata footer =
+        footer(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()));
+
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the shredded bounds survive: the all-null value column does not depend on footer null counts
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+  }
+
+  /** Rebuilds a row group with null_count removed from the variant column's statistics. */
+  private static BlockMetaData dropVariantNullCounts(BlockMetaData block) {
+    BlockMetaData result = new BlockMetaData();
+    result.setRowCount(block.getRowCount());
+    result.setTotalByteSize(block.getTotalByteSize());
+
+    for (ColumnChunkMetaData column : block.getColumns()) {
+      Statistics<?> stats = column.getStatistics();
+      if (column.getPath().toDotString().startsWith("var")) {
+        Statistics.Builder builder = Statistics.getBuilderForReading(column.getPrimitiveType());
+        if (stats.hasNonNullValue()) {
+          builder.withMin(stats.getMinBytes()).withMax(stats.getMaxBytes());
+        }
+
+        stats = builder.build(); // built without withNumNulls, so getNumNulls returns -1
+      }
+
+      result.addColumn(
+          ColumnChunkMetaData.get(
+              column.getPath(),
+              column.getPrimitiveType(),
+              column.getCodec(),
+              column.getEncodingStats(),
+              column.getEncodings(),
+              stats,
+              column.getFirstDataPageOffset(),
+              column.getDictionaryPageOffset(),
+              column.getValueCount(),
+              column.getTotalSize(),
+              column.getTotalUncompressedSize()));
+    }
+
+    return result;
+  }
+
+  private ParquetMetadata footer(Variant... variants) throws IOException {
+    return footer(null, variants);
+  }
+
+  private ParquetMetadata footer(VariantShreddingFunction shredding, Variant... variants)
+      throws IOException {
+    InMemoryOutputFile out = new InMemoryOutputFile();
+    writeVariants(out, shredding, builder -> {}, variants);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      return reader.getFooter();
+    }
+  }
+
+  @Test
+  public void testVariantFloatNaN() throws IOException {
+    // NaN values are not counted because there is no ID for FieldMetrics
+    VariantValue floatValue = Variants.of(1.0F);
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(floatValue),
+            Variant.of(EMPTY, floatValue),
+            Variant.of(EMPTY, Variants.of(Float.NaN)));
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 2L, 2, 2L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the float value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testVariantDoubleNaN() throws IOException {
+    // NaN values are not counted because there is no ID for FieldMetrics
+    VariantValue doubleValue = Variants.of(1.0D);
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(doubleValue),
+            Variant.of(EMPTY, doubleValue),
+            Variant.of(EMPTY, Variants.of(Double.NaN)));
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 2L, 2, 2L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the double value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testAllNull() throws IOException {
+    ShreddedObject object = Variants.object(METADATA);
+    object.put("a", Variants.ofIsoDate("2025-03-17"));
+    object.put("b", Variants.of(34));
+    object.put("c", Variants.of("iceberg"));
+    Metrics metrics =
+        writeParquet((id, name) -> ParquetVariantUtil.toParquetSchema(object), null, null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 2L, 2, 2L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 2L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    assertThat(metrics.lowerBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
+    assertThat(metrics.upperBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+  }
+
+  @Test
+  public void testUnshredded() throws IOException {
+    ShreddedObject object = Variants.object(METADATA);
+    object.put("a", Variants.ofIsoDate("2025-03-17"));
+    object.put("b", Variants.of(34));
+    object.put("c", Variants.of("iceberg"));
+    Metrics metrics = writeParquet((id, name) -> null, Variant.of(METADATA, object), null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 2L, 2, 2L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    assertThat(metrics.lowerBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
+    assertThat(metrics.upperBounds())
+        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+  }
+
+  @Test
+  public void testShreddedObject() throws IOException {
+    VariantValue date = Variants.ofIsoDate("2025-03-17");
+    VariantValue num = Variants.of(34);
+    VariantValue str = Variants.of("iceberg");
+    VariantValue dec = Variants.of(new BigDecimal("123456.789"));
+
+    ShreddedObject inner = Variants.object(METADATA);
+    inner.put("e", dec);
+    ShreddedObject object = Variants.object(METADATA);
+    object.put("a", date);
+    object.put("b", num);
+    object.put("c", str);
+    object.put("d", inner);
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(object),
+            Variant.of(EMPTY, num),
+            Variant.of(EMPTY, Variants.object(EMPTY)),
+            Variant.of(METADATA, object),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 5L, 2, 5L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']", "$['c']", "$['d']['e']");
+    ShreddedObject expectedBounds = Variants.object(boundMetadata);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
+    expectedBounds.put("$['c']", str);
+    expectedBounds.put("$['d']['e']", dec);
+
+    assertThat(metrics.lowerBounds()).hasSize(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics.upperBounds()).hasSize(2);
+    assertThat(metrics.upperBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(4L);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testShreddedObjectBoundFieldsOrderedByUtf8() throws IOException {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); UTF-16 orders them oppositely
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    VariantMetadata objectMetadata = Variants.metadata(threeByteName, fourByteName);
+
+    ShreddedObject object0 = Variants.object(objectMetadata);
+    object0.put(threeByteName, Variants.of(1));
+    object0.put(fourByteName, Variants.of(2));
+    ShreddedObject object1 = Variants.object(objectMetadata);
+    object1.put(threeByteName, Variants.of(3));
+    object1.put(fourByteName, Variants.of(4));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(object0),
+            Variant.of(objectMetadata, object0),
+            Variant.of(objectMetadata, object1));
+
+    String threePath = "$['" + threeByteName + "']";
+    String fourPath = "$['" + fourByteName + "']";
+    Variant lowerBound = Variant.from(metrics.lowerBounds().get(2));
+    assertThat(lowerBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(lowerBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(lowerBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
+    Variant upperBound = Variant.from(metrics.upperBounds().get(2));
+    assertThat(upperBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(upperBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(upperBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
+  }
+
+  @Test
+  public void testPartiallyShreddedObject() throws IOException {
+    VariantValue date = Variants.ofIsoDate("2025-03-17");
+    VariantValue num = Variants.of(34);
+    VariantValue str = Variants.of("iceberg");
+    VariantValue dec = Variants.of(new BigDecimal("123456.789"));
+
+    ShreddedObject inner = Variants.object(METADATA);
+    inner.put("e", dec);
+    ShreddedObject object = Variants.object(METADATA);
+    object.put("a", date);
+    object.put("b", num);
+    object.put("c", str);
+    object.put("d", inner);
+
+    // used to produce the shredding schema
+    ShreddedObject example = Variants.object(METADATA);
+    example.put("a", date);
+    example.put("b", num);
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(example),
+            Variant.of(EMPTY, num),
+            Variant.of(EMPTY, Variants.object(EMPTY)),
+            Variant.of(METADATA, object),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 5L, 2, 5L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    // only a and b were shredded so the other fields are not present
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['b']");
+    ShreddedObject expectedBounds = Variants.object(boundMetadata);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['b']", num);
+
+    assertThat(metrics.lowerBounds()).hasSize(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics.upperBounds()).hasSize(2);
+    assertThat(metrics.upperBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(4L);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testShreddedObjectFieldTypeMismatch() throws IOException {
+    VariantValue date = Variants.ofIsoDate("2025-03-17");
+    VariantValue num = Variants.of(34);
+    VariantValue str = Variants.of("iceberg");
+    VariantValue dec = Variants.of(new BigDecimal("123456.789"));
+
+    ShreddedObject inner = Variants.object(METADATA);
+    inner.put("e", dec);
+    ShreddedObject object = Variants.object(METADATA);
+    object.put("a", date);
+    object.put("b", num);
+    object.put("c", str);
+    object.put("d", inner);
+
+    ShreddedObject mismatched = Variants.object(METADATA);
+    mismatched.put("a", Variants.ofNull()); // does not affect metrics
+    mismatched.put("b", Variants.of((byte) -1)); // int and byte mismatch
+    mismatched.put("c", num); // string and int mismatch
+    // d is missing and does not affect metrics
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(object),
+            Variant.of(EMPTY, num),
+            Variant.of(EMPTY, mismatched),
+            Variant.of(EMPTY, Variants.object(EMPTY)),
+            Variant.of(METADATA, object),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).isEqualTo(Map.of(1, 6L, 2, 6L));
+    assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
+    assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
+
+    // only a and b were shredded so the other fields are not present
+    VariantMetadata boundMetadata = Variants.metadata("$['a']", "$['d']['e']");
+    ShreddedObject expectedBounds = Variants.object(boundMetadata);
+    expectedBounds.put("$['a']", date);
+    expectedBounds.put("$['d']['e']", dec);
+
+    assertThat(metrics.lowerBounds()).hasSize(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(0L);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics.upperBounds()).hasSize(2);
+    assertThat(metrics.upperBounds().get(1))
+        .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
+        .isEqualTo(5L);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value())
+        .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testShreddedValueColumnWithEmptyStats() throws IOException {
+    // typed bounds are dropped when value-column stats are missing on a shredded variant
+    OutputFile out = new InMemoryOutputFile();
+    GenericRecord record = GenericRecord.create(SCHEMA);
+
+    VariantShreddingFunction shredding =
+        (id, name) -> ParquetVariantUtil.toParquetSchema(Variants.of((byte) 0));
+    MessageType parquetSchema = ParquetSchemaUtil.convert(SCHEMA, "table", shredding);
+    ParquetProperties props = ParquetProperties.builder().withStatisticsEnabled(false).build();
+
+    // Parquet.write() cannot disable stats on variant sub-columns (no field IDs)
+    ParquetWriter<Record> writer =
+        new ParquetWriter<>(
+            new PlainParquetConfiguration(),
+            out,
+            SCHEMA,
+            parquetSchema,
+            1024,
+            ImmutableMap.of(),
+            (s, m) -> InternalWriter.create(s.asStruct(), m),
+            CompressionCodecName.SNAPPY,
+            props,
+            MetricsConfig.getDefault(),
+            ParquetFileWriter.Mode.CREATE,
+            null,
+            false);
+
+    try (writer) {
+      record.setField("id", 1L);
+      record.setField("var", Variant.of(EMPTY, Variants.of((byte) 5)));
+      writer.add(record);
+    }
+
+    Metrics metrics = writer.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(1L);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testUniformShreddedFieldRetainsBounds() throws IOException {
+    List<VariantValue> rows = List.of(Variants.of(10), Variants.of(20), Variants.of(30));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNotNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)));
+
+    assertThat(metrics.lowerBounds()).containsKey(2);
+    assertThat(metrics.upperBounds()).containsKey(2);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(10));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(30));
+  }
+
+  @Test
+  public void testMixedFieldNotShreddedOmitsBounds() throws IOException {
+    List<VariantValue> rows =
+        List.of(Variants.of(10), Variants.of(20), Variants.of(30), Variants.of("iceberg"));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)),
+            Variant.of(EMPTY, Variants.of("iceberg")));
+
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  private Metrics writeParquet(VariantShreddingFunction shredding, Variant... variants)
+      throws IOException {
+    return writeParquetWithMetricsConfig(shredding, MetricsConfig.getDefault(), variants);
+  }
+
+  private Metrics writeParquetWithMetricsConfig(
+      VariantShreddingFunction shredding, MetricsConfig metricsConfig, Variant... variants)
+      throws IOException {
+    return writeVariants(shredding, builder -> builder.metricsConfig(metricsConfig), variants)
+        .metrics();
+  }
+
+  private Metrics writeParquetWithRowGroupSize(
+      VariantShreddingFunction shredding, String rowGroupSizeBytes, Variant... variants)
+      throws IOException {
+    return writeVariants(
+            shredding,
+            builder -> builder.set(PARQUET_ROW_GROUP_SIZE_BYTES, rowGroupSizeBytes),
+            variants)
+        .metrics();
+  }
+
+  /**
+   * Writes the given variants to an in-memory Parquet file and returns the closed appender. The
+   * {@code options} consumer applies writer options that vary between callers.
+   */
+  private FileAppender<Record> writeVariants(
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    return writeVariants(new InMemoryOutputFile(), shredding, options, variants);
+  }
+
+  private FileAppender<Record> writeVariants(
+      OutputFile out,
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    Parquet.WriteBuilder builder =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc(shredding)
+            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema));
+    options.accept(builder);
+
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    try (FileAppender<Record> writer = builder.build()) {
+      for (int id = 0; id < variants.length; id += 1) {
+        record.setField("id", (long) id);
+        record.setField("var", variants[id]);
+        writer.add(record);
+      }
+      return writer;
+    }
+  }
+
+  private static VariantValue increment(VariantValue value) {
+    VariantPrimitive<?> primitive = value.asPrimitive();
+    switch (value.type()) {
+      case BOOLEAN_TRUE:
+      case BOOLEAN_FALSE:
+        return Variants.of(true);
+      case INT8:
+        return Variants.of(value.type(), (byte) ((Byte) primitive.get() + 1));
+      case INT16:
+        return Variants.of(value.type(), (short) ((Short) primitive.get() + 1));
+      case INT32:
+      case DATE:
+        return Variants.of(value.type(), (Integer) primitive.get() + 1);
+      case INT64:
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+        return Variants.of(value.type(), (Long) primitive.get() + 1L);
+      case FLOAT:
+        return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
+      case DOUBLE:
+        return Variants.of(value.type(), (Double) primitive.get() + 1.0D);
+      case DECIMAL4:
+      case DECIMAL8:
+      case DECIMAL16:
+        return Variants.of(value.type(), ((BigDecimal) primitive.get()).add(BigDecimal.ONE));
+      case BINARY:
+        return Variants.of(
+            value.type(), BinaryUtil.truncateBinaryMax((ByteBuffer) primitive.get(), 2));
+      case STRING:
+        return Variants.of(
+            value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
+      case UUID:
+        UUID uuid = (UUID) primitive.get();
+        return Variants.of(
+            value.type(),
+            new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
+    }
+
+    throw new UnsupportedOperationException("Cannot increment value: " + value);
+  }
+}

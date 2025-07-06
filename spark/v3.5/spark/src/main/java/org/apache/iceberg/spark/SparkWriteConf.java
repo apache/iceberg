@@ -37,12 +37,15 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -160,6 +163,25 @@ public class SparkWriteConf {
     return outputSpecId;
   }
 
+  public int outputSortOrderId(SparkWriteRequirements writeRequirements) {
+    Integer explicitId =
+        confParser.intConf().option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID).parseOptional();
+
+    if (explicitId != null) {
+      Preconditions.checkArgument(
+          table.sortOrders().containsKey(explicitId),
+          "Cannot use output sort order id %s because the table does not contain a sort order with that id",
+          explicitId);
+      return explicitId;
+    }
+
+    if (writeRequirements.hasOrdering()) {
+      return table.sortOrder().orderId();
+    }
+
+    return SortOrder.unsorted().orderId();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString =
         confParser
@@ -206,12 +228,24 @@ public class SparkWriteConf {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
-        .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
+        .tableProperty(SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED)
         .defaultValue(defaultValue)
         .parse();
   }
 
+  public boolean useMergeAppendForStreaming() {
+    return confParser
+        .booleanConf()
+        .option(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING)
+        .defaultValue(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING_DEFAULT)
+        .parse();
+  }
+
   public FileFormat deleteFileFormat() {
+    if (!(table instanceof BaseMetadataTable) && TableUtil.formatVersion(table) >= 3) {
+      return FileFormat.PUFFIN;
+    }
+
     String valueAsString =
         confParser
             .stringConf()
@@ -691,7 +725,7 @@ public class SparkWriteConf {
         .longConf()
         .option(SparkWriteOptions.ADVISORY_PARTITION_SIZE)
         .sessionConf(SparkSQLProperties.ADVISORY_PARTITION_SIZE)
-        .tableProperty(TableProperties.SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES)
+        .tableProperty(SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES)
         .defaultValue(defaultValue)
         .parse();
   }
@@ -712,13 +746,11 @@ public class SparkWriteConf {
   }
 
   public DeleteGranularity deleteGranularity() {
-    String valueAsString =
-        confParser
-            .stringConf()
-            .option(SparkWriteOptions.DELETE_GRANULARITY)
-            .tableProperty(TableProperties.DELETE_GRANULARITY)
-            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
-            .parse();
-    return DeleteGranularity.fromString(valueAsString);
+    return confParser
+        .enumConf(DeleteGranularity::fromString)
+        .option(SparkWriteOptions.DELETE_GRANULARITY)
+        .tableProperty(TableProperties.DELETE_GRANULARITY)
+        .defaultValue(DeleteGranularity.FILE)
+        .parse();
   }
 }

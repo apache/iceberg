@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -57,7 +58,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
           hasChange = true;
           builder.addField(field);
         } else {
-          if (isStruct(originalField)) {
+          if (isStruct(originalField, expected.field(fieldId))) {
             hasChange = true;
             builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
           } else {
@@ -90,9 +91,17 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        filteredFields.add(originalField);
+        // the field id is selected both when this struct itself is projected and when it is only
+        // on the path to a projected descendant; keep exactly what the expected schema projects
+        // instead of widening to the full struct
+        if (field != null) {
+          hasChange |= !Objects.equal(field, originalField);
+          filteredFields.add(field);
+        } else {
+          filteredFields.add(originalField);
+        }
       } else if (field != null) {
-        filteredFields.add(originalField);
+        filteredFields.add(field);
         hasChange = true;
       }
     }
@@ -153,6 +162,12 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(
+      org.apache.iceberg.types.Types.VariantType expected, GroupType variantGroup, Type variant) {
+    return variant;
+  }
+
+  @Override
   public Type primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
     return null;
@@ -162,8 +177,8 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
     return type.getId() == null ? null : type.getId().intValue();
   }
 
-  private boolean isStruct(Type field) {
-    if (field.isPrimitive()) {
+  private boolean isStruct(Type field, NestedField expected) {
+    if (field.isPrimitive() || expected.type().isVariantType()) {
       return false;
     } else {
       GroupType groupType = field.asGroupType();

@@ -31,17 +31,15 @@ public class PositionDelete<R> implements StructLike {
 
   private PositionDelete() {}
 
+  @SuppressWarnings("unchecked")
+  public static <T> Class<PositionDelete<T>> deleteClass() {
+    return (Class<PositionDelete<T>>) (Class<?>) PositionDelete.class;
+  }
+
   public PositionDelete<R> set(CharSequence newPath, long newPos) {
     this.path = newPath;
     this.pos = newPos;
     this.row = null;
-    return this;
-  }
-
-  public PositionDelete<R> set(CharSequence newPath, long newPos, R newRow) {
-    this.path = newPath;
-    this.pos = newPos;
-    this.row = newRow;
     return this;
   }
 
@@ -56,10 +54,6 @@ public class PositionDelete<R> implements StructLike {
 
   public long pos() {
     return pos;
-  }
-
-  public R row() {
-    return row;
   }
 
   @Override

@@ -44,7 +44,6 @@ public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

@@ -27,16 +27,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
-
+public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
   GenericFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
@@ -46,69 +40,27 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
-      Schema positionDeleteRowSchema) {
+      Map<String, String> writerProperties) {
     super(
         table,
         dataFileFormat,
+        Record.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        positionDeleteRowSchema);
+        writerProperties,
+        null,
+        null);
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
   }
 
-  @Override
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  @Override
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
-  }
-
-  @Override
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
-  }
-
-  @Override
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
-  }
-
-  @Override
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  @Override
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  @Override
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  static class Builder {
+  public static class Builder {
     private final Table table;
     private FileFormat dataFileFormat;
     private Schema dataSchema;
@@ -117,9 +69,13 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     private int[] equalityFieldIds;
     private Schema equalityDeleteRowSchema;
     private SortOrder equalityDeleteSortOrder;
-    private Schema positionDeleteRowSchema;
+    private Map<String, String> writerProperties = ImmutableMap.of();
 
-    Builder(Table table) {
+    public Builder() {
+      this.table = null;
+    }
+
+    public Builder(Table table) {
       this.table = table;
       this.dataSchema = table.schema();
 
@@ -134,47 +90,48 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       this.deleteFileFormat = FileFormat.fromString(deleteFileFormatName);
     }
 
-    Builder dataFileFormat(FileFormat newDataFileFormat) {
+    public Builder dataFileFormat(FileFormat newDataFileFormat) {
       this.dataFileFormat = newDataFileFormat;
       return this;
     }
 
-    Builder dataSchema(Schema newDataSchema) {
+    public Builder dataSchema(Schema newDataSchema) {
       this.dataSchema = newDataSchema;
       return this;
     }
 
-    Builder dataSortOrder(SortOrder newDataSortOrder) {
+    public Builder dataSortOrder(SortOrder newDataSortOrder) {
       this.dataSortOrder = newDataSortOrder;
       return this;
     }
 
-    Builder deleteFileFormat(FileFormat newDeleteFileFormat) {
+    public Builder deleteFileFormat(FileFormat newDeleteFileFormat) {
       this.deleteFileFormat = newDeleteFileFormat;
       return this;
     }
 
-    Builder equalityFieldIds(int[] newEqualityFieldIds) {
+    public Builder equalityFieldIds(int[] newEqualityFieldIds) {
       this.equalityFieldIds = newEqualityFieldIds;
       return this;
     }
 
-    Builder equalityDeleteRowSchema(Schema newEqualityDeleteRowSchema) {
+    public Builder equalityDeleteRowSchema(Schema newEqualityDeleteRowSchema) {
       this.equalityDeleteRowSchema = newEqualityDeleteRowSchema;
       return this;
     }
 
-    Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
+    public Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
       this.equalityDeleteSortOrder = newEqualityDeleteSortOrder;
       return this;
     }
 
-    Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
-      this.positionDeleteRowSchema = newPositionDeleteRowSchema;
+    /** Sets default writer properties. */
+    public Builder writerProperties(Map<String, String> newWriterProperties) {
+      this.writerProperties = newWriterProperties;
       return this;
     }
 
-    GenericFileWriterFactory build() {
+    public GenericFileWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
       Preconditions.checkArgument(
@@ -190,7 +147,7 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
           equalityFieldIds,
           equalityDeleteRowSchema,
           equalityDeleteSortOrder,
-          positionDeleteRowSchema);
+          writerProperties);
     }
   }
 }

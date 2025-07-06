@@ -19,12 +19,15 @@
 package org.apache.iceberg.aliyun;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.junitpioneer.jupiter.SetEnvironmentVariable;
 
 public class TestAliyunClientFactories {
 
@@ -76,6 +79,85 @@ public class TestAliyunClientFactories {
         .isInstanceOf(CustomFactory.class);
   }
 
+  /**
+   * Test RRSA environment detection.
+   *
+   * <p>This test requires the following environment variables to be set:
+   *
+   * <ul>
+   *   <li>ALIBABA_CLOUD_OIDC_PROVIDER_ARN
+   *   <li>ALIBABA_CLOUD_ROLE_ARN
+   *   <li>ALIBABA_CLOUD_OIDC_TOKEN_FILE
+   * </ul>
+   */
+  @Test
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_OIDC_PROVIDER_ARN",
+      value = "acs:ram::123456789:oidc-provider/ack-rrsa-test")
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_ROLE_ARN",
+      value = "acs:ram::123456789:role/test-rrsa-role")
+  @SetEnvironmentVariable(key = "ALIBABA_CLOUD_OIDC_TOKEN_FILE", value = "/tmp/oidc-token")
+  public void testRRSAEnvironmentDetection() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AliyunProperties.OSS_ENDPOINT, "https://oss-cn-hangzhou.aliyuncs.com");
+
+    AliyunClientFactories.DefaultAliyunClientFactory factory =
+        new AliyunClientFactories.DefaultAliyunClientFactory();
+    factory.initialize(properties);
+    assertThat(factory.isRrsaEnvironmentAvailable()).isTrue();
+
+    OSS client = factory.newOSSClient();
+    assertThat(client).as("OSS client should be created with RRSA").isNotNull();
+
+    // Try to actually use the client - this should trigger credential retrieval
+    // With fake credentials, this should fail
+    try {
+      client.doesBucketExist("test-bucket");
+      // If we get here with fake creds, something is wrong
+      throw new AssertionError(
+          "Expected operation to fail with fake RRSA credentials, but it succeeded");
+    } catch (Exception e) {
+      // Expected - fake RRSA credentials should cause failure
+      assertThat(e).isNotNull();
+    } finally {
+      client.shutdown();
+    }
+  }
+
+  @Test
+  public void testIsRrsaEnvironmentAvailableWithoutEnvVars() {
+    // Verify that isRrsaEnvironmentAvailable returns false when env vars are not set
+    AliyunClientFactories.DefaultAliyunClientFactory factory =
+        new AliyunClientFactories.DefaultAliyunClientFactory();
+
+    // Assuming RRSA env vars are not set in test environment
+    assertThat(factory.isRrsaEnvironmentAvailable())
+        .as("RRSA should not be available without environment variables")
+        .isFalse();
+  }
+
+  @Test
+  public void testNewKmsClientResolvesEndpointFromRegion() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AliyunProperties.CLIENT_REGION, "cn-hangzhou");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_SECRET, "secret");
+
+    Client kmsClient = AliyunClientFactories.from(properties).newKmsClient();
+    assertThat(kmsClient)
+        .as("KMS client should be created with an endpoint resolved from the region")
+        .isNotNull();
+  }
+
+  @Test
+  public void testNewKmsClientRequiresRegion() {
+    AliyunClientFactory factory = AliyunClientFactories.from(Maps.newHashMap());
+    assertThatThrownBy(factory::newKmsClient)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(AliyunProperties.CLIENT_REGION);
+  }
+
   public static class CustomFactory implements AliyunClientFactory {
 
     AliyunProperties aliyunProperties;
@@ -84,6 +166,11 @@ public class TestAliyunClientFactories {
 
     @Override
     public OSS newOSSClient() {
+      return null;
+    }
+
+    @Override
+    public Client newKmsClient() {
       return null;
     }
 

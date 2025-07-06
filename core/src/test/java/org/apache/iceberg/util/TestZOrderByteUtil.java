@@ -189,14 +189,8 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aInt,
-                  bInt,
-                  intCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aInt, bInt, intCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare)
           .isEqualTo(intCompare);
     }
   }
@@ -216,14 +210,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aLong,
-                  bLong,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aLong,
+              bLong,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -243,14 +236,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aShort,
-                  bShort,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aShort,
+              bShort,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -270,14 +262,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aByte,
-                  bByte,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aByte,
+              bByte,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -297,14 +288,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aFloat,
-                  bFloat,
-                  floatCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aFloat,
+              bFloat,
+              floatCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(floatCompare);
     }
   }
@@ -324,15 +314,44 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aDouble,
-                  bDouble,
-                  doubleCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aDouble,
+              bDouble,
+              doubleCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(doubleCompare);
+    }
+  }
+
+  @Test
+  public void floatingPointOrderedBytesPreservesOrderOfAdjacentValues() {
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    double[][] pairs = {
+      {-921614.125, -921614.0625},
+      {-1.6001329423771755E213, -1.600132804916327E213},
+      {5.716890676284865E-207, 5.7168911255697246E-207},
+      {-Double.MIN_VALUE, 0.0},
+      {0.0, Double.MIN_VALUE},
+      {-Double.MAX_VALUE, Double.MAX_VALUE},
+      {-1.0, 1.0},
+    };
+    for (double[] pair : pairs) {
+      double firstValue = pair[0];
+      double secondValue = pair[1];
+      byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(firstValue, aBuffer).array();
+      byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(secondValue, bBuffer).array();
+      int numericOrder = Integer.signum(Double.compare(firstValue, secondValue));
+      int byteOrder =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      assertThat(byteOrder)
+          .as(
+              "Ordered bytes of %s must sort the same way as the value (expected %d, got %d): "
+                  + "%s vs %s",
+              firstValue, numericOrder, byteOrder, Arrays.toString(aBytes), Arrays.toString(bBytes))
+          .isEqualTo(numericOrder);
     }
   }
 
@@ -352,14 +371,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aString,
-                  bString,
-                  stringCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aString,
+              bString,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(stringCompare);
     }
   }
@@ -380,14 +398,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aBytesRaw,
-                  bBytesRaw,
-                  stringCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aBytesRaw,
+              bBytesRaw,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(stringCompare);
     }
   }

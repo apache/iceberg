@@ -31,6 +31,8 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestFileGenerationUtil {
 
@@ -43,6 +45,21 @@ public class TestFileGenerationUtil {
           required(5, "timestamp_col", Types.TimestampType.withoutZone()),
           required(6, "timestamp_tz_col", Types.TimestampType.withZone()),
           required(7, "str_col", Types.StringType.get()));
+
+  public static final Schema NESTED_SCHEMA =
+      new Schema(
+          required(1, "int_col", Types.IntegerType.get()),
+          required(
+              2,
+              "struct_col",
+              Types.StructType.of(
+                  required(3, "nested_int", Types.IntegerType.get()),
+                  required(4, "nested_str", Types.StringType.get()))),
+          required(
+              5,
+              "map_col",
+              Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.LongType.get())),
+          required(8, "list_col", Types.ListType.ofRequired(9, Types.IntegerType.get())));
 
   @Test
   public void testBoundsWithDefaultMetricsConfig() {
@@ -57,7 +74,7 @@ public class TestFileGenerationUtil {
     assertThat(metrics.lowerBounds()).hasSize(SCHEMA.columns().size());
     assertThat(metrics.upperBounds()).hasSize(SCHEMA.columns().size());
 
-    checkBounds(metrics, metricsConfig);
+    checkBounds(SCHEMA, metrics, metricsConfig);
   }
 
   @Test
@@ -77,7 +94,7 @@ public class TestFileGenerationUtil {
     assertThat(metrics.lowerBounds()).hasSize(SCHEMA.columns().size());
     assertThat(metrics.upperBounds()).hasSize(SCHEMA.columns().size());
 
-    checkBounds(metrics, metricsConfig);
+    checkBounds(SCHEMA, metrics, metricsConfig);
 
     ByteBuffer actualIntLower = metrics.lowerBounds().get(intField.fieldId());
     ByteBuffer actualIntUpper = metrics.upperBounds().get(intField.fieldId());
@@ -85,9 +102,49 @@ public class TestFileGenerationUtil {
     assertThat(actualIntUpper).isEqualTo(intUpper);
   }
 
-  private void checkBounds(Metrics metrics, MetricsConfig metricsConfig) {
-    for (NestedField field : SCHEMA.columns()) {
-      MetricsMode mode = metricsConfig.columnMode(field.name());
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
+  void testBoundsForAllMetricsModes(String metricsMode) {
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA);
+    Metrics metrics =
+        FileGenerationUtil.generateRandomMetrics(
+            SCHEMA,
+            metricsConfig,
+            ImmutableMap.of() /* no lower bounds */,
+            ImmutableMap.of() /* no upper bounds */);
+
+    checkBounds(SCHEMA, metrics, metricsConfig);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
+  public void testBoundsForNestedTypes(String metricsMode) {
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode),
+            NESTED_SCHEMA);
+    Metrics metrics =
+        FileGenerationUtil.generateRandomMetrics(
+            NESTED_SCHEMA,
+            metricsConfig,
+            ImmutableMap.of() /* no known lower bounds */,
+            ImmutableMap.of() /* no known upper bounds */);
+
+    assertThat(metrics.lowerBounds())
+        .as("only leaf primitive fields have lower bound")
+        .containsOnlyKeys(1, 3, 4, 6, 7, 9);
+    assertThat(metrics.upperBounds())
+        .as("only leaf primitive fields have upper bound")
+        .containsOnlyKeys(1, 3, 4, 6, 7, 9);
+
+    checkBounds(NESTED_SCHEMA, metrics, metricsConfig);
+  }
+
+  private void checkBounds(Schema schema, Metrics metrics, MetricsConfig metricsConfig) {
+    for (NestedField field : FileGenerationUtil.leafFields(schema)) {
+      MetricsMode mode = metricsConfig.columnMode(field.fieldId());
       ByteBuffer lowerBuffer = metrics.lowerBounds().get(field.fieldId());
       ByteBuffer upperBuffer = metrics.upperBounds().get(field.fieldId());
       if (mode.equals(MetricsModes.None.get()) || mode.equals(MetricsModes.Counts.get())) {

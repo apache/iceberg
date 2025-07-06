@@ -19,9 +19,11 @@
 package org.apache.iceberg.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -57,5 +59,28 @@ public class TestGenericRecord {
     assertThatThrownBy(() -> record.get(0, CharSequence.class))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Not an instance of java.lang.CharSequence: 10");
+  }
+
+  @Test
+  public void testDeepCopyValues() {
+    Schema schema =
+        new Schema(
+            optional(0, "binaryData", Types.BinaryType.get()),
+            optional(
+                1,
+                "structData",
+                Types.StructType.of(required(100, "structInnerData", Types.StringType.get()))));
+
+    GenericRecord original = GenericRecord.create(schema);
+    original.setField("binaryData", ByteBuffer.wrap("binaryData_0".getBytes()));
+    Record structRecord = GenericRecord.create(schema.findType("structData").asStructType());
+    structRecord.setField("structInnerData", "structInnerData_1");
+    original.setField("structData", structRecord);
+
+    GenericRecord copy = original.copy();
+    for (Types.NestedField field : schema.columns()) {
+      assertThat(copy.getField(field.name())).isEqualTo(original.getField(field.name()));
+      assertThat(copy.getField(field.name())).isNotSameAs(original.getField(field.name()));
+    }
   }
 }

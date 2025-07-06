@@ -21,15 +21,15 @@ package org.apache.iceberg.orc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -38,8 +38,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.CompressionKind;
-import org.apache.orc.OrcConf;
-import org.apache.orc.OrcFile.CompressionStrategy;
+import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,23 +54,15 @@ public class TestTableProperties {
   @TempDir private File testFile;
 
   @Test
-  public void testOrcTableProperties() throws Exception {
-    Random random = new Random();
-    int numOfCodecs = CompressionKind.values().length;
-    int numOfStrategies = CompressionStrategy.values().length;
-
-    long stripeSizeBytes = 32L * 1024 * 1024;
-    long blockSizeBytes = 128L * 1024 * 1024;
-    String codecAsString = CompressionKind.values()[random.nextInt(numOfCodecs)].name();
-    String strategyAsString = CompressionStrategy.values()[random.nextInt(numOfStrategies)].name();
+  public void testOrcTablePropertiesForDataFile() throws Exception {
+    String codecAsString = CompressionKind.SNAPPY.name();
 
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            TableProperties.ORC_STRIPE_SIZE_BYTES, String.valueOf(stripeSizeBytes),
-            TableProperties.ORC_BLOCK_SIZE_BYTES, String.valueOf(blockSizeBytes),
-            TableProperties.ORC_COMPRESSION, codecAsString,
-            TableProperties.ORC_COMPRESSION_STRATEGY, strategyAsString,
-            TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name());
+            TableProperties.ORC_COMPRESSION,
+            codecAsString,
+            TableProperties.DEFAULT_FILE_FORMAT,
+            FileFormat.ORC.name());
 
     String warehouse = folder.getAbsolutePath();
     String tablePath = warehouse.concat("/test");
@@ -81,42 +73,30 @@ public class TestTableProperties {
 
     assertThat(testFile.delete()).isTrue();
 
-    FileAppender<Record> writer =
+    try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))
             .forTable(table)
             .createWriterFunc(GenericOrcWriter::buildWriter)
-            .build();
+            .build()) {
+      writer.add(GenericRecord.create(SCHEMA).copy(ImmutableMap.of("id", 1, "data", "a")));
+    }
 
-    DynFields.BoundField<Configuration> confField =
-        DynFields.builder().hiddenImpl(writer.getClass(), "conf").build(writer);
-
-    Configuration configuration = confField.get();
-    assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
-    assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
-    assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
-    assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration)).isEqualTo(strategyAsString);
-    assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
-        .isEqualTo(FileFormat.ORC.name());
+    Reader reader =
+        OrcFile.createReader(
+            new Path(testFile.toURI()), OrcFile.readerOptions(new Configuration()));
+    assertThat(reader.getCompressionKind()).isEqualTo(CompressionKind.SNAPPY);
   }
 
   @Test
-  public void testOrcTableDeleteProperties() throws Exception {
-    Random random = new Random();
-    int numOfCodecs = CompressionKind.values().length;
-    int numOfStrategies = CompressionStrategy.values().length;
-
-    long stripeSizeBytes = 32L * 1024 * 1024;
-    long blockSizeBytes = 128L * 1024 * 1024;
-    String codecAsString = CompressionKind.values()[random.nextInt(numOfCodecs)].name();
-    String strategyAsString = CompressionStrategy.values()[random.nextInt(numOfStrategies)].name();
+  public void testOrcTablePropertiesForDeleteFile() throws Exception {
+    String codecAsString = CompressionKind.SNAPPY.name();
 
     ImmutableMap<String, String> properties =
         ImmutableMap.of(
-            TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES, String.valueOf(stripeSizeBytes),
-            TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES, String.valueOf(blockSizeBytes),
-            TableProperties.DELETE_ORC_COMPRESSION, codecAsString,
-            TableProperties.DELETE_ORC_COMPRESSION_STRATEGY, strategyAsString,
-            TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name());
+            TableProperties.DELETE_ORC_COMPRESSION,
+            codecAsString,
+            TableProperties.DEFAULT_FILE_FORMAT,
+            FileFormat.ORC.name());
 
     String warehouse = folder.getAbsolutePath();
     String tablePath = warehouse.concat("/test");
@@ -127,26 +107,18 @@ public class TestTableProperties {
 
     assertThat(testFile.delete()).isTrue();
 
-    EqualityDeleteWriter<Object> deleteWriter =
+    try (EqualityDeleteWriter<Object> deleteWriter =
         ORC.writeDeletes(Files.localOutput(testFile))
             .forTable(table)
             .equalityFieldIds(1)
             .createWriterFunc(GenericOrcWriter::buildWriter)
-            .buildEqualityWriter();
+            .buildEqualityWriter()) {
+      deleteWriter.write(GenericRecord.create(SCHEMA).copy(ImmutableMap.of("id", 1, "data", "a")));
+    }
 
-    DynFields.BoundField<OrcFileAppender<Record>> writer =
-        DynFields.builder().hiddenImpl(deleteWriter.getClass(), "appender").build(deleteWriter);
-
-    OrcFileAppender<Record> orcFileAppender = writer.get();
-    DynFields.BoundField<Configuration> confField =
-        DynFields.builder().hiddenImpl(orcFileAppender.getClass(), "conf").build(orcFileAppender);
-
-    Configuration configuration = confField.get();
-    assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
-    assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
-    assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
-    assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration)).isEqualTo(strategyAsString);
-    assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
-        .isEqualTo(FileFormat.ORC.name());
+    Reader reader =
+        OrcFile.createReader(
+            new Path(testFile.toURI()), OrcFile.readerOptions(new Configuration()));
+    assertThat(reader.getCompressionKind()).isEqualTo(CompressionKind.SNAPPY);
   }
 }

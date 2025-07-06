@@ -23,10 +23,20 @@ project(":iceberg-aws-bundle") {
 
   tasks.jar.dependsOn tasks.shadowJar
 
+  configurations {
+    implementation {
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.logging.slf4j'
+      exclude group: 'org.apache.logging.log4j'
+    }
+  }
+
   dependencies {
     implementation platform(libs.awssdk.bom)
-    implementation "software.amazon.awssdk:apache-client"
+    implementation libs.awssdk.s3accessgrants
+    implementation "software.amazon.awssdk:apache5-client"
     implementation "software.amazon.awssdk:auth"
+    implementation "software.amazon.awssdk:crt-core"
     implementation "software.amazon.awssdk:http-auth-aws-crt"
     implementation "software.amazon.awssdk:iam"
     implementation "software.amazon.awssdk:sso"
@@ -36,21 +46,13 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:sts"
     implementation "software.amazon.awssdk:dynamodb"
     implementation "software.amazon.awssdk:lakeformation"
+
+    implementation libs.analyticsaccelerator.s3
   }
 
   shadowJar {
     archiveClassifier.set(null)
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
-    }
 
     // relocate AWS-specific versions
     relocate 'org.apache.http', 'org.apache.iceberg.aws.shaded.org.apache.http'
@@ -60,4 +62,6 @@ project(":iceberg-aws-bundle") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

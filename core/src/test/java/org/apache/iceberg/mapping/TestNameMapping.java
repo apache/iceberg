@@ -289,4 +289,16 @@ public class TestNameMapping {
                 "location",
                 MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))));
   }
+
+  @Test
+  public void testMappingVariantType() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "data", Types.VariantType.get()));
+
+    MappedFields expected = MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data"));
+
+    NameMapping mapping = MappingUtil.create(schema);
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
+  }
 }

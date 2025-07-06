@@ -1,0 +1,183 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.variants;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.function.IntFunction;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
+
+class VariantUtil {
+  private static final int BASIC_TYPE_MASK = 0b11;
+  private static final int BASIC_TYPE_PRIMITIVE = 0;
+  private static final int BASIC_TYPE_SHORT_STRING = 1;
+  private static final int BASIC_TYPE_OBJECT = 2;
+  private static final int BASIC_TYPE_ARRAY = 3;
+
+  /**
+   * Maximum nesting depth in a Variant (permitted depths 0..MAX_VARIANT_DEPTH). Safety limit, not a
+   * spec bound. Matches parquet-java (apache/parquet-java#3562).
+   */
+  static final int MAX_VARIANT_DEPTH = 1000;
+
+  /**
+   * Maximum element count for Variant containers and metadata dictionaries. Safety limit against
+   * buffer-to-heap allocation amplification.
+   */
+  static final int MAX_ELEMENTS = 16_777_216;
+
+  private VariantUtil() {}
+
+  /** Parses a variant value; validates input and enforces {@link #MAX_VARIANT_DEPTH}. */
+  static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
+    Preconditions.checkArgument(depth >= 0, "Invalid variant: negative depth %s", depth);
+    Preconditions.checkArgument(
+        depth <= MAX_VARIANT_DEPTH,
+        "Invalid variant: nesting depth %s exceeds maximum %s",
+        depth,
+        MAX_VARIANT_DEPTH);
+    Preconditions.checkArgument(value.remaining() >= 1, "Invalid variant: empty value buffer");
+    int header = ByteBuffers.readByte(value, 0);
+    BasicType basicType = basicType(header);
+    switch (basicType) {
+      case PRIMITIVE:
+        return SerializedPrimitive.from(value, header);
+      case SHORT_STRING:
+        return SerializedShortString.from(value, header);
+      case OBJECT:
+        return SerializedObject.from(metadata, value, header, depth);
+      case ARRAY:
+        return SerializedArray.from(metadata, value, header, depth);
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+  }
+
+  static float readFloat(ByteBuffer buffer, int offset) {
+    return buffer.getFloat(buffer.position() + offset);
+  }
+
+  static double readDouble(ByteBuffer buffer, int offset) {
+    return buffer.getDouble(buffer.position() + offset);
+  }
+
+  static ByteBuffer slice(ByteBuffer buffer, int offset, int length) {
+    ByteBuffer slice = buffer.duplicate();
+    slice.order(ByteOrder.LITTLE_ENDIAN);
+    slice.position(buffer.position() + offset);
+    slice.limit(buffer.position() + offset + length);
+    return slice;
+  }
+
+  static String readString(ByteBuffer buffer, int offset, int length) {
+    if (buffer.hasArray()) {
+      return new String(
+          buffer.array(),
+          buffer.arrayOffset() + buffer.position() + offset,
+          length,
+          StandardCharsets.UTF_8);
+    } else {
+      return StandardCharsets.UTF_8.decode(slice(buffer, offset, length)).toString();
+    }
+  }
+
+  static int find(int size, String key, IntFunction<String> resolve) {
+    // retry supplementary-plane keys in UTF-16 order to find fields written in the legacy layout
+    int attempts = 1;
+    for (int i = 0; i < key.length(); i += 1) {
+      if (key.charAt(i) >= Character.MIN_SURROGATE) {
+        attempts = 2;
+        break;
+      }
+    }
+
+    for (int attempt = 0; attempt < attempts; attempt += 1) {
+      int low = 0;
+      int high = size - 1;
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        String value = resolve.apply(mid);
+        int cmp =
+            attempt == 0
+                ? VariantMetadata.FIELD_NAME_ORDER.compare(key, value)
+                : key.compareTo(value);
+        if (cmp == 0) {
+          return mid;
+        } else if (cmp < 0) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
+      }
+    }
+
+    return -1;
+  }
+
+  static int sizeOf(int maxValue) {
+    if (maxValue <= 0xFF) {
+      return 1;
+    } else if (maxValue <= 0xFFFF) {
+      return 2;
+    } else if (maxValue <= 0xFFFFFF) {
+      return 3;
+    } else {
+      return 4;
+    }
+  }
+
+  static byte metadataHeader(boolean isSorted, int offsetSize) {
+    return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
+  }
+
+  static byte primitiveHeader(int primitiveType) {
+    return (byte) (primitiveType << Primitives.PRIMITIVE_TYPE_SHIFT);
+  }
+
+  static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {
+    return (byte)
+        ((isLarge ? 0b1000000 : 0) | ((fieldIdSize - 1) << 4) | ((offsetSize - 1) << 2) | 0b10);
+  }
+
+  static byte arrayHeader(boolean isLarge, int offsetSize) {
+    return (byte) ((isLarge ? 0b10000 : 0) | (offsetSize - 1) << 2 | 0b11);
+  }
+
+  static byte shortStringHeader(int length) {
+    return (byte) ((length << 2) | BASIC_TYPE_SHORT_STRING);
+  }
+
+  static BasicType basicType(int header) {
+    int basicType = header & BASIC_TYPE_MASK;
+    switch (basicType) {
+      case BASIC_TYPE_PRIMITIVE:
+        return BasicType.PRIMITIVE;
+      case BASIC_TYPE_SHORT_STRING:
+        return BasicType.SHORT_STRING;
+      case BASIC_TYPE_OBJECT:
+        return BasicType.OBJECT;
+      case BASIC_TYPE_ARRAY:
+        return BasicType.ARRAY;
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+  }
+}

@@ -40,6 +40,11 @@ public class EstimateOrcAvgWidthVisitor extends OrcSchemaVisitor<Integer> {
   }
 
   @Override
+  public Integer variant(TypeDescription variant, Integer metadata, Integer value) {
+    return 128;
+  }
+
+  @Override
   public Integer primitive(TypeDescription primitive) {
     Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(primitive);
 

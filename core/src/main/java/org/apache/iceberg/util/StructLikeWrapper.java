@@ -27,18 +27,19 @@ import org.apache.iceberg.types.Types;
 /** Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode. */
 public class StructLikeWrapper {
 
-  public static StructLikeWrapper forType(Types.StructType struct) {
-    return new StructLikeWrapper(struct);
+  public static StructLikeWrapper forType(
+      Types.StructType type, Comparator<StructLike> comparator) {
+    return new StructLikeWrapper(comparator, JavaHash.forType(type));
+  }
+
+  public static StructLikeWrapper forType(Types.StructType type) {
+    return forType(type, Comparators.forType(type));
   }
 
   private final Comparator<StructLike> comparator;
   private final JavaHash<StructLike> structHash;
   private Integer hashCode;
   private StructLike struct;
-
-  private StructLikeWrapper(Types.StructType type) {
-    this(Comparators.forType(type), JavaHash.forType(type));
-  }
 
   private StructLikeWrapper(Comparator<StructLike> comparator, JavaHash<StructLike> structHash) {
     this.comparator = comparator;
@@ -87,7 +88,13 @@ public class StructLikeWrapper {
       return false;
     }
 
-    return comparator.compare(this.struct, that.struct) == 0;
+    try {
+      return comparator.compare(this.struct, that.struct) == 0;
+    } catch (RuntimeException e) {
+      // An exception may occur, for example, when struct is PartitionData and its type does not
+      // match its data.
+      return false;
+    }
   }
 
   @Override

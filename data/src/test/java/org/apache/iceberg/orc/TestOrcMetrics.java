@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.FileFormat;
@@ -31,6 +33,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestMetrics;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.FileAppender;
@@ -39,7 +42,10 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /** Test Metrics for ORC. */
@@ -105,6 +111,35 @@ public class TestOrcMetrics extends TestMetrics {
 
   private boolean isBinaryType(Type type) {
     return BINARY_TYPES.contains(type.typeId());
+  }
+
+  @TestTemplate
+  public void timestampNanoBoundsKeepNanoPrecision() throws IOException {
+    Types.TimestampNanoType nanoType = Types.TimestampNanoType.withoutZone();
+    Schema schema = new Schema(Types.NestedField.optional(1, "tsNano", nanoType));
+
+    // sub-microsecond nanos that would change if truncated to micros
+    LocalDateTime lower = LocalDateTime.parse("1970-01-01T00:00:00.000001500");
+    LocalDateTime upper = LocalDateTime.parse("2024-01-02T03:04:05.123456789");
+
+    GenericRecord lowerRecord = GenericRecord.create(schema);
+    lowerRecord.set(0, lower);
+    GenericRecord upperRecord = GenericRecord.create(schema);
+    upperRecord.set(0, upper);
+
+    Metrics metrics = getMetrics(schema, lowerRecord, upperRecord);
+
+    LocalDateTime epoch = LocalDateTime.parse("1970-01-01T00:00:00");
+    long expectedLower = ChronoUnit.NANOS.between(epoch, lower);
+    long expectedUpper = ChronoUnit.NANOS.between(epoch, upper);
+
+    long actualLower = Conversions.fromByteBuffer(nanoType, metrics.lowerBounds().get(1));
+    long actualUpper = Conversions.fromByteBuffer(nanoType, metrics.upperBounds().get(1));
+
+    assertThat(actualLower).isEqualTo(expectedLower);
+    assertThat(actualUpper).isEqualTo(expectedUpper);
+    // guard against the micros regression: the bound must not be ~1000x smaller
+    assertThat(actualLower).isEqualTo(1500L);
   }
 
   @Override

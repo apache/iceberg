@@ -22,17 +22,74 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructProjection;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
+
+  private static final int PARTITION_FIELD_ID = 1;
+
+  private static final Types.NestedField SPEC_ID =
+      Types.NestedField.required(4, "spec_id", Types.IntegerType.get());
+  private static final Types.NestedField RECORD_COUNT =
+      Types.NestedField.required(
+          2, "record_count", Types.LongType.get(), "Count of records in data files");
+  private static final Types.NestedField FILE_COUNT =
+      Types.NestedField.required(3, "file_count", Types.IntegerType.get(), "Count of data files");
+  private static final Types.NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
+      Types.NestedField.required(
+          11,
+          "total_data_file_size_in_bytes",
+          Types.LongType.get(),
+          "Total size in bytes of data files");
+  private static final Types.NestedField POSITION_DELETE_RECORD_COUNT =
+      Types.NestedField.required(
+          5,
+          "position_delete_record_count",
+          Types.LongType.get(),
+          "Count of records in position delete files");
+  private static final Types.NestedField POSITION_DELETE_FILE_COUNT =
+      Types.NestedField.required(
+          6,
+          "position_delete_file_count",
+          Types.IntegerType.get(),
+          "Count of position delete files");
+  private static final Types.NestedField EQUALITY_DELETE_RECORD_COUNT =
+      Types.NestedField.required(
+          7,
+          "equality_delete_record_count",
+          Types.LongType.get(),
+          "Count of records in equality delete files");
+  private static final Types.NestedField EQUALITY_DELETE_FILE_COUNT =
+      Types.NestedField.required(
+          8,
+          "equality_delete_file_count",
+          Types.IntegerType.get(),
+          "Count of equality delete files");
+  private static final Types.NestedField LAST_UPDATED_AT =
+      Types.NestedField.optional(
+          9,
+          "last_updated_at",
+          Types.TimestampType.withZone(),
+          "Commit time of snapshot that last updated this partition");
+  private static final Types.NestedField LAST_UPDATED_SNAPSHOT_ID =
+      Types.NestedField.optional(
+          10,
+          "last_updated_snapshot_id",
+          Types.LongType.get(),
+          "Id of snapshot that last updated this partition");
 
   private final Schema schema;
 
@@ -47,47 +104,18 @@ public class PartitionsTable extends BaseMetadataTable {
 
     this.schema =
         new Schema(
-            Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
-            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
-                2, "record_count", Types.LongType.get(), "Count of records in data files"),
-            Types.NestedField.required(
-                3, "file_count", Types.IntegerType.get(), "Count of data files"),
-            Types.NestedField.required(
-                11,
-                "total_data_file_size_in_bytes",
-                Types.LongType.get(),
-                "Total size in bytes of data files"),
-            Types.NestedField.required(
-                5,
-                "position_delete_record_count",
-                Types.LongType.get(),
-                "Count of records in position delete files"),
-            Types.NestedField.required(
-                6,
-                "position_delete_file_count",
-                Types.IntegerType.get(),
-                "Count of position delete files"),
-            Types.NestedField.required(
-                7,
-                "equality_delete_record_count",
-                Types.LongType.get(),
-                "Count of records in equality delete files"),
-            Types.NestedField.required(
-                8,
-                "equality_delete_file_count",
-                Types.IntegerType.get(),
-                "Count of equality delete files"),
-            Types.NestedField.optional(
-                9,
-                "last_updated_at",
-                Types.TimestampType.withZone(),
-                "Commit time of snapshot that last updated this partition"),
-            Types.NestedField.optional(
-                10,
-                "last_updated_snapshot_id",
-                Types.LongType.get(),
-                "Id of snapshot that last updated this partition"));
+                PARTITION_FIELD_ID, "partition", Partitioning.partitionType(table)),
+            SPEC_ID,
+            RECORD_COUNT,
+            FILE_COUNT,
+            TOTAL_DATA_FILE_SIZE_IN_BYTES,
+            POSITION_DELETE_RECORD_COUNT,
+            POSITION_DELETE_FILE_COUNT,
+            EQUALITY_DELETE_RECORD_COUNT,
+            EQUALITY_DELETE_FILE_COUNT,
+            LAST_UPDATED_AT,
+            LAST_UPDATED_SNAPSHOT_ID);
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -99,16 +127,18 @@ public class PartitionsTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     if (unpartitionedTable) {
-      return schema.select(
-          "record_count",
-          "file_count",
-          "total_data_file_size_in_bytes",
-          "position_delete_record_count",
-          "position_delete_file_count",
-          "equality_delete_record_count",
-          "equality_delete_file_count",
-          "last_updated_at",
-          "last_updated_snapshot_id");
+      return TypeUtil.select(
+          schema,
+          ImmutableSet.of(
+              RECORD_COUNT.fieldId(),
+              FILE_COUNT.fieldId(),
+              TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(),
+              POSITION_DELETE_RECORD_COUNT.fieldId(),
+              POSITION_DELETE_FILE_COUNT.fieldId(),
+              EQUALITY_DELETE_RECORD_COUNT.fieldId(),
+              EQUALITY_DELETE_FILE_COUNT.fieldId(),
+              LAST_UPDATED_AT.fieldId(),
+              LAST_UPDATED_SNAPSHOT_ID.fieldId()));
     }
     return schema;
   }
@@ -163,23 +193,30 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.lastUpdatedSnapshotId);
   }
 
-  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
+  @VisibleForTesting
+  static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap partitions = new PartitionMap(partitionType);
+    PartitionData partitionDataTemplate = new PartitionData(partitionType);
+
+    StructLikeMap<Partition> partitions =
+        StructLikeMap.create(partitionType, new PartitionComparator(partitionType));
+
     try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
       for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         ContentFile<?> file = entry.file();
-        StructLike partition =
+        StructLike key =
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
-        partitions.get(partition).update(file, snapshot);
+        partitions
+            .computeIfAbsent(key, () -> new Partition(key, partitionDataTemplate))
+            .update(file, snapshot);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
 
-    return partitions.all();
+    return partitions.values();
   }
 
   @VisibleForTesting
@@ -238,26 +275,26 @@ public class PartitionsTable extends BaseMetadataTable {
     }
   }
 
-  static class PartitionMap {
-    private final StructLikeMap<Partition> partitions;
-    private final Types.StructType keyType;
+  private static class PartitionComparator implements Comparator<StructLike> {
+    private Comparator<StructLike> comparator;
 
-    PartitionMap(Types.StructType type) {
-      this.partitions = StructLikeMap.create(type);
-      this.keyType = type;
+    private PartitionComparator(Types.StructType struct) {
+      this.comparator = Comparators.forType(struct);
     }
 
-    Partition get(StructLike key) {
-      Partition partition = partitions.get(key);
-      if (partition == null) {
-        partition = new Partition(key, keyType);
-        partitions.put(key, partition);
+    @Override
+    public int compare(StructLike o1, StructLike o2) {
+      if (o1 instanceof StructProjection && o2 instanceof StructProjection) {
+        int cmp =
+            Integer.compare(
+                ((StructProjection) o1).projectedFields(),
+                ((StructProjection) o2).projectedFields());
+        if (cmp != 0) {
+          return cmp;
+        }
       }
-      return partition;
-    }
 
-    Iterable<Partition> all() {
-      return partitions.values();
+      return comparator.compare(o1, o2);
     }
   }
 
@@ -274,8 +311,8 @@ public class PartitionsTable extends BaseMetadataTable {
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
 
-    Partition(StructLike key, Types.StructType keyType) {
-      this.partitionData = toPartitionData(key, keyType);
+    Partition(StructLike key, PartitionData partitionDataTemplate) {
+      this.partitionData = toPartitionData(key, partitionDataTemplate);
       this.specId = 0;
       this.dataRecordCount = 0L;
       this.dataFileCount = 0;
@@ -286,10 +323,17 @@ public class PartitionsTable extends BaseMetadataTable {
       this.eqDeleteFileCount = 0;
     }
 
+    @VisibleForTesting
+    PartitionData partitionData() {
+      return partitionData;
+    }
+
     void update(ContentFile<?> file, Snapshot snapshot) {
       if (snapshot != null) {
         long snapshotCommitTime = snapshot.timestampMillis() * 1000;
         if (this.lastUpdatedAt == null || snapshotCommitTime > this.lastUpdatedAt) {
+          this.specId = file.specId();
+
           this.lastUpdatedAt = snapshotCommitTime;
           this.lastUpdatedSnapshotId = snapshot.snapshotId();
         }
@@ -299,18 +343,15 @@ public class PartitionsTable extends BaseMetadataTable {
         case DATA:
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
-          this.specId = file.specId();
           this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
-          this.specId = file.specId();
           break;
         case EQUALITY_DELETES:
           this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
-          this.specId = file.specId();
           break;
         default:
           throw new UnsupportedOperationException(
@@ -319,15 +360,9 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     /** Needed because StructProjection is not serializable */
-    private PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData data = new PartitionData(keyType);
-      for (int i = 0; i < keyType.fields().size(); i++) {
-        Object val = key.get(i, keyType.fields().get(i).type().typeId().javaClass());
-        if (val != null) {
-          data.set(i, val);
-        }
-      }
-      return data;
+    private static PartitionData toPartitionData(
+        StructLike key, PartitionData partitionDataTemplate) {
+      return partitionDataTemplate.copyFor(key);
     }
   }
 }

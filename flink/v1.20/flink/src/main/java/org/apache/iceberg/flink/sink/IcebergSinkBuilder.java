@@ -25,6 +25,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -40,7 +41,13 @@ import org.apache.iceberg.flink.TableLoader;
 @Internal
 interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
+  /**
+   * @deprecated Use {@link #resolvedSchema(ResolvedSchema)} instead.
+   */
+  @Deprecated
   T tableSchema(TableSchema newTableSchema);
+
+  T resolvedSchema(ResolvedSchema newResolvedSchema);
 
   T tableLoader(TableLoader newTableLoader);
 
@@ -64,12 +71,25 @@ interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
   DataStreamSink<?> append();
 
+  /**
+   * @deprecated Use {@link #forRow(DataStream, ResolvedSchema, boolean)} instead.
+   */
+  @Deprecated
   static IcebergSinkBuilder<?> forRow(
       DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
     if (useV2Sink) {
       return IcebergSink.forRow(input, tableSchema);
     } else {
       return FlinkSink.forRow(input, tableSchema);
+    }
+  }
+
+  static IcebergSinkBuilder<?> forRow(
+      DataStream<Row> input, ResolvedSchema resolvedSchema, boolean useV2Sink) {
+    if (useV2Sink) {
+      return IcebergSink.forRow(input, resolvedSchema);
+    } else {
+      return FlinkSink.forRow(input, resolvedSchema);
     }
   }
 

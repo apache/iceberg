@@ -70,7 +70,7 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
         TypeDescription record,
         List<String> names,
         List<OrcValueReader<?>> fields) {
-      return FlinkOrcReaders.struct(fields, iStruct, idToConstant);
+      return FlinkOrcReaders.struct(record, fields, iStruct, idToConstant);
     }
 
     @Override
@@ -108,6 +108,13 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
         case TIMESTAMP:
           Types.TimestampType timestampType = (Types.TimestampType) iPrimitive;
           if (timestampType.shouldAdjustToUTC()) {
+            return FlinkOrcReaders.timestampTzs();
+          } else {
+            return FlinkOrcReaders.timestamps();
+          }
+        case TIMESTAMP_NANO:
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) iPrimitive;
+          if (timestampNanoType.shouldAdjustToUTC()) {
             return FlinkOrcReaders.timestampTzs();
           } else {
             return FlinkOrcReaders.timestamps();

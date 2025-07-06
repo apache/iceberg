@@ -104,6 +104,7 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
         projection, context != null ? context.getReadSupportMetadata() : ImmutableMap.of());
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public RecordMaterializer<T> prepareForRead(
       Configuration configuration,

@@ -122,6 +122,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     positionStream();
     try {
       int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read());
+      if (bytesRead == -1) {
+        return -1;
+      }
+
       pos += 1;
       next += 1;
       readBytes.increment();
@@ -144,6 +148,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     try {
       int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read(b, off, len));
+      if (bytesRead == -1) {
+        return -1;
+      }
+
       pos += bytesRead;
       next += bytesRead;
       readBytes.increment(bytesRead);
@@ -165,7 +173,13 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     String range = String.format("bytes=%s-%s", position, position + length - 1);
 
-    IOUtil.readFully(readRange(range), buffer, offset, length);
+    try (InputStream rangeStream = readRange(range)) {
+      IOUtil.readFully(rangeStream, buffer, offset, length);
+      if (length > 0) {
+        readBytes.increment(length);
+        readOperations.increment();
+      }
+    }
   }
 
   @Override
@@ -174,7 +188,14 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     String range = String.format("bytes=-%s", length);
 
-    return IOUtil.readRemaining(readRange(range), buffer, offset, length);
+    try (InputStream rangeStream = readRange(range)) {
+      int bytesRead = IOUtil.readRemaining(rangeStream, buffer, offset, length);
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
+      return bytesRead;
+    }
   }
 
   private InputStream readRange(String range) {
@@ -286,7 +307,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.skipSize = skipSize;
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

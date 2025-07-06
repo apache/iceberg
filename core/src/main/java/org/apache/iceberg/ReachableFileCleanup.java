@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -49,7 +50,15 @@ class ReachableFileCleanup extends FileCleanupStrategy {
   }
 
   @Override
-  public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+  public void cleanFiles(
+      TableMetadata beforeExpiration,
+      TableMetadata afterExpiration,
+      ExpireSnapshots.CleanupLevel cleanupLevel) {
+    if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
+      LOG.info("Nothing to clean.");
+      return;
+    }
+
     Set<String> manifestListsToDelete = Sets.newHashSet();
 
     Set<Snapshot> snapshotsBeforeExpiration = Sets.newHashSet(beforeExpiration.snapshots());
@@ -72,19 +81,28 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               snapshotsAfterExpiration, deletionCandidates, currentManifests::add);
 
       if (!manifestsToDelete.isEmpty()) {
-        Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
-        deleteFiles(dataFilesToDelete, "data");
+        if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
+          Set<String> dataFilesToDelete =
+              findFilesToDelete(manifestsToDelete, currentManifests, beforeExpiration.specsById());
+          LOG.debug("Deleting {} data files", dataFilesToDelete.size());
+          deleteFiles(dataFilesToDelete, "data");
+        }
+
         Set<String> manifestPathsToDelete =
             manifestsToDelete.stream().map(ManifestFile::path).collect(Collectors.toSet());
+        LOG.debug("Deleting {} manifest files", manifestPathsToDelete.size());
         deleteFiles(manifestPathsToDelete, "manifest");
       }
     }
 
+    LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
     deleteFiles(manifestListsToDelete, "manifest list");
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
-      deleteFiles(
-          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration), "statistics files");
+      Set<String> expiredStatisticsFilesLocations =
+          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
+      LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
+      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
     }
   }
 
@@ -149,9 +167,10 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     return manifestFiles;
   }
 
-  // Helper to determine data files to delete
   private Set<String> findFilesToDelete(
-      Set<ManifestFile> manifestFilesToDelete, Set<ManifestFile> currentManifestFiles) {
+      Set<ManifestFile> manifestFilesToDelete,
+      Set<ManifestFile> currentManifestFiles,
+      Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
 
     Tasks.foreach(manifestFilesToDelete)
@@ -164,7 +183,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                     "Failed to determine live files in manifest {}. Retrying", item.path(), exc))
         .run(
             manifest -> {
-              try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
+              try (CloseableIterable<String> paths =
+                  ManifestFiles.readPaths(manifest, fileIO, specsById)) {
                 paths.forEach(filesToDelete::add);
               } catch (IOException e) {
                 throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
@@ -192,7 +212,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
 
                 // Remove all the live files from the candidate deletion set
-                try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
+                try (CloseableIterable<String> paths =
+                    ManifestFiles.readPaths(manifest, fileIO, specsById)) {
                   paths.forEach(filesToDelete::remove);
                 } catch (IOException e) {
                   throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);

@@ -19,6 +19,8 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -36,12 +38,17 @@ class RESTMetricsReporter implements MetricsReporter {
   private final RESTClient client;
   private final String metricsEndpoint;
   private final Supplier<Map<String, String>> headers;
+  private final ExecutorService executor;
 
   RESTMetricsReporter(
-      RESTClient client, String metricsEndpoint, Supplier<Map<String, String>> headers) {
+      RESTClient client,
+      String metricsEndpoint,
+      Supplier<Map<String, String>> headers,
+      ExecutorService executor) {
     this.client = client;
     this.metricsEndpoint = metricsEndpoint;
     this.headers = headers;
+    this.executor = executor;
   }
 
   @Override
@@ -52,14 +59,24 @@ class RESTMetricsReporter implements MetricsReporter {
     }
 
     try {
-      client.post(
+      executor.execute(
+          () -> {
+            try {
+              client.post(
+                  metricsEndpoint,
+                  ReportMetricsRequest.of(report),
+                  null,
+                  headers,
+                  ErrorHandlers.defaultErrorHandler());
+            } catch (Exception e) {
+              LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
+            }
+          });
+    } catch (RejectedExecutionException e) {
+      LOG.warn(
+          "Failed to report metrics to REST endpoint {}: metrics executor has been shut down",
           metricsEndpoint,
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
-    } catch (Exception e) {
-      LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
+          e);
     }
   }
 }

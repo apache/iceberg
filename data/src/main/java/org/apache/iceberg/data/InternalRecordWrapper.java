@@ -59,6 +59,12 @@ public class InternalRecordWrapper implements StructLike {
         } else {
           return timestamp -> DateTimeUtil.microsFromTimestamp((LocalDateTime) timestamp);
         }
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+          return timestamp -> DateTimeUtil.nanosFromTimestamptz((OffsetDateTime) timestamp);
+        } else {
+          return timestamp -> DateTimeUtil.nanosFromTimestamp((LocalDateTime) timestamp);
+        }
       case FIXED:
         return bytes -> ByteBuffer.wrap((byte[]) bytes);
       case STRUCT:

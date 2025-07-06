@@ -20,6 +20,7 @@ package org.apache.iceberg.data.orc;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -39,21 +40,40 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 public class GenericOrcReaders {
 
   private GenericOrcReaders() {}
 
+  /**
+   * @deprecated Use {@link #struct(TypeDescription, List, Types.StructType, Map)} instead. This
+   *     method uses position-based binding which may cause field misalignment in MOR and lineage
+   *     scenarios.
+   */
+  @Deprecated
   public static OrcValueReader<Record> struct(
       List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
+  }
+
+  public static OrcValueReader<Record> struct(
+      TypeDescription orcType,
+      List<OrcValueReader<?>> readers,
+      Types.StructType struct,
+      Map<Integer, ?> idToConstant) {
+    return new StructReader(orcType, readers, struct, idToConstant);
   }
 
   public static OrcValueReader<List<?>> array(OrcValueReader<?> elementReader) {
@@ -95,6 +115,10 @@ public class GenericOrcReaders {
 
   public static OrcValueReader<LocalDateTime> timestamps() {
     return TimestampReader.INSTANCE;
+  }
+
+  public static OrcValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   private static class TimestampTzReader implements OrcValueReader<OffsetDateTime> {
@@ -201,14 +225,47 @@ public class GenericOrcReaders {
     }
   }
 
+  private static class VariantReader implements OrcValueReader<Variant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
+    @Override
+    public Variant nonNullRead(ColumnVector vector, int row) {
+      StructColumnVector struct = (StructColumnVector) vector;
+      VariantMetadata metadata =
+          VariantMetadata.from(
+              BytesReader.INSTANCE.read(struct.fields[0], row).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata,
+              BytesReader.INSTANCE.read(struct.fields[1], row).order(ByteOrder.LITTLE_ENDIAN));
+
+      return Variant.of(metadata, value);
+    }
+  }
+
   private static class StructReader extends OrcValueReaders.StructReader<Record> {
     private final GenericRecord template;
 
+    /**
+     * @deprecated Use {@link #StructReader(TypeDescription, List, Types.StructType, Map)} instead.
+     *     This constructor uses position-based binding which may cause field misalignment in MOR
+     *     and lineage scenarios.
+     */
+    @Deprecated
     protected StructReader(
         List<OrcValueReader<?>> readers,
         Types.StructType structType,
         Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
+      this.template = GenericRecord.create(structType);
+    }
+
+    protected StructReader(
+        TypeDescription orcType,
+        List<OrcValueReader<?>> readers,
+        Types.StructType structType,
+        Map<Integer, ?> idToConstant) {
+      super(orcType, readers, structType, idToConstant);
       this.template = GenericRecord.create(structType);
     }
 

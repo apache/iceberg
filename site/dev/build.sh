@@ -16,8 +16,11 @@
 # limitations under the License.
 #
 
+source dev/common.sh
 set -e
 
 ./dev/setup_env.sh
 
-mkdocs build
+./dev/lint.sh
+
+"${VENV_DIR}/bin/python3" -m mkdocs build

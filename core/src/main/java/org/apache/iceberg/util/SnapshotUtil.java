@@ -21,17 +21,14 @@ package org.apache.iceberg.util;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.function.Function;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -281,28 +278,6 @@ public class SnapshotUtil {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
-  public static List<DataFile> newFiles(
-      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
-    List<DataFile> newFiles = Lists.newArrayList();
-    Snapshot lastSnapshot = null;
-    for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
-      lastSnapshot = currentSnapshot;
-      if (Objects.equals(currentSnapshot.snapshotId(), baseSnapshotId)) {
-        return newFiles;
-      }
-
-      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
-    }
-
-    ValidationException.check(
-        Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
-        "Cannot determine history between read snapshot %s and the last known ancestor %s",
-        baseSnapshotId,
-        lastSnapshot.snapshotId());
-
-    return newFiles;
-  }
-
   /**
    * Traverses the history of the table's current snapshot and finds the snapshot with the given
    * snapshot id as its parent.
@@ -349,9 +324,12 @@ public class SnapshotUtil {
 
   public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
+    long bestTimestamp = Long.MIN_VALUE;
     for (HistoryEntry logEntry : table.history()) {
-      if (logEntry.timestampMillis() <= timestampMillis) {
+      if (logEntry.timestampMillis() <= timestampMillis
+          && logEntry.timestampMillis() > bestTimestamp) {
         snapshotId = logEntry.snapshotId();
+        bestTimestamp = logEntry.timestampMillis();
       }
     }
 
@@ -361,11 +339,18 @@ public class SnapshotUtil {
   /**
    * Returns the schema of the table for the specified snapshot.
    *
+   * <p>Note that metadata tables may support time travel but don't inherit the snapshot schema,
+   * unlike normal data scans.
+   *
    * @param table a {@link Table}
    * @param snapshotId the ID of the snapshot
    * @return the schema
    */
   public static Schema schemaFor(Table table, long snapshotId) {
+    if (table instanceof BaseMetadataTable) {
+      return table.schema();
+    }
+
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
     Integer schemaId = snapshot.schemaId();

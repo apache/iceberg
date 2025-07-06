@@ -36,6 +36,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
@@ -46,6 +47,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,7 +112,9 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+        isTableSchema
+            ? IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA).table(table)
+            : IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
@@ -158,15 +162,21 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheck() {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-            .writeParallelism(parallelism)
-            .upsert(true);
+        isTableSchema
+            ? IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .tableLoader(tableLoader)
+                .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true)
+            : IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .tableLoader(tableLoader)
+                .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true);
 
     assertThatThrownBy(
             () ->
@@ -217,14 +227,17 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        "main");
+        SnapshotRef.MAIN_BRANCH);
 
-    DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
+    // The committer may append an empty snapshot after the change log commit
+    Snapshot snapshot = Iterables.getOnlyElement(findValidSnapshots());
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    DeleteFile deleteFile = changes.addedDeleteFiles().iterator().next();
     String fromStat =
         new String(
             deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
-    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
-    assumeThat(fromStat).isEqualTo(dataFile.path().toString());
+    DataFile dataFile = changes.addedDataFiles().iterator().next();
+    assertThat(fromStat).isEqualTo(dataFile.location());
   }
 
   protected void testChangeLogs(
@@ -238,15 +251,27 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .equalityFieldColumns(equalityFieldColumns)
-        .upsert(insertAsUpsert)
-        .toBranch(branch)
-        .uidSuffix("sink")
-        .append();
+    if (isTableSchema) {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .tableLoader(tableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .uidSuffix("sink")
+          .append();
+    } else {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .tableLoader(tableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .uidSuffix("sink")
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");

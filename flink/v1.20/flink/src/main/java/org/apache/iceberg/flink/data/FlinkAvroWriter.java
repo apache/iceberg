@@ -33,6 +33,7 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
@@ -41,6 +42,10 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
 
   public FlinkAvroWriter(RowType rowType) {
     this.rowType = rowType;
+  }
+
+  public FlinkAvroWriter(org.apache.iceberg.Schema icebergSchema, RowType engineSchema) {
+    this(engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema));
   }
 
   @Override
@@ -119,12 +124,15 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
           case "timestamp-micros":
             return FlinkValueWriters.timestampMicros();
 
+          case "timestamp-nanos":
+            return FlinkValueWriters.timestampNanos();
+
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
             return FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return FlinkValueWriters.uuids();
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);

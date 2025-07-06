@@ -19,32 +19,35 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite;
-import org.apache.spark.sql.connector.write.SupportsOverwrite;
+import org.apache.spark.sql.connector.write.SupportsOverwriteV2;
 import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
-import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructType;
 
-class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
+class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwriteV2 {
   private final SparkSession spark;
   private final Table table;
   private final SparkWriteConf writeConf;
@@ -97,12 +100,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   @Override
-  public WriteBuilder overwrite(Filter[] filters) {
+  public WriteBuilder overwrite(Predicate[] predicates) {
     Preconditions.checkState(
         !overwriteFiles, "Cannot overwrite individual files and using filters");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
 
-    this.overwriteExpr = SparkFilters.convert(filters);
+    this.overwriteExpr = SparkV2Filters.convert(predicates);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;
@@ -116,8 +119,25 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public Write build() {
-    // Validate
-    Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
+    // The write schema should only include row lineage in the output if it's an overwrite
+    // operation or if it's a compaction.
+    // In any other case, only null row IDs and sequence numbers would be produced which
+    // means the row lineage columns can be excluded from the output files
+    boolean writeRequiresRowLineage =
+        TableUtil.supportsRowLineage(table)
+            && (overwriteFiles || writeConf.rewrittenFileSetId() != null);
+    boolean writeAlreadyIncludesLineage =
+        dsSchema.exists(field -> field.name().equals(MetadataColumns.ROW_ID.name()));
+    StructType sparkWriteSchema = dsSchema;
+    if (writeRequiresRowLineage && !writeAlreadyIncludesLineage) {
+      sparkWriteSchema = sparkWriteSchema.add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$);
+      sparkWriteSchema =
+          sparkWriteSchema.add(
+              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$);
+    }
+
+    Schema writeSchema =
+        validateOrMergeWriteSchema(table, sparkWriteSchema, writeConf, writeRequiresRowLineage);
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
@@ -170,7 +190,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private static Schema validateOrMergeWriteSchema(
-      Table table, StructType dsSchema, SparkWriteConf writeConf) {
+      Table table, StructType dsSchema, SparkWriteConf writeConf, boolean writeIncludesRowLineage) {
     Schema writeSchema;
     boolean caseSensitive = writeConf.caseSensitive();
     if (writeConf.mergeSchema()) {
@@ -182,6 +202,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       UpdateSchema update =
           table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
+      if (writeIncludesRowLineage) {
+        mergedSchema =
+            TypeUtil.join(mergedSchema, MetadataColumns.schemaWithRowLineage(table.schema()));
+      }
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
       writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema, caseSensitive);
@@ -192,7 +216,11 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, caseSensitive);
+      Schema schema =
+          writeIncludesRowLineage
+              ? MetadataColumns.schemaWithRowLineage(table.schema())
+              : table.schema();
+      writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }

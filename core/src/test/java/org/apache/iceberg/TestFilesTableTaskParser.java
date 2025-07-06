@@ -38,19 +38,19 @@ public class TestFilesTableTaskParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      assertThatThrownBy(() -> FilesTableTaskParser.toJson(null, generator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid files task: null");
 
-    assertThatThrownBy(() -> FilesTableTaskParser.toJson(null, generator))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid files task: null");
+      assertThatThrownBy(() -> FilesTableTaskParser.toJson(createTask(), null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> FilesTableTaskParser.toJson(createTask(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON generator: null");
-
-    assertThatThrownBy(() -> FilesTableTaskParser.fromJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON node for files task: null");
+      assertThatThrownBy(() -> FilesTableTaskParser.fromJson(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON node for files task: null");
+    }
   }
 
   @Test
@@ -109,7 +109,8 @@ public class TestFilesTableTaskParser {
         + "\"added-files-count\":1,\"existing-files-count\":3,\"deleted-files-count\":0,"
         + "\"added-rows-count\":10,\"existing-rows-count\":30,\"deleted-rows-count\":0,"
         + "\"partition-field-summary\":[{\"contains-null\":true,\"contains-nan\":false,"
-        + "\"lower-bound\":\"0A000000\",\"upper-bound\":\"64000000\"}],\"key-metadata\":\"DB030000\"}}";
+        + "\"lower-bound\":\"0A000000\",\"upper-bound\":\"64000000\"}],\"key-metadata\":\"DB030000\","
+        + "\"first-row-id\":10}}";
   }
 
   private void assertTaskEquals(

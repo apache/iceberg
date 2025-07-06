@@ -1,0 +1,679 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.connect.channel;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
+import java.lang.reflect.Field;
+import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.events.AvroUtil;
+import org.apache.iceberg.connect.events.CommitComplete;
+import org.apache.iceberg.connect.events.CommitToTable;
+import org.apache.iceberg.connect.events.DataComplete;
+import org.apache.iceberg.connect.events.DataWritten;
+import org.apache.iceberg.connect.events.Event;
+import org.apache.iceberg.connect.events.PayloadType;
+import org.apache.iceberg.connect.events.StartCommit;
+import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.connect.events.TopicPartitionOffset;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.junit.jupiter.api.Test;
+
+public class TestCoordinator extends ChannelTestBase {
+
+  @Test
+  public void testCommitAppend() {
+    assertThat(table.snapshots()).isEmpty();
+
+    OffsetDateTime ts = EventTestUtil.now();
+    UUID commitId =
+        coordinatorTest(ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), ts);
+    table.refresh();
+
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, ts);
+    assertCommitComplete(2, commitId, ts);
+
+    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+
+    Snapshot snapshot = snapshots.get(0);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.APPEND);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).hasSize(1);
+    assertThat(changes.addedDeleteFiles()).isEmpty();
+
+    assertThat(snapshot.summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}")
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, ts.toString());
+  }
+
+  @Test
+  public void testCommitDelta() {
+    OffsetDateTime ts = EventTestUtil.now();
+    UUID commitId =
+        coordinatorTest(
+            ImmutableList.of(EventTestUtil.createDataFile()),
+            ImmutableList.of(EventTestUtil.createDeleteFile()),
+            ts);
+
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, ts);
+    assertCommitComplete(2, commitId, ts);
+
+    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+
+    Snapshot snapshot = snapshots.get(0);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).hasSize(1);
+    assertThat(changes.addedDeleteFiles()).hasSize(1);
+
+    assertThat(snapshot.summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}")
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, ts.toString());
+  }
+
+  @Test
+  public void testCommitNoFiles() {
+    OffsetDateTime ts = EventTestUtil.now();
+    UUID commitId = coordinatorTest(ImmutableList.of(), ImmutableList.of(), ts);
+
+    assertThat(producer.history()).hasSize(2);
+    assertCommitComplete(1, commitId, ts);
+
+    assertThat(table.snapshots()).isEmpty();
+  }
+
+  @Test
+  public void testCommitError() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(1);
+
+    // this spec isn't registered with the table
+    PartitionSpec badPartitionSpec =
+        PartitionSpec.builderFor(SCHEMA).withSpecId(1).identity("id").build();
+    DataFile badDataFile =
+        DataFiles.builder(badPartitionSpec)
+            .withPath(UUID.randomUUID() + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100L)
+            .withRecordCount(5)
+            .build();
+
+    assertThatThrownBy(
+            () -> coordinatorTest(ImmutableList.of(badDataFile), ImmutableList.of(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
+
+    assertThat(producer.history()).hasSize(1);
+    assertThat(table.snapshots()).isEmpty();
+  }
+
+  @Test
+  public void testCommitFailedExceptionPropagates() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(1);
+
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("Glue detected concurrent update"))
+        .when(spiedAppend)
+        .commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    assertThatThrownBy(
+            () ->
+                coordinatorTest(
+                    ImmutableList.of(EventTestUtil.createDataFile()),
+                    ImmutableList.of(),
+                    EventTestUtil.now()))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Glue detected concurrent update");
+  }
+
+  @Test
+  public void testCommitBoundedRetry() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(3);
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("transient error")).when(spiedAppend).commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // first two failures should not throw
+    triggerCommitCycle(coordinator);
+    triggerCommitCycle(coordinator);
+
+    // third consecutive failure should terminate
+    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("transient error");
+  }
+
+  @Test
+  public void testCommitCounterResetsOnSuccess() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(3);
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    // pre-populate a snapshot so latestSnapshot() is non-null after no-op commit
+    table.newAppend().appendFile(EventTestUtil.createDataFile()).commit();
+
+    Table spiedTable = spy(table);
+    AppendFiles failingAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("transient error")).when(failingAppend).commit();
+
+    // no-op mock that succeeds without writing a snapshot
+    AppendFiles noOpAppend = mock(AppendFiles.class);
+    when(noOpAppend.validateWith(any())).thenReturn(noOpAppend);
+    when(noOpAppend.set(any(), any())).thenReturn(noOpAppend);
+    when(noOpAppend.toBranch(any())).thenReturn(noOpAppend);
+    when(noOpAppend.appendFile(any())).thenReturn(noOpAppend);
+
+    // fail, fail, succeed (no-op), fail, fail, fail — third failure after reset terminates
+    when(spiedTable.newAppend())
+        .thenReturn(failingAppend)
+        .thenReturn(failingAppend)
+        .thenReturn(noOpAppend)
+        .thenReturn(failingAppend)
+        .thenReturn(failingAppend)
+        .thenReturn(failingAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // two failures (counter = 1, 2)
+    triggerCommitCycle(coordinator);
+    triggerCommitCycle(coordinator);
+
+    // success resets counter to 0
+    triggerCommitCycle(coordinator);
+
+    // two more failures — still under threshold (counter = 1, 2)
+    triggerCommitCycle(coordinator);
+    triggerCommitCycle(coordinator);
+
+    // third failure after reset — terminates (counter = 3), proving reset happened
+    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("transient error");
+  }
+
+  @Test
+  public void testCommitBoundedRetryWithMultipleThreads() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(2);
+    when(config.commitThreads()).thenReturn(2);
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("concurrent update")).when(spiedAppend).commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // first failure is retried
+    triggerCommitCycle(coordinator);
+
+    // second consecutive failure terminates
+    assertThatThrownBy(() -> triggerCommitCycle(coordinator))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("concurrent update");
+  }
+
+  private long nextOffset = 1;
+
+  private void triggerCommitCycle(Coordinator coordinator) {
+    coordinator.process();
+
+    byte[] startBytes = producer.history().get(producer.history().size() - 1).value();
+    Event startEvent = AvroUtil.decode(startBytes);
+    UUID commitId = ((StartCommit) startEvent.payload()).commitId();
+
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    byte[] bytes = AvroUtil.encode(commitResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
+
+    Event commitReady =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, null))));
+    bytes = AvroUtil.encode(commitReady);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
+
+    coordinator.process();
+  }
+
+  @Test
+  public void testCommitConsumerOffsetsDoesNotRewind() {
+    Coordinator coordinator = startCoordinator();
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    coordinator.controlTopicOffsets().put(0, 5L);
+    coordinator.commitConsumerOffsets();
+
+    assertThat(lastCommittedOffset(0))
+        .as("commitConsumerOffsets should not rewind the -coord consumer group offsets")
+        .isEqualTo(healthyWatermark);
+  }
+
+  @Test
+  public void testFencedCoordinatorCannotCommitOffsets() {
+    Coordinator coordinator = startCoordinator();
+
+    coordinator.controlTopicOffsets().put(0, 100L);
+    coordinator.commitConsumerOffsets();
+
+    producer.fenceProducer();
+
+    coordinator.controlTopicOffsets().put(0, 150L);
+    assertThatThrownBy(coordinator::commitConsumerOffsets)
+        .as("a fenced coordinator must not be able to commit offsets")
+        .isInstanceOf(ProducerFencedException.class)
+        .hasMessageContaining("fenced");
+
+    assertThat(lastCommittedOffset(0))
+        .as("the fenced coordinator's offset must never reach the offset store")
+        .isEqualTo(100L);
+  }
+
+  @Test
+  public void testFencedCoordinatorThreadIsClearedByCommitterWithoutFailingTask()
+      throws InterruptedException, NoSuchFieldException, IllegalAccessException {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+
+    producer.fenceProducer();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+    coordinatorThread.join(5000);
+
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    assertThat(coordinatorThread.isFenced())
+        .as("a real coordinator whose producer was fenced must report as fenced")
+        .isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    committer.save(Collections.emptyList());
+
+    assertThat(field.get(committer))
+        .as("committer must clear a fenced coordinator instead of failing the task")
+        .isNull();
+  }
+
+  @Test
+  public void testCommitNewConsumerAdvances() {
+    Coordinator coordinator = startCoordinator();
+
+    long newWatermark = 5L;
+    coordinator.controlTopicOffsets().put(0, newWatermark);
+    coordinator.commitConsumerOffsets();
+
+    assertThat(lastCommittedOffset(0))
+        .as("commitConsumerOffsets should advance offsets on its first commit")
+        .isEqualTo(newWatermark);
+  }
+
+  @Test
+  public void testCommitConsumerAdvances() {
+    Coordinator coordinator = startCoordinator();
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    long watermarkToCommit = 105L;
+    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+    coordinator.commitConsumerOffsets();
+
+    assertThat(lastCommittedOffset(0))
+        .as("commitConsumerOffsets should advance offsets when its value is greater")
+        .isEqualTo(watermarkToCommit);
+  }
+
+  @Test
+  public void testCommitConsumerMixedPartitionsRewindOrAdvance() {
+    Coordinator coordinator = startCoordinator();
+
+    long healthyWatermark0 = 100L;
+    long healthWatermark1 = 200L;
+    TopicPartition ctl0 = new TopicPartition(CTL_TOPIC_NAME, 0);
+    TopicPartition ctl1 = new TopicPartition(CTL_TOPIC_NAME, 1);
+
+    consumer.rebalance(ImmutableList.of(ctl0, ctl1));
+    consumer.updateBeginningOffsets(ImmutableMap.of(ctl0, 0L, ctl1, 0L));
+
+    coordinator.controlTopicOffsets().put(0, healthyWatermark0);
+    coordinator.controlTopicOffsets().put(1, healthWatermark1);
+    coordinator.commitConsumerOffsets();
+
+    long watermarkToCommit = 105L;
+    long watermarkToSkip = 195L;
+    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+    coordinator.controlTopicOffsets().put(1, watermarkToSkip);
+    coordinator.commitConsumerOffsets();
+
+    assertThat(lastCommittedOffset(0))
+        .as("commitConsumerOffsets should advance the consumer group offsets")
+        .isEqualTo(watermarkToCommit);
+
+    assertThat(lastCommittedOffset(1))
+        .as("commitConsumerOffsets should not rewind consumer group offsets")
+        .isEqualTo(healthWatermark1);
+  }
+
+  private Long lastCommittedOffset(int partition) {
+    String groupId = consumer.groupMetadata().groupId();
+    OffsetAndMetadata metadata =
+        committedGroupOffsets(groupId).get(new TopicPartition(CTL_TOPIC_NAME, partition));
+    assertThat(metadata)
+        .as("expected a committed offset for partition %s in group %s", partition, groupId)
+        .isNotNull();
+    return metadata.offset();
+  }
+
+  private Coordinator startCoordinator() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+    return coordinator;
+  }
+
+  private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
+    byte[] bytes = producer.history().get(idx).value();
+    Event commitTable = AvroUtil.decode(bytes);
+    assertThat(commitTable.type()).isEqualTo(PayloadType.COMMIT_TO_TABLE);
+    CommitToTable commitToTablePayload = (CommitToTable) commitTable.payload();
+    assertThat(commitToTablePayload.commitId()).isEqualTo(commitId);
+    assertThat(commitToTablePayload.tableReference().identifier().toString())
+        .isEqualTo(TABLE_IDENTIFIER.toString());
+    assertThat(commitToTablePayload.validThroughTs()).isEqualTo(ts);
+  }
+
+  private void assertCommitComplete(int idx, UUID commitId, OffsetDateTime ts) {
+    byte[] bytes = producer.history().get(idx).value();
+    Event commitComplete = AvroUtil.decode(bytes);
+    assertThat(commitComplete.type()).isEqualTo(PayloadType.COMMIT_COMPLETE);
+    CommitComplete commitCompletePayload = (CommitComplete) commitComplete.payload();
+    assertThat(commitCompletePayload.commitId()).isEqualTo(commitId);
+    assertThat(commitCompletePayload.validThroughTs()).isEqualTo(ts);
+  }
+
+  private UUID coordinatorTest(
+      List<DataFile> dataFiles, List<DeleteFile> deleteFiles, OffsetDateTime ts) {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+
+    // init consumer after subscribe()
+    initConsumer();
+
+    coordinator.process();
+
+    assertThat(producer.transactionCommitted()).isTrue();
+    assertThat(producer.history()).hasSize(1);
+
+    byte[] bytes = producer.history().get(0).value();
+    Event commitRequest = AvroUtil.decode(bytes);
+    assertThat(commitRequest.type()).isEqualTo(PayloadType.START_COMMIT);
+
+    UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
+
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                dataFiles,
+                deleteFiles));
+    bytes = AvroUtil.encode(commitResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    Event commitReady =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+    bytes = AvroUtil.encode(commitReady);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+
+    when(config.commitIntervalMs()).thenReturn(0);
+
+    coordinator.process();
+
+    return commitId;
+  }
+
+  @Test
+  public void testPartialCommitFailureMetric() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(0);
+
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("simulated failure")).when(spiedAppend).commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+
+    initConsumer();
+
+    coordinator.process();
+
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
+
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    byte[] bytes = AvroUtil.encode(commitResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    coordinator.process();
+
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+  }
+
+  @Test
+  public void testCoordinatorRunning() {
+    TopicPartition tp0 = new TopicPartition(SRC_TOPIC_NAME, 0);
+    TopicPartition tp1 = new TopicPartition(SRC_TOPIC_NAME, 1);
+    TopicPartition tp2 = new TopicPartition(SRC_TOPIC_NAME, 2);
+
+    // Assigning three topic partitions tp0, tp1, and tp2. This will be elected as leader as it has
+    // tp0.
+    sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1, tp2));
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isTrue();
+
+    // Now revoking the partition 2, this should not close the coordinator as this task still has
+    // the zeroth partition
+    sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1));
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isTrue();
+
+    // Now finally revoking partition zero and this should result in the closure of the coordinator
+    sourceConsumer.rebalance(ImmutableList.of(tp1));
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isFalse();
+  }
+
+  @Test
+  public void testCoordinatorCommittedOffsetMerging() {
+    // Set the initial offsets based on a message from partition 1
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"1\":7}")
+        .commit();
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"1\":7}");
+
+    // Trigger commit to the table that will include partition 0 offsets
+    coordinatorTest(
+        ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), EventTestUtil.now());
+
+    // Assert that the table was not updated and both offsets are represented
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3,\"1\":7}");
+  }
+
+  @Test
+  public void testCoordinatorCommittedOffsetValidation() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(1);
+
+    // This test demonstrates that the Coordinator's validateAndCommit method
+    // prevents commits when another independent commit has updated the offsets
+    // during the commit process
+
+    // Set the initial offsets
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":1}")
+        .commit();
+
+    Table frozenTable = catalog.loadTable(TABLE_IDENTIFIER);
+
+    // return the original table state on the first load, so that the update will happen
+    // during the commit refresh
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(frozenTable).thenCallRealMethod();
+
+    // Independently update the offsets
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}")
+        .commit();
+
+    assertThat(table.snapshots()).hasSize(2);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+
+    // Trigger commit to the table - should throw ValidationException
+    assertThatThrownBy(
+            () ->
+                coordinatorTest(
+                    ImmutableList.of(EventTestUtil.createDataFile()),
+                    ImmutableList.of(),
+                    EventTestUtil.now()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("stale offsets");
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+  }
+}

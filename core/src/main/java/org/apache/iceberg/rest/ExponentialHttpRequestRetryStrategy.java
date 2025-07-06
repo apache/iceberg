@@ -23,6 +23,7 @@ import java.io.InterruptedIOException;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,9 +39,12 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.http.protocol.HttpCoreContext;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Defines an exponential HTTP request retry strategy and provides the same characteristics as the
@@ -60,30 +64,56 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
- *   <li>SC_BAD_GATEWAY (502)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
- *   <li>SC_GATEWAY_TIMEOUT (504)
  * </ul>
  *
- * Most code and behavior is taken from {@link
+ * The following retriable HTTP status codes are defined for idempotent requests:
+ *
+ * <ul>
+ *   <li>SC_TOO_MANY_REQUESTS (429)
+ *   <li>SC_SERVICE_UNAVAILABLE (503)
+ *   <li>SC_INTERNAL_SERVER_ERROR (500)
+ *   <li>SC_BAD_GATEWAY (502)
+ *   <li>SC_GATEWAY_TIMEOUT (504)
+ *   <li>SC_REQUEST_TIMEOUT (408)
+ * </ul>
+ *
+ * Requests carrying an {@code Idempotency-Key} header are treated as retry-safe for these codes
+ * even when the HTTP method is not idempotent.
+ *
+ * <p>Most code and behavior is taken from {@link
  * org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, with minor modifications to
  * {@link #getRetryInterval(HttpResponse, int, HttpContext)} to achieve exponential backoff.
  */
 class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(ExponentialHttpRequestRetryStrategy.class);
+
+  static final String FIRST_ATTEMPT_EPOCH = "first-attempt-epoch";
+
   private final int maxRetries;
+  private final Duration keyLifetime;
   private final Set<Class<? extends IOException>> nonRetriableExceptions;
   private final Set<Integer> retriableCodes;
+  private final Set<Integer> idempotentRetriableCodes;
 
   ExponentialHttpRequestRetryStrategy(int maximumRetries) {
+    this(maximumRetries, null);
+  }
+
+  ExponentialHttpRequestRetryStrategy(int maximumRetries, Duration keyLifetime) {
     Preconditions.checkArgument(
         maximumRetries > 0, "Cannot set retries to %s, the value must be positive", maximumRetries);
     this.maxRetries = maximumRetries;
-    this.retriableCodes =
+    this.keyLifetime = keyLifetime;
+    this.retriableCodes = ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS);
+    this.idempotentRetriableCodes =
         ImmutableSet.of(
             HttpStatus.SC_TOO_MANY_REQUESTS,
             HttpStatus.SC_SERVICE_UNAVAILABLE,
+            HttpStatus.SC_INTERNAL_SERVER_ERROR,
             HttpStatus.SC_BAD_GATEWAY,
-            HttpStatus.SC_GATEWAY_TIMEOUT);
+            HttpStatus.SC_GATEWAY_TIMEOUT,
+            HttpStatus.SC_REQUEST_TIMEOUT);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
@@ -117,41 +147,116 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       return false;
     }
 
-    // Retry if the request is considered idempotent
-    return Method.isIdempotent(request.getMethod());
+    if (!isSafeToRetry(request)) {
+      return false;
+    }
+
+    return !wouldExceedKeyLifetime(request, null, execCount, context);
   }
 
   @Override
   public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
-    return execCount <= maxRetries && retriableCodes.contains(response.getCode());
+    HttpRequest request =
+        context instanceof HttpCoreContext ? ((HttpCoreContext) context).getRequest() : null;
+
+    boolean is503Retryable =
+        response.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE
+            && response.getFirstHeader(HttpHeaders.RETRY_AFTER) != null;
+
+    // A retry is permitted if all the following conditions are met:
+    // 1. The maximum retry count has not been exceeded.
+    // 2. The response code is considered retryable, for one of the following reasons:
+    //    - It's in a predefined list of retriable codes.
+    //    - The request is idempotent, and the response code indicates a retry is safe.
+    //    - The response code is '503 Service Unavailable' and includes a 'Retry-After' header.
+    boolean shouldRetry =
+        execCount <= maxRetries
+            && (retriableCodes.contains(response.getCode())
+                || (isSafeToRetry(request) && idempotentRetriableCodes.contains(response.getCode()))
+                || is503Retryable);
+
+    if (!shouldRetry) {
+      return false;
+    }
+
+    return !wouldExceedKeyLifetime(request, response, execCount, context);
   }
 
   @Override
   public TimeValue getRetryInterval(HttpResponse response, int execCount, HttpContext context) {
-    // a server may send a 429 / 503 with a Retry-After header
-    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After
-    Header header = response.getFirstHeader(HttpHeaders.RETRY_AFTER);
-    TimeValue retryAfter = null;
-    if (header != null) {
-      String value = header.getValue();
-      try {
-        retryAfter = TimeValue.ofSeconds(Long.parseLong(value));
-      } catch (NumberFormatException ignore) {
-        Instant retryAfterDate = DateUtils.parseStandardDate(value);
-        if (retryAfterDate != null) {
-          retryAfter =
-              TimeValue.ofMilliseconds(retryAfterDate.toEpochMilli() - System.currentTimeMillis());
-        }
-      }
+    TimeValue retryAfter = retryAfter(response);
+    if (TimeValue.isPositive(retryAfter)) {
+      return retryAfter;
+    }
+    long delayMillis = nextBackoffMillis(execCount);
+    int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMillis * 0.1)));
+    return TimeValue.ofMilliseconds(delayMillis + jitter);
+  }
 
-      if (TimeValue.isPositive(retryAfter)) {
-        return retryAfter;
-      }
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After (seconds or HTTP-date)
+  private static TimeValue retryAfter(HttpResponse response) {
+    Header header = response.getFirstHeader(HttpHeaders.RETRY_AFTER);
+    if (header == null) {
+      return null;
+    }
+    String value = header.getValue();
+    try {
+      return TimeValue.ofSeconds(Long.parseLong(value));
+    } catch (NumberFormatException ignore) {
+      Instant date = DateUtils.parseStandardDate(value);
+      return date == null
+          ? null
+          : TimeValue.ofMilliseconds(date.toEpochMilli() - System.currentTimeMillis());
+    }
+  }
+
+  // Upper bound of getRetryInterval: Retry-After verbatim (no jitter), else backoff + max 10%
+  // jitter.
+  // The lifetime check uses this so a permitted retry can't then sleep longer than checked.
+  private static long maxRetryIntervalMillis(HttpResponse response, int execCount) {
+    TimeValue retryAfter = retryAfter(response);
+    if (TimeValue.isPositive(retryAfter)) {
+      return retryAfter.toMilliseconds();
+    }
+    long delayMillis = nextBackoffMillis(execCount);
+    return delayMillis + (long) (delayMillis * 0.1);
+  }
+
+  private static boolean isSafeToRetry(HttpRequest request) {
+    return request != null
+        && (Method.isIdempotent(request.getMethod())
+            || request.containsHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER));
+  }
+
+  private static long nextBackoffMillis(int execCount) {
+    return 1000L * (long) Math.min(Math.pow(2.0, (long) execCount - 1.0), 64.0);
+  }
+
+  private boolean wouldExceedKeyLifetime(
+      HttpRequest request, HttpResponse response, int execCount, HttpContext context) {
+    if (keyLifetime == null
+        || context == null
+        || request == null
+        || !request.containsHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER)) {
+      return false;
     }
 
-    int delayMillis = 1000 * (int) Math.min(Math.pow(2.0, (long) execCount - 1.0), 64.0);
-    int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMillis * 0.1)));
+    Object attr = context.getAttribute(FIRST_ATTEMPT_EPOCH);
+    if (!(attr instanceof Long)) {
+      LOG.warn(
+          "Idempotency-Key lifetime not enforced: first-attempt time not recorded for {}",
+          request.getMethod());
+      return false;
+    }
 
-    return TimeValue.ofMilliseconds(delayMillis + jitter);
+    long firstAttemptMillis = (Long) attr;
+    long now = System.currentTimeMillis();
+    long nextIntervalMillis =
+        response != null
+            ? maxRetryIntervalMillis(response, execCount)
+            : nextBackoffMillis(execCount);
+    boolean nextAttemptExceedsLifetime =
+        (now - firstAttemptMillis) + nextIntervalMillis >= keyLifetime.toMillis();
+    return nextAttemptExceedsLifetime;
   }
 }

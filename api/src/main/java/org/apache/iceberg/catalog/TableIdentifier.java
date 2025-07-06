@@ -80,7 +80,9 @@ public class TableIdentifier {
 
   public TableIdentifier toLowerCase() {
     String[] newLevels =
-        Arrays.stream(namespace().levels()).map(String::toLowerCase).toArray(String[]::new);
+        Arrays.stream(namespace().levels())
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .toArray(String[]::new);
     String newName = name().toLowerCase(Locale.ROOT);
     return TableIdentifier.of(Namespace.of(newLevels), newName);
   }

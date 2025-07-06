@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -66,9 +67,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -80,11 +81,10 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -93,12 +93,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @ExtendWith(ParameterizedTestExtension.class)
 class TestIcebergCommitter extends TestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestIcebergCommitter.class);
   public static final String OPERATOR_ID = "flink-sink";
   @TempDir File temporaryFolder;
 
@@ -157,7 +154,7 @@ class TestIcebergCommitter extends TestBase {
   protected static List<Object> parameters() {
     List<Object> parameters = Lists.newArrayList();
     for (Boolean isStreamingMode : new Boolean[] {true, false}) {
-      for (int formatVersion : new int[] {1, 2}) {
+      for (int formatVersion : org.apache.iceberg.TestHelpers.ALL_VERSIONS) {
         parameters.add(new Object[] {formatVersion, isStreamingMode, SnapshotRef.MAIN_BRANCH});
         parameters.add(new Object[] {formatVersion, isStreamingMode, "test-branch"});
       }
@@ -171,6 +168,8 @@ class TestIcebergCommitter extends TestBase {
 
     String tablePath = warehouse.concat("/test");
     assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
+    // v4 table metadata requires an absolute (scheme-qualified) location
+    String tableLocation = "file:" + tablePath;
 
     Map<String, String> props =
         ImmutableMap.of(
@@ -180,8 +179,8 @@ class TestIcebergCommitter extends TestBase {
             flinkManifestFolder.getAbsolutePath(),
             IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS,
             "1");
-    table = SimpleDataUtil.createTable(tablePath, props, false);
-    tableLoader = TableLoader.fromHadoopTable(tablePath);
+    table = SimpleDataUtil.createTable(tableLocation, props, false);
+    tableLoader = TableLoader.fromHadoopTable(tableLocation);
   }
 
   @TestTemplate
@@ -237,6 +236,56 @@ class TestIcebergCommitter extends TestBase {
           .containsEntry("flink.operator-id", OPERATOR_ID)
           .containsEntry("flink.job-id", "jobId");
     }
+  }
+
+  @TestTemplate
+  public void testCommitTxnAfterStatelessRestart() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(0, "hello0");
+    DataFile dataFileFromPreviousRun =
+        writeDataFile("data-previous-run", ImmutableList.of(rowFromPreviousRun));
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preRestartHarness = getTestHarness()) {
+      preRestartHarness.open();
+      processElement(jobId, 5, preRestartHarness, 1, OPERATOR_ID, dataFileFromPreviousRun);
+      preRestartHarness.notifyOfCompletedCheckpoint(5);
+    }
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    List<RowData> rows = Lists.newArrayList(rowFromPreviousRun);
+    // A stateless restart opens a fresh operator instance without restoring prior state, so
+    // IcebergSink#createCommitter must see an empty context.getRestoredCheckpointId().
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        afterRestartHarness = getTestHarness()) {
+      afterRestartHarness.open();
+
+      RowData rowAfterRestart = SimpleDataUtil.createRowData(1, "hello1");
+      DataFile dataFileAfterRestart =
+          writeDataFile("data-after-restart", ImmutableList.of(rowAfterRestart));
+      processElement(jobId, 1, afterRestartHarness, 1, OPERATOR_ID, dataFileAfterRestart);
+      afterRestartHarness.notifyOfCompletedCheckpoint(1);
+      rows.add(rowAfterRestart);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId, 1);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitTxnSkipsAlreadyCommittedCheckpointAfterRestore() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(1, "hello1");
+    commitCheckpoint(getCommitter(), 5, "data-previous-run", rowFromPreviousRun);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    commitCheckpoint(getCommitter(), 5, "data-replayed", SimpleDataUtil.createRowData(2, "hello2"));
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
   }
 
   @TestTemplate
@@ -715,7 +764,7 @@ class TestIcebergCommitter extends TestBase {
       processElement(jobId, checkpointId, harness, 1, operatorId.toString(), dataFile);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
+      assertFlinkManifests(1);
     }
 
     // Redeploying flink job from external checkpoint.
@@ -726,6 +775,11 @@ class TestIcebergCommitter extends TestBase {
       harness.getStreamConfig().setOperatorID(operatorId);
       harness.initializeState(snapshot);
       harness.open();
+
+      // test harness has a limitation wherein it is not able to commit pending commits when
+      // initializeState is called, when the checkpointId > 0
+      // so we have to call it explicitly
+      harness.notifyOfCompletedCheckpoint(checkpointId);
 
       // All flink manifests should be cleaned because it has committed the unfinished iceberg
       // transaction.
@@ -1023,7 +1077,7 @@ class TestIcebergCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -1072,7 +1126,7 @@ class TestIcebergCommitter extends TestBase {
 
     assumeThat(formatVersion).as("Only support delete in format v2").isGreaterThanOrEqualTo(2);
 
-    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
+    FileWriterFactory<RowData> writerFactory = createFileWriterFactory();
 
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
@@ -1129,7 +1183,8 @@ class TestIcebergCommitter extends TestBase {
       checkpointId = 3;
       RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
       DeleteFile deleteFile1 =
-          writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
+          writeEqDeleteFile(
+              writerFactory, "delete-file-1", ImmutableList.of(delete1), table.spec());
       RowData row4 = SimpleDataUtil.createInsert(4, "ddd");
       DataFile dataFile4 = writeDataFile("data-file-4", ImmutableList.of(row4));
 
@@ -1159,23 +1214,59 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(
-        manifestPath.toAbsolutePath().toString(),
-        manifestPath.toFile().length(),
-        0,
-        ManifestContent.DATA,
-        0,
-        0,
-        0L,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        null,
-        null);
+  @TestTemplate
+  public void testCommitterSubtaskZeroCommits() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 0)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "subtask-zero");
+      DataFile dataFile = writeDataFile("data-subtask-zero", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
+
+      // subtask 0 loaded the table and performed the commit end-to-end.
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitOnNonZeroSubtaskFailsFast() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 1)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "should-not-commit");
+      DataFile dataFile = writeDataFile("data-non-zero-subtask", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      assertThatThrownBy(() -> testHarness.notifyOfCompletedCheckpoint(checkpointId))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("only subtask 0 is expected to commit");
+
+      // No snapshot should have been produced because the commit failed fast.
+      assertSnapshotSize(0);
+    }
+  }
+
+  private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
+      throws IOException {
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(
+            formatVersion,
+            PartitionSpec.unpartitioned(),
+            table.io().newOutputFile(manifestPath.toString()),
+            0L);
+    writer.add(dataFile);
+    writer.close();
+    return writer.toManifestFile();
   }
 
   private IcebergWriteAggregator buildIcebergWriteAggregator(String myJobId, String operatorId) {
@@ -1246,20 +1337,18 @@ class TestIcebergCommitter extends TestBase {
     return processElement(withRecord, myJobID, checkpointId, testHarness, subTaskId, operatorId);
   }
 
-  private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
+  private FileWriterFactory<RowData> createFileWriterFactory() {
     int[] equalityFieldIds =
         new int[] {
           table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()
         };
-    return new FlinkAppenderFactory(
-        table,
-        table.schema(),
-        FlinkSchemaUtil.convert(table.schema()),
-        table.properties(),
-        table.spec(),
-        equalityFieldIds,
-        table.schema(),
-        null);
+    return new FlinkFileWriterFactory.Builder(table)
+        .dataFileFormat(FileFormat.PARQUET)
+        .dataSchema(table.schema())
+        .deleteFileFormat(FileFormat.PARQUET)
+        .equalityFieldIds(equalityFieldIds)
+        .equalityDeleteRowSchema(table.schema())
+        .build();
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
@@ -1283,15 +1372,23 @@ class TestIcebergCommitter extends TestBase {
   }
 
   private DeleteFile writeEqDeleteFile(
-      FileAppenderFactory<RowData> appenderFactory, String filename, List<RowData> deletes)
+      FileWriterFactory<RowData> writerFactory,
+      String filename,
+      List<RowData> deletes,
+      PartitionSpec spec)
       throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(
-        table, FileFormat.PARQUET, filename, appenderFactory, deletes);
+    return SimpleDataUtil.writeEqDeleteFile(table, spec, filename, writerFactory, deletes);
   }
 
   private OneInputStreamOperatorTestHarness<
           CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
       getTestHarness() throws Exception {
+    return getTestHarness(1, 0);
+  }
+
+  private OneInputStreamOperatorTestHarness<
+          CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+      getTestHarness(int parallelism, int subtaskIndex) throws Exception {
     IcebergSink sink =
         IcebergSink.forRowData(null).table(table).toBranch(branch).tableLoader(tableLoader).build();
 
@@ -1299,7 +1396,10 @@ class TestIcebergCommitter extends TestBase {
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
+                new CommitterOperatorFactory<>(sink, !isStreamingMode, true),
+                parallelism,
+                parallelism,
+                subtaskIndex);
     testHarness.setup(committableMessageTypeSerializer);
     return testHarness;
   }
@@ -1307,6 +1407,10 @@ class TestIcebergCommitter extends TestBase {
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
+    return getCommitter(true);
+  }
+
+  private IcebergCommitter getCommitter(boolean isRestored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1315,7 +1419,19 @@ class TestIcebergCommitter extends TestBase {
         false,
         10,
         "sinkId",
-        metric);
+        metric,
+        false,
+        isRestored,
+        0);
+  }
+
+  private void commitCheckpoint(
+      IcebergCommitter committer, long checkpointId, String filename, RowData row)
+      throws IOException, InterruptedException {
+    WriteResult writeResult = of(writeDataFile(filename, ImmutableList.of(row)));
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(jobId, checkpointId, Lists.newArrayList(writeResult))));
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(

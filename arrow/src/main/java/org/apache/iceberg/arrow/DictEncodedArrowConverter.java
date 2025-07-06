@@ -31,6 +31,8 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
@@ -56,6 +58,8 @@ public class DictEncodedArrowConverter {
         return toDecimalVector(vectorHolder, accessor);
       } else if (Type.TypeID.TIMESTAMP.equals(vectorHolder.icebergType().typeId())) {
         return toTimestampVector(vectorHolder, accessor);
+      } else if (Type.TypeID.TIMESTAMP_NANO.equals(vectorHolder.icebergType().typeId())) {
+        return toTimestampNanoVector(vectorHolder, accessor);
       } else if (Type.TypeID.LONG.equals(vectorHolder.icebergType().typeId())) {
         return toBigIntVector(vectorHolder, accessor);
       } else if (Type.TypeID.FLOAT.equals(vectorHolder.icebergType().typeId())) {
@@ -110,6 +114,27 @@ public class DictEncodedArrowConverter {
     } else {
       vector =
           new TimeStampMicroVector(
+              vectorHolder.vector().getName(),
+              ArrowSchemaUtil.convert(vectorHolder.icebergField()).getFieldType(),
+              vectorHolder.vector().getAllocator());
+    }
+
+    initVector(vector, vectorHolder, idx -> vector.set(idx, accessor.getLong(idx)));
+    return vector;
+  }
+
+  private static TimeStampVector toTimestampNanoVector(
+      VectorHolder vectorHolder, ArrowVectorAccessor<?, String, ?, ?> accessor) {
+    TimeStampVector vector;
+    if (((Types.TimestampNanoType) vectorHolder.icebergType()).shouldAdjustToUTC()) {
+      vector =
+          new TimeStampNanoTZVector(
+              vectorHolder.vector().getName(),
+              ArrowSchemaUtil.convert(vectorHolder.icebergField()).getFieldType(),
+              vectorHolder.vector().getAllocator());
+    } else {
+      vector =
+          new TimeStampNanoVector(
               vectorHolder.vector().getName(),
               ArrowSchemaUtil.convert(vectorHolder.icebergField()).getFieldType(),
               vectorHolder.vector().getAllocator());

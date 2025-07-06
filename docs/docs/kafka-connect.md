@@ -20,8 +20,8 @@ title: "Kafka Connect"
 
 # Kafka Connect
 
-[Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) is a popular framework for moving data
-in and out of Kafka via connectors. There are many different connectors available, such as the S3 sink
+[Kafka Connect](https://kafka.apache.org/documentation/#connect) is a popular framework for moving data
+in and out of Apache Kafka via connectors. There are many different connectors available, such as the S3 sink
 for writing data from Kafka to S3 and Debezium source connectors for writing change data capture records from relational
 databases to Kafka.
 
@@ -40,6 +40,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Multi-table fan-out
 * Automatic table creation and schema evolution
 * Field name mapping via Iceberg’s column mapping functionality
+* Variant shredding for Parquet writes via the `write.parquet.shred-variants` table property
 
 ## Installation
 
@@ -70,16 +71,20 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.replace-null-with-default   | Set to `true` to replace null struct field values with the record schema default value, `false` to preserve explicit nulls, default is `true` |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.\<table name\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.\<table name\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
+| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
+| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
+| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
+| iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
-| iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores * 2)                                                     |
+| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.max-consecutive-failures | Maximum number of consecutive commit failures before the coordinator terminates, default is `1`              |
+| iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
 | iceberg.hadoop-conf-dir                    | If specified, Hadoop config files in this directory will be loaded                                               |
@@ -89,6 +94,21 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
 `iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
 contain the name of the table.
+
+When `iceberg.tables.replace-null-with-default` is set to `false`, an explicit null value in a
+record is written to the table as null instead of being replaced by the record schema default
+value. This applies to value conversion and to route-field extraction: a record whose route field
+is explicitly null is skipped, like any other record with a null route value. A required Iceberg column cannot take an explicit null under this setting and the write
+fails, so set `iceberg.tables.schema-force-optional` to `true` (or alter the columns to optional)
+if the source can emit explicit nulls for such columns. The connector logs a warning whenever a
+record holds a null value for a required column; this also happens with the default setting when
+the field has no schema default to substitute. Note that the JSON converter applies its
+own `replace.null.with.default` setting during (de)serialization (default `true` since its
+introduction in Kafka 3.5.0), so it must also be set to `false` wherever that converter is used.
+
+The bundled SMTs always preserve explicit null values when copying record fields, regardless of
+this setting. The copied schema still carries the field default values, so consumers that
+substitute defaults on read see the same values as before.
 
 ### Kafka configuration
 
@@ -104,7 +124,7 @@ Messages should be converted to a struct or map using the appropriate Kafka Conn
 
 The `iceberg.catalog.*` properties are required for connecting to the Iceberg catalog. The core catalog
 types are included in the default distribution, including REST, Glue, DynamoDB, Hadoop, Nessie,
-JDBC, and Hive. JDBC drivers are not included in the default distribution, so you will need to include
+JDBC, Hive and BigQuery Metastore. JDBC drivers are not included in the default distribution, so you will need to include
 those if needed. When using a Hive catalog, you can use the distribution that includes the Hive metastore client,
 otherwise you will need to include that yourself.
 
@@ -123,7 +143,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 #### Hive example
 
 NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
-using S3 for storage (the default is `HadoopFileIO` with `HiveCatalog`).
+using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
 ```
 "iceberg.catalog.type": "hive",
 "iceberg.catalog.uri": "thrift://hive:9083",
@@ -150,6 +170,17 @@ using S3 for storage (the default is `HadoopFileIO` with `HiveCatalog`).
 "iceberg.catalog.ref": "main",
 "iceberg.catalog.warehouse": "s3a://bucket/warehouse",
 "iceberg.catalog.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+```
+
+#### BigQuery Metastore example
+
+```
+"iceberg.catalog.catalog-impl": "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog",
+"iceberg.catalog.gcp.bigquery.project-id": "my-project",
+"iceberg.catalog.gcp.bigquery.location": "us-east1",
+"iceberg.catalog.warehouse": "gs://bucket/warehouse",
+"iceberg.catalog.io-impl": "org.apache.iceberg.gcp.gcs.GCSFileIO",
+"iceberg.tables.auto-create-props.bq_connection": "projects/my-project/locations/us-east1/connections/my-connection",
 ```
 
 #### Notes
@@ -205,7 +236,7 @@ be found in the [Google Cloud documentation](https://cloud.google.com/docs/authe
 "iceberg.catalog.type": "rest",
 "iceberg.catalog.uri": "https://catalog:8181",
 "iceberg.catalog.warehouse": "gs://bucket-name/warehouse",
-"iceberg.catalog.io-impl": "org.apache.iceberg.google.gcs.GCSFileIO"
+"iceberg.catalog.io-impl": "org.apache.iceberg.gcp.gcs.GCSFileIO"
 ```
 
 ### Hadoop configuration
@@ -228,7 +259,7 @@ This assumes the source topic already exists and is named `events`.
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
 automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
 ```bash
-bin/kafka-topics  \
+bin/kafka-topics.sh  \
   --command-config command-config.props \
   --bootstrap-server ${CONNECT_BOOTSTRAP_SERVERS} \
   --create \
@@ -260,11 +291,11 @@ PARTITIONED BY (hours(ts))
 
 #### Connector config
 
-This example config connects to a Iceberg REST catalog.
+This example config connects to an Iceberg REST catalog.
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -273,7 +304,7 @@ This example config connects to a Iceberg REST catalog.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -305,8 +336,8 @@ PARTITIONED BY (hours(ts));
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -318,7 +349,7 @@ PARTITIONED BY (hours(ts));
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -336,8 +367,8 @@ See above for creating two tables.
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -347,6 +378,173 @@ See above for creating two tables.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
+
+## SMTs for the Apache Iceberg Sink Connector
+
+This project contains some SMTs that could be useful when transforming Kafka data for use by
+the Iceberg sink connector.
+
+### CopyValue
+_(Experimental)_
+
+The `CopyValue` SMT copies a value from one field to a new field.
+
+#### Configuration
+
+| Property         | Description       |
+|------------------|-------------------|
+| source.field     | Source field name |
+| target.field     | Target field name |
+
+#### Example
+
+```
+"transforms": "copyId",
+"transforms.copyId.type": "org.apache.iceberg.connect.transforms.CopyValue",
+"transforms.copyId.source.field": "id",
+"transforms.copyId.target.field": "id_copy",
+```
+
+### DmsTransform
+_(Experimental)_
+
+The `DmsTransform` SMT transforms an AWS DMS formatted message for use by the sink's CDC feature.
+It will promote the `data` element fields to top level and add the following metadata fields:
+`_cdc.op`, `_cdc.ts`, and `_cdc.source`.
+
+##### Configuration
+
+The SMT currently has no configuration.
+
+### DebeziumTransform
+_(Experimental)_
+
+The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
+It will promote the `before` or `after` element fields to top level and add the following metadata fields:
+`_cdc.op`, `_cdc.ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
+
+##### Configuration
+
+| Property            | Description                                                                       |
+|---------------------|-----------------------------------------------------------------------------------|
+| cdc.target.pattern  | Pattern to use for setting the CDC target field value, default is `{db}.{table}`  |
+
+### JsonToMapTransform
+_(Experimental)_
+
+The `JsonToMapTransform` SMT parses Strings as Json object payloads to infer schemas.  The iceberg-kafka-connect
+connector for schema-less data (e.g. the Map produced by the Kafka supplied JsonConverter) is to convert Maps into Iceberg
+Structs.  This is fine when the JSON is well-structured, but when you have JSON objects with dynamically
+changing keys, it will lead to an explosion of columns in the Iceberg table due to schema evolutions.
+
+This SMT is useful in situations where the JSON is not well-structured, in order to get data into Iceberg where
+it can be further processed by query engines into a more manageable form. It will convert nested objects to
+Maps and include Map type in the Schema.  The connector will respect the Schema and create Iceberg tables with Iceberg
+Map (String) columns for the JSON objects.
+
+Note:
+
+- You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
+    - It expects JSON objects (`{...}`) in those strings.
+- Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
+
+##### Configuration
+
+| Property             | Description  (default value)             |
+|----------------------|------------------------------------------|
+| json.root | (false) Boolean value to start at root   |
+
+The `transforms.IDENTIFIER_HERE.json.root` is meant for the most inconsistent data.  It will construct a Struct with a single field
+called `payload` with a Schema of `Map<String, String>`.
+
+If `transforms.IDENTIFIER_HERE.json.root` is false (the default), it will construct a Struct with inferred schemas for primitive and
+array fields.  Nested objects become fields of type `Map<String, String>`.
+
+Keys with empty arrays and empty objects are filtered out from the final schema.  Arrays will be typed unless the
+json arrays have mixed types in which case they are converted to arrays of strings.
+
+Example json:
+
+```json
+{
+  "key": 1,
+  "array": [1,"two",3],
+  "empty_obj": {},
+  "nested_obj": {"some_key": ["one", "two"]}
+}
+```
+
+Will become the following if `json.root` is true:
+
+```
+SinkRecord.schema: 
+  "payload" : (Optional) Map<String, String>
+  
+Sinkrecord.value (Struct): 
+  "payload"  : Map(
+    "key" : "1",
+    "array" : "[1,"two",3]"
+    "empty_obj": "{}"
+    "nested_obj": "{"some_key":["one","two"]}"
+  )
+```
+
+Will become the following if `json.root` is false
+
+```
+SinkRecord.schema: 
+  "key": (Optional) Int32,
+  "array": (Optional) Array<String>,
+  "nested_object": (Optional) Map<string, String>
+  
+SinkRecord.value (Struct):
+  "key" 1, 
+  "array" ["1", "two", "3"] 
+  "nested_object" Map ("some_key" : "["one", "two"]") 
+```
+
+### KafkaMetadataTransform
+_(Experimental)_
+
+The `KafkaMetadata` injects `topic`, `partition`, `offset`, `timestamp` which are properties are the Kafka message.
+
+#### Configuration
+
+| Property       | Description (default value)                                                       |
+|----------------|-----------------------------------------------------------------------------------|
+| field_name     | (_kafka_metadata) prefix for fields                                               |
+| nested         | (false) if true, nests data on a struct else adds to top level as prefixed fields |
+| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         |
+
+If `nested` is on:
+
+`_kafka_metadata.topic`, `_kafka_metadata.partition`, `_kafka_metadata.offset`, `_kafka_metadata.timestamp`
+
+If `nested` is off:
+`_kafka_metadata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
+
+### MongoDebeziumTransform
+_(Experimental)_
+
+The `MongoDebeziumTransform` SMT transforms a Mongo Debezium formatted message with `before`/`after` BSON
+strings into `before`/`after` typed Structs that the `DebeziumTransform` SMT expects.
+
+It does not (yet) support renaming columns if mongodb column is not supported by your underlying
+catalog type.
+
+#### Configuration
+
+| Property            | Description                                      |
+|---------------------|--------------------------------------------------|
+| array_handling_mode  | `array` or `document` to set array handling mode |
+
+Value array (the default) will encode arrays as the array datatype. It is user’s responsibility to ensure that
+all elements for a given array instance are of the same type. This option is a restricting one but offers
+easy processing of arrays by downstream clients.
+
+Value document will convert the array into a struct of structs in the similar way as done by BSON serialization.
+The main struct contains fields named _0, _1, _2 etc. where the name represents the index of the element in the array.
+Every element is then passed as the value for the given field.

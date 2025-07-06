@@ -78,7 +78,14 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema expectedSchema,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        null != scan ? scan.fileIO() : table::io,
+        readConf,
+        expectedSchema,
+        filters,
+        scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
@@ -177,7 +184,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         for (ScanTask task : taskIterable) {
           ValidationException.check(
               taskJavaClass().isInstance(task),
-              "Unsupported task type, expected a subtype of %s: %",
+              "Unsupported task type, expected a subtype of %s: %s",
               taskJavaClass().getName(),
               task.getClass().getName());
 
@@ -236,7 +243,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   // only task groups can be reset while resetting tasks
   // the set of scanned specs and grouping key type must never change
-  protected void resetTasks(List<T> filteredTasks) {
+  protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
   }

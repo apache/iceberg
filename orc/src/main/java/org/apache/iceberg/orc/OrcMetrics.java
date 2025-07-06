@@ -21,6 +21,9 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,10 +127,15 @@ public class OrcMetrics {
       final Stream<FieldMetrics<?>> fieldMetricsStream,
       final MetricsConfig metricsConfig,
       final NameMapping mapping) {
-    final TypeDescription orcSchemaWithIds =
-        (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null)
-            ? ORCSchemaUtil.applyNameMapping(orcSchema, mapping)
-            : orcSchema;
+    TypeDescription orcSchemaWithIds;
+    if (ORCSchemaUtil.hasIds(orcSchema)) {
+      orcSchemaWithIds = orcSchema;
+    } else if (mapping != null) {
+      orcSchemaWithIds = ORCSchemaUtil.applyNameMapping(orcSchema, mapping);
+    } else {
+      return new Metrics(numOfRows);
+    }
+
     final Set<Integer> statsColumns = statsColumns(orcSchemaWithIds);
     final MetricsConfig effectiveMetricsConfig =
         Optional.ofNullable(metricsConfig).orElseGet(MetricsConfig::getDefault);
@@ -135,13 +143,10 @@ public class OrcMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
 
-    if (!ORCSchemaUtil.hasIds(orcSchemaWithIds)) {
-      return new Metrics(numOfRows, columnSizes, valueCounts, nullCounts, null, null, null);
-    }
-
     final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    Map<Integer, Type> originalTypes = Maps.newHashMap();
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         Optional.ofNullable(fieldMetricsStream)
@@ -158,10 +163,9 @@ public class OrcMetrics {
         final Types.NestedField icebergCol = icebergColOpt.get();
         final int fieldId = icebergCol.fieldId();
 
-        final MetricsMode metricsMode =
-            MetricsUtil.metricsMode(schema, effectiveMetricsConfig, icebergCol.fieldId());
+        final MetricsMode metricsMode = effectiveMetricsConfig.columnMode(icebergCol.fieldId());
 
-        if (metricsMode == MetricsModes.None.get()) {
+        if (metricsMode == MetricsModes.None.get() || inMapOrList(orcCol)) {
           continue;
         }
 
@@ -170,7 +174,7 @@ public class OrcMetrics {
         if (statsColumns.contains(fieldId)) {
           // Since ORC does not track null values nor repeated ones, the value count for columns in
           // containers (maps, list) may be larger than what it actually is, however these are not
-          // used in experssions right now. For such cases, we use the value number of values
+          // used in expressions right now. For such cases, we use the number of values
           // directly stored in ORC.
           if (colStat.hasNull()) {
             nullCounts.put(fieldId, numOfRows - colStat.getNumberOfValues());
@@ -192,6 +196,8 @@ public class OrcMetrics {
                         icebergCol.type(), colStat, metricsMode, fieldMetricsMap.get(fieldId))
                     : Optional.empty();
             orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+
+            originalTypes.put(fieldId, icebergCol.type());
           }
         }
       }
@@ -205,7 +211,19 @@ public class OrcMetrics {
         MetricsUtil.createNanValueCounts(
             fieldMetricsMap.values().stream(), effectiveMetricsConfig, schema),
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        originalTypes);
+  }
+
+  private static boolean inMapOrList(TypeDescription orcCol) {
+    TypeDescription current = orcCol;
+    while ((current = current.getParent()) != null) {
+      if (current.getCategory() != TypeDescription.Category.STRUCT) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private static Optional<ByteBuffer> fromOrcMin(
@@ -251,9 +269,7 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
       min =
-          Optional.ofNullable(minValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+          Optional.ofNullable(minValue).map(v -> timestampBound(type, v.toInstant())).orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       min = booleanStats.getFalseCount() <= 0;
@@ -306,15 +322,22 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
       max =
-          Optional.ofNullable(maxValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+          Optional.ofNullable(maxValue).map(v -> timestampBound(type, v.toInstant())).orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       max = booleanStats.getTrueCount() > 0;
     }
     return Optional.ofNullable(
         Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
+  }
+
+  private static long timestampBound(Type type, Instant instant) {
+    // timestamp_ns columns store bounds as nanoseconds from epoch, while timestamp columns store
+    // microseconds (see Conversions for TIMESTAMP and TIMESTAMP_NANO).
+    if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return ChronoUnit.NANOS.between(DateTimeUtil.EPOCH, instant.atOffset(ZoneOffset.UTC));
+    }
+    return DateTimeUtil.microsFromInstant(instant);
   }
 
   private static Object replaceNaN(double value, double replacement) {

@@ -39,22 +39,78 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
   void runAndWaitForSuccess(
       StreamExecutionEnvironment env,
       ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink)
+      throws Exception {
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        false /* generateFailure */,
+        () -> true /* waitForCondition */,
+        true /* resultSuccess */);
+  }
+
+  void runAndWaitForSuccess(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
       Supplier<Boolean> waitForCondition)
+      throws Exception {
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        false /* generateFailure */,
+        waitForCondition,
+        true /* resultSuccess */);
+  }
+
+  void runAndWaitForFailure(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink)
+      throws Exception {
+    runAndWaitForResult(
+        env,
+        triggerSource,
+        collectingSink,
+        true /* generateFailure */,
+        () -> true /* waitForCondition */,
+        true /* resultSuccess */);
+  }
+
+  void runAndWaitForResult(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink,
+      boolean generateFailure,
+      Supplier<Boolean> waitForCondition,
+      boolean resultSuccess)
       throws Exception {
     JobClient jobClient = null;
     try {
       jobClient = env.executeAsync();
 
-      // Do a single task run
+      // Do a single successful task run
       long time = System.currentTimeMillis();
       triggerSource.sendRecord(Trigger.create(time, TESTING_TASK_ID), time);
 
       TaskResult result = collectingSink.poll(POLL_DURATION);
 
       assertThat(result.startEpoch()).isEqualTo(time);
-      assertThat(result.success()).isTrue();
+      assertThat(result.success()).isEqualTo(resultSuccess);
       assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
+
+      if (generateFailure) {
+        dropTable();
+        time = System.currentTimeMillis();
+        triggerSource.sendRecord(Trigger.create(time, TESTING_TASK_ID), time);
+        result = collectingSink.poll(POLL_DURATION);
+
+        assertThat(result.startEpoch()).isEqualTo(time);
+        assertThat(result.success()).isFalse();
+        assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
+      }
 
       Awaitility.await().until(waitForCondition::get);
     } finally {

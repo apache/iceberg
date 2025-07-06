@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -37,11 +38,12 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestTimestampWithoutZone extends CatalogTestBase {
 
   private static final String NEW_TABLE_NAME = "created_table";
@@ -198,7 +200,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
   }
 
   private Timestamp toTimestamp(String value) {
-    return new Timestamp(DateTime.parse(value).getMillis());
+    return Timestamp.valueOf(LocalDateTime.parse(value));
   }
 
   private LocalDateTime toLocalDateTime(String value) {

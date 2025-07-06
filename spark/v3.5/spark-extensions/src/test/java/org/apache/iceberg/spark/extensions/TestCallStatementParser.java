@@ -72,11 +72,12 @@ public class TestCallStatementParser {
   public void testDelegateUnsupportedProcedure() {
     assertThatThrownBy(() -> parser.parsePlan("CALL cat.d.t()"))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
               assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
             });
   }
 
@@ -86,7 +87,7 @@ public class TestCallStatementParser {
         (CallStatement) parser.parsePlan("CALL cat.`system`.`rollback_to_snapshot`()");
     assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
-    assertThat(seqAsJavaList(call.args())).hasSize(0);
+    assertThat(seqAsJavaList(call.args())).isEmpty();
   }
 
   @Test

@@ -239,7 +239,19 @@ public class Partitioning {
    */
   public static StructType partitionType(Table table) {
     Collection<PartitionSpec> specs = table.specs().values();
-    return buildPartitionProjectionType("table partition", specs, allFieldIds(specs));
+    return buildPartitionProjectionType(
+        "table partition", specs, allActiveFieldIds(table.schema(), specs));
+  }
+
+  /**
+   * Builds a unified partition type containing all partition fields from the given specs, including
+   * fields whose source columns are no longer present in the table schema.
+   *
+   * @param specs the partition specs to unify
+   * @return the constructed unified partition type
+   */
+  static StructType unionPartitionTypes(Collection<PartitionSpec> specs) {
+    return buildPartitionProjectionType("union partition", specs, allFieldIds(specs));
   }
 
   /**
@@ -346,10 +358,19 @@ public class Partitioning {
         || t2.equals(Transforms.alwaysNull());
   }
 
-  // collects IDs of all partition field used across specs
+  // collects IDs of all partition fields used across specs
   private static Set<Integer> allFieldIds(Collection<PartitionSpec> specs) {
     return FluentIterable.from(specs)
         .transformAndConcat(PartitionSpec::fields)
+        .transform(PartitionField::fieldId)
+        .toSet();
+  }
+
+  // collects IDs of all partition field used across specs that are in the current schema
+  private static Set<Integer> allActiveFieldIds(Schema schema, Collection<PartitionSpec> specs) {
+    return FluentIterable.from(specs)
+        .transformAndConcat(PartitionSpec::fields)
+        .filter(field -> schema.findField(field.sourceId()) != null)
         .transform(PartitionField::fieldId)
         .toSet();
   }

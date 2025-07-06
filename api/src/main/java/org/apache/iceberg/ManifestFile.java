@@ -27,6 +27,8 @@ import org.apache.iceberg.types.Types;
 
 /** Represents a manifest file that can be scanned to find files in a table. */
 public interface ManifestFile {
+  int PARTITION_SUMMARIES_ELEMENT_ID = 508;
+
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
   Types.NestedField LENGTH =
@@ -49,7 +51,7 @@ public interface ManifestFile {
           Types.LongType.get(),
           "Lowest sequence number in the manifest");
   Types.NestedField SNAPSHOT_ID =
-      optional(
+      required(
           503, "added_snapshot_id", Types.LongType.get(), "Snapshot ID that added the manifest");
   Types.NestedField ADDED_FILES_COUNT =
       optional(504, "added_files_count", Types.IntegerType.get(), "Added entry count");
@@ -83,11 +85,17 @@ public interface ManifestFile {
       optional(
           507,
           "partitions",
-          Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE),
+          Types.ListType.ofRequired(PARTITION_SUMMARIES_ELEMENT_ID, PARTITION_SUMMARY_TYPE),
           "Summary for each partition");
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField FIRST_ROW_ID =
+      optional(
+          520,
+          "first_row_id",
+          Types.LongType.get(),
+          "Starting row ID to assign to new rows in ADDED data files");
+  // next ID to assign: 521
 
   Schema SCHEMA =
       new Schema(
@@ -105,7 +113,8 @@ public interface ManifestFile {
           EXISTING_ROWS_COUNT,
           DELETED_ROWS_COUNT,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          FIRST_ROW_ID);
 
   static Schema schema() {
     return SCHEMA;
@@ -117,7 +126,7 @@ public interface ManifestFile {
   /** Returns length of the manifest file. */
   long length();
 
-  /** Returns iD of the {@link PartitionSpec} used to write the manifest file. */
+  /** Returns ID of the {@link PartitionSpec} used to write the manifest file. */
   int partitionSpecId();
 
   /** Returns the content stored in the manifest; either DATA or DELETES. */
@@ -129,7 +138,7 @@ public interface ManifestFile {
   /** Returns the lowest data sequence number of any live file in the manifest. */
   long minSequenceNumber();
 
-  /** Returns iD of the snapshot that added the manifest file to table metadata. */
+  /** Returns ID of the snapshot that added the manifest file to table metadata. */
   Long snapshotId();
 
   /**
@@ -194,6 +203,21 @@ public interface ManifestFile {
    */
   default ByteBuffer keyMetadata() {
     return null;
+  }
+
+  /** Returns the starting row ID to assign to new rows in ADDED data files. */
+  default Long firstRowId() {
+    return null;
+  }
+
+  /** Returns the manifest deletion vector, or null if absent. */
+  default ManifestBitmap manifestDeletionVector() {
+    return null;
+  }
+
+  /** Returns the writer format version of the manifest, or 0 if it predates format tracking. */
+  default int formatVersion() {
+    return 0;
   }
 
   /**

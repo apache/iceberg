@@ -26,6 +26,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import org.apache.iceberg.ImmutableFieldLabel;
+import org.apache.iceberg.ImmutableLabels;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -136,8 +139,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     TableMetadata v2Metadata =
         TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
-    // missing fields
-    // are filled in with their default values.
+    // missing fields are filled in with their default values.
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
@@ -145,6 +147,64 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v2Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);
+  }
+
+  @Test
+  public void testRoundTripSerdeWithV3TableMetadata() throws Exception {
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV3ValidMinimal.json");
+    TableMetadata v3Metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+    // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
+    // missing fields are filled in with their default values.
+    String json =
+        String.format(
+            "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v3Metadata));
+    LoadTableResponse resp =
+        LoadTableResponse.builder().withTableMetadata(v3Metadata).addAllConfig(CONFIG).build();
+    assertRoundTripSerializesEquallyFrom(json, resp);
+  }
+
+  @Test
+  public void testRoundTripSerdeWithLabels() throws Exception {
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+    Labels labels =
+        ImmutableLabels.builder()
+            .objectLabels(ImmutableMap.of("owner", "team-a"))
+            .addFields(
+                ImmutableFieldLabel.builder()
+                    .fieldId(1)
+                    .labels(ImmutableMap.of("classification", "pii"))
+                    .build())
+            .build();
+    String json =
+        String.format(
+            """
+            {
+              "metadata-location":"%s",
+              "metadata":%s,
+              "config":{"foo":"bar"},
+              "labels":{
+                "object-labels":{"owner":"team-a"},
+                "fields":[{"field-id":1,"labels":{"classification":"pii"}}]
+              }
+            }""",
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(metadata));
+
+    // exercise the full RESTObjectMapper (Jackson) path, not just the parser
+    LoadTableResponse actual = deserialize(json);
+    assertThat(actual.labels()).isEqualTo(labels);
+
+    LoadTableResponse resp =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .addAllConfig(CONFIG)
+            .withLabels(labels)
+            .build();
+    // compare as JSON trees so the readable (pretty) input above is whitespace-insensitive
+    assertThat(mapper().readTree(serialize(resp))).isEqualTo(mapper().readTree(json));
   }
 
   @Test
@@ -172,6 +232,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     assertThat(actual.metadataLocation())
         .as("Should have the same metadata location")
         .isEqualTo(expected.metadataLocation());
+    assertThat(actual.labels()).as("Should have the same labels").isEqualTo(expected.labels());
   }
 
   private void assertEqualTableMetadata(TableMetadata actual, TableMetadata expected) {

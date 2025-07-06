@@ -36,7 +36,6 @@ which contains a local Spark cluster with a configured Iceberg catalog. To use t
 Once you have those, save the yaml below into a file named `docker-compose.yml`:
 
 ```yaml
-version: "3"
 
 services:
   spark-iceberg:
@@ -47,7 +46,7 @@ services:
       iceberg_net:
     depends_on:
       - rest
-      - minio
+      - object-store
     volumes:
       - ./warehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
@@ -61,7 +60,7 @@ services:
       - 10000:10000
       - 10001:10001
   rest:
-    image: tabulario/iceberg-rest
+    image: apache/iceberg-rest-fixture
     container_name: iceberg-rest
     networks:
       iceberg_net:
@@ -73,41 +72,46 @@ services:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-  minio:
-    image: minio/minio
-    container_name: minio
+      - CATALOG_S3_ENDPOINT=http://object-store:9000
+      - CATALOG_S3_PATH__STYLE__ACCESS=true
+  # tabulario/spark-iceberg expects virtual-hosted-style S3 at http://minio:9000
+  object-store:
+    image: rustfs/rustfs:1.0.0
+    container_name: object-store
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      - RUSTFS_ACCESS_KEY=admin
+      - RUSTFS_SECRET_KEY=password
+      - RUSTFS_OBS_LOG_STDOUT_ENABLED=true
+      - RUSTFS_SERVER_DOMAINS=minio
     networks:
       iceberg_net:
         aliases:
+          - minio
           - warehouse.minio
     ports:
       - 9001:9001
       - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
-  mc:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  create-bucket:
+    image: rustfs/rustfs:1.0.0
+    container_name: create-bucket
     depends_on:
-      - minio
-    image: minio/mc
-    container_name: mc
+      object-store:
+        condition: service_healthy
     networks:
       iceberg_net:
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-    entrypoint: >
-      /bin/sh -c "
-      until (/usr/bin/mc config host add minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc rm -r --force minio/warehouse;
-      /usr/bin/mc mb minio/warehouse;
-      /usr/bin/mc policy set public minio/warehouse;
-      tail -f /dev/null
-      "
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >-
+        curl -sf -o /dev/null --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        --head http://object-store:9000/warehouse ||
+        curl -sSf --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        -X PUT http://object-store:9000/warehouse
 networks:
   iceberg_net:
 
@@ -140,14 +144,34 @@ You can then run any of the following commands to start a Spark session.
 
 !!! note
 
-    You can also launch a notebook server by running `docker exec -it spark-iceberg notebook`.
-    The notebook server will be available at [http://localhost:8888](http://localhost:8888)
+    You can also use the notebook server available at [http://localhost:8888](http://localhost:8888)
 
 ### Creating a table
 
 To create your first Iceberg table in Spark, run a [`CREATE TABLE`](docs/latest/spark-ddl.md#create-table) command. Let's create a table
 using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database name, and `taxis` is the table name.
 
+First, create the database if it doesn't already exist:
+
+=== "SparkSQL"
+
+    ```sql
+    CREATE DATABASE IF NOT EXISTS demo.nyc;
+    ```
+
+=== "Spark-Shell"
+
+    ```scala
+    spark.sql("CREATE DATABASE IF NOT EXISTS demo.nyc")
+    ```
+
+=== "PySpark"
+
+    ```py
+    spark.sql("CREATE DATABASE IF NOT EXISTS demo.nyc")
+    ```
+
+Then create the table:
 
 === "SparkSQL"
 
@@ -195,11 +219,10 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
     df.writeTo("demo.nyc.taxis").create()
     ```
 
-
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
 * [`CREATE TABLE ... PARTITIONED BY`](docs/latest/spark-ddl.md#create-table)
-* [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table--as-select)
+* [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table-as-select)
 * [`ALTER TABLE`](docs/latest/spark-ddl.md#alter-table)
 * [`DROP TABLE`](docs/latest/spark-ddl.md#drop-table)
 
@@ -248,7 +271,6 @@ Once your table is created, you can insert records.
 
 To read a table, simply use the Iceberg table's name.
 
-
 === "SparkSQL"
 
     ```sql
@@ -279,7 +301,7 @@ This configuration creates a path-based catalog named `local` for tables under `
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
@@ -292,7 +314,7 @@ This configuration creates a path-based catalog named `local` for tables under `
 === "spark-defaults.conf"
 
     ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
@@ -314,28 +336,25 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
 === "SparkSQL"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 === "Spark-Shell"
 
     ```sh
-    spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 === "PySpark"
 
     ```sh
-    pyspark --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    pyspark --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 !!! note
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.
-    You can download the runtime by visiting to the [Releases](releases.md) page.
-
-<!-- markdown-link-check-disable-next-line -->
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar
+    You can download the runtime from the [Releases](releases.md) page.
 
 #### Learn More
 
-Now that you're up an running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!
+Now that you're up and running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!

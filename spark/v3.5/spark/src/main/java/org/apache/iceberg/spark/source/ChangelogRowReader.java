@@ -35,6 +35,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -51,24 +52,30 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   ChangelogRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive());
+        partition.isCaseSensitive(),
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   ChangelogRowReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
+        fileIO,
         taskGroup,
         tableSchema,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
-        caseSensitive);
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
   }
 
   @Override
@@ -116,7 +123,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
     SparkDeleteFilter deletes =
         new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
     return deletes.filter(rows(task, deletes.requiredSchema()));
@@ -125,7 +132,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   private CloseableIterable<InternalRow> rows(ContentScanTask<DataFile> task, Schema readSchema) {
     Map<Integer, ?> idToConstant = constantsMap(task, readSchema);
 
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());

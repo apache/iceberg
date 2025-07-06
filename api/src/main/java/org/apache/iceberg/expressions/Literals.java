@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,11 +42,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.variants.Variant;
 
 class Literals {
   private Literals() {}
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final BaseEncoding BASE16_ENCODING = BaseEncoding.base16();
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   /**
@@ -55,12 +58,14 @@ class Literals {
    * @param <T> Java type of value
    * @return a Literal for the given value
    */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");
 
-    if (value instanceof Boolean) {
+    if (value instanceof Literal) {
+      return (Literal<T>) value;
+    } else if (value instanceof Boolean) {
       return (Literal<T>) new Literals.BooleanLiteral((Boolean) value);
     } else if (value instanceof Integer) {
       return (Literal<T>) new Literals.IntegerLiteral((Integer) value);
@@ -80,6 +85,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Variant) {
+      return (Literal<T>) new Literals.VariantLiteral((Variant) value);
     }
 
     throw new IllegalArgumentException(
@@ -503,6 +510,33 @@ class Literals {
     }
   }
 
+  static class VariantLiteral extends BaseLiteral<Variant> {
+    VariantLiteral(Variant value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case VARIANT:
+          return (Literal<T>) this;
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public Comparator<Variant> comparator() {
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.VARIANT;
+    }
+  }
+
   static class StringLiteral extends BaseLiteral<CharSequence> {
     private static final Comparator<CharSequence> CMP =
         Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
@@ -554,6 +588,32 @@ class Literals {
           // do not change decimal scale
           BigDecimal decimal = new BigDecimal(value().toString());
           return (Literal<T>) new DecimalLiteral(decimal);
+
+        case FIXED:
+          try {
+            ByteBuffer buffer =
+                ByteBuffer.wrap(
+                    BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT)));
+            Types.FixedType fixed = (Types.FixedType) type;
+            if (buffer.remaining() == fixed.length()) {
+              return (Literal<T>) new FixedLiteral(buffer);
+            }
+            return null;
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
+
+        case BINARY:
+          try {
+            return (Literal<T>)
+                new BinaryLiteral(
+                    ByteBuffer.wrap(
+                        BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT))));
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
 
         default:
           return null;
@@ -638,7 +698,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 
@@ -684,7 +744,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 }

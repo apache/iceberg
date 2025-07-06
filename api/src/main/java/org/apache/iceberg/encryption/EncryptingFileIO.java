@@ -23,16 +23,22 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class EncryptingFileIO implements FileIO, Serializable {
   public static EncryptingFileIO combine(FileIO io, EncryptionManager em) {
@@ -45,7 +51,13 @@ public class EncryptingFileIO implements FileIO, Serializable {
       return combine(encryptingIO.io, em);
     }
 
-    return new EncryptingFileIO(io, em);
+    if (io instanceof DelegateFileIO) {
+      return new WithDelegateFileIO((DelegateFileIO) io, em);
+    } else if (io instanceof SupportsPrefixOperations) {
+      return new WithSupportsPrefixOperations((SupportsPrefixOperations) io, em);
+    } else {
+      return new EncryptingFileIO(io, em);
+    }
   }
 
   private final FileIO io;
@@ -57,11 +69,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   public Map<String, InputFile> bulkDecrypt(Iterable<? extends ContentFile<?>> files) {
-    Iterable<InputFile> decrypted = em.decrypt(Iterables.transform(files, this::wrap));
-
     ImmutableMap.Builder<String, InputFile> builder = ImmutableMap.builder();
-    for (InputFile in : decrypted) {
-      builder.put(in.location(), in);
+
+    List<EncryptedInputFile> encryptedFiles = Lists.newArrayList();
+    for (ContentFile<?> file : files) {
+      if (file.keyMetadata() != null) {
+        encryptedFiles.add(wrap(file));
+      } else {
+        builder.put(file.location(), io.newInputFile(file.location(), file.fileSizeInBytes()));
+      }
+    }
+
+    if (!encryptedFiles.isEmpty()) {
+      for (InputFile file : em.decrypt(encryptedFiles)) {
+        builder.put(file.location(), file);
+      }
     }
 
     return builder.buildKeepingLast();
@@ -108,13 +130,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
+  @Override
+  public InputFile newInputFile(ManifestListFile manifestList) {
+    if (manifestList.encryptionKeyID() != null) {
+      ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
+      return newDecryptingInputFile(manifestList.location(), keyMetadata);
+    } else {
+      return newInputFile(manifestList.location());
+    }
+  }
+
   public InputFile newDecryptingInputFile(String path, ByteBuffer buffer) {
     return em.decrypt(wrap(io.newInputFile(path), buffer));
   }
 
   public InputFile newDecryptingInputFile(String path, long length, ByteBuffer buffer) {
-    // TODO: is the length correct for the encrypted file? It may be the length of the plaintext
-    // stream
     return em.decrypt(wrap(io.newInputFile(path, length), buffer));
   }
 
@@ -131,6 +161,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
   @Override
   public void deleteFile(String path) {
     io.deleteFile(path);
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return io.properties();
   }
 
   @Override
@@ -156,7 +191,7 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   private static EncryptionKeyMetadata toKeyMetadata(ByteBuffer buffer) {
-    return buffer != null ? new SimpleKeyMetadata(buffer) : EmptyKeyMetadata.get();
+    return buffer != null ? new SimpleKeyMetadata(buffer) : EncryptionKeyMetadata.empty();
   }
 
   private static class SimpleEncryptedInputFile implements EncryptedInputFile {
@@ -198,21 +233,48 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
-  private static class EmptyKeyMetadata implements EncryptionKeyMetadata {
-    private static final EmptyKeyMetadata INSTANCE = new EmptyKeyMetadata();
+  static class WithSupportsPrefixOperations extends EncryptingFileIO
+      implements SupportsPrefixOperations {
 
-    private static EmptyKeyMetadata get() {
-      return INSTANCE;
+    private final SupportsPrefixOperations prefixIo;
+
+    WithSupportsPrefixOperations(SupportsPrefixOperations io, EncryptionManager em) {
+      super(io, em);
+      this.prefixIo = io;
     }
 
     @Override
-    public ByteBuffer buffer() {
-      return null;
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return prefixIo.listPrefix(prefix);
     }
 
     @Override
-    public EncryptionKeyMetadata copy() {
-      return this;
+    public void deletePrefix(String prefix) {
+      prefixIo.deletePrefix(prefix);
+    }
+  }
+
+  static class WithDelegateFileIO extends EncryptingFileIO implements DelegateFileIO {
+    private final DelegateFileIO delegateFileIO;
+
+    WithDelegateFileIO(DelegateFileIO io, EncryptionManager em) {
+      super(io, em);
+      this.delegateFileIO = io;
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      delegateFileIO.deleteFiles(pathsToDelete);
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return delegateFileIO.listPrefix(prefix);
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      delegateFileIO.deletePrefix(prefix);
     }
   }
 }

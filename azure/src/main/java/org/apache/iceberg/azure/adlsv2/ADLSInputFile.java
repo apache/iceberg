@@ -55,6 +55,6 @@ class ADLSInputFile extends BaseADLSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new ADLSInputStream(fileClient(), fileSize, azureProperties(), metrics());
+    return new ADLSInputStream(location(), fileClient(), fileSize, azureProperties(), metrics());
   }
 }

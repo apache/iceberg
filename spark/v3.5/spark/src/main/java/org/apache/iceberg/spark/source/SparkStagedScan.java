@@ -41,7 +41,7 @@ class SparkStagedScan extends SparkScan {
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
   SparkStagedScan(SparkSession spark, Table table, Schema expectedSchema, SparkReadConf readConf) {
-    super(spark, table, readConf, expectedSchema, ImmutableList.of(), null);
+    super(spark, table, table::io, readConf, expectedSchema, ImmutableList.of(), null);
     this.taskSetId = readConf.scanTaskSetId();
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
@@ -78,9 +78,9 @@ class SparkStagedScan extends SparkScan {
     return table().name().equals(that.table().name())
         && Objects.equals(taskSetId, that.taskSetId)
         && readSchema().equals(that.readSchema())
-        && Objects.equals(splitSize, that.splitSize)
-        && Objects.equals(splitLookback, that.splitLookback)
-        && Objects.equals(openFileCost, that.openFileCost);
+        && splitSize == that.splitSize
+        && splitLookback == that.splitLookback
+        && openFileCost == that.openFileCost;
   }
 
   @Override

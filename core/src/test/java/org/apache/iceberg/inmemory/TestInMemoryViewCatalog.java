@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.inmemory;
 
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.view.ViewCatalogTests;
@@ -29,7 +30,15 @@ public class TestInMemoryViewCatalog extends ViewCatalogTests<InMemoryCatalog> {
   @BeforeEach
   public void before() {
     this.catalog = new InMemoryCatalog();
-    this.catalog.initialize("in-memory-catalog", ImmutableMap.of());
+    this.catalog.initialize(
+        "in-memory-catalog",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4")
+            .build());
   }
 
   @Override
@@ -44,6 +53,11 @@ public class TestInMemoryViewCatalog extends ViewCatalogTests<InMemoryCatalog> {
 
   @Override
   protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsEmptyNamespace() {
     return true;
   }
 }

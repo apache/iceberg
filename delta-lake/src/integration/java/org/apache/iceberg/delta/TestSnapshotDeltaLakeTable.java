@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -404,7 +405,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
     List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
 
-    assertThat(icebergSnapshots.size()).isEqualTo(currentVersion - firstConstructableVersion + 1);
+    assertThat(icebergSnapshots).hasSize((int) (currentVersion - firstConstructableVersion + 1));
 
     for (int i = 0; i < icebergSnapshots.size(); i++) {
       long deltaVersion = firstConstructableVersion + i;
@@ -459,9 +460,10 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         deltaLog.update().getAllFiles().stream()
             .map(f -> getFullFilePath(f.getPath(), deltaLog.getPath().toString()))
             .collect(Collectors.toList());
-    icebergTable
-        .currentSnapshot()
-        .addedDataFiles(icebergTable.io())
+    SnapshotChanges.builderFor(icebergTable)
+        .snapshot(icebergTable.currentSnapshot())
+        .build()
+        .addedDataFiles()
         .forEach(
             dataFile -> {
               assertThat(URI.create(dataFile.location()).isAbsolute()).isTrue();

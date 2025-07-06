@@ -24,15 +24,39 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetValueReaders {
@@ -44,6 +68,91 @@ public class ParquetValueReaders {
       return new OptionReader<>(definitionLevel, reader);
     }
     return reader;
+  }
+
+  public static ParquetValueReader<Integer> unboxed(ColumnDescriptor desc) {
+    return new UnboxedReader<>(desc);
+  }
+
+  public static ParquetValueReader<Byte> intsAsByte(ColumnDescriptor desc) {
+    return new IntAsByteReader(desc);
+  }
+
+  public static ParquetValueReader<Short> intsAsShort(ColumnDescriptor desc) {
+    return new IntAsShortReader(desc);
+  }
+
+  public static ParquetValueReader<String> strings(ColumnDescriptor desc) {
+    return new StringReader(desc);
+  }
+
+  public static ParquetValueReader<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
+    return new BytesReader(desc);
+  }
+
+  public static ParquetValueReader<Long> intsAsLongs(ColumnDescriptor desc) {
+    return new IntAsLongReader(desc);
+  }
+
+  public static ParquetValueReader<Double> floatsAsDoubles(ColumnDescriptor desc) {
+    return new FloatAsDoubleReader(desc);
+  }
+
+  public static ParquetValueReader<BigDecimal> bigDecimals(ColumnDescriptor desc) {
+    LogicalTypeAnnotation decimal = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        decimal instanceof DecimalLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + decimal);
+
+    int scale = ((DecimalLogicalTypeAnnotation) decimal).getScale();
+
+    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY:
+      case BINARY:
+        return new BinaryAsDecimalReader(desc, scale);
+      case INT64:
+        return new LongAsDecimalReader(desc, scale);
+      case INT32:
+        return new IntegerAsDecimalReader(desc, scale);
+    }
+
+    throw new IllegalArgumentException(
+        "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+  }
+
+  public static ParquetValueReader<Long> times(ColumnDescriptor desc) {
+    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        time instanceof TimeLogicalTypeAnnotation, "Invalid time logical type: " + time);
+
+    TimeUnit unit = ((TimeLogicalTypeAnnotation) time).getUnit();
+    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+      return new TimeMillisReader(desc);
+    }
+
+    return new UnboxedReader<>(desc);
+  }
+
+  public static ParquetValueReader<Long> timestamps(ColumnDescriptor desc) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return new TimestampInt96Reader(desc);
+    }
+
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
+    switch (unit) {
+      case MILLIS:
+        return new TimestampMillisReader(desc);
+      case MICROS:
+      case NANOS:
+        return new UnboxedReader<>(desc);
+    }
+
+    throw new IllegalArgumentException("Unsupported timestamp unit: " + unit);
   }
 
   @SuppressWarnings("unchecked")
@@ -61,6 +170,148 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<Long> rowIds(Long baseRowId, ParquetValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<Long> lastUpdated(
+      Long baseRowId, Long fileLastUpdated, ParquetValueReader<?> seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
+  }
+
+  public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
+    return new UUIDReader(desc);
+  }
+
+  public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
+    return new TimestampInt96Reader(desc);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> structLikeReader(
+      List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
+    if (structClass.equals(Record.class)) {
+      return ((ParquetValueReader<T>) recordReader(readers, struct));
+    } else {
+      return new StructLikeReader<>(readers, struct, structClass);
+    }
+  }
+
+  public static ParquetValueReader<Record> recordReader(
+      List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    return new RecordReader(readers, struct);
+  }
+
+  public static ParquetValueReader<?> replaceWithMetadataReader(
+      int id, ParquetValueReader<?> reader, Map<Integer, ?> idToConstant, int constantDL) {
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      return ParquetValueReaders.rowIds(baseRowId, reader);
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(id);
+      return ParquetValueReaders.lastUpdated(baseRowId, fileSeqNumber, reader);
+    } else if (idToConstant.containsKey(id)) {
+      // containsKey is used because the constant may be null
+      return ParquetValueReaders.constant(idToConstant.get(id), constantDL);
+    } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+      return ParquetValueReaders.position();
+    } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+      return ParquetValueReaders.constant(false, constantDL);
+    }
+
+    return reader;
+  }
+
+  /**
+   * Builds a struct reader from the expected fields, in field order. A field present in the file
+   * uses its column reader; a field missing from the file uses a metadata or partition constant, or
+   * its initial default. When no expected field reads a file column, the struct reader is wrapped
+   * so a presence column supplies the definition level.
+   */
+  public static <T> ParquetValueReader<T> structReader(
+      MessageType fileSchema,
+      String[] structPath,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById,
+      Map<Integer, ?> idToConstant,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant,
+      Function<List<ParquetValueReader<?>>, ParquetValueReader<T>> newStructReader) {
+    int constantDefinitionLevel = fileSchema.getMaxDefinitionLevel(structPath);
+
+    List<ParquetValueReader<?>> readers = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    for (Types.NestedField field : expectedFields) {
+      int id = field.fieldId();
+      ParquetValueReader<?> reader =
+          replaceWithMetadataReader(id, readersById.get(id), idToConstant, constantDefinitionLevel);
+      readers.add(defaultReader(field, reader, constantDefinitionLevel, convertConstant));
+    }
+
+    ParquetValueReader<T> reader = newStructReader.apply(readers);
+    ColumnDescriptor presence =
+        presenceColumn(
+            fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
+
+    return presence == null
+        ? reader
+        : new PresenceReader<>(reader, presence, fileSchema.getMaxRepetitionLevel(structPath));
+  }
+
+  private static ParquetValueReader<?> defaultReader(
+      Types.NestedField field,
+      ParquetValueReader<?> reader,
+      int constantDefinitionLevel,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
+    if (reader != null) {
+      return reader;
+    } else if (field.initialDefault() != null) {
+      Object value = convertConstant.apply(field.type(), field.initialDefault());
+      return constant(value, constantDefinitionLevel);
+    } else if (field.isOptional()) {
+      return nulls();
+    }
+
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+  }
+
+  /**
+   * Returns the column whose definition level shows whether the struct is present on each row, or
+   * null if a field reader already reads one or the struct can never be null.
+   */
+  private static ColumnDescriptor presenceColumn(
+      MessageType fileSchema,
+      String[] structPath,
+      int structDefinitionLevel,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById) {
+    boolean hasRealFieldReader =
+        expectedFields.stream().anyMatch(field -> readersById.containsKey(field.fieldId()));
+    if (hasRealFieldReader || structDefinitionLevel <= 0) {
+      return null;
+    }
+
+    ColumnDescriptor presence = ParquetSchemaUtil.selectPresenceColumn(fileSchema, structPath);
+    Preconditions.checkState(
+        presence != null || !hasInitialDefault(expectedFields),
+        "Cannot apply initial default, no leaf column tracks whether struct at %s is present",
+        Arrays.toString(structPath));
+    return presence;
+  }
+
+  private static boolean hasInitialDefault(List<Types.NestedField> fields) {
+    return fields.stream().anyMatch(field -> field.initialDefault() != null);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -112,13 +363,57 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {}
   }
 
-  static class ConstantReader<C> implements ParquetValueReader<C> {
+  /**
+   * Wraps a struct reader whose fields all read constants, so the struct still has a real column to
+   * report its definition level from. Values come from the wrapped reader.
+   */
+  private static class PresenceReader<T> implements ParquetValueReader<T> {
+    private final ParquetValueReader<T> reader;
+    private final ColumnDescriptor desc;
+    private final ColumnIterator<?> presence;
+    private final int repetitionLevel;
+    private final List<TripleIterator<?>> children;
+
+    private PresenceReader(
+        ParquetValueReader<T> reader, ColumnDescriptor desc, int repetitionLevel) {
+      this.reader = reader;
+      this.desc = desc;
+      this.repetitionLevel = repetitionLevel;
+      this.presence = ColumnIterator.newIterator(desc, "");
+      this.children =
+          ImmutableList.<TripleIterator<?>>builder().add(presence).addAll(reader.columns()).build();
+    }
+
+    @Override
+    public T read(T reuse) {
+      // drain the row's repeated values; only the definition level is used
+      do {
+        presence.nextNull();
+      } while (presence.currentRepetitionLevel() > repetitionLevel);
+      return reader.read(reuse);
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return presence;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      presence.setPageSource(pageStore.getPageReader(desc));
+      reader.setPageSource(pageStore);
+    }
+  }
+
+  private static class ConstantReader<C> implements ParquetValueReader<C> {
     private final C constantValue;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
@@ -129,36 +424,9 @@ public class ParquetValueReaders {
       this.children = NullReader.COLUMNS;
     }
 
-    ConstantReader(C constantValue, int definitionLevel) {
+    ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
-      this.column =
-          new TripleIterator<Object>() {
-            @Override
-            public int currentDefinitionLevel() {
-              return definitionLevel;
-            }
-
-            @Override
-            public int currentRepetitionLevel() {
-              return 0;
-            }
-
-            @Override
-            public <N> N nextNull() {
-              return null;
-            }
-
-            @Override
-            public boolean hasNext() {
-              return false;
-            }
-
-            @Override
-            public Object next() {
-              return null;
-            }
-          };
-
+      this.column = new ConstantDLColumn<>(parentDl);
       this.children = ImmutableList.of(column);
     }
 
@@ -178,13 +446,43 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {}
+
+    private static class ConstantDLColumn<T> implements TripleIterator<T> {
+      private final int definitionLevel;
+
+      private ConstantDLColumn(int definitionLevel) {
+        this.definitionLevel = definitionLevel;
+      }
+
+      @Override
+      public int currentDefinitionLevel() {
+        return definitionLevel;
+      }
+
+      @Override
+      public int currentRepetitionLevel() {
+        return 0;
+      }
+
+      @Override
+      public <N> N nextNull() {
+        return null;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return false;
+      }
+
+      @Override
+      public T next() {
+        return null;
+      }
+    }
   }
 
-  static class PositionReader implements ParquetValueReader<Long> {
+  private static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
 
@@ -205,11 +503,6 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
-    }
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {
       this.rowGroupStart =
           pageStore
@@ -219,6 +512,81 @@ public class ParquetValueReaders {
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
+    }
+  }
+
+  private static class RowIdReader implements ParquetValueReader<Long> {
+    private final long firstRowId;
+    private final ParquetValueReader<Long> idReader;
+    private final ParquetValueReader<Long> posReader;
+
+    private RowIdReader(long firstRowId, ParquetValueReader<Long> idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : nulls();
+      this.posReader = position();
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      // always call the position reader to keep the position accurate
+      long pos = posReader.read(null);
+      Long idFromFile = idReader.read(null);
+      if (idFromFile != null) {
+        return idFromFile;
+      }
+
+      return firstRowId + pos;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return idReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return idReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      idReader.setPageSource(pageStore);
+      posReader.setPageSource(pageStore);
+    }
+  }
+
+  private static class LastUpdatedSeqReader implements ParquetValueReader<Long> {
+    private final long fileLastUpdated;
+    private final ParquetValueReader<Long> seqReader;
+
+    private LastUpdatedSeqReader(long fileLastUpdated, ParquetValueReader<Long> seqReader) {
+      this.fileLastUpdated = fileLastUpdated;
+      this.seqReader = seqReader != null ? seqReader : nulls();
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      Long rowLastUpdated = seqReader.read(null);
+      if (rowLastUpdated != null) {
+        return rowLastUpdated;
+      }
+
+      return fileLastUpdated;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return seqReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return seqReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      seqReader.setPageSource(pageStore);
     }
   }
 
@@ -234,11 +602,6 @@ public class ParquetValueReaders {
       this.desc = desc;
       this.column = ColumnIterator.newIterator(desc, "");
       this.children = ImmutableList.of(column);
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -304,6 +667,28 @@ public class ParquetValueReaders {
     }
   }
 
+  private static class IntAsByteReader extends UnboxedReader<Byte> {
+    private IntAsByteReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Byte read(Byte ignored) {
+      return (byte) readInteger();
+    }
+  }
+
+  private static class IntAsShortReader extends UnboxedReader<Short> {
+    private IntAsShortReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Short read(Short ignored) {
+      return (short) readInteger();
+    }
+  }
+
   public static class IntAsLongReader extends UnboxedReader<Long> {
     public IntAsLongReader(ColumnDescriptor desc) {
       super(desc);
@@ -346,7 +731,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextInteger()), scale);
+      return BigDecimal.valueOf(column.nextInteger(), scale);
     }
   }
 
@@ -360,7 +745,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextLong()), scale);
+      return BigDecimal.valueOf(column.nextLong(), scale);
     }
   }
 
@@ -401,7 +786,18 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+  private static class UUIDReader extends PrimitiveReader<UUID> {
+    private UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public UUID read(UUID reuse) {
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
+    }
+  }
+
+  public static class ByteArrayReader extends PrimitiveReader<byte[]> {
     public ByteArrayReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -409,6 +805,57 @@ public class ParquetValueReaders {
     @Override
     public byte[] read(byte[] ignored) {
       return column.nextBinary().getBytes();
+    }
+  }
+
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
+
+    private TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
+    }
+  }
+
+  private static class TimeMillisReader extends UnboxedReader<Long> {
+    private TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
+    }
+  }
+
+  private static class TimestampMillisReader extends UnboxedReader<Long> {
+    private TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextLong();
     }
   }
 
@@ -423,11 +870,6 @@ public class ParquetValueReaders {
       this.reader = reader;
       this.column = reader.column();
       this.children = reader.columns();
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -476,11 +918,6 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
-    }
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {
       reader.setPageSource(pageStore);
     }
@@ -525,6 +962,16 @@ public class ParquetValueReaders {
     protected abstract T buildList(I list);
   }
 
+  // Only recycle known growable JDK collections as scratch buffers. Reuse may be an unmodifiable
+  // view, Guava immutable type, List.of / Map.of, etc.; those are not these concrete classes.
+  private static boolean canReuseListAsReadBuffer(List<?> list) {
+    return list instanceof ArrayList || list instanceof LinkedList;
+  }
+
+  private static boolean canReuseMapAsReadBuffer(Map<?, ?> map) {
+    return map instanceof LinkedHashMap || map instanceof HashMap;
+  }
+
   public static class ListReader<E> extends RepeatedReader<List<E>, List<E>, E> {
     private List<E> lastList = null;
     private Iterator<E> elements = null;
@@ -544,7 +991,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastList = reuse;
+        this.lastList = canReuseListAsReadBuffer(reuse) ? reuse : null;
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
@@ -597,11 +1044,6 @@ public class ParquetValueReaders {
               .addAll(keyReader.columns())
               .addAll(valueReader.columns())
               .build();
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -675,7 +1117,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastMap = reuse;
+        this.lastMap = canReuseMapAsReadBuffer(reuse) ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;
@@ -737,7 +1179,7 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
+    protected StructReader(List<ParquetValueReader<?>> readers) {
       this.readers =
           (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns =
@@ -753,11 +1195,6 @@ public class ParquetValueReaders {
 
       this.children = columnsBuilder.build();
       this.column = firstNonNullColumn(children);
-    }
-
-    @Override
-    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -835,19 +1272,97 @@ public class ParquetValueReaders {
       set(struct, pos, value);
     }
 
-    /**
-     * Find a non-null column or return NULL_COLUMN if one is not available.
-     *
-     * @param columns a collection of triple iterator columns
-     * @return the first non-null column in columns
-     */
     private TripleIterator<?> firstNonNullColumn(List<TripleIterator<?>> columns) {
+      // prefer a real file column over a constant reader's fixed definition level
+      TripleIterator<?> constantColumn = NullReader.NULL_COLUMN;
       for (TripleIterator<?> col : columns) {
-        if (col != NullReader.NULL_COLUMN) {
+        if (col == NullReader.NULL_COLUMN) {
+          continue;
+        } else if (col instanceof ConstantReader.ConstantDLColumn) {
+          if (constantColumn == NullReader.NULL_COLUMN) {
+            constantColumn = col;
+          }
+        } else {
           return col;
         }
       }
-      return NullReader.NULL_COLUMN;
+
+      return constantColumn;
+    }
+  }
+
+  private static class StructLikeReader<T extends StructLike> extends StructReader<T, T> {
+    private final Types.StructType struct;
+    private final DynConstructors.Ctor<T> ctor;
+
+    StructLikeReader(
+        List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structLikeClass) {
+      super(readers);
+      this.struct = struct;
+      this.ctor =
+          DynConstructors.builder(StructLike.class)
+              .hiddenImpl(structLikeClass, Types.StructType.class)
+              .hiddenImpl(structLikeClass)
+              .build();
+    }
+
+    @Override
+    protected T newStructData(T reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        return ctor.newInstance(struct);
+      }
+    }
+
+    @Override
+    protected Object getField(T intermediate, int pos) {
+      return intermediate.get(pos, Object.class);
+    }
+
+    @Override
+    protected T buildStruct(T s) {
+      return s;
+    }
+
+    @Override
+    protected void set(T s, int pos, Object value) {
+      s.set(pos, value);
+    }
+  }
+
+  private static class RecordReader extends StructReader<Record, Record> {
+    private final GenericRecord template;
+
+    RecordReader(List<ParquetValueReader<?>> readers, Types.StructType struct) {
+      super(readers);
+      this.template = struct != null ? GenericRecord.create(struct) : null;
+    }
+
+    @Override
+    protected Record newStructData(Record reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        // GenericRecord.copy() is more performant than GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access is eliminated. Using copy here to gain performance.
+        return template.copy();
+      }
+    }
+
+    @Override
+    protected Object getField(Record intermediate, int pos) {
+      return intermediate.get(pos);
+    }
+
+    @Override
+    protected Record buildStruct(Record struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(Record struct, int pos, Object value) {
+      struct.set(pos, value);
     }
   }
 }

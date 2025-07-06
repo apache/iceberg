@@ -59,6 +59,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @BeforeEach
   void before() {
+    super.before();
     Table table = createTable();
     this.lock = LOCK_FACTORY.createLock();
     this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
@@ -287,6 +288,24 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.setProcessingTime(EVENT_TIME_2);
       // At this point the output contains the recovery trigger and the real trigger
       assertThat(testHarness.extractOutputValues()).hasSize(2);
+    }
+  }
+
+  @Test
+  void testNewJobReleasesExistingLock() throws Exception {
+    // Lock first to mock previous job orphaned lock
+    lock.tryLock();
+    recoveringLock.tryLock();
+
+    TableLoader tableLoader = tableLoader();
+    TriggerManager manager = manager(tableLoader);
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      // Check the new job weather remove the orphaned lock
+      assertThat(lock.isHeld()).isFalse();
+      assertThat(recoveringLock.isHeld()).isFalse();
     }
   }
 
@@ -575,7 +594,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   private static Stream<Arguments> parametersForTestRecovery() {
     return Stream.of(
-        Arguments.of(true, false),
+        Arguments.of(true, true),
         Arguments.of(true, false),
         Arguments.of(false, true),
         Arguments.of(false, false));

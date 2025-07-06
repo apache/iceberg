@@ -31,7 +31,7 @@ class TestScanContext {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
             .build();
     assertException(
-        context, "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
+        context, "Invalid starting snapshot id for INCREMENTAL_FROM_SNAPSHOT_ID strategy: null");
 
     context =
         ScanContext.builder()
@@ -42,7 +42,7 @@ class TestScanContext {
             .build();
     assertException(
         context,
-        "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+        "Invalid starting snapshot timestamp for INCREMENTAL_FROM_SNAPSHOT_ID strategy: not null");
   }
 
   @Test
@@ -54,7 +54,7 @@ class TestScanContext {
             .build();
     assertException(
         context,
-        "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
+        "Invalid starting snapshot timestamp for INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP strategy: null");
 
     context =
         ScanContext.builder()
@@ -64,7 +64,8 @@ class TestScanContext {
             .startSnapshotTimestamp(1L)
             .build();
     assertException(
-        context, "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+        context,
+        "Invalid starting snapshot id for INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP strategy: not null");
   }
 
   @Test

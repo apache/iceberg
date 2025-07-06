@@ -38,6 +38,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -52,6 +53,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -67,6 +70,13 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.Tag;
 
+@EnabledIfEnvironmentVariables({
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_ACCESS_KEY_ID, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SESSION_TOKEN, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*")
+})
 public class TestGlueCatalogTable extends GlueTestBase {
 
   @Test
@@ -89,7 +99,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().parameters())
         .containsEntry(
             BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH))
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
         .containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
@@ -301,6 +311,22 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
+  public void testCreateTableInUniqueLocation() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    String newTableName = tableName + "_renamed";
+
+    glueCatalogWithUniqueLocation.renameTable(
+        TableIdentifier.of(namespace, tableName), TableIdentifier.of(namespace, newTableName));
+    Table renamedTable =
+        glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, newTableName));
+    createTable(namespace, tableName);
+    Table table = glueCatalogWithUniqueLocation.loadTable(TableIdentifier.of(namespace, tableName));
+
+    assertThat(renamedTable.location()).isNotEqualTo(table.location());
+  }
+
+  @Test
   public void testRenameTableFailsToCreateNewTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
@@ -429,8 +455,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
       // might have directory markers left
       for (S3Object s3Object : response.contents()) {
         Optional<Long> size = s3Object.getValueForField("Size", Long.class);
-        assertThat(size.isPresent()).isTrue();
-        assertThat(size.get()).isEqualTo(0);
+        assertThat(size).contains(0L);
       }
     }
   }
@@ -713,7 +738,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class);
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Table already exists");
     assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
   }
@@ -733,7 +759,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
         new AwsProperties(properties),
         new S3FileIOProperties(properties),
         GLUE,
-        null);
+        null,
+        false /* uniqTableLocation */);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);

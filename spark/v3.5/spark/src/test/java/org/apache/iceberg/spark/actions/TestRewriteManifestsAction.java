@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
@@ -50,6 +51,7 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -57,6 +59,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -69,6 +72,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -191,6 +195,119 @@ public class TestRewriteManifestsAction extends TestBase {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void testRewriteV3ManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore = recordsWithLineage();
+    assertThat(rowsBefore)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteV3PartitionedManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, "AAAA", "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "BBBB", "BBBB")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore = recordsWithLineage();
+    assertThat(rowsBefore)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterV2ToV3Upgrade() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table =
+        TABLES.create(
+            SCHEMA, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), tableLocation);
+
+    ThreeColumnRecord record1 = new ThreeColumnRecord(1, null, "AAAA");
+    ThreeColumnRecord record2 = new ThreeColumnRecord(2, "CCCC", "CCCC");
+    writeRecords(Lists.newArrayList(record1));
+    writeRecords(Lists.newArrayList(record2));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    table
+        .updateProperties()
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+        .commit();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull()
+        .doesNotHaveDuplicates();
+    assertThat(rowsAfter)
+        .extracting(r -> new ThreeColumnRecord(r.getAs("c1"), r.getAs("c2"), r.getAs("c3")))
+        .containsExactlyInAnyOrder(record1, record2);
   }
 
   @TestTemplate
@@ -400,7 +517,6 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-
     assertThat(newManifests).as("Should have 2 manifests after rewrite").hasSize(2);
 
     assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
@@ -532,6 +648,151 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithInvalidSortingColumns() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    SparkActions actions = org.apache.iceberg.spark.actions.SparkActions.get();
+
+    List<String> nonexistentFields = ImmutableList.of("c1", "c2");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(nonexistentFields)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c2] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+
+    // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
+    // sortBy() expects the hidden partition column names
+    List<String> hasIncorrectPartitionFieldNames = ImmutableList.of("c1", "c3");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(hasIncorrectPartitionFieldNames)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c3] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
+    Random random = new Random(4141912);
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 3).bucket("c3", 10).build();
+    Table table = TABLES.create(SCHEMA, spec, tableLocation);
+
+    // write a large number of random records so the rewrite will split into multiple manifests
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int i = 0; i < 1000; i++) {
+      dataFiles.add(
+          newDataFile(
+              table,
+              TestHelpers.Row.of(i, String.valueOf(random.nextInt() * 100), random.nextInt(10))));
+    }
+    ManifestFile appendManifest = writeManifest(table, dataFiles);
+    table.newFastAppend().appendManifest(appendManifest).commit();
+
+    // force manifest splitting
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(appendManifest.length() / 2))
+        .commit();
+
+    List<String> clusterKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
+    SparkActions actions = SparkActions.get();
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .sortBy(clusterKeys)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    table.refresh();
+
+    // Read the manifests metadata table. The partition_summaries column contains
+    // an array of structs with lower_bound and upper_bound as strings
+    Dataset<Row> manifestsDf = spark.read().format("iceberg").load(tableLocation + "#manifests");
+
+    List<Integer> bounds = Lists.newArrayList();
+    for (Row row : manifestsDf.select("partition_summaries").collectAsList()) {
+      // partition_summaries is an array of structs;
+      // index 2 corresponds to c3_bucket since it is the third ordinal field in the table
+      List<Row> summaries = row.getList(0);
+      Row c3Summary = summaries.get(2);
+      // lower_bound and upper_bound are at positions 2 and 3 of the summary struct
+      String lower = c3Summary.getString(2);
+      String upper = c3Summary.getString(3);
+      bounds.add(Integer.valueOf(lower));
+      bounds.add(Integer.valueOf(upper));
+    }
+
+    // Ensure that the list of bounds is sorted; if custom sorting is working,
+    // the lower/upper bounds should form a non‑decreasing sequence. AKA [0, 4, 4, 9]
+    assertThat(bounds)
+        .as("Manifest boundaries should be sorted")
+        .isSortedAccordingTo(Integer::compareTo);
+
+    // Make sure we have at least two manifests, otherwise the test misses the point
+    assertThat(manifestsDf.count()).as("There should be at least 2 manifests").isGreaterThan(1L);
+  }
+
+  @TestTemplate
+  public void
+      testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDotAndBacktick()
+          throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "a", Types.StructType.of(optional(2, "b`c", Types.StringType.get()))),
+            optional(3, "ds", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("a.b`c").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(schema, spec, options, tableLocation);
+
+    // write two manifests so the rewrite doesn't short-circuit via the "already optimal" early
+    // return, and sortColumn() actually gets exercised
+    ManifestFile manifest1 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val1"))));
+    table.newFastAppend().appendManifest(manifest1).commit();
+
+    ManifestFile manifest2 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val2"))));
+    table.newFastAppend().appendManifest(manifest2).commit();
+
+    RewriteManifests.Result result =
+        SparkActions.get()
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .sortBy(ImmutableList.of("a.b`c"))
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).hasSize(2);
+    assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(1);
+  }
+
+  @TestTemplate
   public void testRewriteManifestsWithPredicate() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
@@ -618,7 +879,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot1 = table.currentSnapshot();
-    DataFile file1 = Iterables.getOnlyElement(snapshot1.addedDataFiles(table.io()));
+    DataFile file1 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot1).build().addedDataFiles());
 
     List<ThreeColumnRecord> records2 = Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC"));
     writeRecords(records2);
@@ -626,7 +889,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot2 = table.currentSnapshot();
-    DataFile file2 = Iterables.getOnlyElement(snapshot2.addedDataFiles(table.io()));
+    DataFile file2 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot2).build().addedDataFiles());
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
@@ -1021,6 +1286,17 @@ public class TestRewriteManifestsAction extends TestBase {
         .load(tableLocation)
         .as(Encoders.bean(ThreeColumnRecord.class))
         .sort("c1", "c2", "c3")
+        .collectAsList();
+  }
+
+  private List<Row> recordsWithLineage() {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(tableLocation)
+        .selectExpr(
+            MetadataColumns.ROW_ID.name(), MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), "*")
+        .orderBy(MetadataColumns.ROW_ID.name())
         .collectAsList();
   }
 

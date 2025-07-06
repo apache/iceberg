@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -28,7 +29,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,8 +70,8 @@ public class TestSortOrder {
   @TempDir private File tableDir;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Parameter private int formatVersion;
@@ -343,6 +344,34 @@ public class TestSortOrder {
   }
 
   @TestTemplate
+  public void testGeospatialUnsupported() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.required(5, "geog", Types.GeographyType.crs84()));
+
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geom").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geometry");
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geog").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geography");
+  }
+
+  @Test
+  public void testUnknownSupported() {
+    int fieldId = 22;
+    Schema v3Schema = new Schema(Types.NestedField.optional(fieldId, "u", Types.UnknownType.get()));
+
+    SortOrder sortOrder = SortOrder.builderFor(v3Schema).asc("u").build();
+
+    assertThat(sortOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID);
+    assertThat(sortOrder.fields()).hasSize(1);
+    assertThat(sortOrder.fields().get(0).sourceId()).isEqualTo(fieldId);
+  }
+
+  @TestTemplate
   public void testPreservingOrderSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -365,7 +394,7 @@ public class TestSortOrder {
                     .asc(fieldName)
                     .build())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining(String.format("Cannot find field '%s' in struct", fieldName));
+        .hasMessageContaining("Cannot find field '%s' in struct", fieldName);
 
     SortOrder ext1 =
         SortOrder.builderFor(SCHEMA).caseSensitive(false).withOrderId(10).asc("ext1").build();

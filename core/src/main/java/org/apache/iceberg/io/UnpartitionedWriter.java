@@ -37,6 +37,17 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
     currentWriter = new RollingFileWriter(null);
   }
 
+  public UnpartitionedWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileWriterFactory<T> fileWriterFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
+    super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
+    currentWriter = new RollingFileWriter(null);
+  }
+
   @Override
   public void write(T record) throws IOException {
     currentWriter.write(record);

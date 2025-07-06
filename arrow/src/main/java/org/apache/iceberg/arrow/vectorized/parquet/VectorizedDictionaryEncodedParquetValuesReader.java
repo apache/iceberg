@@ -137,30 +137,13 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     }
   }
 
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
-    }
-  }
-
   class VarWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
       ((BaseVariableWidthVector) vector)
-          .setSafe(
-              idx,
-              buffer.array(),
-              buffer.position() + buffer.arrayOffset(),
-              buffer.limit() - buffer.position());
+          .setSafe(idx, buffer, buffer.position(), buffer.remaining());
     }
   }
 
@@ -201,14 +184,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
 
   public DoubleDictEncodedReader doubleDictEncodedReader() {
     return new DoubleDictEncodedReader();
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public FixedWidthBinaryDictEncodedReader fixedWidthBinaryDictEncodedReader() {
-    return new FixedWidthBinaryDictEncodedReader();
   }
 
   public VarWidthBinaryDictEncodedReader varWidthBinaryDictEncodedReader() {

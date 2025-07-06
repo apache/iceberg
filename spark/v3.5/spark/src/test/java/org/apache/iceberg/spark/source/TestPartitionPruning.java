@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.sql.Timestamp;
@@ -41,6 +42,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -57,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
@@ -83,16 +86,16 @@ public class TestPartitionPruning {
   @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, DISTRIBUTED},
-      {"parquet", true, LOCAL},
-      {"avro", false, DISTRIBUTED},
-      {"orc", false, LOCAL},
-      {"orc", true, DISTRIBUTED}
+      {FileFormat.PARQUET, false, DISTRIBUTED},
+      {FileFormat.PARQUET, true, LOCAL},
+      {FileFormat.AVRO, false, DISTRIBUTED},
+      {FileFormat.ORC, false, LOCAL},
+      {FileFormat.ORC, true, DISTRIBUTED}
     };
   }
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat format;
 
   @Parameter(index = 1)
   private boolean vectorized;
@@ -112,7 +115,12 @@ public class TestPartitionPruning {
 
   @BeforeAll
   public static void startSpark() {
-    TestPartitionPruning.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionPruning.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
+            .getOrCreate();
     TestPartitionPruning.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
@@ -235,14 +243,7 @@ public class TestPartitionPruning {
 
   @TestTemplate
   public void testPartitionPruningHourlyPartition() {
-    String filterCond;
-    if (spark.version().startsWith("2")) {
-      // Looks like from Spark 2 we need to compare timestamp with timestamp to push down the
-      // filter.
-      filterCond = "timestamp >= to_timestamp('2020-02-03T01:00:00')";
-    } else {
-      filterCond = "timestamp >= '2020-02-03T01:00:00'";
-    }
+    String filterCond = "timestamp >= '2020-02-03T01:00:00'";
     Predicate<Row> partCondition =
         (Row r) -> {
           int hourValue = r.getInt(4);
@@ -283,9 +284,7 @@ public class TestPartitionPruning {
             .filter(filterCond)
             .orderBy("id")
             .collectAsList();
-    assertThat(actual).as("Actual rows should not be empty").isNotEmpty();
-
-    assertThat(actual).as("Rows should match").isEqualTo(expected);
+    assertThat(actual).isNotEmpty().isEqualTo(expected);
 
     assertAccessOnDataFiles(originTableLocation, table, partCondition);
   }
@@ -302,7 +301,7 @@ public class TestPartitionPruning {
     String trackedTableLocation = CountOpenLocalFileSystem.convertPath(originTableLocation);
     Map<String, String> properties =
         ImmutableMap.of(
-            TableProperties.DEFAULT_FILE_FORMAT, format,
+            TableProperties.DEFAULT_FILE_FORMAT, format.toString(),
             TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
             TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
     return TABLES.create(LOG_SCHEMA, spec, properties, trackedTableLocation);

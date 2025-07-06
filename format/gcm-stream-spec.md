@@ -41,7 +41,7 @@ The output stream, produced by a metadata or data writer, is split into equal-si
 
 ## Encryption algorithm
 
-AES GCM Stream uses the standard AEG GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
+AES GCM Stream uses the standard AES GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
 
 AES GCM is an authenticated encryption. Besides data confidentiality (encryption), it supports two levels of integrity verification (authentication): of the data (default), and of the data combined with an optional AAD (“additional authenticated data”). An AAD is a free text to be authenticated, together with the data. The structure of AES GCM Stream AADs is described below.
 
@@ -59,9 +59,9 @@ Magic BlockLength CipherBlock₁ CipherBlock₂ ... CipherBlockₙ
 
 where
 
-- `Magic` is four bytes 0x41, 0x47, 0x53, 0x31 ("AGS1", short for: AES GCM Stream, version 1)
-- `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
-- `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
+* `Magic` is four bytes 0x41, 0x47, 0x53, 0x31 ("AGS1", short for: AES GCM Stream, version 1)
+* `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
+* `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
 
 ### Cipher Block structure
 
@@ -72,15 +72,15 @@ Cipher blocks have the following structure
 
 where
 
-- `nonce` is the AES GCM nonce, with a length of 12 bytes.
-- `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
-- `tag` is the AES GCM tag, with a length of 16 bytes.
+* `nonce` is the AES GCM nonce, with a length of 12 bytes.
+* `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
+* `tag` is the AES GCM tag, with a length of 16 bytes.
 
 AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher must be implemented by a cryptographic provider according to the NIST SP 800-38D specification. In AES GCM Stream, an input to the GCM cipher is an AES encryption key, a nonce, a plaintext and an AAD (described below). The output is a ciphertext with the length equal to that of plaintext, and a 16-byte authentication tag used to verify the ciphertext and AAD integrity.
 
 ### Additional Authenticated Data
 
-The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
+The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflect the identity of a file and of the blocks inside the file.
 
 AES GCM Stream constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
 

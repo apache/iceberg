@@ -20,8 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +27,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.util.Utf8;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -48,21 +44,17 @@ import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +67,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
+  private final EncryptingFileIO fileIO;
   private final Schema tableSchema;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
@@ -82,6 +75,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -90,11 +84,14 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   BaseReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<TaskT> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
+    this.fileIO = EncryptingFileIO.combine(fileIO, table().encryption());
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
@@ -105,6 +102,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     this.nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -117,6 +115,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  protected boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   protected NameMapping nameMapping() {
@@ -182,9 +184,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
       this.lazyInputFiles =
-          EncryptingFileIO.combine(table().io(), table().encryption())
-              .bulkDecrypt(
-                  () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
+          fileIO.bulkDecrypt(
+              () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
     }
 
     return lazyInputFiles;
@@ -193,57 +194,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
-      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
+      return PartitionUtil.constantsMap(task, partitionType, SparkUtil::internalToSpark);
     } else {
-      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
+      return PartitionUtil.constantsMap(task, SparkUtil::internalToSpark);
     }
-  }
-
-  protected static Object convertConstant(Type type, Object value) {
-    if (value == null) {
-      return null;
-    }
-
-    switch (type.typeId()) {
-      case DECIMAL:
-        return Decimal.apply((BigDecimal) value);
-      case STRING:
-        if (value instanceof Utf8) {
-          Utf8 utf8 = (Utf8) value;
-          return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
-        }
-        return UTF8String.fromString(value.toString());
-      case FIXED:
-        if (value instanceof byte[]) {
-          return value;
-        } else if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
-        }
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case BINARY:
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case STRUCT:
-        StructType structType = (StructType) type;
-
-        if (structType.fields().isEmpty()) {
-          return new GenericInternalRow();
-        }
-
-        List<NestedField> fields = structType.fields();
-        Object[] values = new Object[fields.size()];
-        StructLike struct = (StructLike) value;
-
-        for (int index = 0; index < fields.size(); index++) {
-          NestedField field = fields.get(index);
-          Type fieldType = field.type();
-          values[index] =
-              convertConstant(fieldType, struct.get(index, fieldType.typeId().javaClass()));
-        }
-
-        return new GenericInternalRow(values);
-      default:
-    }
-    return value;
   }
 
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
@@ -277,7 +231,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected DeleteLoader newDeleteLoader() {
-      return new CachingDeleteLoader(this::loadInputFile);
+      if (cacheDeleteFilesOnExecutors) {
+        return new CachingDeleteLoader(this::loadInputFile);
+      }
+      return new BaseDeleteLoader(this::loadInputFile);
     }
 
     private class CachingDeleteLoader extends BaseDeleteLoader {

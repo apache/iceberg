@@ -36,6 +36,7 @@ import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -145,6 +146,37 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testSessionSplitSizeSkipsAdaptiveSplitSizeAdjustment() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long splitSize = TableProperties.SPLIT_SIZE_DEFAULT;
+    List<ScanTask> tasks = ImmutableList.of(scanTaskWithSize(16L * 1024 * 1024));
+
+    withSQLConf(
+        ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "200"),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isLessThan(splitSize);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SparkSQLProperties.READ_SPLIT_SIZE,
+            String.valueOf(splitSize)),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isEqualTo(splitSize);
+        });
+  }
+
+  @TestTemplate
   public void testTableWithoutColStats() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
@@ -224,7 +256,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -252,17 +284,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
-    SparkScan scan = (SparkScan) scanBuilder.build();
-
-    Map<String, String> reportColStatsDisabled =
-        ImmutableMap.of(
-            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
-
-    Map<String, String> reportColStatsEnabled =
-        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
-
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
@@ -277,14 +298,52 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
-    checkColStatisticsNotReported(scan, 4L);
-    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    List<SimpleRecord> newRecords =
+        Lists.newArrayList(new SimpleRecord(5, "a"), new SimpleRecord(6, "b"));
+    spark
+        .createDataset(newRecords, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
 
-    Map<String, Long> expectedOneNDV = Maps.newHashMap();
-    expectedOneNDV.put("id", 4L);
-    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile2 =
+        new GenericStatisticsFile(
+            snapshotId2,
+            "/test/statistics/file2.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId2,
+                    2,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "6"))));
+
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    checkColStatisticsNotReported(scan, 6L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 6L));
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    Map<String, Long> expectedNDV = Maps.newHashMap();
+    expectedNDV.put("id", 6L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 6L, expectedNDV));
   }
 
   @TestTemplate
@@ -338,7 +397,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -398,7 +457,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableList.of(2),
                     ImmutableMap.of("ndv", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -425,7 +484,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT Equal
     builder = scanBuilder();
@@ -434,7 +493,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -453,7 +512,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT Equal
     builder = scanBuilder();
@@ -462,7 +521,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -482,7 +541,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT GT
     builder = scanBuilder();
@@ -491,7 +550,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -511,7 +570,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT GT
     builder = scanBuilder();
@@ -520,7 +579,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -539,7 +598,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT LT
     builder = scanBuilder();
@@ -548,7 +607,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -567,7 +626,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT LT
     builder = scanBuilder();
@@ -576,7 +635,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -595,7 +654,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(8);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -604,7 +663,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(2);
   }
 
   @TestTemplate
@@ -623,7 +682,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(8);
+    assertThat(scan.planInputPartitions()).hasSize(8);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -632,7 +691,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(2);
+    assertThat(scan.planInputPartitions()).hasSize(2);
   }
 
   @TestTemplate
@@ -647,7 +706,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -656,7 +715,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
   }
 
   @TestTemplate
@@ -671,7 +730,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions()).hasSize(6);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -680,7 +739,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions()).hasSize(4);
   }
 
   @TestTemplate
@@ -695,7 +754,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
 
     // NOT LTEQ
     builder = scanBuilder();
@@ -704,7 +763,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
   }
 
   @TestTemplate
@@ -719,7 +778,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions()).hasSize(6);
 
     // NOT LTEQ
     builder = scanBuilder();
@@ -728,7 +787,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions()).hasSize(4);
   }
 
   @TestTemplate
@@ -743,7 +802,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -752,7 +811,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -767,7 +826,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -776,7 +835,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -791,7 +850,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).isEmpty();
 
     // NOT IsNull
     builder = scanBuilder();
@@ -800,7 +859,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
   }
 
   @TestTemplate
@@ -815,7 +874,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(0);
+    assertThat(scan.planInputPartitions()).isEmpty();
 
     // NOT IsNULL
     builder = scanBuilder();
@@ -824,7 +883,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
   }
 
   @TestTemplate
@@ -839,7 +898,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
 
     // NOT IsNotNull
     builder = scanBuilder();
@@ -848,7 +907,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).isEmpty();
   }
 
   @TestTemplate
@@ -863,7 +922,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
 
     // NOT IsNotNULL
     builder = scanBuilder();
@@ -872,7 +931,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(0);
+    assertThat(scan.planInputPartitions()).isEmpty();
   }
 
   @TestTemplate
@@ -893,7 +952,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT (years(ts) = 47 AND bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -902,7 +961,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
   }
 
   @TestTemplate
@@ -923,7 +982,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(1);
+    assertThat(scan.planInputPartitions()).hasSize(1);
 
     // NOT (years(ts) = 47 AND bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -932,7 +991,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(9);
+    assertThat(scan.planInputPartitions()).hasSize(9);
   }
 
   @TestTemplate
@@ -953,7 +1012,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(10);
 
     // NOT (years(ts) = 47 OR bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -962,7 +1021,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -983,7 +1042,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions()).hasSize(6);
 
     // NOT (years(ts) = 48 OR bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -992,7 +1051,16 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions()).hasSize(4);
+  }
+
+  private ScanTask scanTaskWithSize(long sizeBytes) {
+    return new ScanTask() {
+      @Override
+      public long sizeBytes() {
+        return sizeBytes;
+      }
+    };
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {

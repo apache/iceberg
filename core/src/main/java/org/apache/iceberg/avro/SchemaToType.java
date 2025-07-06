@@ -92,7 +92,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       Type fieldType = fieldTypes.get(i);
       int fieldId = getId(field);
 
-      if (AvroSchemaUtil.isOptionSchema(field.schema())) {
+      if (AvroSchemaUtil.isOptional(field.schema())) {
         newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType, field.doc()));
       } else {
         newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType, field.doc()));
@@ -105,7 +105,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   @Override
   public Type union(Schema union, List<Type> options) {
     if (AvroSchemaUtil.isOptionSchema(union)) {
-      if (options.get(0) == null) {
+      if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return options.get(1);
       } else {
         return options.get(0);
@@ -165,7 +165,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     int keyId = getKeyId(map);
     int valueId = getValueId(map);
 
-    if (AvroSchemaUtil.isOptionSchema(valueSchema)) {
+    if (AvroSchemaUtil.isOptional(valueSchema)) {
       return Types.MapType.ofOptional(keyId, valueId, Types.StringType.get(), valueType);
     } else {
       return Types.MapType.ofRequired(keyId, valueId, Types.StringType.get(), valueType);
@@ -173,33 +173,54 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(Schema variant, Type metadataType, Type valueType) {
+    return Types.VariantType.get();
+  }
+
+  public Type logicalType(Schema primitive, LogicalType logical) {
+    String name = logical.getName();
+    if (logical instanceof LogicalTypes.Decimal) {
+      return Types.DecimalType.of(
+          ((LogicalTypes.Decimal) logical).getPrecision(),
+          ((LogicalTypes.Decimal) logical).getScale());
+
+    } else if (logical instanceof LogicalTypes.Date) {
+      return Types.DateType.get();
+
+    } else if (logical instanceof LogicalTypes.TimeMillis
+        || logical instanceof LogicalTypes.TimeMicros) {
+      return Types.TimeType.get();
+
+    } else if (logical instanceof LogicalTypes.TimestampMillis
+        || logical instanceof LogicalTypes.TimestampMicros) {
+      if (AvroSchemaUtil.isTimestamptz(primitive)) {
+        return Types.TimestampType.withZone();
+      } else {
+        return Types.TimestampType.withoutZone();
+      }
+
+    } else if (logical instanceof LogicalTypes.TimestampNanos) {
+      if (AvroSchemaUtil.isTimestamptz(primitive)) {
+        return Types.TimestampNanoType.withZone();
+      } else {
+        return Types.TimestampNanoType.withoutZone();
+      }
+
+    } else if (LogicalTypes.uuid().getName().equals(name)) {
+      return Types.UUIDType.get();
+    }
+
+    return null;
+  }
+
+  @Override
   public Type primitive(Schema primitive) {
     // first check supported logical types
     LogicalType logical = primitive.getLogicalType();
     if (logical != null) {
-      String name = logical.getName();
-      if (logical instanceof LogicalTypes.Decimal) {
-        return Types.DecimalType.of(
-            ((LogicalTypes.Decimal) logical).getPrecision(),
-            ((LogicalTypes.Decimal) logical).getScale());
-
-      } else if (logical instanceof LogicalTypes.Date) {
-        return Types.DateType.get();
-
-      } else if (logical instanceof LogicalTypes.TimeMillis
-          || logical instanceof LogicalTypes.TimeMicros) {
-        return Types.TimeType.get();
-
-      } else if (logical instanceof LogicalTypes.TimestampMillis
-          || logical instanceof LogicalTypes.TimestampMicros) {
-        if (AvroSchemaUtil.isTimestamptz(primitive)) {
-          return Types.TimestampType.withZone();
-        } else {
-          return Types.TimestampType.withoutZone();
-        }
-
-      } else if (LogicalTypes.uuid().getName().equals(name)) {
-        return Types.UUIDType.get();
+      Type result = logicalType(primitive, logical);
+      if (result != null) {
+        return result;
       }
     }
 
@@ -222,7 +243,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       case BYTES:
         return Types.BinaryType.get();
       case NULL:
-        return null;
+        return Types.UnknownType.get();
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);

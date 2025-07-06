@@ -51,7 +51,7 @@ public class DynMethods {
           (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "deprecation"})
     <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
         if (argLength < 0) {
@@ -67,6 +67,15 @@ public class DynMethods {
       }
     }
 
+    /**
+     * Invokes the method on the given target, wrapping checked exceptions in a RuntimeException.
+     *
+     * @param <R> the return type of the method
+     * @param target the object to invoke the method on
+     * @param args the arguments to pass to the method
+     * @return the result of the invocation
+     */
+    @SuppressWarnings("deprecation")
     public <R> R invoke(Object target, Object... args) {
       try {
         return this.invokeChecked(target, args);
@@ -96,12 +105,20 @@ public class DynMethods {
       return new BoundMethod(this, receiver);
     }
 
-    /** Returns whether the method is a static method. */
+    /**
+     * Returns whether the method is a static method.
+     *
+     * @return true if the method is static, false otherwise
+     */
     public boolean isStatic() {
       return Modifier.isStatic(method.getModifiers());
     }
 
-    /** Returns whether the method is a noop. */
+    /**
+     * Returns whether the method is a noop.
+     *
+     * @return true if the method is a noop, false otherwise
+     */
     public boolean isNoop() {
       return this == NOOP;
     }
@@ -125,12 +142,8 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
-          /**
-           * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
-           */
-          @Deprecated // will become package-private
           @Override
-          public <R> R invokeChecked(Object target, Object... args) {
+          <R> R invokeChecked(Object target, Object... args) {
             return null;
           }
 
@@ -156,6 +169,7 @@ public class DynMethods {
         };
   }
 
+  /** A method bound to a receiver, invokable without passing the receiver. */
   public static class BoundMethod {
     private final UnboundMethod method;
     private final Object receiver;
@@ -165,15 +179,32 @@ public class DynMethods {
       this.receiver = receiver;
     }
 
+    /**
+     * Invokes the bound method with the given arguments.
+     *
+     * @param <R> the return type of the method
+     * @param args the arguments to pass to the method
+     * @return the result of the invocation
+     * @throws Exception if the method throws a checked exception
+     */
     public <R> R invokeChecked(Object... args) throws Exception {
       return method.invokeChecked(receiver, args);
     }
 
+    /**
+     * Invokes the bound method with the given arguments, wrapping checked exceptions in a
+     * RuntimeException.
+     *
+     * @param <R> the return type of the method
+     * @param args the arguments to pass to the method
+     * @return the result of the invocation
+     */
     public <R> R invoke(Object... args) {
       return method.invoke(receiver, args);
     }
   }
 
+  /** A static method, invokable without a receiver. */
   public static class StaticMethod {
     private final UnboundMethod method;
 
@@ -181,10 +212,26 @@ public class DynMethods {
       this.method = method;
     }
 
+    /**
+     * Invokes the static method with the given arguments.
+     *
+     * @param <R> the return type of the method
+     * @param args the arguments to pass to the method
+     * @return the result of the invocation
+     * @throws Exception if the method throws a checked exception
+     */
     public <R> R invokeChecked(Object... args) throws Exception {
       return method.invokeChecked(null, args);
     }
 
+    /**
+     * Invokes the static method with the given arguments, wrapping checked exceptions in a
+     * RuntimeException.
+     *
+     * @param <R> the return type of the method
+     * @param args the arguments to pass to the method
+     * @return the result of the invocation
+     */
     public <R> R invoke(Object... args) {
       return method.invoke(null, args);
     }
@@ -200,11 +247,17 @@ public class DynMethods {
     return new Builder(methodName);
   }
 
+  /** Builder for resolving a method from candidate implementations. */
   public static class Builder {
     private final String name;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private UnboundMethod method = null;
 
+    /**
+     * Constructs a builder that locates a method by the given name.
+     *
+     * @param methodName name of the method the builder will locate
+     */
     public Builder(String methodName) {
       this.name = methodName;
     }
@@ -368,6 +421,7 @@ public class DynMethods {
      * @see java.lang.Class#forName(String)
      * @see java.lang.Class#getMethod(String, Class[])
      */
+    @SuppressWarnings("removal")
     public Builder hiddenImpl(Class<?> targetClass, String methodName, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {

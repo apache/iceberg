@@ -21,20 +21,14 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.BinaryUtil;
-import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantObject;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -52,8 +46,6 @@ import org.apache.iceberg.util.NaNUtil;
  * checks for NaN is necessary in order to not skip files that may contain matching data.
  */
 public class InclusiveMetricsEvaluator {
-  private static final int IN_PREDICATE_LIMIT = 200;
-
   private final Expression expr;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
@@ -76,10 +68,7 @@ public class InclusiveMetricsEvaluator {
     return new MetricsEvalVisitor().eval(file);
   }
 
-  private static final boolean ROWS_MIGHT_MATCH = true;
-  private static final boolean ROWS_CANNOT_MATCH = false;
-
-  private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class MetricsEvalVisitor extends InclusiveEvalVisitor {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
     private Map<Integer, Long> nanCounts = null;
@@ -108,373 +97,12 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean handleNonReference(Bound<T> term) {
-      // If the term in any expression is not a direct reference, assume that rows may match. This
-      // happens when
-      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0
-      // can't be determined
-      // because this visitor operates on data metrics and not partition values. It may be possible
-      // to un-transform
-      // expressions for order preserving transforms in the future, but this is not currently
-      // supported.
-      return ROWS_MIGHT_MATCH;
+    protected boolean mayContainNull(int id) {
+      return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
     }
 
     @Override
-    public Boolean alwaysTrue() {
-      return ROWS_MIGHT_MATCH; // all rows match
-    }
-
-    @Override
-    public Boolean alwaysFalse() {
-      return ROWS_CANNOT_MATCH; // all rows fail
-    }
-
-    @Override
-    public Boolean not(Boolean result) {
-      return !result;
-    }
-
-    @Override
-    public Boolean and(Boolean leftResult, Boolean rightResult) {
-      return leftResult && rightResult;
-    }
-
-    @Override
-    public Boolean or(Boolean leftResult, Boolean rightResult) {
-      return leftResult || rightResult;
-    }
-
-    @Override
-    public <T> Boolean isNull(BoundReference<T> ref) {
-      // no need to check whether the field is required because binding evaluates that case
-      // if the column has no null values, the expression cannot match
-      Integer id = ref.fieldId();
-
-      if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean notNull(BoundReference<T> ref) {
-      // no need to check whether the field is required because binding evaluates that case
-      // if the column has no non-null values, the expression cannot match
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean isNaN(BoundReference<T> ref) {
-      Integer id = ref.fieldId();
-
-      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      // when there's no nanCounts information, but we already know the column only contains null,
-      // it's guaranteed that there's no NaN value
-      if (containsNullsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean notNaN(BoundReference<T> ref) {
-      Integer id = ref.fieldId();
-
-      if (containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
-        if (NaNUtil.isNaN(lower)) {
-          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
-          return ROWS_MIGHT_MATCH;
-        }
-
-        int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp >= 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
-        if (NaNUtil.isNaN(lower)) {
-          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
-          return ROWS_MIGHT_MATCH;
-        }
-
-        int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp > 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
-        int cmp = lit.comparator().compare(upper, lit.value());
-        if (cmp <= 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
-        int cmp = lit.comparator().compare(upper, lit.value());
-        if (cmp < 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
-        if (NaNUtil.isNaN(lower)) {
-          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
-          return ROWS_MIGHT_MATCH;
-        }
-
-        int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp > 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
-        int cmp = lit.comparator().compare(upper, lit.value());
-        if (cmp < 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      // because the bounds are not necessarily a min or max value, this cannot be answered using
-      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      Collection<T> literals = literalSet;
-
-      if (literals.size() > IN_PREDICATE_LIMIT) {
-        // skip evaluating the predicate if the number of values is too big
-        return ROWS_MIGHT_MATCH;
-      }
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
-        if (NaNUtil.isNaN(lower)) {
-          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
-          return ROWS_MIGHT_MATCH;
-        }
-
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(lower, v) <= 0)
-                .collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(upper, v) >= 0)
-                .collect(Collectors.toList());
-        if (literals
-            .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
-          // match.
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      // because the bounds are not necessarily a min or max value, this cannot be answered using
-      // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (containsNullsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
-      }
-
-      ByteBuffer prefixAsBytes = lit.toByteBuffer();
-
-      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        ByteBuffer lower = lowerBounds.get(id);
-        // truncate lower bound so that its length in bytes is not greater than the length of prefix
-        int length = Math.min(prefixAsBytes.remaining(), lower.remaining());
-        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, length), prefixAsBytes);
-        if (cmp > 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        ByteBuffer upper = upperBounds.get(id);
-        // truncate upper bound so that its length in bytes is not greater than the length of prefix
-        int length = Math.min(prefixAsBytes.remaining(), upper.remaining());
-        int cmp = comparator.compare(BinaryUtil.truncateBinary(upper, length), prefixAsBytes);
-        if (cmp < 0) {
-          return ROWS_CANNOT_MATCH;
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    @Override
-    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
-
-      if (mayContainNull(id)) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      ByteBuffer prefixAsBytes = lit.toByteBuffer();
-
-      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
-
-      // notStartsWith will match unless all values must start with the prefix. This happens when
-      // the lower and upper
-      // bounds both start with the prefix.
-      if (lowerBounds != null
-          && upperBounds != null
-          && lowerBounds.containsKey(id)
-          && upperBounds.containsKey(id)) {
-        ByteBuffer lower = lowerBounds.get(id);
-        // if lower is shorter than the prefix then lower doesn't start with the prefix
-        if (lower.remaining() < prefixAsBytes.remaining()) {
-          return ROWS_MIGHT_MATCH;
-        }
-
-        int cmp =
-            comparator.compare(
-                BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
-        if (cmp == 0) {
-          ByteBuffer upper = upperBounds.get(id);
-          // if upper is shorter than the prefix then upper can't start with the prefix
-          if (upper.remaining() < prefixAsBytes.remaining()) {
-            return ROWS_MIGHT_MATCH;
-          }
-
-          cmp =
-              comparator.compare(
-                  BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
-          if (cmp == 0) {
-            // both bounds match the prefix, so all rows must match the prefix and therefore do not
-            // satisfy
-            // the predicate
-            return ROWS_CANNOT_MATCH;
-          }
-        }
-      }
-
-      return ROWS_MIGHT_MATCH;
-    }
-
-    private boolean mayContainNull(Integer id) {
-      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
-    }
-
-    private boolean containsNullsOnly(Integer id) {
+    protected boolean containsNullsOnly(int id) {
       return valueCounts != null
           && valueCounts.containsKey(id)
           && nullCounts != null
@@ -482,11 +110,63 @@ public class InclusiveMetricsEvaluator {
           && valueCounts.get(id) - nullCounts.get(id) == 0;
     }
 
-    private boolean containsNaNsOnly(Integer id) {
+    @Override
+    protected boolean mayContainNaN(int id) {
+      return nanCounts == null || !nanCounts.containsKey(id) || nanCounts.get(id) != 0;
+    }
+
+    @Override
+    protected boolean containsNaNsOnly(int id) {
       return nanCounts != null
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
     }
+
+    @Override
+    protected <T> T lowerBound(BoundReference<T> ref) {
+      int id = ref.fieldId();
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        return Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
+      }
+
+      return null;
+    }
+
+    @Override
+    protected <T> T upperBound(BoundReference<T> ref) {
+      int id = ref.fieldId();
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        return Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
+      }
+
+      return null;
+    }
+
+    @Override
+    protected <T> T extractLowerBound(BoundExtract<T> bound) {
+      int id = bound.ref().fieldId();
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        VariantObject fieldLowerBounds = parseBounds(lowerBounds.get(id));
+        return VariantExpressionUtil.castTo(fieldLowerBounds.get(bound.path()), bound.type());
+      }
+
+      return null;
+    }
+
+    @Override
+    protected <T> T extractUpperBound(BoundExtract<T> bound) {
+      int id = bound.ref().fieldId();
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        VariantObject fieldUpperBounds = parseBounds(upperBounds.get(id));
+        return VariantExpressionUtil.castTo(fieldUpperBounds.get(bound.path()), bound.type());
+      }
+
+      return null;
+    }
+  }
+
+  private static VariantObject parseBounds(ByteBuffer buffer) {
+    return Variant.from(buffer).value().asObject();
   }
 }

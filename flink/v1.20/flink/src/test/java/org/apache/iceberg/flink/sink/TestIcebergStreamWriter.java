@@ -32,7 +32,8 @@ import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -321,12 +322,11 @@ public class TestIcebergStreamWriter {
             Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
             Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
             Types.NestedField.optional(3, "int", Types.IntegerType.get()));
-    TableSchema flinkSchema =
-        TableSchema.builder()
-            .field("tinyint", DataTypes.TINYINT().notNull())
-            .field("smallint", DataTypes.SMALLINT().notNull())
-            .field("int", DataTypes.INT().nullable())
-            .build();
+    ResolvedSchema flinkSchema =
+        ResolvedSchema.of(
+            Column.physical("tinyint", DataTypes.TINYINT().notNull()),
+            Column.physical("smallint", DataTypes.SMALLINT().notNull()),
+            Column.physical("int", DataTypes.INT().nullable()));
 
     PartitionSpec spec;
     if (partitioned) {
@@ -390,7 +390,7 @@ public class TestIcebergStreamWriter {
   }
 
   private OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> createIcebergStreamWriter(
-      Table icebergTable, TableSchema flinkSchema) throws Exception {
+      Table icebergTable, ResolvedSchema flinkSchema) throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
         new FlinkWriteConf(

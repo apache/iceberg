@@ -18,21 +18,36 @@
  */
 package org.apache.iceberg.spark;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.util.Utf8;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.scheduler.ExecutorCacheTaskLocation;
@@ -40,15 +55,17 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
 import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.storage.BlockManagerMaster;
-import org.joda.time.DateTime;
+import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
@@ -215,15 +232,14 @@ public class SparkUtil {
                 new EqualTo(
                     ref,
                     Literal.create(
-                        new Date(DateTime.parse(entry.getValue()).getMillis()),
-                        DataTypes.DateType)));
+                        new Date(parseToEpochMillis(entry.getValue())), DataTypes.DateType)));
             break;
           case "timestamp":
             filterExpressions.add(
                 new EqualTo(
                     ref,
                     Literal.create(
-                        new Timestamp(DateTime.parse(entry.getValue()).getMillis()),
+                        new Timestamp(parseToEpochMillis(entry.getValue())),
                         DataTypes.TimestampType)));
             break;
           default:
@@ -236,6 +252,36 @@ public class SparkUtil {
     }
 
     return filterExpressions;
+  }
+
+  // Lenient ISO parser accepting either a date (e.g. "2021-01-01") or a date-time
+  // (e.g. "2021-01-01T12:34:56"), with an optional zone offset (e.g. "2021-01-01T12:34:56Z" or
+  // "2021-01-01T12:34:56+00:00"), defaulting any missing time fields to zero.
+  private static final DateTimeFormatter LENIENT_ISO_DATE_TIME =
+      new DateTimeFormatterBuilder()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE)
+          .optionalStart()
+          .appendLiteral('T')
+          .append(DateTimeFormatter.ISO_LOCAL_TIME)
+          .optionalEnd()
+          .optionalStart()
+          .appendOffsetId()
+          .optionalEnd()
+          .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+          .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+          .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+          .toFormatter();
+
+  private static long parseToEpochMillis(String value) {
+    TemporalAccessor parsed = LENIENT_ISO_DATE_TIME.parse(value);
+    LocalDateTime dateTime = LocalDateTime.from(parsed);
+    // Respect an explicit offset when present (as Joda's DateTime.parse did), otherwise
+    // interpret the value in the system default zone.
+    ZoneId zone =
+        parsed.isSupported(ChronoField.OFFSET_SECONDS)
+            ? ZoneOffset.from(parsed)
+            : ZoneId.systemDefault();
+    return dateTime.atZone(zone).toInstant().toEpochMilli();
   }
 
   public static String toColumnName(NamedReference ref) {
@@ -267,5 +313,61 @@ public class SparkUtil {
 
   private static String toExecutorLocation(BlockManagerId id) {
     return ExecutorCacheTaskLocation.apply(id.host(), id.executorId()).toString();
+  }
+
+  /**
+   * Converts a value to pass into Spark from Iceberg's internal object model.
+   *
+   * @param type an Iceberg type
+   * @param value a value that is an instance of {@link Type.TypeID#javaClass()}
+   * @return the value converted for Spark
+   */
+  public static Object internalToSpark(Type type, Object value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case DECIMAL:
+        return Decimal.apply((BigDecimal) value);
+      case UUID:
+      case STRING:
+        if (value instanceof Utf8) {
+          Utf8 utf8 = (Utf8) value;
+          return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
+        }
+        return UTF8String.fromString(value.toString());
+      case FIXED:
+        if (value instanceof byte[]) {
+          return value;
+        } else if (value instanceof GenericData.Fixed) {
+          return ((GenericData.Fixed) value).bytes();
+        }
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      case BINARY:
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      case STRUCT:
+        Types.StructType structType = (Types.StructType) type;
+
+        if (structType.fields().isEmpty()) {
+          return new GenericInternalRow();
+        }
+
+        List<Types.NestedField> fields = structType.fields();
+        Object[] values = new Object[fields.size()];
+        StructLike struct = (StructLike) value;
+
+        for (int index = 0; index < fields.size(); index++) {
+          Types.NestedField field = fields.get(index);
+          Type fieldType = field.type();
+          values[index] =
+              internalToSpark(fieldType, struct.get(index, fieldType.typeId().javaClass()));
+        }
+
+        return new GenericInternalRow(values);
+      default:
+    }
+
+    return value;
   }
 }

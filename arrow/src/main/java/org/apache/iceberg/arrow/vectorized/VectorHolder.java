@@ -167,6 +167,11 @@ public class VectorHolder {
     }
   }
 
+  public static VectorHolder vectorHolder(
+      FieldVector vector, Types.NestedField icebergField, NullabilityHolder nulls) {
+    return new VectorHolder(vector, icebergField, nulls);
+  }
+
   public static class DeletedVectorHolder extends VectorHolder {
     private final int numRows;
 
@@ -178,6 +183,36 @@ public class VectorHolder {
     @Override
     public int numValues() {
       return numRows;
+    }
+  }
+
+  public static class VariantVectorHolder extends VectorHolder {
+    private final VectorHolder metadataHolder;
+    private final VectorHolder valueHolder;
+    private final int numRows;
+
+    public VariantVectorHolder(
+        Types.NestedField icebergField,
+        int numRows,
+        VectorHolder metadataHolder,
+        VectorHolder valueHolder) {
+      super(icebergField);
+      this.numRows = numRows;
+      this.metadataHolder = metadataHolder;
+      this.valueHolder = valueHolder;
+    }
+
+    @Override
+    public int numValues() {
+      return numRows;
+    }
+
+    public VectorHolder metadataHolder() {
+      return metadataHolder;
+    }
+
+    public VectorHolder valueHolder() {
+      return valueHolder;
     }
   }
 }

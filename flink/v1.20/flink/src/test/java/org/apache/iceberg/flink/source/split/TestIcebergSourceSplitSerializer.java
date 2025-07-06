@@ -170,7 +170,7 @@ public class TestIcebergSourceSplitSerializer {
     for (int i = 0; i < expectedTasks.size(); ++i) {
       FileScanTask expectedTask = expectedTasks.get(i);
       FileScanTask actualTask = actualTasks.get(i);
-      assertThat(actualTask.file().path()).isEqualTo(expectedTask.file().path());
+      assertThat(actualTask.file().location()).isEqualTo(expectedTask.file().location());
       assertThat(actualTask.sizeBytes()).isEqualTo(expectedTask.sizeBytes());
       assertThat(actualTask.filesCount()).isEqualTo(expectedTask.filesCount());
       assertThat(actualTask.start()).isEqualTo(expectedTask.start());

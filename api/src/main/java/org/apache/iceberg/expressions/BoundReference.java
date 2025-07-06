@@ -56,6 +56,11 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   }
 
   @Override
+  public boolean producesNull() {
+    return field.isOptional();
+  }
+
+  @Override
   public String name() {
     return name;
   }

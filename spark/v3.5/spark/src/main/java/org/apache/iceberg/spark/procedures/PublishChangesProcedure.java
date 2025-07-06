@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Optional;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -44,11 +42,13 @@ import org.apache.spark.sql.types.StructType;
  */
 class PublishChangesProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter WAP_ID_PARAM =
+      requiredInParameter("wap_id", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("wap_id", DataTypes.StringType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, WAP_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -82,27 +82,34 @@ class PublishChangesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String wapId = args.getString(1);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    String wapId = input.asString(WAP_ID_PARAM);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Optional<Snapshot> wapSnapshot =
-              Optional.ofNullable(
-                  Iterables.find(
-                      table.snapshots(),
-                      snapshot -> wapId.equals(WapUtil.stagedWapId(snapshot)),
-                      null));
-          if (!wapSnapshot.isPresent()) {
-            throw new ValidationException(String.format("Cannot apply unknown WAP ID '%s'", wapId));
+          Snapshot matchingSnap = null;
+          for (Snapshot snap : table.snapshots()) {
+            if (wapId.equals(WapUtil.stagedWapId(snap))) {
+              if (matchingSnap != null) {
+                throw new ValidationException(
+                    "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID '%s'",
+                    wapId);
+              } else {
+                matchingSnap = snap;
+              }
+            }
           }
 
-          long wapSnapshotId = wapSnapshot.get().snapshotId();
+          if (matchingSnap == null) {
+            throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
+          }
+
+          long wapSnapshotId = matchingSnap.snapshotId();
           table.manageSnapshots().cherrypick(wapSnapshotId).commit();
-
           Snapshot currentSnapshot = table.currentSnapshot();
-
           InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
           return new InternalRow[] {outputRow};
         });

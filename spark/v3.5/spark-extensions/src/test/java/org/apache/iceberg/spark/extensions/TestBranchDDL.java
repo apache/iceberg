@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -57,9 +58,9 @@ public class TestBranchDDL extends ExtensionsTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties()
       }
     };
   }
@@ -76,13 +77,17 @@ public class TestBranchDDL extends ExtensionsTestBase {
         "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d RETAIN %d DAYS WITH SNAPSHOT RETENTION %d SNAPSHOTS %d days",
         tableName, branchName, snapshotId, maxRefAge, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
-    assertThat(ref.maxSnapshotAgeMs().longValue())
-        .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
-    assertThat(ref.maxRefAgeMs().longValue()).isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
-
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
+              assertThat(ref.maxSnapshotAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
+              assertThat(ref.maxRefAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
+            });
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Ref b1 already exists");
@@ -94,21 +99,24 @@ public class TestBranchDDL extends ExtensionsTestBase {
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1");
     Table table = validationCatalog.loadTable(tableIdent);
 
-    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
-    assertThat(mainRef).isNull();
+    assertThat(table.refs())
+        .doesNotContainKey(SnapshotRef.MAIN_BRANCH)
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs()).isNull();
+              assertThat(ref.maxRefAgeMs()).isNull();
 
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref).isNotNull();
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs()).isNull();
-    assertThat(ref.maxRefAgeMs()).isNull();
-
-    Snapshot snapshot = table.snapshot(ref.snapshotId());
-    assertThat(snapshot.parentId()).isNull();
-    assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+              Snapshot snapshot = table.snapshot(ref.snapshotId());
+              assertThat(snapshot.parentId()).isNull();
+              SnapshotChanges changes =
+                  SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+              assertThat(changes.addedDataFiles()).isEmpty();
+              assertThat(changes.removedDataFiles()).isEmpty();
+              assertThat(changes.addedDeleteFiles()).isEmpty();
+              assertThat(changes.removedDeleteFiles()).isEmpty();
+            });
   }
 
   @TestTemplate
@@ -117,11 +125,15 @@ public class TestBranchDDL extends ExtensionsTestBase {
     String branchName = "b1";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs()).isNull();
-    assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs()).isNull();
+              assertThat(ref.maxRefAgeMs()).isNull();
+            });
   }
 
   @TestTemplate
@@ -133,11 +145,15 @@ public class TestBranchDDL extends ExtensionsTestBase {
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS",
         tableName, branchName, minSnapshotsToKeep);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
-    assertThat(ref.maxSnapshotAgeMs()).isNull();
-    assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
+              assertThat(ref.maxSnapshotAgeMs()).isNull();
+              assertThat(ref.maxRefAgeMs()).isNull();
+            });
   }
 
   @TestTemplate
@@ -149,12 +165,16 @@ public class TestBranchDDL extends ExtensionsTestBase {
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d DAYS",
         tableName, branchName, maxSnapshotAge);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref).isNotNull();
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs().longValue())
-        .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
-    assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref).isNotNull();
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
+              assertThat(ref.maxRefAgeMs()).isNull();
+            });
   }
 
   @TestTemplate
@@ -168,12 +188,16 @@ public class TestBranchDDL extends ExtensionsTestBase {
     sql("ALTER TABLE %s CREATE BRANCH IF NOT EXISTS %s", tableName, branchName);
 
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs().longValue())
-        .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
-    assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
+              assertThat(ref.maxRefAgeMs()).isNull();
+            });
   }
 
   @TestTemplate
@@ -187,12 +211,16 @@ public class TestBranchDDL extends ExtensionsTestBase {
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
         tableName, branchName, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
-    assertThat(ref.maxSnapshotAgeMs().longValue())
-        .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
-    assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
+              assertThat(ref.maxSnapshotAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
+              assertThat(ref.maxRefAgeMs()).isNull();
+            });
 
     assertThatThrownBy(
             () ->
@@ -210,11 +238,16 @@ public class TestBranchDDL extends ExtensionsTestBase {
     String branchName = "b1";
     sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, maxRefAge);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs()).isNull();
-    assertThat(ref.maxRefAgeMs().longValue()).isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs()).isNull();
+              assertThat(ref.maxRefAgeMs().longValue())
+                  .isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
+            });
 
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
         .isInstanceOf(IcebergParseException.class)
@@ -242,14 +275,17 @@ public class TestBranchDDL extends ExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     String branchName = "b1";
     table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+            });
 
     sql("ALTER TABLE %s DROP BRANCH %s", tableName, branchName);
     table.refresh();
 
-    ref = table.refs().get(branchName);
-    assertThat(ref).isNull();
+    assertThat(table.refs()).doesNotContainKey(branchName);
   }
 
   @TestTemplate
@@ -288,13 +324,11 @@ public class TestBranchDDL extends ExtensionsTestBase {
   public void testDropBranchIfExists() {
     String branchName = "nonExistingBranch";
     Table table = validationCatalog.loadTable(tableIdent);
-    assertThat(table.refs().get(branchName)).isNull();
+    assertThat(table.refs()).doesNotContainKey(branchName);
 
     sql("ALTER TABLE %s DROP BRANCH IF EXISTS %s", tableName, branchName);
     table.refresh();
-
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref).isNull();
+    assertThat(table.refs()).doesNotContainKey(branchName);
   }
 
   private Table insertRows() throws NoSuchTableException {
@@ -327,21 +361,25 @@ public class TestBranchDDL extends ExtensionsTestBase {
     sql("ALTER TABLE %s CREATE OR REPLACE BRANCH %s", tableName, "b1");
     Table table = validationCatalog.loadTable(tableIdent);
 
-    SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
-    assertThat(mainRef).isNull();
+    assertThat(table.refs())
+        .doesNotContainKey(SnapshotRef.MAIN_BRANCH)
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref).isNotNull();
+              assertThat(ref.minSnapshotsToKeep()).isNull();
+              assertThat(ref.maxSnapshotAgeMs()).isNull();
+              assertThat(ref.maxRefAgeMs()).isNull();
 
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref).isNotNull();
-    assertThat(ref.minSnapshotsToKeep()).isNull();
-    assertThat(ref.maxSnapshotAgeMs()).isNull();
-    assertThat(ref.maxRefAgeMs()).isNull();
-
-    Snapshot snapshot = table.snapshot(ref.snapshotId());
-    assertThat(snapshot.parentId()).isNull();
-    assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+              Snapshot snapshot = table.snapshot(ref.snapshotId());
+              assertThat(snapshot.parentId()).isNull();
+              SnapshotChanges changes =
+                  SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+              assertThat(changes.addedDataFiles()).isEmpty();
+              assertThat(changes.removedDataFiles()).isEmpty();
+              assertThat(changes.addedDeleteFiles()).isEmpty();
+              assertThat(changes.removedDeleteFiles()).isEmpty();
+            });
   }
 
   @TestTemplate
@@ -375,9 +413,13 @@ public class TestBranchDDL extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d", tableName, branchName, second);
     table.refresh();
-    SnapshotRef ref = table.refs().get(branchName);
-    assertThat(ref.snapshotId()).isEqualTo(second);
-    assertThat(ref.maxRefAgeMs()).isEqualTo(expectedMaxRefAgeMs);
+    assertThat(table.refs())
+        .hasEntrySatisfying(
+            branchName,
+            ref -> {
+              assertThat(ref.snapshotId()).isEqualTo(second);
+              assertThat(ref.maxRefAgeMs()).isEqualTo(expectedMaxRefAgeMs);
+            });
   }
 
   @TestTemplate

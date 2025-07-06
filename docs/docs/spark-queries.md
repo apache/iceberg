@@ -24,7 +24,7 @@ To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md
 
 ## Querying with SQL
 
-In Spark 3, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
+In Spark, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
 
 ```sql
 SELECT * FROM prod.db.table; -- catalog: prod, namespace: db, table: table
@@ -44,43 +44,74 @@ SELECT * FROM prod.db.table.files;
 | 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
 | 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
 
-## Querying with DataFrames
+### Spark SQL functions
 
-To load a table as a DataFrame, use `table`:
+Iceberg adds SQL functions to each Iceberg catalog for inspecting transform results in queries and for
+writing filters that match Iceberg partition transforms. These functions are available only through an
+[Iceberg catalog](spark-configuration.md#catalog-configuration); they are not registered in Spark's
+built-in catalog.
 
-```scala
-val df = spark.table("prod.db.table")
+!!! note
+    Spark before 4.2.0 does not support `V2Function` in the session catalog.
+    Queries such as `SELECT spark_catalog.system.bucket(16, id)` fail even when
+    `spark_catalog` is configured with `org.apache.iceberg.spark.SparkSessionCatalog`.
+    See [SPARK-54760](https://issues.apache.org/jira/browse/SPARK-54760) ([apache/spark#53531](https://github.com/apache/spark/pull/53531)) for details.
+    To use Iceberg SQL functions, call them through a catalog configured with
+    `org.apache.iceberg.spark.SparkCatalog`.
+
+Use the `system` namespace when calling these functions:
+
+```sql
+SELECT system.iceberg_version();
+
+SELECT system.bucket(16, id), system.days(ts)
+FROM prod.db.table;
 ```
 
-### Catalogs with DataFrameReader
+When you want to be explicit about the catalog, qualify the function with the catalog name:
 
-Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
-the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
-variable can take a number of forms as listed below:
+```sql
+SELECT prod.system.bucket(16, id)
+FROM prod.db.table;
+```
 
-*  `file:///path/to/table`: loads a HadoopTable at given path
-*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
-*  `catalog.tablename`: loads `tablename` from the specified catalog.
-*  `namespace.tablename`: loads `namespace.tablename` from current catalog
-*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
-*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
+!!! info
+    `PARTITIONED BY` clauses use singular transform expressions such as `year(ts)` and `month(ts)`.
+    The SQL functions use `system.years(ts)` and `system.months(ts)`.
 
-The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+| Function | Supported input types | Return type | Example |
+| --- | --- | --- | --- |
+| `system.iceberg_version()` | none | `string` | `SELECT system.iceberg_version();` |
+| `system.bucket(numBuckets, col)` | `date`, `tinyint`, `smallint`, `int`, `bigint`, `timestamp`, `timestamp_ntz`, `decimal`, `string`, `binary` | `int` | `SELECT system.bucket(16, id) FROM prod.db.table;` |
+| `system.years(col)` | `date`, `timestamp`, `timestamp_ntz` | `int` | `SELECT system.years(ts) FROM prod.db.table;` |
+| `system.months(col)` | `date`, `timestamp`, `timestamp_ntz` | `int` | `SELECT system.months(ts) FROM prod.db.table;` |
+| `system.days(col)` | `date`, `timestamp`, `timestamp_ntz` | `date` | `SELECT * FROM prod.db.table WHERE system.days(ts) = date('2025-03-01');` |
+| `system.hours(col)` | `timestamp`, `timestamp_ntz` | `int` | `SELECT system.hours(ts) FROM prod.db.table;` |
+| `system.truncate(width, col)` | `tinyint`, `smallint`, `int`, `bigint`, `decimal`, `string`, `binary` | same type as `col` | `SELECT system.truncate(4, data) FROM prod.db.table;` |
 
+All transform functions return `NULL` for `NULL` inputs.
 
-### Time travel
+`system.years`, `system.months`, `system.days`, and `system.hours` return Iceberg transform values
+rather than extracted calendar fields. For example, `system.years` returns years since 1970-01-01,
+`system.months` returns months since 1970-01, and `system.hours` returns hours since
+1970-01-01T00:00. `system.days` returns a `date` value representing the date part of the input
+(for `date` inputs it returns the same value unchanged; for timestamps it discards the time component).
 
-#### SQL
+For numeric inputs, `system.truncate(width, col)` rounds down to the nearest multiple of `width`.
+For `string` and `binary` inputs, it keeps the first `width` characters or bytes.
 
-Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
+These functions are especially useful when you want to inspect how Iceberg transforms values or
+when writing filters for queries and row-level operations that align with partition transforms.
+
+### Time travel Queries with SQL
+Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
 
 !!! info
     Note: If the name of a branch or tag is the same as a snapshot ID, then the snapshot which is selected for time travel is the snapshot
-    with the given snapshot ID. For example, consider the case where there is a tag named '1' and it references snapshot with ID 2. 
-    If the version travel clause is `VERSION AS OF '1'`, time travel will be done to the snapshot with ID 1. 
+    with the given snapshot ID. For example, consider the case where there is a tag named '1' and it references snapshot with ID 2.
+    If the version travel clause is `VERSION AS OF '1'`, time travel will be done to the snapshot with ID 1.
     If this is not desired, rename the tag or branch with a well-defined prefix such as 'snapshot-1'.
-
 
 ```sql
 -- time travel to October 26, 1986 at 01:21:00
@@ -124,7 +155,6 @@ SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 
 Note that the identifier with branch or tag may not be used in combination with `VERSION AS OF`.
 
-
 #### Schema selection in time travel queries
 
 The different time travel queries mentioned in the previous section can use either the snapshot's schema or the table's schema:
@@ -145,7 +175,104 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
-#### DataFrame
+For example, consider a table that evolves its schema over time, and see how each type of time travel query selects its schema:
+
+```sql
+-- snapshot S1: initial schema (id, status)
+CREATE TABLE prod.db.orders (
+  id BIGINT,
+  status STRING
+) USING iceberg;
+
+INSERT INTO prod.db.orders VALUES (1, 'NEW'), (2, 'PAID');
+
+-- record snapshot S1's snapshot_id and committed_at timestamp
+-- e.g. snapshot_id = 101, committed_at = '2025-01-01 10:00:00'
+
+-- snapshot S2: add a new column "total" and write new data
+ALTER TABLE prod.db.orders ADD COLUMN total DOUBLE;
+
+INSERT INTO prod.db.orders VALUES (3, 'PAID', 100.0);
+
+-- now S2 is the current snapshot with schema (id, status, total)
+```
+
+Time travel queries that select a specific snapshot or timestamp use the
+snapshot's schema:
+
+```sql
+-- uses the snapshot schema of S1: columns (id, status)
+SELECT * FROM prod.db.orders VERSION AS OF 101;
+
+SELECT * FROM prod.db.orders TIMESTAMP AS OF '2025-01-01 10:00:00';
+```
+
+In both queries above, the result only has `id` and `status`. The `total`
+column does not exist in the S1 schema and is not visible, even though the
+current table schema includes `total`.
+
+Now create a branch and a tag that both reference S1:
+
+```sql
+-- branch "audit_branch" points to snapshot S1
+ALTER TABLE prod.db.orders CREATE BRANCH audit_branch AS OF VERSION 101;
+
+-- tag "first_load" also points to snapshot S1
+ALTER TABLE prod.db.orders CREATE TAG first_load AS OF VERSION 101;
+```
+
+When you query a branch, Spark uses the table's current schema:
+
+```sql
+-- uses the table schema: columns (id, status, total)
+SELECT * FROM prod.db.orders VERSION AS OF 'audit_branch';
+
+-- equivalent identifier form
+SELECT * FROM prod.db.orders.`branch_audit_branch`;
+```
+
+In these queries, the result has columns `(id, status, total)`. For the rows
+from S1, `total` is returned as `NULL` because that column did not exist when
+those rows were written.
+
+When you query a tag, Spark uses the snapshot's schema referenced by the tag:
+
+```sql
+-- uses the snapshot schema of S1: columns (id, status)
+SELECT * FROM prod.db.orders VERSION AS OF 'first_load';
+
+-- equivalent identifier form
+SELECT * FROM prod.db.orders.`tag_first_load`;
+```
+
+These queries only return `id` and `status`, because tags are bound to a
+specific snapshot and use that snapshot's schema, even if the table's current
+schema has evolved.
+
+## Querying with DataFrames
+
+To load a table as a DataFrame, use `table`:
+
+```scala
+val df = spark.table("prod.db.table")
+```
+
+### Catalogs with DataFrameReader
+
+Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
+the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
+variable can take a number of forms as listed below:
+
+* `file:///path/to/table`: loads a HadoopTable at given path
+* `tablename`: loads `currentCatalog.currentNamespace.tablename`
+* `catalog.tablename`: loads `tablename` from the specified catalog.
+* `namespace.tablename`: loads `namespace.tablename` from current catalog
+* `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
+* `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
+
+The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+
+### Time travel Queries with DataFrame
 
 To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
 
@@ -186,12 +313,6 @@ spark.read
     .load("path/to/table")
 ```
 
-!!! info
-    Spark 3.0 and earlier versions do not support using `option` with `table` in DataFrameReader commands. All options will be silently 
-    ignored. Do not use `table` when attempting to time-travel or use other options. See [SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
-
-
-
 ### Incremental read
 
 To read appended data incrementally, use:
@@ -212,7 +333,6 @@ spark.read
     Currently gets only the data from `append` operation. Cannot support `replace`, `overwrite`, `delete` operations.
     Incremental read works with both V1 and V2 format-version.
     Incremental read is not supported by Spark's SQL syntax.
-
 
 ## Inspecting tables
 
@@ -239,7 +359,6 @@ SELECT * FROM prod.db.table.history;
 
 !!! info
     **This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
-
 
 ### Metadata Log Entries
 
@@ -301,6 +420,16 @@ SELECT * FROM prod.db.table.entries;
 | -- | -- | -- | -- | -- | -- |
 | 2 | 57897183625154 | 0 | 0 | {"content":0,"file_path":"s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet","file_format":"PARQUET","spec_id":0,"record_count":15,"file_size_in_bytes":473,"column_sizes":{1:103},"value_counts":{1:15},"null_value_counts":{1:0},"nan_value_counts":{},"lower_bounds":{1:},"upper_bounds":{1:},"key_metadata":null,"split_offsets":[4],"equality_ids":null,"sort_order_id":0} | {"c1":{"column_size":103,"value_count":15,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3}} |
 
+Note:
+
+1. The columns in the `entries` table correspond to the [manifest entry fields](../../spec.md#manifest-entry-fields):
+    - `status`: Used to track additions and deletions
+    - `snapshot_id`: The ID of the snapshot in which the file was added or removed
+    - `sequence_number`: Used for ordering changes across snapshots
+    - `file_sequence_number`: Indicates when the file was added
+    - `data_file`: A struct containing metadata about the data file, see the [data file fields](../../spec.md#data-file-fields)
+2. The `readable_metrics` column provides a human-readable map of extended column-level metrics derived from the `data_file` column, making it easier to inspect and debug file-level statistics.
+
 ### Files
 
 To show a table's current files:
@@ -312,16 +441,17 @@ SELECT * FROM prod.db.table.files;
 | content | file_path | file_format | spec_id | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 | 0 | s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | PARQUET | 0 | 1 | 652 | {1:52,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:d} | {1:,2:d} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"d","upper_bound":"d"},"id":{"column_size":52,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} |
-| 0 | s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 1 | 643 | {1:46,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:a} | {1:,2:a} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"a","upper_bound":"a"},"id":{"column_size":46,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} | 
+| 0 | s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 1 | 643 | {1:46,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:a} | {1:,2:a} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"a","upper_bound":"a"},"id":{"column_size":46,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} |
 | 0 | s3:/.../table/data/00001-1-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 2 | 644 | {1:49,2:51} | {1:2,2:2} | {1:0,2:0} | {} | {1:,2:b} | {1:,2:c} | NULL | [4] | NULL | 0 | {"data":{"column_size":51,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":"b","upper_bound":"c"},"id":{"column_size":49,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":2,"upper_bound":3}} |
 | 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
 | 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
 
 !!! info
     Content refers to type of content stored by the data file:
-      * 0  Data
-      * 1  Position Deletes
-      * 2  Equality Deletes
+
+      - 0 - Data
+      - 1 - Position Deletes
+      - 2 - Equality Deletes
 
 To show only data files or delete files, query `prod.db.table.data_files` and `prod.db.table.delete_files` respectively.
 To show all files, data files and delete files across all tracked snapshots, query `prod.db.table.all_files`, `prod.db.table.all_data_files` and `prod.db.table.all_delete_files` respectively.
@@ -334,9 +464,9 @@ To show a table's current file manifests:
 SELECT * FROM prod.db.table.manifests;
 ```
 
-| path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries |
-| -- | -- | -- | -- | -- | -- | -- | -- |
-| s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | [[false,null,2019-05-13,2019-05-15]] |
+| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries |
+| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| 0 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | 0 | 0 | 0 | [[false,null,2019-05-13,2019-05-15]] |
 
 Note:
 
@@ -376,9 +506,9 @@ To show all positional delete files from the current snapshot of table:
 SELECT * from prod.db.table.position_deletes;
 ```
 
-| file_path | pos | row | spec_id | delete_file_path |
-| -- | -- | -- | -- | -- |
-| s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | 1 | 0 | 0 | s3:/.../table/data/00191-1933-25e9f2f3-d863-4a69-a5e1-f9aeeebe60bb-00001-deletes.parquet |
+| file_path | pos | row | partition | spec_id | delete_file_path |
+| -- | -- | -- | -- |  -- | -- |
+| s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | 1 | 0 | {20211001, 11} | 0 | s3:/.../table/data/00191-1933-25e9f2f3-d863-4a69-a5e1-f9aeeebe60bb-00001-deletes.parquet |
 
 ### All Metadata Tables
 
@@ -386,7 +516,6 @@ These tables are unions of the metadata tables specific to the current snapshot,
 
 !!! danger
     The "all" metadata tables may produce more than one row per data file or manifest file because metadata files may be part of more than one table snapshot.
-
 
 #### All Data Files
 
@@ -396,11 +525,11 @@ To show all of the table's data files and each file's metadata:
 SELECT * FROM prod.db.table.all_data_files;
 ```
 
-| content | file_path | file_format | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|
-| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-|      0|s3://.../dt=20210102/00000-0-756e2512-49ae-45bb-aae3-c0ca475e7879-00001.parquet|    PARQUET|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0|
-|      0|s3://.../dt=20210103/00000-0-26222098-032f-472b-8ea5-651a55b21210-00001.parquet|    PARQUET|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0|
-|      0|s3://.../dt=20210104/00000-0-a3bb1927-88eb-4f1c-bc6e-19076b0d952e-00001.parquet|    PARQUET|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0|
+| content | file_path | file_format | spec_id | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|readable_metrics|
+| -- | -- | --  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+|      0|s3://.../dt=20210102/00000-0-756e2512-49ae-45bb-aae3-c0ca475e7879-00001.parquet|    PARQUET|0|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0| {"id":{"column_size":94,"value_count":14,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":2},"data":{"column_size":17,"value_count":14,"null_value_count": 0,"nan_value_count":null,"lower_bound":20210102,"upper_bound":20210102}} |
+|      0|s3://.../dt=20210103/00000-0-26222098-032f-472b-8ea5-651a55b21210-00001.parquet|    PARQUET|0|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0| {"id":{"column_size":94,"value_count":14,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3},"data":{"column_size":17,"value_count":14,"null_value_count": 0,"nan_value_count":null,"lower_bound":20210103,"upper_bound":20210103}} |
+|      0|s3://.../dt=20210104/00000-0-a3bb1927-88eb-4f1c-bc6e-19076b0d952e-00001.parquet|    PARQUET|0|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0| {"id":{"column_size":94,"value_count":14,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3},"data":{"column_size":17,"value_count":14,"null_value_count": 0,"nan_value_count":null,"lower_bound":20210104,"upper_bound":20210104}} |
 
 #### All Delete Files
 
@@ -410,10 +539,10 @@ To show the table's delete files and each file's metadata from all the snapshots
 SELECT * FROM prod.db.table.all_delete_files;
 ```
 
-| content | file_path | file_format | spec_id | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
-| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
-| 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
+| content | file_path | file_format | spec_id | partition | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
+| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | {20210102} | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
+| 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | {20210103} | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
 
 #### All Entries
 
@@ -435,9 +564,9 @@ To show all of the table's manifest files:
 SELECT * FROM prod.db.table.all_manifests;
 ```
 
-| path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
-| -- | -- | -- | -- | -- | -- | -- | -- |
-| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 20210101, 20210101}]|
+| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries| reference_snapshot_id |
+| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+|0| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0  | 0  | 0  | 0 |[{false, false, 20210101, 20210101}]| 57897183625154 |
 
 Note:
 
@@ -457,7 +586,7 @@ To show a table's known snapshot references:
 SELECT * FROM prod.db.table.refs;
 ```
 
-| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
+| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms |
 | -- | -- | -- | -- | -- | -- |
 | main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
 | testTag | TAG | 4686954189838128572 | 10 | null | null |

@@ -35,28 +35,27 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.nio.ByteBuffer;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -67,13 +66,12 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -112,13 +110,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private final long targetManifestSizeBytes;
+  private final FileFormat manifestFormat;
+  private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
+  // Encryption keys required by the manifest list written in the current commit attempt.
+  private FileEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
+  private SnapshotAncestryValidator snapshotAncestryValidator =
+      SnapshotAncestryValidator.NON_VALIDATING;
 
-  private ExecutorService workerPool = ThreadPools.getWorkerPool();
+  private Clock clock = Clock.systemUTC();
+  private ExecutorService workerPool;
+  private ExecutorService writePool;
+  private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -138,6 +145,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.manifestFormat =
+        ops.current().formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+            ? FileFormat.PARQUET
+            : FileFormat.AVRO;
+    this.manifestWriterProps = manifestWriterProperties(ops.current());
     boolean snapshotIdInheritanceEnabled =
         ops.current()
             .propertyAsBoolean(
@@ -156,6 +168,30 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  @Override
+  public ThisT writeManifestsWith(ExecutorService executorService, int parallelism) {
+    Preconditions.checkArgument(executorService != null, "Executor service cannot be null");
+    Preconditions.checkArgument(
+        parallelism > 0, "Parallelism must be greater than 0, but was: %s", parallelism);
+    this.writePool = executorService;
+    this.writePoolParallelism = parallelism;
+    return self();
+  }
+
+  /**
+   * Set a validator to check snapshot ancestry before committing changes.
+   *
+   * <p>If there is no parent snapshot, an empty iterable will be supplied to the validator.
+   *
+   * @param validator a validator to check snapshot ancestry validity
+   * @return this for method chaining
+   */
+  @Override
+  public ThisT validateWith(SnapshotAncestryValidator validator) {
+    this.snapshotAncestryValidator = validator;
     return self();
   }
 
@@ -196,7 +232,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ExecutorService workerPool() {
-    return this.workerPool;
+    if (workerPool == null) {
+      this.workerPool = ThreadPools.getWorkerPool();
+    }
+
+    return workerPool;
+  }
+
+  protected ExecutorService writePool() {
+    if (writePool == null) {
+      this.writePool = ThreadPools.getWorkerPool();
+    }
+
+    return writePool;
   }
 
   @Override
@@ -253,19 +301,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    validate(base, parentSnapshot);
+    runValidations(parentSnapshot);
+
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
 
-    try (ManifestListWriter writer =
+    ManifestListWriter writer =
         ManifestLists.write(
             ops.current().formatVersion(),
             manifestList,
+            ops.encryption(),
             snapshotId(),
             parentSnapshotId,
-            sequenceNumber)) {
+            sequenceNumber,
+            base.nextRowId());
 
+    try (writer) {
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
 
@@ -274,7 +326,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Tasks.range(manifestFiles.length)
           .stopOnFailure()
           .throwFailureWhenFinished()
-          .executeWith(workerPool)
+          .executeWith(workerPool())
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
@@ -282,15 +334,58 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    Long nextRowId = null;
+    Long assignedRows = null;
+    if (base.formatVersion() >= 3) {
+      nextRowId = base.nextRowId();
+      assignedRows = writer.nextRowId() - base.nextRowId();
+    }
+
+    Map<String, String> summary = summary();
+    String operation = operation();
+
+    if (summary != null && DataOperations.REPLACE.equals(operation)) {
+      long addedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
+      long replacedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
+
+      // added may be less than replaced when records are already deleted by delete files
+      Preconditions.checkArgument(
+          addedRecords <= replacedRecords,
+          "Invalid REPLACE operation: %s added records > %s replaced records",
+          addedRecords,
+          replacedRecords);
+    }
+
+    this.manifestListEncryptionKeys = writer.encryptionKeys();
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotTimestampMillis(parentSnapshot),
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        manifestList.location(),
+        nextRowId,
+        assignedRows,
+        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
+  }
+
+  private void runValidations(Snapshot parentSnapshot) {
+    validate(base, parentSnapshot);
+
+    // Validate snapshot ancestry
+    Iterable<Snapshot> snapshotAncestry =
+        parentSnapshot != null
+            ? SnapshotUtil.ancestorsOf(parentSnapshot.snapshotId(), base::snapshot)
+            : List.of();
+
+    boolean valid = snapshotAncestryValidator.validate(snapshotAncestry);
+    ValidationException.check(
+        valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }
 
   protected abstract Map<String, String> summary();
@@ -389,8 +484,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
-    // this is always set to the latest commit attempt's snapshot
-    AtomicReference<Snapshot> stagedSnapshot = new AtomicReference<>();
+    // this is always set to the latest commit attempt's snapshot id.
+    AtomicLong newSnapshotId = new AtomicLong(-1L);
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -405,15 +500,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             .run(
                 taskOps -> {
                   Snapshot newSnapshot = apply();
-                  stagedSnapshot.set(newSnapshot);
+                  newSnapshotId.set(newSnapshot.snapshotId());
                   TableMetadata.Builder update = TableMetadata.buildFrom(base);
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
-                  } else if (stageOnly) {
-                    update.addSnapshot(newSnapshot);
                   } else {
-                    update.setBranchSnapshot(newSnapshot, targetBranch);
+                    if (manifestListEncryptionKeys != null) {
+                      update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
+                      update.addEncryptionKey(manifestListEncryptionKeys.fileKey());
+                    }
+
+                    if (stageOnly) {
+                      update.addSnapshot(newSnapshot);
+                    } else {
+                      update.setBranchSnapshot(newSnapshot, targetBranch);
+                    }
                   }
 
                   TableMetadata updated = update.build();
@@ -443,22 +545,29 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw e;
       }
 
-      // at this point, the commit must have succeeded so the stagedSnapshot is committed
-      Snapshot committedSnapshot = stagedSnapshot.get();
       try {
-        LOG.info(
-            "Committed snapshot {} ({})",
-            committedSnapshot.snapshotId(),
-            getClass().getSimpleName());
+        LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
 
-        if (cleanupAfterCommit()) {
-          cleanUncommitted(Sets.newHashSet(committedSnapshot.allManifests(ops.io())));
-        }
-        // also clean up unused manifest lists created by multiple attempts
-        for (String manifestList : manifestLists) {
-          if (!committedSnapshot.manifestListLocation().equals(manifestList)) {
-            deleteFile(manifestList);
+        // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
+        // id in case another commit was added between this commit and the refresh.
+        // it might not be known which commit attempt succeeded in some cases, so this only cleans
+        // up the one that actually did succeed.
+        Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
+        if (saved != null) {
+          if (cleanupAfterCommit()) {
+            cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
           }
+
+          // also clean up unused manifest lists created by multiple attempts
+          for (String manifestList : manifestLists) {
+            if (!saved.manifestListLocation().equals(manifestList)) {
+              deleteFile(manifestList);
+            }
+          }
+        } else {
+          // saved may not be present if the latest metadata couldn't be loaded due to eventual
+          // consistency problems in refresh. in that case, don't clean up.
+          LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
         }
       } catch (Throwable e) {
         LOG.warn(
@@ -528,19 +637,27 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected EncryptedOutputFile newManifestOutputFile() {
     String manifestFileLocation =
         ops.metadataFileLocation(
-            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
-    return EncryptingFileIO.combine(ops.io(), ops.encryption())
-        .newEncryptingOutputFile(manifestFileLocation);
+            manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+    OutputFile rawOutputFile = ops.io().newOutputFile(manifestFileLocation);
+    return ops.encryption().encrypt(rawOutputFile);
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(
-        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
+        ops.current().formatVersion(),
+        spec,
+        newManifestOutputFile(),
+        snapshotId(),
+        manifestWriterProps);
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
+        ops.current().formatVersion(),
+        spec,
+        newManifestOutputFile(),
+        snapshotId(),
+        manifestWriterProps);
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
@@ -552,12 +669,45 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
   }
 
+  private static Map<String, String> manifestWriterProperties(TableMetadata metadata) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    String codec =
+        metadata.property(
+            TableProperties.MANIFEST_COMPRESSION, TableProperties.MANIFEST_COMPRESSION_DEFAULT);
+    builder.put(TableProperties.AVRO_COMPRESSION, codec);
+
+    String level =
+        metadata.property(
+            TableProperties.MANIFEST_COMPRESSION_LEVEL,
+            TableProperties.MANIFEST_COMPRESSION_LEVEL_DEFAULT);
+    if (level != null) {
+      builder.put(TableProperties.AVRO_COMPRESSION_LEVEL, level);
+    }
+
+    return builder.build();
+  }
+
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
     return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
   }
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
     return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
+  @VisibleForTesting
+  void setClock(Clock newClock) {
+    this.clock = newClock;
+  }
+
+  private long snapshotTimestampMillis(Snapshot parentSnapshot) {
+    long now = clock.millis();
+    if (parentSnapshot != null) {
+      return Math.max(now, parentSnapshot.timestampMillis() + 1);
+    }
+
+    return now;
   }
 
   protected long snapshotId() {
@@ -579,13 +729,59 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
+  /**
+   * Builds a snapshot summary with manifest counts.
+   *
+   * @param manifests the list of manifests in the new snapshot
+   * @param replacedManifestsCount the count of manifests that were replaced (rewritten)
+   * @return a summary builder with manifest count metrics set
+   */
+  protected SnapshotSummary.Builder buildManifestCountSummary(
+      List<ManifestFile> manifests, int replacedManifestsCount) {
+    SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+    int manifestsCreated = 0;
+    int manifestsKept = 0;
+
+    for (ManifestFile manifest : manifests) {
+      if (snapshotId() == manifest.snapshotId()) {
+        manifestsCreated++;
+      } else if (null != manifest.snapshotId()) {
+        manifestsKept++;
+      }
+    }
+
+    summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT, String.valueOf(replacedManifestsCount));
+    return summaryBuilder;
+  }
+
   protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
 
   protected List<ManifestFile> writeDataManifests(
       Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDataFileGroup(group, dataSeq, spec));
+  }
+
+  // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
+  protected void deleteUncommitted(
+      Collection<ManifestFile> manifests, Set<ManifestFile> committed, boolean clearManifests) {
+    boolean anyDeleted = false;
+    for (ManifestFile manifest : manifests) {
+      if (!committed.contains(manifest)) {
+        deleteFile(manifest.path());
+        anyDeleted = true;
+      }
+    }
+
+    if (clearManifests && anyDeleted) {
+      manifests.clear();
+    }
   }
 
   private List<ManifestFile> writeDataFileGroup(
@@ -607,7 +803,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected List<ManifestFile> writeDeleteManifests(
       Collection<DeleteFile> files, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
@@ -616,8 +814,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
       for (DeleteFile file : files) {
-        Preconditions.checkArgument(
-            file instanceof PendingDeleteFile, "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {
@@ -631,27 +827,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
-      Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
-    List<List<F>> groups = divide(files, parallelism);
-    Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
-    Tasks.foreach(groups)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(group -> manifests.addAll(writeFunc.apply(group)));
-    return ImmutableList.copyOf(manifests);
-  }
-
-  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
-    List<T> list = Lists.newArrayList(collection);
-    int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
-    return Lists.partition(list, groupSize);
-  }
-
   /**
-   * Calculates how many manifest writers can be used to concurrently to handle the given number of
+   * Calculates how many manifest writers can be used concurrently to handle the given number of
    * files without creating too small manifests.
    *
    * @param workerPoolSize the size of the available worker pool
@@ -719,13 +896,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           manifest.sequenceNumber(),
           manifest.minSequenceNumber(),
           snapshotId,
+          stats.summaries(),
+          null,
           addedFiles,
           addedRows,
           existingFiles,
           existingRows,
           deletedFiles,
           deletedRows,
-          stats.summaries(),
           null);
 
     } catch (IOException e) {
@@ -762,185 +940,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (NumberFormatException e) {
         // ignore and do not add total
       }
-    }
-  }
-
-  protected static class PendingDeleteFile implements DeleteFile {
-    private final DeleteFile deleteFile;
-    private final Long dataSequenceNumber;
-
-    /**
-     * Wrap a delete file for commit with a given data sequence number.
-     *
-     * @param deleteFile delete file
-     * @param dataSequenceNumber data sequence number to apply
-     */
-    PendingDeleteFile(DeleteFile deleteFile, long dataSequenceNumber) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = dataSequenceNumber;
-    }
-
-    /**
-     * Wrap a delete file for commit with the latest sequence number.
-     *
-     * @param deleteFile delete file
-     */
-    PendingDeleteFile(DeleteFile deleteFile) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = null;
-    }
-
-    private PendingDeleteFile wrap(DeleteFile file) {
-      if (null != dataSequenceNumber) {
-        return new PendingDeleteFile(file, dataSequenceNumber);
-      }
-
-      return new PendingDeleteFile(file);
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return dataSequenceNumber;
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return deleteFile.fileSequenceNumber();
-    }
-
-    @Override
-    public DeleteFile copy() {
-      return wrap(deleteFile.copy());
-    }
-
-    @Override
-    public DeleteFile copyWithoutStats() {
-      return wrap(deleteFile.copyWithoutStats());
-    }
-
-    @Override
-    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return wrap(deleteFile.copyWithStats(requestedColumnIds));
-    }
-
-    @Override
-    public DeleteFile copy(boolean withStats) {
-      return wrap(deleteFile.copy(withStats));
-    }
-
-    @Override
-    public String manifestLocation() {
-      return deleteFile.manifestLocation();
-    }
-
-    @Override
-    public Long pos() {
-      return deleteFile.pos();
-    }
-
-    @Override
-    public int specId() {
-      return deleteFile.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return deleteFile.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return deleteFile.path();
-    }
-
-    @Override
-    public String location() {
-      return deleteFile.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return deleteFile.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return deleteFile.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return deleteFile.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return deleteFile.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return deleteFile.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return deleteFile.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return deleteFile.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return deleteFile.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return deleteFile.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return deleteFile.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return deleteFile.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return deleteFile.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return deleteFile.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return deleteFile.sortOrderId();
-    }
-
-    @Override
-    public String referencedDataFile() {
-      return deleteFile.referencedDataFile();
-    }
-
-    @Override
-    public Long contentOffset() {
-      return deleteFile.contentOffset();
-    }
-
-    @Override
-    public Long contentSizeInBytes() {
-      return deleteFile.contentSizeInBytes();
     }
   }
 }

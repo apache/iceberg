@@ -20,13 +20,15 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.io.WriteResult;
 
-class WriteResultSerializer implements SimpleVersionedSerializer<WriteResult> {
+@Internal
+public class WriteResultSerializer implements SimpleVersionedSerializer<WriteResult> {
   private static final int VERSION = 1;
 
   @Override

@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -30,11 +31,15 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.FlinkRowData;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -45,13 +50,30 @@ import org.apache.iceberg.util.DecimalUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.BsonLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.EnumLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.JsonLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
+import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class FlinkParquetWriters {
   private FlinkParquetWriters() {}
+
+  public static <T> ParquetValueWriter<T> buildWriter(
+      Schema icebergSchema, MessageType type, RowType engineSchema) {
+    return buildWriter(
+        engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema), type);
+  }
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(LogicalType schema, MessageType type) {
@@ -75,16 +97,22 @@ public class FlinkParquetWriters {
     @Override
     public ParquetValueWriter<?> struct(
         RowType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
-      List<Type> fields = struct.getFields();
       List<RowField> flinkFields = sStruct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<LogicalType> flinkTypes = Lists.newArrayList();
-      for (int i = 0; i < fields.size(); i += 1) {
-        writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        flinkTypes.add(flinkFields.get(i).getType());
+      int[] fieldIndexes = new int[fieldWriters.size()];
+      int fieldIndex = 0;
+      for (int i = 0; i < flinkFields.size(); i += 1) {
+        LogicalType flinkType = flinkFields.get(i).getType();
+        if (!flinkType.is(LogicalTypeRoot.NULL)) {
+          writers.add(newOption(struct.getType(fieldIndex), fieldWriters.get(fieldIndex)));
+          flinkTypes.add(flinkType);
+          fieldIndexes[fieldIndex] = i;
+          fieldIndex += 1;
+        }
       }
 
-      return new RowDataWriter(writers, flinkTypes);
+      return new RowDataWriter(fieldIndexes, writers, flinkTypes);
     }
 
     @Override
@@ -133,43 +161,15 @@ public class FlinkParquetWriters {
     public ParquetValueWriter<?> primitive(LogicalType fType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      if (primitive.getOriginalType() != null) {
-        switch (primitive.getOriginalType()) {
-          case ENUM:
-          case JSON:
-          case UTF8:
-            return strings(desc);
-          case DATE:
-          case INT_8:
-          case INT_16:
-          case INT_32:
-            return ints(fType, desc);
-          case INT_64:
-            return ParquetValueWriters.longs(desc);
-          case TIME_MICROS:
-            return timeMicros(desc);
-          case TIMESTAMP_MICROS:
-            return timestamps(desc);
-          case DECIMAL:
-            DecimalLogicalTypeAnnotation decimal =
-                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
-            switch (primitive.getPrimitiveTypeName()) {
-              case INT32:
-                return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
-              case INT64:
-                return decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
-          case BSON:
-            return byteArrays(desc);
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported logical type: " + primitive.getOriginalType());
+      LogicalTypeAnnotation annotation = primitive.getLogicalTypeAnnotation();
+      if (annotation != null) {
+        Optional<ParquetValueWriter<?>> writer =
+            annotation.accept(new LogicalTypeWriterBuilder(fType, desc));
+        if (writer.isPresent()) {
+          return writer.get();
+        } else {
+          throw new UnsupportedOperationException(
+              "Unsupported logical type: " + primitive.getOriginalType());
         }
       }
 
@@ -193,8 +193,109 @@ public class FlinkParquetWriters {
     }
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<?> ints(
-      LogicalType type, ColumnDescriptor desc) {
+  private static class LogicalTypeWriterBuilder
+      implements LogicalTypeAnnotationVisitor<ParquetValueWriter<?>> {
+    private final LogicalType flinkType;
+    private final ColumnDescriptor desc;
+
+    private LogicalTypeWriterBuilder(LogicalType flinkType, ColumnDescriptor desc) {
+      this.flinkType = flinkType;
+      this.desc = desc;
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(StringLogicalTypeAnnotation strings) {
+      return Optional.of(strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(EnumLogicalTypeAnnotation enums) {
+      return Optional.of(strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(DecimalLogicalTypeAnnotation decimal) {
+      ParquetValueWriter<DecimalData> writer;
+      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case INT32:
+          writer = decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
+          break;
+        case INT64:
+          writer = decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
+          break;
+        case BINARY:
+        case FIXED_LEN_BYTE_ARRAY:
+          writer = decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported base type for decimal: "
+                  + desc.getPrimitiveType().getPrimitiveTypeName());
+      }
+      return Optional.of(writer);
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(DateLogicalTypeAnnotation dates) {
+      return Optional.of(ints(flinkType, desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(TimeLogicalTypeAnnotation times) {
+      Preconditions.checkArgument(
+          LogicalTypeAnnotation.TimeUnit.MICROS.equals(times.getUnit()),
+          "Cannot write time in %s, only MICROS is supported",
+          times.getUnit());
+      return Optional.of(timeMicros(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamps) {
+      ParquetValueWriter<TimestampData> writer;
+      switch (timestamps.getUnit()) {
+        case NANOS:
+          writer = timestampNanos(desc);
+          break;
+        case MICROS:
+          writer = timestamps(desc);
+          break;
+        default:
+          throw new UnsupportedOperationException("Unsupported timestamp type: " + timestamps);
+      }
+
+      return Optional.of(writer);
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(IntLogicalTypeAnnotation type) {
+      Preconditions.checkArgument(type.isSigned(), "Cannot write unsigned integer type: %s", type);
+      ParquetValueWriter<?> writer;
+      if (type.getBitWidth() < 64) {
+        writer = ints(flinkType, desc);
+      } else {
+        writer = ParquetValueWriters.longs(desc);
+      }
+
+      return Optional.of(writer);
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(JsonLogicalTypeAnnotation ignored) {
+      return Optional.of(strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(BsonLogicalTypeAnnotation ignored) {
+      return Optional.of(byteArrays(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuid) {
+      return Optional.of(byteArrays(desc));
+    }
+  }
+
+  private static ParquetValueWriter<?> ints(LogicalType type, ColumnDescriptor desc) {
     if (type instanceof TinyIntType) {
       return ParquetValueWriters.tinyints(desc);
     } else if (type instanceof SmallIntType) {
@@ -203,15 +304,15 @@ public class FlinkParquetWriters {
     return ParquetValueWriters.ints(desc);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<StringData> strings(ColumnDescriptor desc) {
+  private static ParquetValueWriter<StringData> strings(ColumnDescriptor desc) {
     return new StringDataWriter(desc);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<Integer> timeMicros(ColumnDescriptor desc) {
+  private static ParquetValueWriter<Integer> timeMicros(ColumnDescriptor desc) {
     return new TimeMicrosWriter(desc);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsInteger(
+  private static ParquetValueWriter<DecimalData> decimalAsInteger(
       ColumnDescriptor desc, int precision, int scale) {
     Preconditions.checkArgument(
         precision <= 9,
@@ -221,7 +322,7 @@ public class FlinkParquetWriters {
     return new IntegerDecimalWriter(desc, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsLong(
+  private static ParquetValueWriter<DecimalData> decimalAsLong(
       ColumnDescriptor desc, int precision, int scale) {
     Preconditions.checkArgument(
         precision <= 18,
@@ -231,17 +332,20 @@ public class FlinkParquetWriters {
     return new LongDecimalWriter(desc, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsFixed(
+  private static ParquetValueWriter<DecimalData> decimalAsFixed(
       ColumnDescriptor desc, int precision, int scale) {
     return new FixedDecimalWriter(desc, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<TimestampData> timestamps(
-      ColumnDescriptor desc) {
+  private static ParquetValueWriter<TimestampData> timestamps(ColumnDescriptor desc) {
     return new TimestampDataWriter(desc);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc) {
+  private static ParquetValueWriter<TimestampData> timestampNanos(ColumnDescriptor desc) {
+    return new TimestampNanoDataWriter(desc);
+  }
+
+  private static ParquetValueWriter<byte[]> byteArrays(ColumnDescriptor desc) {
     return new ByteArrayWriter(desc);
   }
 
@@ -361,6 +465,19 @@ public class FlinkParquetWriters {
     }
   }
 
+  private static class TimestampNanoDataWriter
+      extends ParquetValueWriters.PrimitiveWriter<TimestampData> {
+    private TimestampNanoDataWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, TimestampData value) {
+      column.writeLong(
+          repetitionLevel, value.getMillisecond() * 1_000_000L + value.getNanoOfMillisecond());
+    }
+  }
+
   private static class ByteArrayWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
     private ByteArrayWriter(ColumnDescriptor desc) {
       super(desc);
@@ -373,7 +490,7 @@ public class FlinkParquetWriters {
   }
 
   private static class ArrayDataWriter<E> extends ParquetValueWriters.RepeatedWriter<ArrayData, E> {
-    private final LogicalType elementType;
+    private final ElementIterator<E> elementIterator;
 
     private ArrayDataWriter(
         int definitionLevel,
@@ -381,25 +498,29 @@ public class FlinkParquetWriters {
         ParquetValueWriter<E> writer,
         LogicalType elementType) {
       super(definitionLevel, repetitionLevel, writer);
-      this.elementType = elementType;
+      this.elementIterator = new ElementIterator<>(ArrayData.createElementGetter(elementType));
     }
 
     @Override
     protected Iterator<E> elements(ArrayData list) {
-      return new ElementIterator<>(list);
+      elementIterator.reset(list);
+      return elementIterator;
     }
 
-    private class ElementIterator<E> implements Iterator<E> {
-      private final int size;
-      private final ArrayData list;
+    private static class ElementIterator<E> implements Iterator<E> {
       private final ArrayData.ElementGetter getter;
+      private ArrayData list;
+      private int size;
       private int index;
 
-      private ElementIterator(ArrayData list) {
-        this.list = list;
-        size = list.size();
-        getter = ArrayData.createElementGetter(elementType);
-        index = 0;
+      private ElementIterator(ArrayData.ElementGetter getter) {
+        this.getter = getter;
+      }
+
+      private void reset(ArrayData newList) {
+        this.list = newList;
+        this.size = newList.size();
+        this.index = 0;
       }
 
       @Override
@@ -424,8 +545,7 @@ public class FlinkParquetWriters {
 
   private static class MapDataWriter<K, V>
       extends ParquetValueWriters.RepeatedKeyValueWriter<MapData, K, V> {
-    private final LogicalType keyType;
-    private final LogicalType valueType;
+    private final EntryIterator<K, V> entryIterator;
 
     private MapDataWriter(
         int definitionLevel,
@@ -435,32 +555,38 @@ public class FlinkParquetWriters {
         LogicalType keyType,
         LogicalType valueType) {
       super(definitionLevel, repetitionLevel, keyWriter, valueWriter);
-      this.keyType = keyType;
-      this.valueType = valueType;
+      this.entryIterator =
+          new EntryIterator<>(
+              ArrayData.createElementGetter(keyType), ArrayData.createElementGetter(valueType));
     }
 
     @Override
     protected Iterator<Map.Entry<K, V>> pairs(MapData map) {
-      return new EntryIterator<>(map);
+      entryIterator.reset(map);
+      return entryIterator;
     }
 
-    private class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
-      private final int size;
-      private final ArrayData keys;
-      private final ArrayData values;
+    private static class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
       private final ParquetValueReaders.ReusableEntry<K, V> entry;
       private final ArrayData.ElementGetter keyGetter;
       private final ArrayData.ElementGetter valueGetter;
+      private ArrayData keys;
+      private ArrayData values;
+      private int size;
       private int index;
 
-      private EntryIterator(MapData map) {
-        size = map.size();
-        keys = map.keyArray();
-        values = map.valueArray();
-        entry = new ParquetValueReaders.ReusableEntry<>();
-        keyGetter = ArrayData.createElementGetter(keyType);
-        valueGetter = ArrayData.createElementGetter(valueType);
-        index = 0;
+      private EntryIterator(
+          ArrayData.ElementGetter keyGetter, ArrayData.ElementGetter valueGetter) {
+        this.entry = new ParquetValueReaders.ReusableEntry<>();
+        this.keyGetter = keyGetter;
+        this.valueGetter = valueGetter;
+      }
+
+      private void reset(MapData map) {
+        this.keys = map.keyArray();
+        this.values = map.valueArray();
+        this.size = map.size();
+        this.index = 0;
       }
 
       @Override
@@ -488,11 +614,12 @@ public class FlinkParquetWriters {
   private static class RowDataWriter extends ParquetValueWriters.StructWriter<RowData> {
     private final RowData.FieldGetter[] fieldGetter;
 
-    RowDataWriter(List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
+    RowDataWriter(
+        int[] fieldIndexes, List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
       fieldGetter = new RowData.FieldGetter[types.size()];
       for (int i = 0; i < types.size(); i += 1) {
-        fieldGetter[i] = RowData.createFieldGetter(types.get(i), i);
+        fieldGetter[i] = FlinkRowData.createFieldGetter(types.get(i), fieldIndexes[i]);
       }
     }
 

@@ -19,11 +19,10 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -41,10 +40,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSchemaAndMappingUpdate extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testAddPrimitiveColumn() {
@@ -195,6 +190,20 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     assertThat(table.properties())
         .doesNotContainKey(
             table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
+  }
+
+  @TestTemplate
+  public void testModificationWithParquetColumnStats() {
+    table.updateProperties().set(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id", "true").commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    assertThat(table.properties())
+        .containsEntry(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID", "true")
+        .doesNotContainKey(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id");
+
+    table.updateSchema().deleteColumn("ID").commit();
+    assertThat(table.properties())
+        .doesNotContainKey(table.properties().get(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "ID"));
   }
 
   @TestTemplate

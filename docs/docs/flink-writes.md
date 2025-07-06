@@ -19,7 +19,9 @@ title: "Flink Writes"
  -->
 # Flink Writes
 
-Iceberg support batch and streaming writes With [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+Iceberg support batch and streaming writes with [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+
+The Flink Iceberg sink guarantees exactly-once semantics.
 
 ## Writing with SQL
 
@@ -75,15 +77,11 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
-
-
-
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ## Writing with DataStream
 
 Iceberg support writing to iceberg table from different DataStream input.
-
 
 ### Appending data
 
@@ -142,8 +140,7 @@ env.execute("Test Iceberg DataStream");
 ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
-
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ### Write with Avro GenericRecord
 
@@ -210,6 +207,10 @@ They should have the following key-value tags.
 | dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
 | deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
 
+The `Histogram` metrics above require `org.apache.flink:flink-metrics-dropwizard` on the classpath,
+which is not shipped by Flink by default. Please add this artifact to your classpath to see histogram metrics.
+If not present, histogram metrics will be missing. All other metric types will continue to get published.
+
 Committer metrics are added under the sub group of `IcebergFilesCommitter`.
 They should have the following key-value tags.
 
@@ -237,8 +238,6 @@ to detect failed or missing Iceberg commits.
 
 If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes, set up alert with rule like `elapsedSecondsSinceLastSuccessfulCommit > 60 minutes` to detect failed or missing Iceberg commits in the past hour.
 
-
-
 ## Options
 
 ### Write options
@@ -260,7 +259,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](flink-configuration.md#write-options) 
+Check out all the options here: [write-options](flink-configuration.md#write-options)
 
 ## Distribution mode
 
@@ -354,7 +353,7 @@ FlinkSink.forRowData(input)
 
 ### Overhead
 
-Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+Data shuffling (hash or range) has computational overhead of serialization/deserialization
 and network I/O. Expect some increase of CPU utilization.
 
 Range distribution also collect and aggregate data distribution statistics.
@@ -371,3 +370,240 @@ and [deleting orphan files](maintenance.md#delete-orphan-files) could possibly c
 the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
+
+## Sink V2 based implementation
+
+At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
+limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based
+on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
+
+In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
+was introduced. This interface is used in the new `IcebergSink` implementation which is available in the `iceberg-flink` module.
+The new implementation is a base for further work on features such as [table maintenance](maintenance.md).
+The SinkV2 based implementation is currently an experimental feature so use it with caution.
+
+### Writing with SQL
+
+To turn on SinkV2 based implementation in SQL, set this configuration option:
+```sql
+SET table.exec.iceberg.use-v2-sink = true;
+```
+
+### Writing with DataStream
+
+To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
+!!! warning
+    There is a slight difference between these implementations:
+
+     - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
+
+### Post-commit table maintenance
+
+`IcebergSink` can run [table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration)
+tasks automatically after each commit, so a separate maintenance job is not required. Enable them with
+builder methods (or the equivalent `flink-maintenance.*` write options):
+
+- `rewriteDataFiles()` compacts small data files
+- `expireSnapshots()` expires old snapshots
+- `deleteOrphanFiles()` removes unreferenced files
+- `convertEqualityDeletes()` converts equality deletes to deletion vectors (requires equality fields
+  and table format version >= 3)
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .equalityFieldColumns(List.of("id"))
+    .rewriteDataFiles()
+    .convertEqualityDeletes()
+    .append();
+```
+
+See [IcebergSink with Post-Commit Integration](flink-maintenance.md#icebergsink-with-post-commit-integration)
+for the full options, locking, and the `convertEqualityDeletes` staging/target-branch setup.
+
+## Flink Dynamic Iceberg Sink
+
+The Flink Dynamic Iceberg Sink (Dynamic Sink) allows:
+
+1. **Writing to any number of tables**  
+   A single sink can dynamically route records to multiple Iceberg tables.
+
+2. **Dynamic table creation and updates**  
+   Tables are created and updated based on user-defined routing logic.
+
+3. **Dynamic schema and partition evolution**  
+   Table schemas and partition specs update during streaming execution.
+
+All configurations are controlled through the `DynamicRecord` class, eliminating the need for Flink job restarts when requirements change.
+
+```java
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator((inputRecord, out) -> out.collect(
+                new DynamicRecord(
+                        TableIdentifier.of("db", "table"),
+                        "branch",
+                        SCHEMA,
+                        (RowData) inputRecord,
+                        PartitionSpec.unpartitioned(),
+                        DistributionMode.HASH,
+                        2)))
+        .catalogLoader(CatalogLoader.hive("hive", new Configuration(), Map.of()))
+        .writeParallelism(10)
+        .immediateTableUpdate(true)
+        .append();
+```
+
+### Configuration Example
+
+```java
+DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputStream);
+
+// Set common properties
+builder
+    .set("write.parquet.compression-codec", "gzip");
+
+// Set Dynamic Sink specific options
+builder
+    .writeParallelism(4)
+    .uidPrefix("dynamic-sink")
+    .cacheMaxSize(500)
+    .cacheRefreshMs(5000);
+
+// Add generator and append sink
+builder.generator(new CustomRecordGenerator());
+builder.append();
+```
+
+### Dynamic Routing Configuration
+
+Dynamic table routing can be customized by implementing the `DynamicRecordGenerator` interface:
+
+```java
+public class CustomRecordGenerator implements DynamicRecordGenerator<RowData> {
+    @Override
+    public DynamicRecord generate(RowData row) {
+        DynamicRecord record = new DynamicRecord();
+        // Set table name based on business logic
+        TableIdentifier tableIdentifier = TableIdentifier.of(database, tableName);
+        record.setTableIdentifier(tableIdentifier);
+        record.setData(row);
+        // Set the maximum number of parallel writers for a given table/branch/schema/spec
+        record.writeParallelism(2);
+        return record;
+    }
+}
+
+// Set custom record generator when building the sink
+DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputStream);
+builder.generator(new CustomRecordGenerator());
+// ... other config ...
+builder.append();
+```
+The user should provide a converter which converts the input record to a DynamicRecord.
+We need the following information (DynamicRecord) for every record:
+
+| Property           | Description                                                                               |
+|--------------------|-------------------------------------------------------------------------------------------|
+| `TableIdentifier`  | The target table to which the record will be written.                                     |
+| `Branch`           | The target branch for writing the record (optional).                                      |
+| `Schema`           | The schema of the record.                                                                 |
+| `Spec`             | The expected partitioning specification for the record.                                   |
+| `RowData`          | The actual row data to be written.                                                        |
+| `DistributionMode` | The distribution mode for writing the record (NONE, HASH or `null`). When `null`, the record won't be shuffled at all — except when the record resolves to a non-empty equality-field set, in which case the dynamic sink falls back to hash distribution to keep records sharing the same equality key on the same writer. |
+| `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
+| `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
+| `EqualityFields`   | The equality fields for the table (optional). When unset, the dynamic sink falls back to the schema's identifier fields for both distribution (records sharing a key route to the same writer) and equality-delete inference. Identifier fields do not auto-enable upsert mode — that flag remains opt-in. |
+
+### Schema Evolution
+
+The dynamic sink tries to match the schema provided in `DynamicRecord` with the existing table schemas.
+- If there is a direct match with one of the existing table schemas, that table schema will be used for writing to the table.
+- If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
+- Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
+
+The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the `immediateTableUpdate` configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
+
+#### Supported schema updates
+
+- Adding new columns
+- Widening existing column types (e.g., Integer → Long, Float → Double)
+- Making required columns optional
+- Dropping columns (disabled by default)
+
+Dropping columns is disabled by default to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss.
+
+You can opt-in to allow dropping columns (see the configuration options below). Once a column has been dropped, it is
+technically still possible to write data to that column because Iceberg maintains all past table schemas. However,
+regular queries won't be able to reference the column. If the field was to re-appear as part of a new schema, an
+entirely new column would be added, which apart from the name, has nothing in common with the old column, i.e. queries
+for the new column will never return data of the old column.
+
+##### Unsupported schema updates
+
+- Renaming columns
+
+Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
+
+### Caching
+
+There are two distinct caches involved: the table metadata cache and the input schema cache.
+
+- The table metadata cache holds metadata such as schema definitions and partition specs to reduce repeated Catalog lookups. Its size is governed by the `cacheMaxSize` setting.
+- The input schema cache stores incoming schemas per table along with their compatibility resolution results. Its size is controlled by `inputSchemasPerTableCacheMaxSize`.
+
+To improve cache hit rates and performance, reuse the same DynamicRecord.schema instance if the record schema is unchanged.
+
+### Dynamic Sink Configuration
+
+The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
+
+| Method                                               | Description                                                                                                                                                             |
+|------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `overwrite(boolean enabled)`                         | Enable overwrite mode                                                                                                                                                   |
+| `writeParallelism(int parallelism)`                  | Set writer parallelism                                                                                                                                                  |
+| `uidPrefix(String prefix)`                           | Set operator UID prefix                                                                                                                                                 |
+| `snapshotProperties(Map<String, String> properties)` | Set snapshot metadata properties                                                                                                                                        |
+| `toBranch(String branch)`                            | Write to a specific branch                                                                                                                                              |
+| `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
+| `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
+| `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
+| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
+| `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
+| `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
+| `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
+| `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
+| `shuffleSinkSlotSharingGroup(String ssg)`            | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the shuffle sink. Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
+| `generatorSlotSharingGroup(String ssg)`              | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the generator (and forward sink chained to it). Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
+
+### Distribution Modes
+
+The `DistributionMode` set on each `DynamicRecord` controls how that record is routed from the processor to the writer:
+
+| Mode   | Behavior                                                                                                                                                                                     |
+|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `NONE` | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set).                                                                                      |
+| `HASH` | Records are distributed by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
+| `null` | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below).                                                                                      |
+
+#### Forward Mode
+
+Using the `DynamicRecord` constructor overload without `distributionMode` parameter bypasses distribution entirely. This is designed for high-throughput pipelines where every partition already has a large volume of data and the serialization and network shuffle cost is prohibitive. Records are sent directly from the processor to the writer using a forward edge, enabling Flink operator chaining. Table metadata updates are always performed immediately inside the processor (regardless of `immediateTableUpdate` setting), because a dedicated table-update operator was deliberately omitted to avoid introducing extra data shuffles.
+
+Forward and regular records can be mixed in the same pipeline. The processor routes records to two separate sink outputs:
+
+- **Shuffle sink**: receives shuffling records. These go through the normal distribution topology (hash/round-robin) before reaching the writer.
+- **Forward sink**: receives records without a `distributionMode`. These skip distribution entirely and flow via a forward edge from the processor, allowing Flink operator chaining. Suited for high-throughput tables where avoiding shuffle overhead is critical. The sink's `writeParallelism` config does not apply to this path.
+
+!!! warning
+
+1. In the forward path, schema changes are always applied immediately because records must pass straight through via the forward edge. For the intended high-volume use case, this can cause many conflicting commits to the Iceberg catalog and temporarily delay data processing. Consider either updating the schema externally before publishing records with the new schema, or planning for a temporary disruption in throughput when a new schema is introduced from upstream.
+2. Because the forward path skips distribution entirely, users are responsible for distributing the data correctly in the upstream before the records reach the dynamic Iceberg sink. Otherwise, writes could be unbalanced.
+
+### Notes
+
+- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
+- **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
+- **Table Format Version upgrade**: Dynamic sink does not support upgrading a table with dynamic records. The job should not be running while the V2 to V3 upgrade is in progress.

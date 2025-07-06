@@ -30,11 +30,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.api.constraints.UniqueConstraint;
+import org.apache.flink.table.catalog.CatalogMaterializedTable;
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.IntervalFreshness;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.BaseTable;
@@ -48,6 +49,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -103,7 +105,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Table `tl` was not found.");
 
-    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getResolvedSchema());
     assertThat(tableSchema.asStruct()).isEqualTo(actualSchema.asStruct());
   }
 
@@ -116,8 +118,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getSchema())
-        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
   }
 
   @TestTemplate
@@ -129,9 +134,10 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .as("Should have the expected row key.")
         .isEqualTo(Sets.newHashSet(table.schema().findField("key").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    Optional<UnresolvedPrimaryKey> uniqueConstraintOptional =
+        catalogTable.getUnresolvedSchema().getPrimaryKey();
     assertThat(uniqueConstraintOptional).isPresent();
-    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("key");
+    assertThat(uniqueConstraintOptional.get().getColumnNames()).containsExactly("key");
   }
 
   @TestTemplate
@@ -147,9 +153,10 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 table.schema().findField("id").fieldId(),
                 table.schema().findField("data").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    Optional<UnresolvedPrimaryKey> uniqueConstraintOptional =
+        catalogTable.getUnresolvedSchema().getPrimaryKey();
     assertThat(uniqueConstraintOptional).isPresent();
-    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("id", "data");
+    assertThat(uniqueConstraintOptional.get().getColumnNames()).containsExactly("id", "data");
   }
 
   @TestTemplate
@@ -184,8 +191,72 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl2");
-    assertThat(catalogTable.getSchema())
-        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeInDiffIcebergCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    String catalog2 = catalogName + "2";
+    sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
+    sql("CREATE DATABASE %s", catalog2 + ".testdb");
+    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+
+    CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
+
+    dropCatalog(catalog2, true);
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
+
+    CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
+
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl");
+    Map<String, String> options = catalogTable.getOptions();
+    assertThat(options)
+        .containsEntry(
+            FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
+            FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
+        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .doesNotContain("extra-catalog-prop", "extra-value");
+  }
+
+  @TestTemplate
+  public void testCreateTableWithTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+  }
+
+  @TestTemplate
+  public void testAlterTableModifyTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+
+    // alter table comment
+    sql("ALTER TABLE tl SET('comment' = 'new comment')");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "new comment");
   }
 
   @TestTemplate
@@ -216,11 +287,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     assertThat(table.spec())
         .isEqualTo(PartitionSpec.builderFor(table.schema()).identity("dt").build());
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getSchema())
+    assertThat(catalogTable.getUnresolvedSchema())
         .isEqualTo(
-            TableSchema.builder()
-                .field("id", DataTypes.BIGINT())
-                .field("dt", DataTypes.STRING())
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .column("dt", DataTypes.STRING())
                 .build());
     assertThat(catalogTable.getPartitionKeys()).isEqualTo(Collections.singletonList("dt"));
   }
@@ -239,7 +310,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableWithFormatV2ThroughTableProperty() throws Exception {
+  public void testCreateTableWithFormatV2ThroughTableProperty() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
@@ -247,7 +318,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testUpgradeTableWithFormatV2ThroughTableProperty() throws Exception {
+  public void testUpgradeTableWithFormatV2ThroughTableProperty() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='1')");
 
     Table table = table("tl");
@@ -262,7 +333,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() throws Exception {
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
@@ -285,13 +356,16 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
     CatalogTable catalogTable = catalogTable("tl");
-    assertThat(catalogTable.getSchema())
-        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+    assertThat(catalogTable.getUnresolvedSchema())
+        .isEqualTo(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .column("id", DataTypes.BIGINT())
+                .build());
     assertThat(catalogTable.getPartitionKeys()).isEmpty();
   }
 
   @TestTemplate
-  public void testAlterTableProperties() throws TableNotExistException {
+  public void testAlterTableProperties() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");
@@ -339,16 +413,36 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                         3, "col1", Types.StringType.get(), "comment for col1"),
                     Types.NestedField.optional(4, "col2", Types.LongType.get()))
                 .asStruct());
-    // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
-    // incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
 
     // Adding an existing field should fail due to Flink's internal validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Try to add a column `id` which already exists in the table.");
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnPosition() {
+    sql("CREATE TABLE tl(id BIGINT, name STRING)");
+    Schema schemaBefore = table("tl").schema();
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
+
+    sql("ALTER TABLE tl ADD (col1 STRING FIRST)");
+    sql("ALTER TABLE tl ADD (col2 INT AFTER id)");
+
+    Schema schemaAfter = table("tl").schema();
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(4, "col2", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
   }
 
   @TestTemplate
@@ -432,6 +526,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot change column type: dt: string -> int");
   }
@@ -446,12 +541,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(1, "id", Types.IntegerType.get()),
                     Types.NestedField.optional(2, "dt", Types.StringType.get()))
                 .asStruct());
-    // Changing nullability from optional to required should fail
-    // because Iceberg's SchemaUpdate does not allow incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
-        .isInstanceOf(TableException.class)
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Cannot change column nullability: dt: optional -> required");
 
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
@@ -568,6 +657,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
@@ -575,12 +665,14 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
     // Dropping constraints is not supported yet
     assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(UnsupportedOperationException.class)
         .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }
@@ -646,13 +738,38 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
     tbl.refresh();
     Set<CharSequence> expectedFilePaths =
-        Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+        Arrays.stream(expectedFiles).map(DataFile::location).collect(Collectors.toSet());
     Set<CharSequence> actualFilePaths =
         StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
             .map(FileScanTask::file)
-            .map(ContentFile::path)
+            .map(ContentFile::location)
             .collect(Collectors.toSet());
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
+  }
+
+  @TestTemplate
+  public void testCreateMaterializedTableIsUnsupported() {
+    CatalogMaterializedTable materializedTable =
+        CatalogMaterializedTable.newBuilder()
+            .schema(
+                org.apache.flink.table.api.Schema.newBuilder()
+                    .column("id", DataTypes.BIGINT())
+                    .build())
+            .definitionQuery("SELECT id FROM tl")
+            .freshness(IntervalFreshness.ofMinute("5"))
+            .logicalRefreshMode(CatalogMaterializedTable.LogicalRefreshMode.AUTOMATIC)
+            .refreshMode(CatalogMaterializedTable.RefreshMode.CONTINUOUS)
+            .refreshStatus(CatalogMaterializedTable.RefreshStatus.INITIALIZING)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                getTableEnv()
+                    .getCatalog(catalogName)
+                    .get()
+                    .createTable(new ObjectPath(DATABASE, "mt_table"), materializedTable, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Materialized tables and other table kinds are not supported");
   }
 
   private Table table(String name) {
@@ -660,10 +777,12 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
+    return catalogTable(getTableEnv().getCurrentCatalog(), DATABASE, name);
+  }
+
+  private CatalogTable catalogTable(String catalog, String database, String table)
+      throws TableNotExistException {
     return (CatalogTable)
-        getTableEnv()
-            .getCatalog(getTableEnv().getCurrentCatalog())
-            .get()
-            .getTable(new ObjectPath(DATABASE, name));
+        getTableEnv().getCatalog(catalog).get().getTable(new ObjectPath(database, table));
   }
 }

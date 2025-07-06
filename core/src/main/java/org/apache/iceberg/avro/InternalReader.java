@@ -28,7 +28,6 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -42,12 +41,12 @@ import org.apache.iceberg.util.Pair;
  *
  * @param <T> Java type returned by the reader
  */
-public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, SupportsCustomTypes {
   private static final int ROOT_ID = -1;
 
   private final Types.StructType expectedType;
   private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
-  private final Map<Integer, Object> idToConstant = ImmutableMap.of();
+  private final Map<Integer, Object> idToConstant = Maps.newHashMap();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
@@ -70,10 +69,27 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
                 AccessByID.instance());
   }
 
+  public void setConstants(Map<Integer, Object> constantMap) {
+    this.idToConstant.putAll(constantMap);
+  }
+
+  public void setConstant(int fieldId, Object value) {
+    this.idToConstant.put(fieldId, value);
+  }
+
   @Override
   public void setSchema(Schema schema) {
     this.fileSchema = schema;
     initReader();
+  }
+
+  @Override
+  public void setCustomTypes(
+      Class<? extends StructLike> rootType, Map<Integer, Class<? extends StructLike>> typesById) {
+    setRootType(rootType);
+    for (Map.Entry<Integer, Class<? extends StructLike>> entry : typesById.entrySet()) {
+      setCustomType(entry.getKey(), entry.getValue());
+    }
   }
 
   public InternalReader<T> setRootType(Class<? extends StructLike> rootClass) {
@@ -152,6 +168,12 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
     }
 
     @Override
+    public ValueReader<?> variant(
+        Pair<Integer, Type> partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return ValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Pair<Integer, Type> partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -168,6 +190,8 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
+          case "timestamp-nanos":
+            // both are handled in memory as long values, using the type to track units
             return ValueReaders.longs();
 
           case "decimal":
@@ -205,7 +229,6 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
         case STRING:
           return ValueReaders.strings();
         case FIXED:
-          return ValueReaders.fixed(primitive);
         case BYTES:
           return ValueReaders.byteBuffers();
         case ENUM:

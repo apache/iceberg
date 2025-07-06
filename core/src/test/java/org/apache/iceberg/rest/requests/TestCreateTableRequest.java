@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
@@ -47,7 +48,12 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
   private static final String SAMPLE_LOCATION = "file://tmp/location/";
   private static final Schema SAMPLE_SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+          required("id")
+              .withId(1)
+              .ofType(Types.IntegerType.get())
+              .withWriteDefault(Literal.of(1))
+              .build(),
+          optional("data").withId(2).ofType(Types.StringType.get()).build());
   private static final String SAMPLE_SCHEMA_JSON = SchemaParser.toJson(SAMPLE_SCHEMA);
   private static final PartitionSpec SAMPLE_SPEC =
       PartitionSpec.builderFor(SAMPLE_SCHEMA).bucket("id", 16).build();
@@ -59,7 +65,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
   public void testRoundTripSerDe() throws JsonProcessingException {
     String fullJsonRaw =
         "{\"name\":\"test_tbl\",\"location\":\"file://tmp/location/\",\"schema\":{\"type\":\"struct\","
-            + "\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+            + "\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"id\",\"required\":true,\"type\":\"int\",\"write-default\":1},"
             + "{\"id\":2,\"name\":\"data\",\"required\":false,\"type\":\"string\"}]},\"partition-spec\":{\"spec-id\":0,"
             + "\"fields\":[{\"name\":\"id_bucket\",\"transform\":\"bucket[16]\",\"source-id\":1,\"field-id\":1000}]},"
             + "\"write-order\":{\"order-id\":1,\"fields\":"

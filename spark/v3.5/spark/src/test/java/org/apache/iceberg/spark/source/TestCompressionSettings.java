@@ -35,7 +35,6 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_CODEC;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_LEVEL;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_STRATEGY;
-import static org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FILTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -58,7 +57,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -72,6 +71,7 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -105,37 +105,37 @@ public class TestCompressionSettings extends CatalogTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         PARQUET,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         PARQUET,
         ImmutableMap.of(COMPRESSION_CODEC, "gzip")
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         ORC,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "speed")
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         ORC,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "compression")
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         AVRO,
         ImmutableMap.of(COMPRESSION_CODEC, "snappy", COMPRESSION_LEVEL, "3")
       }
@@ -207,7 +207,8 @@ public class TestCompressionSettings extends CatalogTestBase {
         .append();
     Table table = catalog.loadTable(TableIdentifier.of("default", TABLE_NAME));
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifestFiles.get(0), table.io(), table.specs())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
@@ -230,7 +231,7 @@ public class TestCompressionSettings extends CatalogTestBase {
 
     SparkActions.get(spark)
         .rewritePositionDeletes(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
     table.refresh();
     deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());
@@ -251,7 +252,8 @@ public class TestCompressionSettings extends CatalogTestBase {
         return orcReader.getCompressionKind().name();
       case PARQUET:
         ParquetMetadata footer =
-            ParquetFileReader.readFooter(CONF, new Path(inputFile.location()), NO_FILTER);
+            ParquetFileReader.open(HadoopInputFile.fromPath(new Path(inputFile.location()), CONF))
+                .getFooter();
         return footer.getBlocks().get(0).getColumns().get(0).getCodec().name();
       default:
         FileContext fc = FileContext.getFileContext(CONF);

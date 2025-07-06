@@ -21,12 +21,13 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -49,29 +50,26 @@ public class TestMetadataTableFilters extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, table_type = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, MetadataTableType.DATA_FILES},
-        new Object[] {2, MetadataTableType.DATA_FILES},
-        new Object[] {3, MetadataTableType.DATA_FILES},
-        new Object[] {2, MetadataTableType.DELETE_FILES},
-        new Object[] {3, MetadataTableType.DELETE_FILES},
-        new Object[] {1, MetadataTableType.FILES},
-        new Object[] {2, MetadataTableType.FILES},
-        new Object[] {3, MetadataTableType.FILES},
-        new Object[] {1, MetadataTableType.ALL_DATA_FILES},
-        new Object[] {2, MetadataTableType.ALL_DATA_FILES},
-        new Object[] {3, MetadataTableType.ALL_DATA_FILES},
-        new Object[] {2, MetadataTableType.ALL_DELETE_FILES},
-        new Object[] {3, MetadataTableType.ALL_DELETE_FILES},
-        new Object[] {1, MetadataTableType.ALL_FILES},
-        new Object[] {2, MetadataTableType.ALL_FILES},
-        new Object[] {3, MetadataTableType.ALL_FILES},
-        new Object[] {1, MetadataTableType.ENTRIES},
-        new Object[] {2, MetadataTableType.ENTRIES},
-        new Object[] {3, MetadataTableType.ENTRIES},
-        new Object[] {1, MetadataTableType.ALL_ENTRIES},
-        new Object[] {2, MetadataTableType.ALL_ENTRIES},
-        new Object[] {3, MetadataTableType.ALL_ENTRIES});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(
+            v -> {
+              ImmutableList.Builder<Object[]> builder =
+                  ImmutableList.<Object[]>builder()
+                      .add(new Object[] {v, MetadataTableType.DATA_FILES})
+                      .add(new Object[] {v, MetadataTableType.FILES})
+                      .add(new Object[] {v, MetadataTableType.ALL_DATA_FILES})
+                      .add(new Object[] {v, MetadataTableType.ALL_FILES})
+                      .add(new Object[] {v, MetadataTableType.ENTRIES})
+                      .add(new Object[] {v, MetadataTableType.ALL_ENTRIES});
+              if (v >= 2) {
+                builder
+                    .add(new Object[] {v, MetadataTableType.DELETE_FILES})
+                    .add(new Object[] {v, MetadataTableType.ALL_DELETE_FILES});
+              }
+
+              return builder.build().stream();
+            })
+        .collect(Collectors.toList());
   }
 
   @BeforeEach
@@ -198,7 +196,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNoFilter() {
+  public void noFilter() {
     Table metadataTable = createMetadataTable();
 
     TableScan scan = metadataTable.newScan().select(partitionColumn("data_bucket"));
@@ -212,7 +210,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testAnd() {
+  public void and() {
     Table metadataTable = createMetadataTable();
 
     Expression and =
@@ -225,7 +223,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testLt() {
+  public void lt() {
     Table metadataTable = createMetadataTable();
 
     Expression lt = Expressions.lessThan(partitionColumn("data_bucket"), 2);
@@ -237,7 +235,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testOr() {
+  public void or() {
     Table metadataTable = createMetadataTable();
 
     Expression or =
@@ -254,7 +252,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNot() {
+  public void not() {
     Table metadataTable = createMetadataTable();
 
     Expression not = Expressions.not(Expressions.lessThan(partitionColumn("data_bucket"), 2));
@@ -267,7 +265,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testIn() {
+  public void in() {
     Table metadataTable = createMetadataTable();
 
     Expression set = Expressions.in(partitionColumn("data_bucket"), 2, 3);
@@ -281,7 +279,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testNotNull() {
+  public void notNull() {
     Table metadataTable = createMetadataTable();
     Expression unary = Expressions.notNull(partitionColumn("data_bucket"));
     TableScan scan = metadataTable.newScan().filter(unary);
@@ -296,7 +294,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPlanTasks() {
+  public void planTasks() {
     Table metadataTable = createMetadataTable();
 
     Expression and =
@@ -309,7 +307,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionRemovalV1() {
+  public void partitionSpecEvolutionRemovalV1() {
     assumeThat(formatVersion).isEqualTo(1);
 
     // Change spec and add two data files
@@ -373,7 +371,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionRemovalV2() {
+  public void partitionSpecEvolutionRemovalV2() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     // Change spec and add two data and delete files each
@@ -442,7 +440,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionAdditiveV1() {
+  public void partitionSpecEvolutionAdditiveV1() {
     assumeThat(formatVersion).isEqualTo(1);
 
     // Change spec and add two data files
@@ -508,7 +506,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionAdditiveV2AndAbove() {
+  public void partitionSpecEvolutionAdditiveV2AndAbove() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     // Change spec and add two data and delete files each

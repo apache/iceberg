@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,6 +65,13 @@ public abstract class TestBase extends SparkTestHelperBase {
   protected static SparkSession spark = null;
   protected static JavaSparkContext sparkContext = null;
   protected static HiveCatalog catalog = null;
+  // disable Spark UI and use dummy servlet to avoid dependency conflicts with Spark's Jetty version
+  public static final Map<String, Object> DISABLE_UI =
+      ImmutableMap.of(
+          "spark.ui.enabled",
+          "false",
+          "spark.metrics.conf.*.sink.servlet.class",
+          "org.apache.iceberg.spark.DummyMetricsServlet");
 
   @BeforeAll
   public static void startMetastoreAndSpark() {
@@ -74,9 +82,11 @@ public abstract class TestBase extends SparkTestHelperBase {
     TestBase.spark =
         SparkSession.builder()
             .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config(DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 
@@ -127,9 +137,9 @@ public abstract class TestBase extends SparkTestHelperBase {
 
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
-    assertThat(rows.size()).as("Scalar SQL should return one row").isEqualTo(1);
+    assertThat(rows).as("Scalar SQL should return one row").hasSize(1);
     Object[] row = Iterables.getOnlyElement(rows);
-    assertThat(row.length).as("Scalar SQL should return one value").isEqualTo(1);
+    assertThat(row).as("Scalar SQL should return one value").hasSize(1);
     return row[0];
   }
 
@@ -142,7 +152,7 @@ public abstract class TestBase extends SparkTestHelperBase {
   }
 
   protected void withUnavailableFiles(Iterable<? extends ContentFile<?>> files, Action action) {
-    Iterable<String> fileLocations = Iterables.transform(files, file -> file.location());
+    Iterable<String> fileLocations = Iterables.transform(files, ContentFile::location);
     withUnavailableLocations(fileLocations, action);
   }
 

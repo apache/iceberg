@@ -77,7 +77,7 @@ public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> 
   }
 
   @Override
-  public Map<Integer, Integer> variant() {
+  public Map<Integer, Integer> variant(Types.VariantType variant) {
     return idToParent;
   }
 

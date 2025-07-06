@@ -46,6 +46,7 @@ import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -86,7 +87,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
   // been committed to iceberg table). We need a sorted map here because there's possible that few
   // checkpoints snapshot failed, for example: the 1st checkpoint have 2 data files <1, <file0,
-  // file1>>, the 2st checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
+  // file1>>, the 2nd checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
   // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
   // table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit iceberg
   // table when the next checkpoint happen.
@@ -154,8 +155,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
-    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    int attemptId = getRuntimeContext().getAttemptNumber();
+    int subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    int attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);
@@ -443,7 +444,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResults).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
+            result,
+            () -> manifestOutputFileFactory.create(checkpointId),
+            spec,
+            TableUtil.formatVersion(table));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

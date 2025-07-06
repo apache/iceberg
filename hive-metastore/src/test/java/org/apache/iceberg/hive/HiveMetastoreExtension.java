@@ -48,7 +48,7 @@ public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallba
       }
     }
 
-    metastore.start(hiveConfWithOverrides);
+    metastore.start(hiveConfWithOverrides, 5, true);
     metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
     if (null != databaseName) {
       String dbPath = metastore.getDatabasePath(databaseName);

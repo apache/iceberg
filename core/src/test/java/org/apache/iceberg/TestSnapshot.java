@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -31,9 +29,35 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshot extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+
+  @TestTemplate
+  public void snapshotValueMethodsIncludeMetadataFields() {
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+    Snapshot same =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-1");
+    Snapshot differentFirstRowId =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 11L, 5L, "key-1");
+    Snapshot differentAddedRows =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 6L, "key-1");
+    Snapshot differentKeyId =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, 5L, "key-2");
+    Snapshot withoutMetadataFields =
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
+
+    assertThat(snapshot).isEqualTo(same);
+    assertThat(snapshot.hashCode()).isEqualTo(same.hashCode());
+    assertThat(snapshot).isNotEqualTo(differentFirstRowId);
+    assertThat(snapshot).isNotEqualTo(differentAddedRows);
+    assertThat(snapshot).isNotEqualTo(differentKeyId);
+    assertThat(snapshot).isNotEqualTo(withoutMetadataFields);
+    assertThat(snapshot.toString()).contains("first-row-id=10", "added-rows=5", "key-id=key-1");
   }
 
   @TestTemplate
@@ -41,7 +65,7 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     // collect data files from deserialization
-    Iterable<DataFile> filesToAdd = table.currentSnapshot().addedDataFiles(table.io());
+    Iterable<DataFile> filesToAdd = SnapshotChanges.builderFor(table).build().addedDataFiles();
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 
@@ -95,7 +119,8 @@ public class TestSnapshot extends TestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DataFile> removedDataFiles = thirdSnapshot.removedDataFiles(FILE_IO);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(thirdSnapshot).build();
+    Iterable<DataFile> removedDataFiles = changes.removedDataFiles();
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -103,7 +128,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDataFile.specId()).isEqualTo(FILE_A.specId());
     assertThat(removedDataFile.partition()).isEqualTo(FILE_A.partition());
 
-    Iterable<DataFile> addedDataFiles = thirdSnapshot.addedDataFiles(FILE_IO);
+    Iterable<DataFile> addedDataFiles = changes.addedDataFiles();
     assertThat(addedDataFiles).as("Must have 1 added data file").hasSize(1);
 
     DataFile addedDataFile = Iterables.getOnlyElement(addedDataFiles);
@@ -119,8 +144,6 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
-
-    int specId = table.spec().specId();
 
     DataFile secondSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=aa");
     DeleteFile secondSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);
@@ -143,7 +166,8 @@ public class TestSnapshot extends TestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DeleteFile> removedDeleteFiles = thirdSnapshot.removedDeleteFiles(FILE_IO);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(thirdSnapshot).build();
+    Iterable<DeleteFile> removedDeleteFiles = changes.removedDeleteFiles();
     assertThat(removedDeleteFiles).as("Must have 1 removed delete file").hasSize(1);
 
     DeleteFile removedDeleteFile = Iterables.getOnlyElement(removedDeleteFiles);
@@ -151,7 +175,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDeleteFile.specId()).isEqualTo(secondSnapshotDeleteFile.specId());
     assertThat(removedDeleteFile.partition()).isEqualTo(secondSnapshotDeleteFile.partition());
 
-    Iterable<DeleteFile> addedDeleteFiles = thirdSnapshot.addedDeleteFiles(FILE_IO);
+    Iterable<DeleteFile> addedDeleteFiles = changes.addedDeleteFiles();
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
@@ -180,7 +204,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedDataFiles = snapshot.addedDataFiles(table.io());
+    Iterable<DataFile> addedDataFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles();
 
     assertThat(snapshot.sequenceNumber())
         .as("Sequence number mismatch in Snapshot")
@@ -226,7 +251,8 @@ public class TestSnapshot extends TestBase {
     table.newDelete().deleteFile(fileToRemove).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> removedDataFiles = snapshot.removedDataFiles(table.io());
+    Iterable<DataFile> removedDataFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDataFiles();
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -258,7 +284,8 @@ public class TestSnapshot extends TestBase {
     table.newRowDelta().addDeletes(deleteFileToAdd).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);

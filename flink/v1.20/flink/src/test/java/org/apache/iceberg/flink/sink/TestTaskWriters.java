@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -114,7 +113,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
+        assertThat(fs.exists(new Path(dataFile.location()))).isTrue();
       }
     }
   }
@@ -133,7 +132,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isFalse();
+        assertThat(fs.exists(new Path(dataFile.location()))).isFalse();
       }
     }
   }
@@ -155,7 +154,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
+        assertThat(fs.exists(new Path(dataFile.location()))).isTrue();
       }
 
       AppendFiles appendFiles = table.newAppend();
@@ -230,7 +229,7 @@ public class TestTaskWriters {
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
             SerializableTable.copyOf(table),
-            (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
+            SimpleDataUtil.ROW_TYPE,
             targetFileSize,
             format,
             table.properties(),

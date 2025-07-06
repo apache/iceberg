@@ -18,17 +18,19 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
@@ -36,7 +38,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -46,8 +48,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class ReaderUtil {
@@ -55,29 +56,34 @@ public class ReaderUtil {
   private ReaderUtil() {}
 
   public static FileScanTask createFileTask(
+      List<Record> records, File file, FileFormat fileFormat, Schema schema) throws IOException {
+    return createFileTask(
+        records,
+        file,
+        fileFormat,
+        schema,
+        ResidualEvaluator.unpartitioned(Expressions.alwaysTrue()));
+  }
+
+  public static FileScanTask createFileTask(
       List<Record> records,
       File file,
       FileFormat fileFormat,
-      FileAppenderFactory<Record> appenderFactory)
+      Schema schema,
+      ResidualEvaluator residuals)
       throws IOException {
-    FileAppender<Record> appender =
-        appenderFactory.newAppender(Files.localOutput(file), fileFormat);
-    try {
-      appender.addAll(records);
-    } finally {
-      appender.close();
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataSchema(schema)
+            .dataFileFormat(fileFormat)
+            .build()
+            .newDataWriter(encrypt(Files.localOutput(file)), PartitionSpec.unpartitioned(), null);
+    try (writer) {
+      writer.write(records);
     }
 
-    DataFile dataFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(records.size())
-            .withFileSizeInBytes(file.length())
-            .withPath(file.toString())
-            .withFormat(fileFormat)
-            .withMetrics(appender.metrics())
-            .build();
+    DataFile dataFile = writer.toDataFile();
 
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
     return new BaseFileScanTask(
         dataFile,
         null,
@@ -87,11 +93,16 @@ public class ReaderUtil {
   }
 
   public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
+    return createDataIterator(combinedTask, TestFixtures.SCHEMA, TestFixtures.SCHEMA);
+  }
+
+  public static DataIterator<RowData> createDataIterator(
+      CombinedScanTask combinedTask, Schema tableSchema, Schema projectSchema) {
     return new DataIterator<>(
         new RowDataFileScanTaskReader(
-            TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
+            tableSchema, projectSchema, null, true, Collections.emptyList()),
         combinedTask,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
+        new HadoopFileIO(new Configuration()),
         PlaintextEncryptionManager.instance());
   }
 
@@ -110,7 +121,7 @@ public class ReaderUtil {
       List<List<Record>> recordBatchList,
       Path temporaryFolder,
       FileFormat fileFormat,
-      GenericAppenderFactory appenderFactory)
+      Schema schema)
       throws IOException {
     List<FileScanTask> fileTasks = Lists.newArrayListWithCapacity(recordBatchList.size());
     for (List<Record> recordBatch : recordBatchList) {
@@ -119,7 +130,7 @@ public class ReaderUtil {
               recordBatch,
               File.createTempFile("junit", null, temporaryFolder.toFile()),
               fileFormat,
-              appenderFactory);
+              schema);
       fileTasks.add(fileTask);
     }
 

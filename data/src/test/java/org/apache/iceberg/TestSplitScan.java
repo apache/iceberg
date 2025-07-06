@@ -26,12 +26,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,15 +100,21 @@ public class TestSplitScan {
   }
 
   private File writeToFile(List<Record> records, FileFormat fileFormat) throws IOException {
-    File file = File.createTempFile("junit", null, tableLocation);
-    assertThat(file.delete()).isTrue();
+    File file = new File(tableLocation, "junit" + System.nanoTime());
 
-    GenericAppenderFactory factory =
-        new GenericAppenderFactory(SCHEMA)
-            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE));
-    try (FileAppender<Record> appender = factory.newAppender(Files.localOutput(file), fileFormat)) {
-      appender.addAll(records);
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder(table)
+            .dataFileFormat(fileFormat)
+            .writerProperties(
+                ImmutableMap.of(
+                    TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE)))
+            .build()
+            .newDataWriter(
+                FileHelpers.encrypt(Files.localOutput(file)), PartitionSpec.unpartitioned(), null);
+    try (writer) {
+      writer.write(records);
     }
+
     return file;
   }
 }

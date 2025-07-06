@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -26,10 +27,16 @@ import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.DescribeConsumerGroupsResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class KafkaUtils {
+
+  private static final Logger LOG = LoggerFactory.getLogger(KafkaUtils.class);
 
   private static final String CONTEXT_CLASS_NAME =
       "org.apache.kafka.connect.runtime.WorkerSinkTaskContext";
@@ -48,6 +55,33 @@ class KafkaUtils {
 
   static ConsumerGroupMetadata consumerGroupMetadata(SinkTaskContext context) {
     return kafkaConsumer(context).groupMetadata();
+  }
+
+  static void seekToLastCommittedOffsets(SinkTaskContext context) {
+    Consumer<byte[], byte[]> consumer = kafkaConsumer(context);
+    if (consumer == null) {
+      return;
+    }
+
+    Map<TopicPartition, OffsetAndMetadata> committedOffsets =
+        consumer.committed(consumer.assignment());
+    if (committedOffsets == null || committedOffsets.isEmpty()) {
+      return;
+    }
+
+    committedOffsets.forEach(
+        (topicPartition, offsetAndMetadata) -> {
+          if (offsetAndMetadata != null) {
+            try {
+              consumer.seek(topicPartition, offsetAndMetadata.offset());
+            } catch (IllegalStateException e) {
+              LOG.warn(
+                  "Rebalance may have occurred, partition {} lost before seeking",
+                  topicPartition,
+                  e);
+            }
+          }
+        });
   }
 
   @SuppressWarnings("unchecked")

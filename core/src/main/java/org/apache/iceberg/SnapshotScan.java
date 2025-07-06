@@ -33,6 +33,7 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
@@ -79,6 +80,27 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     return scanMetrics;
   }
 
+  protected Map<Integer, PartitionSpec> specs() {
+    Map<Integer, PartitionSpec> specs = table().specs();
+    // requires latest schema
+    if (!useSnapshotSchema()
+        || snapshotId() == null
+        || table().currentSnapshot() == null
+        || snapshotId().equals(table().currentSnapshot().snapshotId())) {
+      return specs;
+    }
+
+    // this is a time travel request
+    Schema snapshotSchema = tableSchema();
+    ImmutableMap.Builder<Integer, PartitionSpec> newSpecs =
+        ImmutableMap.builderWithExpectedSize(specs.size());
+    for (Map.Entry<Integer, PartitionSpec> entry : specs.entrySet()) {
+      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bind(snapshotSchema, true));
+    }
+
+    return newSpecs.build();
+  }
+
   public ThisT useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
@@ -102,7 +124,8 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
     TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
-    return newRefinedScan(table(), SnapshotUtil.schemaFor(table(), name), newContext);
+    Schema newSchema = useSnapshotSchema() ? SnapshotUtil.schemaFor(table(), name) : tableSchema();
+    return newRefinedScan(table(), newSchema, newContext);
   }
 
   public ThisT asOfTime(long timestampMillis) {

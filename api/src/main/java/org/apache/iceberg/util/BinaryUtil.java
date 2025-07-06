@@ -37,6 +37,8 @@ public class BinaryUtil {
    *
    * @param input The ByteBuffer to be truncated
    * @param length The non-negative length to truncate input to
+   * @return a ByteBuffer truncated to the given length, or the input if it is already no longer
+   *     than length
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
     Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
@@ -57,6 +59,8 @@ public class BinaryUtil {
    *
    * @param value The ByteBuffer to be truncated
    * @param width The non-negative length to truncate input to
+   * @return a ByteBuffer view of the input truncated to the given width, sharing the input's
+   *     backing data
    */
   public static ByteBuffer truncateBinaryUnsafe(ByteBuffer value, int width) {
     ByteBuffer ret = value.duplicate();
@@ -77,13 +81,29 @@ public class BinaryUtil {
   }
 
   /**
+   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is lower than
+   * the given input
+   */
+  public static ByteBuffer truncateBinaryMin(ByteBuffer input, int length) {
+    return truncateBinary(input, length);
+  }
+
+  /**
    * Returns a byte buffer whose length is lesser than or equal to truncateLength and is greater
    * than the given input
    */
   public static Literal<ByteBuffer> truncateBinaryMax(Literal<ByteBuffer> input, int length) {
-    ByteBuffer inputBuffer = input.value();
+    ByteBuffer truncated = truncateBinaryMax(input.value(), length);
+    return truncated != null ? Literal.of(truncated) : null;
+  }
+
+  /**
+   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is greater
+   * than the given input
+   */
+  public static ByteBuffer truncateBinaryMax(ByteBuffer inputBuffer, int length) {
     if (length >= inputBuffer.remaining()) {
-      return input;
+      return inputBuffer;
     }
 
     // Truncate the input to the specified truncate length.
@@ -99,7 +119,7 @@ public class BinaryUtil {
         // Return a byte buffer whose position is zero and limit is i + 1
         truncatedInput.position(0);
         truncatedInput.limit(i + 1);
-        return Literal.of(truncatedInput);
+        return truncatedInput;
       }
     }
     return null; // Cannot find a valid upper bound

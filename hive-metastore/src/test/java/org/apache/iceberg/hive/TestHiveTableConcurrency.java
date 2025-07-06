@@ -39,7 +39,7 @@ import org.apache.iceberg.util.Tasks;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
-public class TestHiveTableConcurrency extends HiveTableBaseTest {
+public class TestHiveTableConcurrency extends HiveTableTestBase {
 
   @Test
   public synchronized void testConcurrentFastAppends() {

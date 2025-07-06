@@ -104,6 +104,12 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   }
 
   @Override
+  public Type variant(GroupType variant) {
+    MappedField field = nameMapping.find(currentPath());
+    return field == null ? variant : variant.withId(field.id());
+  }
+
+  @Override
   public void beforeField(Type type) {
     fieldNames.push(type.getName());
   }

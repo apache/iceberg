@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -98,33 +99,19 @@ public class LockRemover extends AbstractStreamOperator<Void>
     this.failedTaskResultCounters = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
     this.taskLastRunDurationMs = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
     for (int taskIndex = 0; taskIndex < maintenanceTaskNames.size(); ++taskIndex) {
+      MetricGroup taskMetricGroup =
+          TableMaintenanceMetrics.groupFor(
+              getRuntimeContext(), tableName, maintenanceTaskNames.get(taskIndex), taskIndex);
       succeededTaskResultCounters.add(
-          getRuntimeContext()
-              .getMetricGroup()
-              .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-              .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-              .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, maintenanceTaskNames.get(taskIndex))
-              .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, String.valueOf(taskIndex))
-              .counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
+          taskMetricGroup.counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
       failedTaskResultCounters.add(
-          getRuntimeContext()
-              .getMetricGroup()
-              .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-              .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-              .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, maintenanceTaskNames.get(taskIndex))
-              .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, String.valueOf(taskIndex))
-              .counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
+          taskMetricGroup.counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
       AtomicLong duration = new AtomicLong(0);
       taskLastRunDurationMs.add(duration);
-      getRuntimeContext()
-          .getMetricGroup()
-          .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-          .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-          .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, maintenanceTaskNames.get(taskIndex))
-          .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, String.valueOf(taskIndex))
-          .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
+      taskMetricGroup.gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
     }
 
+    lockFactory.open();
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
   }

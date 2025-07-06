@@ -326,6 +326,20 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param identifier a table identifier
+   * @param context context for this load
+   * @return instance of {@link Table} implementation referred by {@code identifier}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(TableIdentifier identifier, LoadContext context) {
+    return loadTable(identifier);
+  }
+
+  /**
    * Invalidate cached table metadata from current catalog.
    *
    * <p>If the table is already loaded or cached, drop cached data. If the table does not exist or
@@ -338,6 +352,8 @@ public interface Catalog {
   /**
    * Register a table with the catalog if it does not exist.
    *
+   * <p>For overwrite support, see {@link #registerTable(TableIdentifier, String, boolean)}.
+   *
    * @param identifier a table identifier
    * @param metadataFileLocation the location of a metadata file
    * @return a Table instance
@@ -348,7 +364,41 @@ public interface Catalog {
   }
 
   /**
-   * /** Instantiate a builder to either create a table or start a create/replace transaction.
+   * Register a table with the catalog.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite whether to overwrite an existing table registration
+   * @return a Table instance
+   * @throws AlreadyExistsException if {@code overwrite} is false and the table already exists in
+   *     the catalog
+   */
+  default Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    if (!overwrite) {
+      return registerTable(identifier, metadataFileLocation);
+    }
+
+    throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
+  }
+
+  /**
+   * Unregister a table without deleting its data or metadata files.
+   *
+   * <p>The returned table is fixed at the last metadata file registered with the catalog and cannot
+   * be modified. Its metadata file location can be used to {@link #registerTable(TableIdentifier,
+   * String) register} the table again.
+   *
+   * @param identifier a table identifier
+   * @return a read-only table fixed at the metadata current when it was unregistered
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table unregisterTable(TableIdentifier identifier) {
+    throw new UnsupportedOperationException("Unregistering tables is not supported");
+  }
+
+  /**
+   * Instantiate a builder to either create a table or start a create/replace transaction.
    *
    * @param identifier a table identifier
    * @param schema a schema

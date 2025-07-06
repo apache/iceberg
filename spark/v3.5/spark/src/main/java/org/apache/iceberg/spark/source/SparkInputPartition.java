@@ -24,6 +24,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -34,10 +35,12 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
+  private final Broadcast<FileIO> fileIOBroadcast;
   private final String branch;
   private final String expectedSchemaString;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   private transient Schema expectedSchema = null;
 
@@ -45,17 +48,21 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
+      Broadcast<FileIO> fileIOBroadcast,
       String branch,
       String expectedSchemaString,
       boolean caseSensitive,
-      String[] preferredLocations) {
+      String[] preferredLocations,
+      boolean cacheDeleteFilesOnExecutors) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
+    this.fileIOBroadcast = fileIOBroadcast;
     this.branch = branch;
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
   @Override
@@ -81,12 +88,20 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     return tableBroadcast.value();
   }
 
+  public FileIO io() {
+    return fileIOBroadcast.value();
+  }
+
   public String branch() {
     return branch;
   }
 
   public boolean isCaseSensitive() {
     return caseSensitive;
+  }
+
+  public boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   public Schema expectedSchema() {

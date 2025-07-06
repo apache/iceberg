@@ -33,8 +33,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -184,11 +185,12 @@ public class TestOverwriteWithValidation extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, "main"},
-        new Object[] {1, "testBranch"},
-        new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(
+            v ->
+                Stream.of(
+                    new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "testBranch"}))
+        .collect(Collectors.toList());
   }
 
   private static ByteBuffer longToBuffer(long value) {
@@ -679,6 +681,43 @@ public class TestOverwriteWithValidation extends TestBase {
     assertThatThrownBy(() -> commit(table, overwrite, branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
+  }
+
+  @TestTemplate
+  public void testConcurrentSuccessiveDVsForUnrelatedDataFile() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
+
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
+
+    OverwriteFiles overwrite =
+        table
+            .newOverwrite()
+            .deleteFile(FILE_DAY_2)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(alwaysTrue())
+            .validateNoConflictingDeletes();
+
+    DeleteFile dv1 = FileGenerationUtil.generateDV(table, FILE_DAY_1);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = FileGenerationUtil.generateDV(table, FILE_DAY_1);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(dvSnapshot.snapshotId()),
+        branch);
+
+    commit(table, overwrite, branch);
+
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @TestTemplate

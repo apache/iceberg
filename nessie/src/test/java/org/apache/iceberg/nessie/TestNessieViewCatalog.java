@@ -25,6 +25,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -82,7 +83,7 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
-    catalog = initNessieCatalog("main");
+    catalog = initNessieCatalog(SnapshotRef.MAIN_BRANCH);
   }
 
   @AfterEach
@@ -128,7 +129,17 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toUri().toString(),
             "client-api-version",
-            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+            apiVersion == NessieApiVersion.V2 ? "2" : "1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+            "catalog-default-key1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+            "catalog-default-key2",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+            "catalog-default-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+            "catalog-override-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+            "catalog-override-key4");
     newCatalog.initialize("nessie", options);
     return newCatalog;
   }

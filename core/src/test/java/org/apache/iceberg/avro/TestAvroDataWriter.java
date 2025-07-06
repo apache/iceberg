@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -32,13 +33,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -103,11 +105,63 @@ public class TestAvroDataWriter {
     try (AvroIterable<Record> reader =
         Avro.read(file.toInputFile())
             .project(SCHEMA)
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 
     assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
+  }
+
+  @Test
+  public void testGeospatialWkbRoundTrip() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.optional(3, "geog", Types.GeographyType.crs84()));
+
+    GenericRecord record = GenericRecord.create(schema);
+    List<Record> geoRecords =
+        ImmutableList.of(
+            record.copy(
+                ImmutableMap.of("id", 1L, "geom", wkbPoint(30, 10), "geog", wkbPoint(-5, 40))),
+            // geog is left null
+            record.copy(ImmutableMap.of("id", 2L, "geom", wkbPoint(0, 0))),
+            // both geo columns are left null
+            record.copy(ImmutableMap.of("id", 3L)));
+
+    OutputFile file = Files.localOutput(temp.toFile());
+    DataWriter<Record> dataWriter =
+        Avro.writeData(file)
+            .schema(schema)
+            .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try (dataWriter) {
+      for (Record geoRecord : geoRecords) {
+        dataWriter.write(geoRecord);
+      }
+    }
+
+    assertThat(dataWriter.toDataFile().recordCount()).isEqualTo(geoRecords.size());
+
+    List<Record> writtenRecords;
+    try (AvroIterable<Record> reader =
+        Avro.read(file.toInputFile())
+            .project(schema)
+            .createResolvingReader(PlannedDataReader::create)
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords)
+        .as("Geometry and geography WKB should round-trip through Avro")
+        .isEqualTo(geoRecords);
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
   }
 }

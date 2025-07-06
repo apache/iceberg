@@ -48,9 +48,9 @@ public class TestChangelogTable extends ExtensionsTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         1
       },
       {
@@ -416,12 +416,6 @@ public class TestChangelogTable extends ExtensionsTestBase {
     // Insert new records
     sql("INSERT INTO %s VALUES (3, 'c')", tableName);
     sql("INSERT INTO %s VALUES (4, 'd')", tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot insertSnapshot = table.currentSnapshot();
-
-    // Get timestamp after inserts but before our changelog window
-    long beforeWindowTime = System.currentTimeMillis();
 
     // Small delay to ensure our timestamps are different
     try {

@@ -19,15 +19,37 @@
 package org.apache.iceberg.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.types.Type;
+import org.junit.jupiter.api.Test;
 
-public class TestAvroEncoderUtil extends AvroDataTest {
+public class TestAvroEncoderUtil extends DataTestBase {
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
 
   @Override
   protected void writeAndValidate(org.apache.iceberg.Schema schema) throws IOException {
@@ -52,5 +74,12 @@ public class TestAvroEncoderUtil extends AvroDataTest {
       expectedRecord = AvroEncoderUtil.decode(serializedData2);
       assertThat(record.toString()).isEqualTo(expectedRecord.toString());
     }
+  }
+
+  @Test
+  public void decodeRejectsUnrecognizedHeaderBytes() {
+    assertThatThrownBy(() -> AvroEncoderUtil.decode(new byte[] {(byte) 0x10, (byte) 0x20}))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Unrecognized header bytes: 0x10 0x20");
   }
 }

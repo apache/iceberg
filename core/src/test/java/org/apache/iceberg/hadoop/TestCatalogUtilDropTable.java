@@ -28,18 +28,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StatisticsFile;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
@@ -49,6 +50,7 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -66,7 +68,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
             table.currentSnapshot().sequenceNumber(),
             tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     PartitionStatisticsFile partitionStatisticsFile =
         writePartitionStatsFile(
@@ -80,7 +82,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
 
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
-    Set<String> dataLocations = dataLocations(snapshotSet, table.io());
+    Set<String> dataLocations = dataLocations(snapshotSet, table);
     Set<String> metadataLocations = metadataLocations(tableMetadata);
     Set<String> statsLocations = statsLocations(tableMetadata);
     Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata);
@@ -145,7 +147,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
             Mockito.times(
                 manifestListLocations(snapshotSet).size()
                     + manifestLocations(snapshotSet, fileIO).size()
-                    + dataLocations(snapshotSet, table.io()).size()
+                    + dataLocations(snapshotSet, table).size()
                     + metadataLocations(tableMetadata).size()))
         .deleteFile(ArgumentMatchers.anyString());
   }
@@ -197,6 +199,9 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .thenAnswer(
             invocation ->
                 wrapped.newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(ManifestListFile.class)))
+        .thenAnswer(
+            invocation -> wrapped.newInputFile((ManifestListFile) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(ManifestFile.class)))
         .thenAnswer(invocation -> wrapped.newInputFile((ManifestFile) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(DataFile.class)))
@@ -218,10 +223,13 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .collect(Collectors.toSet());
   }
 
-  private static Set<String> dataLocations(Set<Snapshot> snapshotSet, FileIO io) {
+  private static Set<String> dataLocations(Set<Snapshot> snapshotSet, Table table) {
     return snapshotSet.stream()
-        .flatMap(snapshot -> StreamSupport.stream(snapshot.addedDataFiles(io).spliterator(), false))
-        .map(ContentFile::location)
+        .flatMap(
+            snapshot ->
+                Streams.stream(
+                    SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()))
+        .map(DataFile::location)
         .collect(Collectors.toSet());
   }
 

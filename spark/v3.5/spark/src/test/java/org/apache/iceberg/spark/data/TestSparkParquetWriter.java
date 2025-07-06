@@ -47,7 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
 
-  public static final Schema SCHEMA =
+  private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.required(2, "id_long", Types.LongType.get()));

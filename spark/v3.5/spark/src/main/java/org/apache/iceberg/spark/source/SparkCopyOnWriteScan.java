@@ -35,24 +35,30 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
+import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.In;
+import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.MetadataBuilder;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
-    implements SupportsRuntimeFiltering {
+    implements SupportsRuntimeV2Filtering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
   private Set<String> filteredLocations = null;
+  private StructType readSchema;
 
   SparkCopyOnWriteScan(
       SparkSession spark,
@@ -82,6 +88,15 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     }
   }
 
+  @Override
+  public StructType readSchema() {
+    if (readSchema == null) {
+      this.readSchema = rowLineageAsDataCols(SparkSchemaUtil.convert(expectedSchema()));
+    }
+
+    return readSchema;
+  }
+
   Long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
   }
@@ -96,13 +111,14 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return estimateStatistics(snapshot);
   }
 
+  @Override
   public NamedReference[] filterAttributes() {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
     return new NamedReference[] {file};
   }
 
   @Override
-  public void filter(Filter[] filters) {
+  public synchronized void filter(Predicate[] predicates) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
         "Runtime file filtering is not possible: the table has been concurrently modified. "
@@ -112,16 +128,10 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         snapshotId(),
         currentSnapshotId());
 
-    for (Filter filter : filters) {
-      // Spark can only pass In filters at the moment
-      if (filter instanceof In
-          && ((In) filter).attribute().equalsIgnoreCase(MetadataColumns.FILE_PATH.name())) {
-        In in = (In) filter;
-
-        Set<String> fileLocations = Sets.newHashSet();
-        for (Object value : in.values()) {
-          fileLocations.add((String) value);
-        }
+    for (Predicate predicate : predicates) {
+      // Spark can only pass IN predicates at the moment
+      if (isFilePathInPredicate(predicate)) {
+        Set<String> fileLocations = extractStringLiterals(predicate);
 
         // Spark may call this multiple times for UPDATEs with subqueries
         // as such cases are rewritten using UNION and the same scan on both sides
@@ -143,7 +153,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
           resetTasks(filteredTasks);
         }
       } else {
-        LOG.warn("Unsupported runtime filter {}", filter);
+        LOG.warn("Unsupported runtime filter {}", predicate);
       }
     }
   }
@@ -186,5 +196,58 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   private Long currentSnapshotId() {
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table(), branch());
     return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+  }
+
+  // Indicate to Spark to treat the row id and sequence number as data columns since some optimizer
+  // rules for DELETE will not output the row lineage columns otherwise
+  private StructType rowLineageAsDataCols(StructType schema) {
+    StructField[] fields = new StructField[schema.fields().length];
+    for (int i = 0; i < schema.fields().length; i++) {
+      StructField field = schema.fields()[i];
+      if (isRowLineageField(field)) {
+        Metadata updatedMetadata =
+            new MetadataBuilder().withMetadata(field.metadata()).remove("__metadata_col").build();
+        fields[i] = field.copy(field.name(), field.dataType(), field.nullable(), updatedMetadata);
+      } else {
+        fields[i] = field;
+      }
+    }
+
+    return new StructType(fields);
+  }
+
+  private boolean isRowLineageField(StructField field) {
+    boolean hasLineageFieldName =
+        field.name().equals(MetadataColumns.ROW_ID.name())
+            || field.name().equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
+    return hasLineageFieldName && field.metadata().contains("__metadata_col");
+  }
+
+  private static boolean isFilePathInPredicate(Predicate predicate) {
+    if (!"IN".equals(predicate.name()) || predicate.children().length < 1) {
+      return false;
+    }
+
+    if (!(predicate.children()[0] instanceof NamedReference)) {
+      return false;
+    }
+
+    String[] fieldNames = ((NamedReference) predicate.children()[0]).fieldNames();
+
+    return fieldNames.length == 1
+        && fieldNames[0].equalsIgnoreCase(MetadataColumns.FILE_PATH.name());
+  }
+
+  private static Set<String> extractStringLiterals(Predicate predicate) {
+    Set<String> values = Sets.newHashSet();
+    for (int i = 1; i < predicate.children().length; i++) {
+      if (predicate.children()[i] instanceof Literal) {
+        Object value = ((Literal<?>) predicate.children()[i]).value();
+        // V2 string literals come through as UTF8String; toString() materializes the Java String
+        values.add(value.toString());
+      }
+    }
+
+    return values;
   }
 }

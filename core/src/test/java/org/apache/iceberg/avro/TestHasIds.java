@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestHasIds {
   @Test
-  public void test() {
+  public void testRemoveIdsHasIds() {
     Schema schema =
         new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -39,7 +39,10 @@ public class TestHasIds {
                     Types.StringType.get(),
                     Types.StructType.of(
                         Types.NestedField.required(1, "lat", Types.FloatType.get()),
-                        Types.NestedField.optional(2, "long", Types.FloatType.get())))));
+                        Types.NestedField.optional(2, "long", Types.FloatType.get())))),
+            Types.NestedField.required(
+                8, "types", Types.ListType.ofRequired(9, Types.StringType.get())),
+            Types.NestedField.required(10, "data", Types.VariantType.get()));
 
     org.apache.avro.Schema avroSchema = RemoveIds.removeIds(schema);
     assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should not have IDs").isFalse();

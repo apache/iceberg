@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DeleteFile;
@@ -54,6 +55,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
+  private final Schema expectedSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
@@ -68,11 +70,22 @@ public abstract class DeleteFilter<T> {
       String filePath,
       List<DeleteFile> deletes,
       Schema tableSchema,
-      Schema requestedSchema,
+      Schema expectedSchema,
+      DeleteCounter counter,
+      boolean needRowPosCol) {
+    this(filePath, deletes, tableSchema::findField, expectedSchema, counter, needRowPosCol);
+  }
+
+  protected DeleteFilter(
+      String filePath,
+      List<DeleteFile> deletes,
+      Function<Integer, Types.NestedField> fieldLookup,
+      Schema expectedSchema,
       DeleteCounter counter,
       boolean needRowPosCol) {
     this.filePath = filePath;
     this.counter = counter;
+    this.expectedSchema = expectedSchema;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
@@ -95,7 +108,7 @@ public abstract class DeleteFilter<T> {
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema =
-        fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, needRowPosCol);
+        fileProjection(fieldLookup, expectedSchema, posDeletes, eqDeletes, needRowPosCol);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
@@ -108,7 +121,7 @@ public abstract class DeleteFilter<T> {
       Schema tableSchema,
       Schema requestedSchema,
       DeleteCounter counter) {
-    this(filePath, deletes, tableSchema, requestedSchema, counter, true);
+    this(filePath, deletes, tableSchema::findField, requestedSchema, counter, true);
   }
 
   protected DeleteFilter(
@@ -122,6 +135,10 @@ public abstract class DeleteFilter<T> {
 
   public Schema requiredSchema() {
     return requiredSchema;
+  }
+
+  public Schema expectedSchema() {
+    return expectedSchema;
   }
 
   public boolean hasPosDeletes() {
@@ -193,7 +210,7 @@ public abstract class DeleteFilter<T> {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
-      Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
+      Schema deleteSchema = TypeUtil.selectInIdOrder(requiredSchema, ids);
 
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
@@ -215,6 +232,10 @@ public abstract class DeleteFilter<T> {
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
+    if (eqDeletes.isEmpty()) {
+      return records;
+    }
+
     Predicate<T> isEqDeleted = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
 
     return createDeleteIterable(records, isEqDeleted);
@@ -259,7 +280,7 @@ public abstract class DeleteFilter<T> {
   }
 
   private static Schema fileProjection(
-      Schema tableSchema,
+      Function<Integer, Types.NestedField> fieldLookup,
       Schema requestedSchema,
       List<DeleteFile> posDeletes,
       List<DeleteFile> eqDeletes,
@@ -294,7 +315,7 @@ public abstract class DeleteFilter<T> {
         continue; // add _pos and _deleted at the end
       }
 
-      Types.NestedField field = tableSchema.asStruct().field(fieldId);
+      Types.NestedField field = fieldLookup.apply(fieldId);
       Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
 
       columns.add(field);

@@ -23,24 +23,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.awscore.AwsClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
+import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.internal.crt.DefaultS3CrtAsyncClient;
 
 public class TestAwsClientFactories {
 
@@ -53,6 +62,55 @@ public class TestAwsClientFactories {
     assertThat(AwsClientFactories.from(Maps.newHashMap()))
         .as("should load default when not configured")
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
+  }
+
+  @Test
+  public void testS3AsyncClientCrtEnabled() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        S3FileIOProperties.S3_CRT_ENABLED,
+                        "true",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @Test
+  public void testS3AsyncClientWithCrtDisabled() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        S3FileIOProperties.S3_CRT_ENABLED,
+                        "false",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isNotInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @Test
+  public void testS3AsyncClientDefaultIsCrt() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isInstanceOf(DefaultS3CrtAsyncClient.class);
   }
 
   @Test
@@ -81,12 +139,14 @@ public class TestAwsClientFactories {
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
   }
 
-  @Test
-  public void testDefaultAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testDefaultAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(defaultAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(defaultAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(defaultAwsClientFactory);
@@ -96,15 +156,17 @@ public class TestAwsClientFactories {
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
-  @Test
-  public void testAssumeRoleAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testAssumeRoleAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     AwsClientFactory assumeRoleAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(assumeRoleAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(assumeRoleAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(AssumeRoleAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(assumeRoleAwsClientFactory);
@@ -113,8 +175,11 @@ public class TestAwsClientFactories {
     assertThat(deserializedClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
   }
 
-  @Test
-  public void testLakeFormationAwsClientFactorySerializable() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testLakeFormationAwsClientFactorySerializable(
+      TestHelpers.RoundTripSerializer<AwsClientFactory> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
@@ -124,8 +189,7 @@ public class TestAwsClientFactories {
             + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
         "emr");
     AwsClientFactory lakeFormationAwsClientFactory = AwsClientFactories.from(properties);
-    AwsClientFactory roundTripResult =
-        TestHelpers.KryoHelpers.roundTripSerialize(lakeFormationAwsClientFactory);
+    AwsClientFactory roundTripResult = roundTripSerializer.apply(lakeFormationAwsClientFactory);
     assertThat(roundTripResult).isInstanceOf(LakeFormationAwsClientFactory.class);
 
     byte[] serializedFactoryBytes =
@@ -183,6 +247,42 @@ public class TestAwsClientFactories {
     String containsMessage =
         "it does not implement software.amazon.awssdk.auth.credentials.AwsCredentialsProvider";
     testProviderAndAssertThrownBy(providerClassName, containsMessage);
+  }
+
+  @Test
+  public void testGlueClientSetsAdaptiveRetryPolicy() {
+    AwsClientFactory factory =
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+    GlueClient glueClient = factory.glue();
+    assertAwsClientSetsAdaptiveRetryPolicy(glueClient);
+  }
+
+  @Test
+  public void testKmsClientSetsAdaptiveRetryPolicy() {
+    AwsClientFactory factory =
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+    KmsClient kmsClient = factory.kms();
+    assertAwsClientSetsAdaptiveRetryPolicy(kmsClient);
+  }
+
+  @Test
+  public void testDynamoClientSetsAdaptiveRetryPolicy() {
+    AwsClientFactory factory =
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+    DynamoDbClient dynamoClient = factory.dynamo();
+    assertAwsClientSetsAdaptiveRetryPolicy(dynamoClient);
+  }
+
+  /**
+   * Extract the retry strategy from an AwsClient object, then assert that it's set to the correct
+   * strategy. This enforces that we correctly applied the retry configurations to the client
+   * object.
+   */
+  private void assertAwsClientSetsAdaptiveRetryPolicy(AwsClient client) {
+    Optional<RetryStrategy> retryStrategy =
+        client.serviceClientConfiguration().overrideConfiguration().retryStrategy();
+    assertThat(retryStrategy).isPresent();
+    assertThat(retryStrategy.get()).isInstanceOf(DefaultAdaptiveRetryStrategy.class);
   }
 
   private void testProviderAndAssertThrownBy(String providerClassName, String containsMessage) {
@@ -289,6 +389,11 @@ public class TestAwsClientFactories {
 
     @Override
     public S3Client s3() {
+      return null;
+    }
+
+    @Override
+    public S3AsyncClient s3Async() {
       return null;
     }
 

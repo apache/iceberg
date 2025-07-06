@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -80,6 +81,22 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Integer) args.getInt(ordinal);
   }
 
+  public long asTimestampMillis(ProcedureParameter param) {
+    Long value = asTimestampMillis(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public Long asTimestampMillis(ProcedureParameter param, Long defaultValue) {
+    validateParamType(param, DataTypes.TimestampType);
+    int ordinal = ordinal(param);
+    Long value = args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+    if (value != null) {
+      value = DateTimeUtil.microsToMillis(value);
+    }
+    return value;
+  }
+
   public long asLong(ProcedureParameter param) {
     Long value = asLong(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
@@ -90,6 +107,22 @@ class ProcedureInput {
     validateParamType(param, DataTypes.LongType);
     int ordinal = ordinal(param);
     return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+  }
+
+  public long[] asLongArray(ProcedureParameter param, Long[] defaultValue) {
+    validateParamType(param, DataTypes.createArrayType(DataTypes.LongType));
+    Long[] source =
+        array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
+
+    if (source == null) {
+      return null;
+    }
+
+    long[] result = new long[source.length];
+    for (int i = 0; i < source.length; i++) {
+      result[i] = source[i];
+    }
+    return result;
   }
 
   public String asString(ProcedureParameter param) {

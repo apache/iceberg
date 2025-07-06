@@ -20,40 +20,44 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import java.io.IOException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class GCSInputFile extends BaseGCSFile implements InputFile {
+  private static final Logger LOG = LoggerFactory.getLogger(GCSInputFile.class);
   private Long blobSize;
 
   static GCSInputFile fromLocation(
-      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
-    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), null, gcpProperties, metrics);
+      String location, PrefixedStorage storage, MetricsContext metrics) {
+    return fromLocation(location, 0L, storage, metrics);
   }
 
   static GCSInputFile fromLocation(
-      String location,
-      long length,
-      Storage storage,
-      GCPProperties gcpProperties,
-      MetricsContext metrics) {
+      String location, long length, PrefixedStorage storage, MetricsContext metrics) {
     return new GCSInputFile(
-        storage,
+        storage.storage(),
+        storage.gcsFileSystem(),
         BlobId.fromGsUtilUri(location),
         length > 0 ? length : null,
-        gcpProperties,
+        storage.gcpProperties(),
         metrics);
   }
 
   GCSInputFile(
       Storage storage,
+      // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+      // AnalyticsCoreUtil.
+      AutoCloseable gcsFileSystem,
       BlobId blobId,
       Long blobSize,
       GCPProperties gcpProperties,
       MetricsContext metrics) {
-    super(storage, blobId, gcpProperties, metrics);
+    super(storage, gcsFileSystem, blobId, gcpProperties, metrics);
     this.blobSize = blobSize;
   }
 
@@ -68,6 +72,17 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
+    if (gcpProperties().isGcsAnalyticsCoreEnabled()) {
+      try {
+        return AnalyticsCoreUtil.newStream(gcsFileSystem(), blobId(), blobSize, metrics());
+      } catch (IOException e) {
+        LOG.error(
+            "Failed to create GCS analytics core input stream for {}, falling back to default.",
+            uri(),
+            e);
+      }
+    }
+
     return new GCSInputStream(storage(), blobId(), blobSize, gcpProperties(), metrics());
   }
 }

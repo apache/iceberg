@@ -27,6 +27,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
@@ -34,18 +36,16 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
-import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -277,9 +277,9 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     if (globalStatistics != null) {
       runInCoordinatorThread(
           () -> {
-            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+            if (event.signature() != null && event.signature() == globalStatistics.hashCode()) {
               LOG.debug(
-                  "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
+                  "Skip responding to statistics request from subtask {}, as the operator task already holds the same global statistics",
                   subtask);
             } else {
               LOG.info(
@@ -370,7 +370,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
         "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
     this.completedStatistics =
         StatisticsUtil.deserializeCompletedStatistics(
-            checkpointData, completedStatisticsSerializer);
+            checkpointData, (CompletedStatisticsSerializer) completedStatisticsSerializer);
+
     // recompute global statistics in case downstream parallelism changed
     this.globalStatistics =
         globalStatistics(
@@ -456,7 +457,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways[subtaskIndex].containsKey(attemptNumber),
-          "Coordinator of %s already has a subtask gateway for %d (#%d)",
+          "Coordinator of %s already has a subtask gateway for %s (#%s)",
           operatorName,
           subtaskIndex,
           attemptNumber);
@@ -480,7 +481,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     private OperatorCoordinator.SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
           !gateways[subtaskIndex].isEmpty(),
-          "Coordinator of %s subtask %d is not ready yet to receive events",
+          "Coordinator of %s subtask %s is not ready yet to receive events",
           operatorName,
           subtaskIndex);
       return Iterables.getOnlyElement(gateways[subtaskIndex].values());
@@ -516,7 +517,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     }
 
     @Override
-    public synchronized Thread newThread(@NotNull Runnable runnable) {
+    public synchronized Thread newThread(@Nonnull Runnable runnable) {
       thread = new Thread(runnable, coordinatorThreadName);
       thread.setContextClassLoader(classLoader);
       thread.setUncaughtExceptionHandler(this);

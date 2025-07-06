@@ -161,10 +161,10 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public Decimal getDecimal(int ordinal, int precision, int scale) {
-    return isNullAt(ordinal) ? null : getDecimalInternal(ordinal, precision, scale);
+    return isNullAt(ordinal) ? null : getDecimalInternal(ordinal);
   }
 
-  private Decimal getDecimalInternal(int ordinal, int precision, int scale) {
+  private Decimal getDecimalInternal(int ordinal) {
     return Decimal.apply(struct.get(ordinal, BigDecimal.class));
   }
 
@@ -204,10 +204,10 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public InternalRow getStruct(int ordinal, int numFields) {
-    return isNullAt(ordinal) ? null : getStructInternal(ordinal, numFields);
+    return isNullAt(ordinal) ? null : getStructInternal(ordinal);
   }
 
-  private InternalRow getStructInternal(int ordinal, int numFields) {
+  private InternalRow getStructInternal(int ordinal) {
     return new StructInternalRow(
         type.fields().get(ordinal).type().asStructType(), struct.get(ordinal, StructLike.class));
   }
@@ -251,12 +251,11 @@ class StructInternalRow extends InternalRow {
     } else if (dataType instanceof DoubleType) {
       return getDouble(ordinal);
     } else if (dataType instanceof DecimalType) {
-      DecimalType decimalType = (DecimalType) dataType;
-      return getDecimalInternal(ordinal, decimalType.precision(), decimalType.scale());
+      return getDecimalInternal(ordinal);
     } else if (dataType instanceof BinaryType) {
       return getBinaryInternal(ordinal);
     } else if (dataType instanceof StructType) {
-      return getStructInternal(ordinal, ((StructType) dataType).size());
+      return getStructInternal(ordinal);
     } else if (dataType instanceof ArrayType) {
       return getArrayInternal(ordinal);
     } else if (dataType instanceof MapType) {

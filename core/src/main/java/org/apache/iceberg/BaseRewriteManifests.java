@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
@@ -47,11 +48,7 @@ import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
-  private static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
-  private static final String CREATED_MANIFESTS_COUNT = "manifests-created";
-  private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
-  private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
-
+  private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
 
@@ -71,8 +68,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
-  BaseRewriteManifests(TableOperations ops) {
+  BaseRewriteManifests(String tableName, TableOperations ops) {
     super(ops);
+    this.tableName = tableName;
     this.specsById = ops().current().specsById();
     this.manifestTargetSizeBytes =
         ops()
@@ -100,12 +98,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   protected Map<String, String> summary() {
     int createdManifestsCount =
         newManifests.size() + addedManifests.size() + rewrittenAddedManifests.size();
-    summaryBuilder.set(CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
-    summaryBuilder.set(KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
     summaryBuilder.set(
-        REPLACED_MANIFESTS_COUNT,
+        SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT,
         String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
-    summaryBuilder.set(PROCESSED_ENTRY_COUNT, String.valueOf(entryCount.get()));
+    summaryBuilder.set(
+        SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, String.valueOf(entryCount.get()));
     summaryBuilder.setPartitionSummaryLimit(
         0); // do not include partition summaries because data did not change
     return summaryBuilder.build();
@@ -158,6 +158,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
+        manifest.firstRowId(),
         toCopy,
         specsById,
         newFile,
@@ -193,6 +194,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     return apply;
   }
 
+  @Override
+  public Object updateEvent() {
+    long snapshotId = snapshotId();
+    Snapshot snapshot = ops().current().snapshot(snapshotId);
+    long sequenceNumber = snapshot.sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
+  }
+
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {
     if (clusterByFunc == null) {
       // manifests are deleted and added directly so don't perform a rewrite
@@ -219,11 +229,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void reset() {
-    cleanUncommitted(newManifests, ImmutableSet.of());
+    deleteUncommitted(newManifests, ImmutableSet.of(), true /* clear new manifests */);
     entryCount.set(0);
     keptManifests.clear();
     rewrittenManifests.clear();
-    newManifests.clear();
     writers.clear();
   }
 
@@ -335,19 +344,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
-    cleanUncommitted(newManifests, committed);
+    deleteUncommitted(newManifests, committed, false);
     // clean up only rewrittenAddedManifests as they are always owned by the table
     // don't clean up addedManifests as they are added to the manifest list and are not compacted
-    cleanUncommitted(rewrittenAddedManifests, committed);
-  }
-
-  private void cleanUncommitted(
-      Iterable<ManifestFile> manifests, Set<ManifestFile> committedManifests) {
-    for (ManifestFile manifest : manifests) {
-      if (!committedManifests.contains(manifest)) {
-        deleteFile(manifest.path());
-      }
-    }
+    deleteUncommitted(rewrittenAddedManifests, committed, false);
   }
 
   long getManifestTargetSizeBytes() {

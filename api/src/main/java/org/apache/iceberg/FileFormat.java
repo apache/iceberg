@@ -58,11 +58,16 @@ public enum FileFormat {
   }
 
   public static FileFormat fromFileName(CharSequence filename) {
+    if (filename == null) {
+      return null;
+    }
+
     for (FileFormat format : VALUES) {
       int extStart = filename.length() - format.ext.length();
-      if (Comparators.charSequences()
-              .compare(format.ext, filename.subSequence(extStart, filename.length()))
-          == 0) {
+      if (extStart > 0
+          && Comparators.charSequences()
+                  .compare(format.ext, filename.subSequence(extStart, filename.length()))
+              == 0) {
         return format;
       }
     }
@@ -73,7 +78,7 @@ public enum FileFormat {
   public static FileFormat fromString(String fileFormat) {
     Preconditions.checkArgument(null != fileFormat, "Invalid file format: null");
     try {
-      return FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+      return FileFormat.valueOf(fileFormat.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid file format: %s", fileFormat), e);
     }

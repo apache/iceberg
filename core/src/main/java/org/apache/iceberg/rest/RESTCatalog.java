@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -55,7 +56,11 @@ public class RESTCatalog
   public RESTCatalog() {
     this(
         SessionCatalog.SessionContext.createEmpty(),
-        config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build());
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -65,17 +70,35 @@ public class RESTCatalog
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
+    this.sessionCatalog = newSessionCatalog(clientBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
     this.viewSessionCatalog = sessionCatalog.asViewCatalog(context);
   }
 
+  /**
+   * Create a new {@link RESTSessionCatalog} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom {@link RESTSessionCatalog}
+   * implementations.
+   *
+   * @param clientBuilder a function to build REST clients
+   * @return a new RESTSessionCatalog instance
+   */
+  protected RESTSessionCatalog newSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder) {
+    return new RESTSessionCatalog(clientBuilder, null);
+  }
+
   @Override
   public void initialize(String name, Map<String, String> props) {
     Preconditions.checkArgument(props != null, "Invalid configuration: null");
     sessionCatalog.initialize(name, props);
+  }
+
+  protected RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
   }
 
   @Override
@@ -100,6 +123,11 @@ public class RESTCatalog
   @Override
   public Table loadTable(TableIdentifier ident) {
     return delegate.loadTable(ident);
+  }
+
+  @Override
+  public Table loadTable(TableIdentifier identifier, LoadContext loadContext) {
+    return delegate.loadTable(identifier, loadContext);
   }
 
   @Override
@@ -219,6 +247,17 @@ public class RESTCatalog
   }
 
   @Override
+  public Table registerTable(
+      TableIdentifier ident, String metadataFileLocation, boolean overwrite) {
+    return delegate.registerTable(ident, metadataFileLocation, overwrite);
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier ident) {
+    return delegate.unregisterTable(ident);
+  }
+
+  @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);
   }
@@ -226,6 +265,11 @@ public class RESTCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace ns) throws NoSuchNamespaceException {
     return nsDelegate.listNamespaces(ns);
+  }
+
+  @Override
+  public boolean namespaceExists(Namespace namespace) {
+    return nsDelegate.namespaceExists(namespace);
   }
 
   @Override
@@ -279,6 +323,11 @@ public class RESTCatalog
   }
 
   @Override
+  public View loadView(TableIdentifier identifier, LoadContext loadContext) {
+    return viewSessionCatalog.loadView(identifier, loadContext);
+  }
+
+  @Override
   public ViewBuilder buildView(TableIdentifier identifier) {
     return viewSessionCatalog.buildView(identifier);
   }
@@ -301,5 +350,10 @@ public class RESTCatalog
   @Override
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
   }
 }

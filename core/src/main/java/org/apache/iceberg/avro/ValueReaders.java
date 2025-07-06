@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -44,9 +45,13 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class ValueReaders {
   private ValueReaders() {}
@@ -139,6 +144,10 @@ public class ValueReaders {
     }
   }
 
+  public static ValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
+  }
+
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
     return new UnionReader(readers);
   }
@@ -199,49 +208,138 @@ public class ValueReaders {
       Schema record,
       List<ValueReader<?>> fieldReaders,
       Map<Integer, ?> idToConstant) {
-    Map<Integer, Integer> idToPos = idToPos(expected);
+    return buildReadPlan(expected, record, fieldReaders, idToConstant, (type, value) -> value);
+  }
 
+  /**
+   * Builds a read plan for record classes that use planned reads instead of a ResolvingDecoder.
+   *
+   * @param expected expected StructType
+   * @param record Avro record schema
+   * @param fieldReaders list of readers for each field in the Avro record schema
+   * @param idToConstant a map of field ID to constants values
+   * @param convert function to convert from internal classes to the target object model
+   * @return a read plan that is a list of (position, reader) pairs
+   */
+  public static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
+      Types.StructType expected,
+      Schema record,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
+    Map<Integer, Integer> idToPos = idToPos(expected);
     List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
-    List<Schema.Field> fileFields = record.getFields();
-    for (int pos = 0; pos < fileFields.size(); pos += 1) {
+    addFileFieldReadersToPlan(readPlan, record.getFields(), fieldReaders, idToPos, idToConstant);
+    addMissingFileReadersToPlan(readPlan, idToPos, expected, idToConstant, convert);
+    return readPlan;
+  }
+
+  private static void addFileFieldReadersToPlan(
+      List<Pair<Integer, ValueReader<?>>> readPlan,
+      List<Schema.Field> fileFields,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, Integer> idToPos,
+      Map<Integer, ?> idToConstant) {
+    for (int pos = 0; pos < fileFields.size(); pos++) {
       Schema.Field field = fileFields.get(pos);
       ValueReader<?> fieldReader = fieldReaders.get(pos);
       Integer fieldId = AvroSchemaUtil.fieldId(field);
       Integer projectionPos = idToPos.remove(fieldId);
+      readPlan.add(fileFieldReader(fieldId, projectionPos, fieldReader, idToConstant));
+    }
+  }
 
-      Object constant = idToConstant.get(fieldId);
-      if (projectionPos != null && constant != null) {
-        readPlan.add(
-            Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
-      } else {
-        readPlan.add(Pair.of(projectionPos, fieldReader));
-      }
+  private static Pair<Integer, ValueReader<?>> fileFieldReader(
+      Integer fieldId,
+      Integer projectionPos,
+      ValueReader<?> fieldReader,
+      Map<Integer, ?> idToConstant) {
+    if (projectionPos == null) {
+      // field is in the file but not projected; keep the reader only for skipping
+      return Pair.of(null, fieldReader);
+    } else if (Objects.equals(fieldId, MetadataColumns.ROW_ID.fieldId())) {
+      Long firstRowId = (Long) idToConstant.get(fieldId);
+      return Pair.of(projectionPos, ValueReaders.rowIds(firstRowId, fieldReader));
+    } else if (Objects.equals(fieldId, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())) {
+      Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(fieldId);
+      return Pair.of(
+          projectionPos, ValueReaders.lastUpdated(firstRowId, fileSeqNumber, fieldReader));
+    } else {
+      return fieldReader(fieldId, projectionPos, fieldReader, idToConstant);
+    }
+  }
+
+  private static Pair<Integer, ValueReader<?>> fieldReader(
+      Integer fieldId,
+      Integer projectionPos,
+      ValueReader<?> fieldReader,
+      Map<Integer, ?> idToConstant) {
+    Object constant = idToConstant.get(fieldId);
+    if (constant != null) {
+      return Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant));
     }
 
-    // handle any expected columns that are not in the data file
+    return Pair.of(projectionPos, fieldReader);
+  }
+
+  // Handles expected fields not found in data file
+  private static void addMissingFileReadersToPlan(
+      List<Pair<Integer, ValueReader<?>>> readPlan,
+      Map<Integer, Integer> idToPos,
+      Types.StructType expected,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
     for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
       int fieldId = idAndPos.getKey();
       int pos = idAndPos.getValue();
+      readPlan.add(
+          Pair.of(pos, createMissingFieldReader(fieldId, expected, idToConstant, convert)));
+    }
+  }
 
-      Object constant = idToConstant.get(fieldId);
-      Types.NestedField field = expected.field(fieldId);
-      if (constant != null) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
-      } else if (field.initialDefault() != null) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(field.initialDefault())));
-      } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
-      } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-        readPlan.add(Pair.of(pos, ValueReaders.positions()));
-      } else if (field.isOptional()) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Missing required field: %s", field.name()));
+  // Creates reader for missing field based on default/constant rules
+  private static ValueReader<?> createMissingFieldReader(
+      int fieldId,
+      Types.StructType expected,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
+    Object constant = idToConstant.get(fieldId);
+    Types.NestedField field = expected.field(fieldId);
+
+    if (constant != null) {
+      if (fieldId == MetadataColumns.ROW_ID.fieldId()) {
+        return ValueReaders.rowIds((Long) constant, null);
       }
+      return ValueReaders.constant(constant);
+    } else if (field.initialDefault() != null) {
+      return ValueReaders.constant(convert.apply(field.type(), field.initialDefault()));
+    } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+      return ValueReaders.constant(false);
+    } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+      return ValueReaders.positions();
+    } else if (field.isOptional()) {
+      return ValueReaders.constant(null);
     }
 
-    return readPlan;
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+  }
+
+  public static ValueReader<Long> rowIds(Long baseRowId, ValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ValueReader<Long>) idReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
+  }
+
+  public static ValueReader<Long> lastUpdated(
+      Long baseRowId, Long fileSeqNumber, ValueReader<?> seqReader) {
+    if (fileSeqNumber != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileSeqNumber, (ValueReader<Long>) seqReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
   }
 
   private static Map<Integer, Integer> idToPos(Types.StructType struct) {
@@ -434,9 +532,6 @@ public class ValueReaders {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
       this.reusedTempUtf8.set(decoder.readString(reusedTempUtf8.get()));
       return reusedTempUtf8.get().toString();
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
     }
 
     @Override
@@ -458,9 +553,6 @@ public class ValueReaders {
       } else {
         return decoder.readString(null);
       }
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
     }
 
     @Override
@@ -571,10 +663,6 @@ public class ValueReaders {
       // a new buffer. since the usual case requires an allocation anyway to get the size right,
       // just allocate every time.
       return decoder.readBytes(null).array();
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
-      //      return bytes;
     }
 
     @Override
@@ -596,10 +684,6 @@ public class ValueReaders {
       } else {
         return decoder.readBytes(null);
       }
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
-      //      return bytes;
     }
 
     @Override
@@ -627,6 +711,34 @@ public class ValueReaders {
     @Override
     public void skip(Decoder decoder) throws IOException {
       bytesReader.skip(decoder);
+    }
+  }
+
+  private static class VariantReader implements ValueReader<Variant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
+    private final ValueReader<ByteBuffer> metadataReader;
+    private final ValueReader<ByteBuffer> valueReader;
+
+    private VariantReader() {
+      this.metadataReader = ByteBufferReader.INSTANCE;
+      this.valueReader = ByteBufferReader.INSTANCE;
+    }
+
+    @Override
+    public Variant read(Decoder decoder, Object reuse) throws IOException {
+      VariantMetadata metadata =
+          VariantMetadata.from(metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata, metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
+      return Variant.of(metadata, value);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      metadataReader.skip(decoder);
+      valueReader.skip(decoder);
     }
   }
 
@@ -1175,6 +1287,66 @@ public class ValueReaders {
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
       this.currentPosition = posSupplier.get() - 1;
+    }
+  }
+
+  static class RowIdReader implements ValueReader<Long>, SupportsRowPosition {
+    private final long firstRowId;
+    private final ValueReader<Long> idReader;
+    private final ValueReader<Long> posReader;
+
+    RowIdReader(Long firstRowId, ValueReader<Long> idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : ValueReaders.constant(null);
+      this.posReader = positions();
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long idFromFile = idReader.read(ignored, reuse);
+      long pos = posReader.read(ignored, reuse);
+
+      if (idFromFile != null) {
+        return idFromFile;
+      }
+
+      return firstRowId + pos;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      idReader.skip(decoder);
+      posReader.skip(decoder);
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      ((SupportsRowPosition) posReader).setRowPositionSupplier(posSupplier);
+    }
+  }
+
+  static class LastUpdatedSeqReader implements ValueReader<Long> {
+    private final long fileSeqNumber;
+    private final ValueReader<Long> seqReader;
+
+    LastUpdatedSeqReader(long fileSeqNumber, ValueReader<Long> seqReader) {
+      this.fileSeqNumber = fileSeqNumber;
+      this.seqReader = seqReader;
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long rowLastUpdatedSeqNumber = seqReader.read(ignored, reuse);
+      if (rowLastUpdatedSeqNumber != null) {
+        return rowLastUpdatedSeqNumber;
+      }
+
+      return fileSeqNumber;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      seqReader.skip(decoder);
     }
   }
 }

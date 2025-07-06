@@ -20,9 +20,10 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -31,18 +32,25 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 class ManifestLists {
   private ManifestLists() {}
 
+  static InputFile newInputFile(FileIO io, ManifestListFile manifestList) {
+    InputFile input = io.newInputFile(manifestList);
+    if (ManifestFiles.cachingEnabled(io)) {
+      return ManifestFiles.contentCache(io).tryCache(input);
+    }
+
+    return input;
+  }
+
   static List<ManifestFile> read(InputFile manifestList) {
     try (CloseableIterable<ManifestFile> files =
-        Avro.read(manifestList)
-            .rename("manifest_file", GenericManifestFile.class.getName())
-            .rename("partitions", GenericPartitionFieldSummary.class.getName())
-            .rename("r508", GenericPartitionFieldSummary.class.getName())
-            .classLoader(GenericManifestFile.class.getClassLoader())
+        InternalData.read(FileFormat.AVRO, manifestList)
+            .setRootType(GenericManifestFile.class)
+            .setCustomType(
+                ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
             .project(ManifestFile.schema())
-            .reuseContainers(false)
             .build()) {
 
-      return Lists.newLinkedList(files);
+      return Lists.newArrayList(files);
 
     } catch (IOException e) {
       throw new RuntimeIOException(
@@ -53,22 +61,38 @@ class ManifestLists {
   static ManifestListWriter write(
       int formatVersion,
       OutputFile manifestListFile,
+      EncryptionManager encryptionManager,
       long snapshotId,
       Long parentSnapshotId,
-      long sequenceNumber) {
+      long sequenceNumber,
+      Long firstRowId) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
             sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
-        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+        return new ManifestListWriter.V1Writer(
+            manifestListFile, encryptionManager, snapshotId, parentSnapshotId);
       case 2:
         return new ManifestListWriter.V2Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
       case 3:
         return new ManifestListWriter.V3Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile,
+            encryptionManager,
+            snapshotId,
+            parentSnapshotId,
+            sequenceNumber,
+            firstRowId);
+      case 4:
+        return new ManifestListWriter.V4Writer(
+            manifestListFile,
+            encryptionManager,
+            snapshotId,
+            parentSnapshotId,
+            sequenceNumber,
+            firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);

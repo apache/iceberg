@@ -134,6 +134,17 @@ public class TestSketchUtil {
         .containsExactly(CHAR_KEYS.get("c"), CHAR_KEYS.get("g"), CHAR_KEYS.get("j"));
   }
 
+  @Test
+  public void testRangeBoundsNumPartitionsBiggerThanSortKeyCount() {
+    assertThat(
+            SketchUtil.rangeBounds(
+                5,
+                SORT_ORDER_COMPARTOR,
+                new SortKey[] {CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c")}))
+        .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c"))
+        .doesNotContainNull();
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {4, 6})
   public void testPartitioningAndScaleUp(int numPartitions) {

@@ -29,22 +29,22 @@ highlight some powerful features. You can learn more about Iceberg's Hive runtim
 
 ### Docker Images
 
-The fastest way to get started is to use [Apache Hive images](https://hub.docker.com/r/apache/hive) 
+The fastest way to get started is to use [Apache Hive images](https://hub.docker.com/r/apache/hive)
 which provides a SQL-like interface to create and query Iceberg tables from your laptop. You need to install the [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.com/r/apache/hive/tags?ordering=last_updated) to see the available Hive versions.
 
 Set the version variable.
 ```sh
-export HIVE_VERSION=4.0.0
+export HIVE_VERSION=4.2.0
 ```
 
-Start the container, using the option `--platform linux/amd64` for a Mac with an M-Series chip:
+Start the HiveServer2 container:
 ```sh
-docker run -d --platform linux/amd64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
+docker run -d -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
 ```
 
-The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere. 
+The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere.
 
 Give HiveServer (HS2) a little time to come up in the docker container, and then start the Hive Beeline client using the following command to connect with the HS2 containers you already started:
 ```sh
@@ -105,8 +105,8 @@ SELECT * FROM nyc.taxis;
 
 #### Adding Iceberg to Hive
 
-If you already have a Hive 4.0.0, or later, environment, it comes with the Iceberg 1.4.3 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
+If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/1.8.1/hive.md#hive-23x-hive-31x).
 
 #### Learn More
 
-To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/latest/hive.md) to learn more!
+To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml) or [use Hive Metastore as Iceberg REST Catalog](https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/latest/hive.md) to learn more!

@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -47,8 +48,11 @@ import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.internal.SQLConf;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCopyOnWriteMerge extends TestMerge {
 
   @Override
@@ -87,9 +91,11 @@ public class TestCopyOnWriteMerge extends TestMerge {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -111,9 +117,11 @@ public class TestCopyOnWriteMerge extends TestMerge {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -122,7 +130,6 @@ public class TestCopyOnWriteMerge extends TestMerge {
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
                   table.newFastAppend().appendFile(dataFile).commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -142,6 +149,34 @@ public class TestCopyOnWriteMerge extends TestMerge {
 
     executorService.shutdown();
     assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteMergeSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+    createBranchIfNeeded();
+
+    createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET dep = 'changed' "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT (id, dep) VALUES (s.value, 'new')",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   @TestTemplate

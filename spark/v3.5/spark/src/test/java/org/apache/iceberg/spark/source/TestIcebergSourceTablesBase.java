@@ -26,12 +26,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,10 +46,12 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -235,8 +239,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .select("status")
             .collectAsList();
 
-    assertThat(actual).as("Results should contain only one status").hasSize(1);
-    assertThat(actual.get(0).getInt(0)).as("That status should be Added (1)").isEqualTo(1);
+    assertThat(actual).singleElement().satisfies(row -> assertThat(row.getInt(0)).isEqualTo(1));
   }
 
   @Test
@@ -255,7 +258,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> singleActual =
         rowsToJava(
@@ -266,7 +269,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 .select("data_file.file_path")
                 .collectAsList());
 
-    List<Object[]> singleExpected = ImmutableList.of(row(file.path()));
+    List<Object[]> singleExpected = ImmutableList.of(row(file.location()));
 
     assertEquals(
         "Should prune a single element from a nested struct", singleExpected, singleActual);
@@ -288,7 +291,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -305,7 +308,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     List<Object[]> multiExpected =
         ImmutableList.of(
-            row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+            row(file.location(), file.valueCounts(), file.recordCount(), file.columnSizes()));
 
     assertEquals("Should prune a single element from a nested struct", multiExpected, multiActual);
   }
@@ -326,7 +329,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -339,7 +342,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     List<Object[]> multiExpected =
         ImmutableList.of(
-            row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+            row(file.location(), file.valueCounts(), file.recordCount(), file.columnSizes()));
 
     assertEquals("Should prune a single element from a row", multiExpected, multiActual);
   }
@@ -598,10 +601,20 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
 
     assertThat(actual).as("Entries table should have 2 rows").hasSize(2);
-    assertThat(actual.get(0).getLong(0)).as("Sequence number must match").isEqualTo(0);
-    assertThat(actual.get(0).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
-    assertThat(actual.get(1).getLong(0)).as("Sequence number must match").isEqualTo(0);
-    assertThat(actual.get(1).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
+    assertThat(actual)
+        .first()
+        .satisfies(
+            row -> {
+              assertThat(row.getLong(0)).isEqualTo(0);
+              assertThat(row.getLong(1)).isEqualTo(snapshotId);
+            });
+    assertThat(actual)
+        .element(1)
+        .satisfies(
+            row -> {
+              assertThat(row.getLong(0)).isEqualTo(0);
+              assertThat(row.getLong(1)).isEqualTo(snapshotId);
+            });
   }
 
   @Test
@@ -623,7 +636,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     table.refresh();
     DataFile toDelete =
-        Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
+        Iterables.getOnlyElement(SnapshotChanges.builderFor(table).build().addedDataFiles());
 
     // add a second file
     df2.select("id", "data")
@@ -810,6 +823,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     // rollback the table state to the first snapshot
     table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
+    assertThat(rollbackTimestamp)
+        .as("Rollback history timestamp should be greater than first snapshot timestamp")
+        .isEqualTo(((HasTableOperations) table).operations().current().lastUpdatedMillis())
+        .isGreaterThan(firstSnapshotTimestamp);
 
     inputDf
         .select("id", "data")
@@ -1118,19 +1135,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    if (!spark.version().startsWith("2")) {
-      // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      assertThatThrownBy(
-              () ->
-                  spark
-                      .read()
-                      .format("iceberg")
-                      .load(loadLocation(tableIdentifier, "manifests"))
-                      .select("partition_spec_id", "path", "partition_summaries.contains_null")
-                      .collectAsList())
-          .isInstanceOf(SparkException.class)
-          .hasMessageContaining("Cannot project a partial list element struct");
-    }
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .load(loadLocation(tableIdentifier, "manifests"))
+                    .select("partition_spec_id", "path", "partition_summaries.contains_null")
+                    .collectAsList())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Cannot project a partial list element struct");
 
     Dataset<Row> actualDf =
         spark
@@ -1307,7 +1321,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+                totalSizeInBytes(SnapshotChanges.builderFor(table).build().addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1376,7 +1390,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1392,7 +1410,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(secondCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1488,7 +1510,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     assertThat(rewriteManifestResult.rewrittenManifests())
         .as("rewrite replaced 2 manifests")
         .hasSize(2);
-
     assertThat(rewriteManifestResult.addedManifests()).as("rewrite added 1 manifests").hasSize(1);
 
     List<Row> actual =
@@ -1659,7 +1680,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1675,7 +1700,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 2L) // should be incremented now
             .set("position_delete_file_count", 2) // should be incremented now
             .set("equality_delete_record_count", 0L)
@@ -1745,9 +1774,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    assertThat(originalRecords)
+    assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf.orderBy("id").collectAsList());
+        .containsExactlyElementsOf(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1776,9 +1805,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    assertThat(updatedRecords)
+    assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf2.orderBy("id").collectAsList());
+        .containsExactlyElementsOf(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1786,11 +1815,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-
-    assertThat(originalRecords)
+    assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf3.orderBy("id").collectAsList());
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1817,10 +1844,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
+        .containsExactlyElementsOf(originalRecords);
 
     long tsBeforeDropColumn = waitUntilAfter(System.currentTimeMillis());
     table.updateSchema().deleteColumn("data").commit();
@@ -1850,7 +1876,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(updatedRecords);
+        .containsExactlyElementsOf(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1858,11 +1884,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
 
     // At tsAfterDropColumn, there has been a schema change, but no new snapshot,
@@ -1873,11 +1897,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1902,10 +1924,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
+        .containsExactlyElementsOf(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1934,10 +1955,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(updatedRecords);
+        .containsExactlyElementsOf(updatedRecords);
 
     table.updateSchema().deleteColumn("data").commit();
 
@@ -1950,10 +1970,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "C"));
 
     Dataset<Row> resultDf3 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(recordsAfterDropColumn);
+        .containsExactlyElementsOf(recordsAfterDropColumn);
 
     Dataset<Row> resultDf4 =
         spark
@@ -1961,11 +1980,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(originalRecords);
-
+        .containsExactlyElementsOf(originalRecords);
     assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
@@ -1997,19 +2014,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .location(table.location() + "/metadata")
             .olderThan(System.currentTimeMillis())
             .execute();
-
     assertThat(result1.orphanFileLocations()).as("Should not delete any metadata files").isEmpty();
 
     DeleteOrphanFiles.Result result2 =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
-
     assertThat(result2.orphanFileLocations()).as("Should delete 1 data file").hasSize(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords =
         resultDF.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-
-    assertThat(actualRecords).as("Rows must match").isEqualTo(records);
+    assertThat(actualRecords).as("Rows must match").containsExactlyInAnyOrderElementsOf(records);
   }
 
   @Test
@@ -2054,9 +2068,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name()))
             .collect(Collectors.toList());
 
-    assertThat(ImmutableList.of(spec0, spec1))
-        .as("Should have two partition specs")
-        .isEqualTo(actual);
+    assertThat(actual).as("Should have two partition specs").containsExactly(spec0, spec1);
   }
 
   @Test
@@ -2194,6 +2206,90 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         dropTable(tableIdentifier);
       }
     }
+  }
+
+  @Test
+  public void testImportSparkTableWithMissingFilesFailure() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    File parquetTableDir = temp.resolve("table_missing_files").toFile();
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+    spark.sql(
+        String.format(
+            "CREATE TABLE parquet_table (data string, id int) "
+                + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+            parquetTableLocation));
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.write().mode("overwrite").insertInto("parquet_table");
+
+    // Add a Spark partition of which location is missing
+    spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
+    Path partitionLocationPath = parquetTableDir.toPath().resolve("id=1234");
+    java.nio.file.Files.delete(partitionLocationPath);
+
+    String stagingLocation = table.location() + "/metadata";
+
+    assertThatThrownBy(
+            () ->
+                SparkTableUtil.importSparkTable(
+                    spark,
+                    new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
+                    table,
+                    stagingLocation))
+        .hasMessageContaining(
+            "Unable to list files in partition: " + partitionLocationPath.toFile().toURI())
+        .isInstanceOf(SparkException.class)
+        .hasRootCauseInstanceOf(FileNotFoundException.class);
+  }
+
+  @Test
+  public void testImportSparkTableWithIgnoreMissingFilesEnabled() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "missing_files_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    File parquetTableDir = temp.resolve("table_missing_files").toFile();
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+    spark.sql(
+        String.format(
+            "CREATE TABLE parquet_table (data string, id int) "
+                + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+            parquetTableLocation));
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.write().mode("overwrite").insertInto("parquet_table");
+
+    // Add a Spark partition of which location is missing
+    spark.sql("ALTER TABLE parquet_table ADD PARTITION (id = 1234)");
+    Path partitionLocationPath = parquetTableDir.toPath().resolve("id=1234");
+    java.nio.file.Files.delete(partitionLocationPath);
+
+    String stagingLocation = table.location() + "/metadata";
+
+    SparkTableUtil.importSparkTable(
+        spark,
+        new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
+        table,
+        stagingLocation,
+        Collections.emptyMap(),
+        false,
+        true,
+        SparkTableUtil.migrationService(1));
+
+    List<Row> partitionsTableRows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .collectAsList();
+    assertThat(partitionsTableRows).as("Partitions table should have 2 rows").hasSize(2);
   }
 
   private void testWithFilter(String filterExpr, TableIdentifier tableIdentifier) {
@@ -2336,12 +2432,12 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private DeleteFile writePosDeleteFile(Table table, long pos) {
     DataFile dataFile =
-        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
+        Iterables.getFirst(SnapshotChanges.builderFor(table).build().addedDataFiles(), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
     PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.path(), pos, null);
+    delete.set(dataFile.location(), pos);
 
     return writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
   }

@@ -33,14 +33,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericManifestFile extends SupportsIndexProjection
     implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA =
       AvroSchemaUtil.convert(ManifestFile.schema(), "manifest_file");
-  private static final ManifestContent[] MANIFEST_CONTENT_VALUES = ManifestContent.values();
-
   private transient Schema avroSchema; // not final for Java serialization
 
   // data fields
@@ -60,6 +59,7 @@ public class GenericManifestFile extends SupportsIndexProjection
   private Long deletedRowsCount = null;
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
+  private Long firstRowId = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -67,7 +67,13 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.avroSchema = avroSchema;
   }
 
-  GenericManifestFile(InputFile file, int specId) {
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
+  GenericManifestFile(Types.StructType projectedSchema) {
+    super(ManifestFile.schema().asStruct(), projectedSchema);
+    this.avroSchema = AVRO_SCHEMA;
+  }
+
+  GenericManifestFile(InputFile file, int specId, long snapshotId) {
     super(ManifestFile.schema().columns().size());
     this.avroSchema = AVRO_SCHEMA;
     this.file = file;
@@ -76,7 +82,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.specId = specId;
     this.sequenceNumber = 0;
     this.minSequenceNumber = 0;
-    this.snapshotId = null;
+    this.snapshotId = snapshotId;
     this.addedFilesCount = null;
     this.addedRowsCount = null;
     this.existingFilesCount = null;
@@ -85,6 +91,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.deletedRowsCount = null;
     this.partitions = null;
     this.keyMetadata = null;
+    this.firstRowId = null;
   }
 
   /** Adjust the arg order to avoid conflict with the public constructor below */
@@ -103,7 +110,8 @@ public class GenericManifestFile extends SupportsIndexProjection
       Integer existingFilesCount,
       Long existingRowsCount,
       Integer deletedFilesCount,
-      Long deletedRowsCount) {
+      Long deletedRowsCount,
+      Long firstRowId) {
     super(ManifestFile.schema().columns().size());
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
@@ -121,41 +129,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.deletedRowsCount = deletedRowsCount;
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-  }
-
-  public GenericManifestFile(
-      String path,
-      long length,
-      int specId,
-      ManifestContent content,
-      long sequenceNumber,
-      long minSequenceNumber,
-      Long snapshotId,
-      int addedFilesCount,
-      long addedRowsCount,
-      int existingFilesCount,
-      long existingRowsCount,
-      int deletedFilesCount,
-      long deletedRowsCount,
-      List<PartitionFieldSummary> partitions,
-      ByteBuffer keyMetadata) {
-    super(ManifestFile.schema().columns().size());
-    this.avroSchema = AVRO_SCHEMA;
-    this.manifestPath = path;
-    this.length = length;
-    this.specId = specId;
-    this.content = content;
-    this.sequenceNumber = sequenceNumber;
-    this.minSequenceNumber = minSequenceNumber;
-    this.snapshotId = snapshotId;
-    this.addedFilesCount = addedFilesCount;
-    this.addedRowsCount = addedRowsCount;
-    this.existingFilesCount = existingFilesCount;
-    this.existingRowsCount = existingRowsCount;
-    this.deletedFilesCount = deletedFilesCount;
-    this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
-    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.firstRowId = firstRowId;
   }
 
   /**
@@ -167,7 +141,13 @@ public class GenericManifestFile extends SupportsIndexProjection
     super(toCopy);
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
-    this.length = toCopy.length;
+    try {
+      this.length = toCopy.length();
+    } catch (UnsupportedOperationException e) {
+      // Can be removed when embedded manifests are dropped
+      // DummyFileIO does not support .length()
+      this.length = null;
+    }
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
@@ -191,6 +171,7 @@ public class GenericManifestFile extends SupportsIndexProjection
         toCopy.keyMetadata == null
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
+    this.firstRowId = toCopy.firstRowId;
   }
 
   /** Constructor for Java serialization. */
@@ -287,6 +268,11 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   @Override
+  public Long firstRowId() {
+    return firstRowId;
+  }
+
+  @Override
   public int size() {
     return ManifestFile.schema().columns().size();
   }
@@ -333,6 +319,8 @@ public class GenericManifestFile extends SupportsIndexProjection
         return partitions();
       case 14:
         return keyMetadata();
+      case 15:
+        return firstRowId();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
@@ -353,7 +341,7 @@ public class GenericManifestFile extends SupportsIndexProjection
         return;
       case 3:
         this.content =
-            value != null ? MANIFEST_CONTENT_VALUES[(Integer) value] : ManifestContent.DATA;
+            value != null ? ManifestContent.fromId((Integer) value) : ManifestContent.DATA;
         return;
       case 4:
         this.sequenceNumber = value != null ? (Long) value : 0;
@@ -390,6 +378,9 @@ public class GenericManifestFile extends SupportsIndexProjection
         return;
       case 14:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        return;
+      case 15:
+        this.firstRowId = (Long) value;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -445,6 +436,7 @@ public class GenericManifestFile extends SupportsIndexProjection
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("sequence_number", sequenceNumber)
         .add("min_sequence_number", minSequenceNumber)
+        .add("first_row_id", firstRowId)
         .toString();
   }
 
@@ -468,14 +460,15 @@ public class GenericManifestFile extends SupportsIndexProjection
                 toCopy.sequenceNumber(),
                 toCopy.minSequenceNumber(),
                 toCopy.snapshotId(),
+                copyList(toCopy.partitions(), PartitionFieldSummary::copy),
+                toCopy.keyMetadata(),
                 toCopy.addedFilesCount(),
                 toCopy.addedRowsCount(),
                 toCopy.existingFilesCount(),
                 toCopy.existingRowsCount(),
                 toCopy.deletedFilesCount(),
                 toCopy.deletedRowsCount(),
-                copyList(toCopy.partitions(), PartitionFieldSummary::copy),
-                toCopy.keyMetadata());
+                toCopy.firstRowId());
       }
     }
 

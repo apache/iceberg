@@ -52,6 +52,12 @@ public class RandomData {
   // Default percentage of number of values that are null for optional fields
   public static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
 
+  // Exclusive upper bound on the number of elements generated for each list/map.
+  // Zero-length collections are in range, so this is a cap and not a minimum.
+  // Applied per nesting level, so deeply-nested schemas multiply quickly; keep
+  // this small enough to avoid combinatorial blow-up in heavily-nested tests.
+  private static final int COLLECTION_SIZE_BOUND = 10;
+
   private RandomData() {}
 
   public static List<Record> generateList(Schema schema, int numRecords, long seed) {
@@ -178,7 +184,7 @@ public class RandomData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -194,7 +200,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Set<Object> keySet = Sets.newHashSet();
@@ -241,9 +247,18 @@ public class RandomData {
 
   private static class SparkRandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Random random;
+    private final float nullPercentage;
 
     private SparkRandomDataGenerator(long seed) {
+      this(seed, DEFAULT_NULL_PERCENTAGE);
+    }
+
+    private SparkRandomDataGenerator(long seed, float nullPercentage) {
+      Preconditions.checkArgument(
+          0.0f <= nullPercentage && nullPercentage <= 1.0f,
+          "Percentage needs to be in the range (0.0, 1.0)");
       this.random = new Random(seed);
+      this.nullPercentage = nullPercentage;
     }
 
     @Override
@@ -265,21 +280,24 @@ public class RandomData {
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
       // return null 5% of the time when the value is optional
-      if (field.isOptional() && random.nextInt(20) == 1) {
+      if (field.isOptional() && isNull()) {
         return null;
       }
       return fieldResult.get();
     }
 
+    private boolean isNull() {
+      return random.nextFloat() < nullPercentage;
+    }
+
     @Override
     public GenericArrayData list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
       Object[] arr = new Object[numElements];
       GenericArrayData result = new GenericArrayData(arr);
 
       for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
+        if (list.isElementOptional() && isNull()) {
           arr[i] = null;
         } else {
           arr[i] = elementResult.get();
@@ -291,7 +309,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Object[] keysArr = new Object[numEntries];
       Object[] valuesArr = new Object[numEntries];
@@ -310,8 +328,7 @@ public class RandomData {
         keySet.add(key);
 
         keysArr[i] = key;
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
+        if (map.isValueOptional() && isNull()) {
           valuesArr[i] = null;
         } else {
           valuesArr[i] = valueResult.get();

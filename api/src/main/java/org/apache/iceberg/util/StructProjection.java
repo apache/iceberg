@@ -20,9 +20,11 @@ package org.apache.iceberg.util;
 
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -122,7 +124,9 @@ public class StructProjection implements StructLike {
             case STRUCT:
               nestedProjections[pos] =
                   new StructProjection(
-                      dataField.type().asStructType(), projectedField.type().asStructType());
+                      dataField.type().asStructType(),
+                      projectedField.type().asStructType(),
+                      allowMissing);
               break;
             case MAP:
               MapType projectedMap = projectedField.type().asMapType();
@@ -173,6 +177,10 @@ public class StructProjection implements StructLike {
     }
   }
 
+  public int projectedFields() {
+    return (int) Ints.asList(positionMap).stream().filter(val -> val != -1).count();
+  }
+
   public StructProjection wrap(StructLike newStruct) {
     this.struct = newStruct;
     return this;
@@ -215,5 +223,27 @@ public class StructProjection implements StructLike {
   @Override
   public <T> void set(int pos, T value) {
     throw new UnsupportedOperationException("Cannot set fields in a TypeProjection");
+  }
+
+  @Override
+  public String toString() {
+    List<Types.NestedField> fields = type.fields();
+    StringJoiner joiner = new StringJoiner(", ", "StructProjection{", "}");
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      int structPos = positionMap[pos];
+      Object value;
+      if (struct == null || structPos == -1) {
+        value = null;
+      } else if (nestedProjections[pos] != null) {
+        StructLike nestedStruct = struct.get(structPos, StructLike.class);
+        value = nestedStruct == null ? null : nestedProjections[pos].copyFor(nestedStruct);
+      } else {
+        value = struct.get(structPos, Object.class);
+      }
+
+      joiner.add(fields.get(pos).name() + "=" + value);
+    }
+
+    return joiner.toString();
   }
 }

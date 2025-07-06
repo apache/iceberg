@@ -18,15 +18,19 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -37,8 +41,33 @@ public class ParquetSchemaUtil {
 
   private ParquetSchemaUtil() {}
 
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
+  }
+
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * <p>Variant fields are converted by calling the {@link VariantShreddingFunction} with the
+   * variant's and field ID and name to produce the shredding type as a {@code typed_value} field.
+   * This field is added to the variant struct alongside the {@code metadata} and {@code value}
+   * fields.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @param variantShreddingFunc {@link VariantShreddingFunction} that produces a shredded type
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
+  public static MessageType convert(
+      Schema schema, String name, VariantShreddingFunction variantShreddingFunc) {
+    return new TypeToMessageType(variantShreddingFunc).convert(schema, name);
   }
 
   /**
@@ -75,12 +104,143 @@ public class ParquetSchemaUtil {
         converter.getAliases());
   }
 
+  /**
+   * Returns true if the name identifies a field in the struct/group.
+   *
+   * @param group a GroupType
+   * @param name a String name
+   * @return true if the group contains a field with the given name
+   */
+  public static boolean hasField(GroupType group, String name) {
+    return fieldType(group, name) != null;
+  }
+
+  /**
+   * Returns the Type of the named field in the struct/group, or null.
+   *
+   * @param group a GroupType
+   * @param name a String name
+   * @return the Type of the field in the group, or null if it is not present.
+   */
+  public static Type fieldType(GroupType group, String name) {
+    try {
+      return group.getType(name);
+    } catch (InvalidRecordException ignored) {
+      return null;
+    }
+  }
+
+  /**
+   * Prunes columns from the file schema to match the expected schema.
+   *
+   * <p>Like {@link TypeUtil#project(Schema, Set)}, structs that are partially projected are read as
+   * their projected subtrees rather than widened back to the full struct.
+   *
+   * @param fileSchema schema from a Parquet file
+   * @param expectedSchema expected schema
+   * @return a parquet schema pruned using the expected schema
+   */
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
-    Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
+    Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
+    // retain one real leaf under each struct that projects only constants like default values,
+    // so its definition level still shows whether the struct is present
+    TypeWithSchemaVisitor.visit(
+        expectedSchema.asStruct(), fileSchema, new PresenceColumnSelector(fileSchema, selectedIds));
     return (MessageType)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
+  }
+
+  /**
+   * Adds one leaf id under each projected struct whose fields are all constants and would otherwise
+   * retain no file leaf. That leaf's definition level is what still shows whether the struct is
+   * present.
+   */
+  private static class PresenceColumnSelector extends TypeWithSchemaVisitor<Void> {
+    private final MessageType fileSchema;
+    private final Set<Integer> selectedIds;
+
+    private PresenceColumnSelector(MessageType fileSchema, Set<Integer> selectedIds) {
+      this.fileSchema = fileSchema;
+      this.selectedIds = selectedIds;
+    }
+
+    @Override
+    public Void struct(Types.StructType expected, GroupType struct, List<Void> fields) {
+      // nothing projected under this struct, so there is nothing to track
+      if (expected == null || expected.fields().isEmpty()) {
+        return null;
+      }
+
+      String[] path = currentPath();
+      List<ColumnDescriptor> leaves = leafColumns(fileSchema, path);
+      // add a presence column only if no real leaf under the struct is already read
+      boolean readsRealLeaf = leaves.stream().anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
+      if (!readsRealLeaf) {
+        ColumnDescriptor presence = selectPresenceColumn(fileSchema, path, leaves);
+        if (presence != null) {
+          selectedIds.add(leafId(presence));
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public Void variant(Types.VariantType expected, GroupType variantGroup, Void result) {
+      return null;
+    }
+  }
+
+  /** Shallowest leaf under path; its definition level shows whether the struct is present. */
+  static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
+    return selectPresenceColumn(fileSchema, path, leafColumns(fileSchema, path));
+  }
+
+  private static ColumnDescriptor selectPresenceColumn(
+      MessageType fileSchema, String[] path, List<ColumnDescriptor> leaves) {
+    if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
+      return null;
+    }
+
+    return leaves.stream()
+        .min(Comparator.comparingInt(ColumnDescriptor::getMaxRepetitionLevel))
+        .orElse(null);
+  }
+
+  /** Returns the leaf columns with ids under the given path. */
+  private static List<ColumnDescriptor> leafColumns(MessageType fileSchema, String[] path) {
+    List<ColumnDescriptor> columns = Lists.newArrayList();
+    for (ColumnDescriptor column : fileSchema.getColumns()) {
+      // a presence column is kept in the read set by id, so a leaf without one cannot be used
+      if (column.getPrimitiveType().getId() == null) {
+        continue;
+      }
+
+      String[] columnPath = column.getPath();
+      if (columnPath.length <= path.length) {
+        continue;
+      }
+
+      boolean under = true;
+      for (int i = 0; i < path.length; i += 1) {
+        if (!path[i].equals(columnPath[i])) {
+          under = false;
+          break;
+        }
+      }
+
+      if (under) {
+        columns.add(column);
+      }
+    }
+
+    return columns;
+  }
+
+  private static int leafId(ColumnDescriptor column) {
+    return column.getPrimitiveType().getId().intValue();
   }
 
   /**
@@ -164,6 +324,11 @@ public class ParquetSchemaUtil {
     @Override
     public Boolean primitive(PrimitiveType primitive) {
       return primitive.getId() != null;
+    }
+
+    @Override
+    public Boolean variant(GroupType variant) {
+      return variant.getId() != null;
     }
   }
 

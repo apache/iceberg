@@ -21,7 +21,6 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -30,6 +29,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -38,10 +38,8 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
-import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
-import org.apache.iceberg.util.ThreadPools;
 
 public class Deletes {
 
@@ -54,6 +52,11 @@ public class Deletes {
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
   private Deletes() {}
+
+  public static DVFileWriter writeDVs(
+      EncryptedOutputFile outputFile, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
+    return new BaseDVFileWriter(loadPreviousDeletes, () -> outputFile);
+  }
 
   public static <T> CloseableIterable<T> filter(
       CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey, StructLikeSet deleteSet) {
@@ -132,9 +135,8 @@ public class Deletes {
   /**
    * Builds a map of position delete indexes by path.
    *
-   * <p>Unlike {@link #toPositionIndex(CharSequence, List)}, this method builds a position delete
-   * index for each referenced data file and does not filter deletes. This can be useful when the
-   * entire delete file content is needed (e.g. caching).
+   * <p>This method builds a position delete index for each referenced data file and does not filter
+   * deletes. This can be useful when the entire delete file content is needed (e.g. caching).
    *
    * @param posDeletes position deletes
    * @param file the source delete file for the deletes
@@ -145,11 +147,15 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
+      String lastFilePath = null;
+      PositionDeleteIndex index = null;
       for (T delete : deletes) {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
-        PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        if (lastFilePath == null || !lastFilePath.contentEquals(filePath)) {
+          lastFilePath = filePath.toString();
+          index = indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        }
         index.delete(position);
       }
     } catch (IOException e) {
@@ -173,37 +179,6 @@ public class Deletes {
     return CloseableIterable.transform(filteredRows, row -> (Long) POSITION_ACCESSOR.get(row));
   }
 
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
-   */
-  @Deprecated
-  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
-      CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
-    return toPositionIndex(dataLocation, deleteFiles, ThreadPools.getDeleteWorkerPool());
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
-   */
-  @Deprecated
-  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
-      CharSequence dataLocation,
-      List<CloseableIterable<T>> deleteFiles,
-      ExecutorService deleteWorkerPool) {
-    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
-    List<CloseableIterable<Long>> positions =
-        Lists.transform(
-            deleteFiles,
-            deletes ->
-                CloseableIterable.transform(
-                    locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    if (positions.size() > 1 && deleteWorkerPool != null) {
-      return toPositionIndex(new ParallelIterable<>(positions, deleteWorkerPool));
-    } else {
-      return toPositionIndex(CloseableIterable.concat(positions));
-    }
-  }
-
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {
     return toPositionIndex(posDeletes, ImmutableList.of());
   }
@@ -217,45 +192,6 @@ public class Deletes {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public static <T> CloseableIterable<T> streamingFilter(
-      CloseableIterable<T> rows,
-      Function<T, Long> rowToPosition,
-      CloseableIterable<Long> posDeletes) {
-    return streamingFilter(rows, rowToPosition, posDeletes, new DeleteCounter());
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public static <T> CloseableIterable<T> streamingFilter(
-      CloseableIterable<T> rows,
-      Function<T, Long> rowToPosition,
-      CloseableIterable<Long> posDeletes,
-      DeleteCounter counter) {
-    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
-    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
-    return filterDeleted(rows, isDeleted, counter);
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public static <T> CloseableIterable<T> streamingMarker(
-      CloseableIterable<T> rows,
-      Function<T, Long> rowToPosition,
-      CloseableIterable<Long> posDeletes,
-      Consumer<T> markRowDeleted) {
-    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
-    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
-    return markDeleted(rows, isDeleted, markRowDeleted);
   }
 
   public static CloseableIterable<Long> deletePositions(

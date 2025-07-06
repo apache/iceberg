@@ -79,16 +79,22 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String TABLES_REPLACE_NULL_WITH_DEFAULT_PROP =
+      "iceberg.tables.replace-null-with-default";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
+  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
+  private static final String TRANSACTIONAL_PREFIX_PROP =
+      "iceberg.coordinator.transactional.prefix";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
+  private static final String TASK_ID = "task.id";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
@@ -97,6 +103,13 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
+
+  private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
+      "iceberg.coordinator-executor-keep-alive-timeout-ms";
+
+  private static final String COMMIT_MAX_CONSECUTIVE_FAILURES_PROP =
+      "iceberg.control.commit.max-consecutive-failures";
+  private static final int COMMIT_MAX_CONSECUTIVE_FAILURES_DEFAULT = 1;
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
@@ -169,6 +182,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Set to true to add any missing record fields to the table schema, false otherwise");
     configDef.define(
+        TABLES_REPLACE_NULL_WITH_DEFAULT_PROP,
+        ConfigDef.Type.BOOLEAN,
+        true,
+        Importance.MEDIUM,
+        "Set to true to replace null struct field values with the record schema default value, false to preserve explicit nulls (default is true)");
+    configDef.define(
         CATALOG_NAME_PROP,
         ConfigDef.Type.STRING,
         DEFAULT_CATALOG_NAME,
@@ -180,6 +199,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         DEFAULT_CONTROL_TOPIC,
         Importance.MEDIUM,
         "Name of the control topic");
+    configDef.define(
+        CONTROL_GROUP_ID_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_CONTROL_GROUP_PREFIX,
+        Importance.LOW,
+        "Prefix of the control consumer group");
     configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
@@ -205,11 +230,30 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
     configDef.define(
+        TRANSACTIONAL_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.LOW,
+        "Optional prefix of the transactional id for the coordinator");
+    configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS,
+        ConfigDef.Type.LONG,
+        120000L,
+        Importance.LOW,
+        "config to control coordinator executor keep alive time");
+    configDef.define(
+        COMMIT_MAX_CONSECUTIVE_FAILURES_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_MAX_CONSECUTIVE_FAILURES_DEFAULT,
+        ConfigDef.Range.atLeast(1),
+        Importance.MEDIUM,
+        "Maximum number of consecutive commit failures before the coordinator terminates");
     return configDef;
   }
 
@@ -219,7 +263,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> kafkaProps;
   private final Map<String, String> autoCreateProps;
   private final Map<String, String> writeProps;
-  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
+  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newConcurrentMap();
   private final JsonConverter jsonConverter;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
@@ -269,9 +313,13 @@ public class IcebergSinkConfig extends AbstractConfig {
     return originalProps.get(NAME_PROP);
   }
 
+  public String taskId() {
+    return originalProps.get(TASK_ID);
+  }
+
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
-    return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
+    return originalProps.getOrDefault(INTERNAL_TRANSACTIONAL_SUFFIX_PROP, "");
   }
 
   public Map<String, String> catalogProps() {
@@ -322,6 +370,14 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(TABLES_DEFAULT_PARTITION_BY);
   }
 
+  public long keepAliveTimeoutInMs() {
+    return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
+  }
+
+  public int commitMaxConsecutiveFailures() {
+    return getInt(COMMIT_MAX_CONSECUTIVE_FAILURES_PROP);
+  }
+
   public TableSinkConfig tableConfig(String tableName) {
     return tableConfigMap.computeIfAbsent(
         tableName,
@@ -359,6 +415,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(CONTROL_TOPIC_PROP);
   }
 
+  public String controlGroupIdPrefix() {
+    return getString(CONTROL_GROUP_ID_PREFIX_PROP);
+  }
+
   public String connectGroupId() {
     String result = getString(CONNECT_GROUP_ID_PROP);
     if (result != null) {
@@ -382,6 +442,28 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getInt(COMMIT_THREADS_PROP);
   }
 
+  public String transactionalPrefix() {
+    String result = getString(TRANSACTIONAL_PREFIX_PROP);
+    if (result != null) {
+      return result;
+    }
+
+    return "";
+  }
+
+  /**
+   * The transactional ID for the coordinator's producer: scoped to the coordinator role, stable
+   * across coordinator instances and task restarts within a connector, and unique across
+   * connectors. Its stability lets an incoming coordinator's {@code initTransactions()} bump the
+   * producer epoch and fence a stale coordinator.
+   *
+   * <p>Unlike the worker producer id, this intentionally omits {@link #transactionalSuffix()}: a
+   * per-task/per-instance suffix would make each coordinator's id unique and prevent fencing.
+   */
+  public String coordinatorTransactionalId() {
+    return transactionalPrefix() + connectGroupId() + "-coordinator";
+  }
+
   public String hadoopConfDir() {
     return getString(HADOOP_CONF_DIR_PROP);
   }
@@ -400,6 +482,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean schemaCaseInsensitive() {
     return getBoolean(TABLES_SCHEMA_CASE_INSENSITIVE_PROP);
+  }
+
+  public boolean replaceNullWithDefault() {
+    return getBoolean(TABLES_REPLACE_NULL_WITH_DEFAULT_PROP);
   }
 
   public JsonConverter jsonConverter() {

@@ -28,13 +28,6 @@ public interface ParquetValueReader<T> {
 
   List<TripleIterator<?>> columns();
 
-  /**
-   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link #setPageSource(PageReadStore)}
-   *     instead.
-   */
-  @Deprecated
-  void setPageSource(PageReadStore pageStore, long rowPosition);
-
   default void setPageSource(PageReadStore pageStore) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement setPageSource(PageReadStore)");

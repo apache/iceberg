@@ -92,7 +92,9 @@ public class TestCloseableIterable {
     CloseableIterable<Integer> concat5 =
         CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
 
-    assertThatThrownBy(() -> Iterables.getLast(concat5)).isInstanceOf(NoSuchElementException.class);
+    assertThatThrownBy(() -> Iterables.getLast(concat5))
+        .isInstanceOf(NoSuchElementException.class)
+        .hasMessage(null);
   }
 
   @Test
@@ -233,6 +235,19 @@ public class TestCloseableIterable {
   }
 
   @Test
+  public void countSkippedWithConsumer() {
+    Counter counter = new DefaultMetricsContext().counter("x");
+    CloseableIterable<Integer> items =
+        CloseableIterable.filter(
+            item -> counter.increment(),
+            CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)),
+            x -> x % 2 == 0);
+    assertThat(counter.value()).isZero();
+    items.forEach(item -> {});
+    assertThat(counter.value()).isEqualTo(3);
+  }
+
+  @Test
   public void countNullCheck() {
     assertThatThrownBy(() -> CloseableIterable.count(null, CloseableIterable.empty()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -248,7 +263,8 @@ public class TestCloseableIterable {
   public void countSkippedNullCheck() {
     assertThatThrownBy(
             () ->
-                CloseableIterable.filter(null, CloseableIterable.empty(), Predicate.isEqual(true)))
+                CloseableIterable.filter(
+                    (Counter) null, CloseableIterable.empty(), Predicate.isEqual(true)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 

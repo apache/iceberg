@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,13 +29,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
-import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -46,14 +47,18 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -89,10 +95,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private String name;
   private Configuration conf;
   private FileIO fileIO;
+  private KeyManagementClient keyManagementClient;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
+  private boolean uniqueTableLocation;
   private Map<String, String> catalogProperties;
-  private FileIOTracker fileIOTracker;
+  private CloseableGroup closeableGroup;
 
   public HiveCatalog() {}
 
@@ -124,8 +132,24 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
+    if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
+    }
+
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+
     this.clients = new CachedClientPool(conf, properties);
-    this.fileIOTracker = new FileIOTracker();
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(keyManagementClient);
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -145,18 +169,19 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     String database = namespace.level(0);
 
     try {
-      List<String> tableNames = clients.run(client -> client.getAllTables(database));
       List<TableIdentifier> tableIdentifiers;
 
       if (listAllTables) {
+        List<String> tableNames = clients.run(client -> client.getAllTables(database));
         tableIdentifiers =
             tableNames.stream()
                 .map(t -> TableIdentifier.of(namespace, t))
                 .collect(Collectors.toList());
       } else {
+        // Retrieving only the matching table names from HMS via server-side filter
         tableIdentifiers =
-            listIcebergTables(
-                tableNames, namespace, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+            listIcebergTablesByFilter(
+                namespace, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
       }
 
       LOG.debug(
@@ -332,6 +357,37 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         .collect(Collectors.toList());
   }
 
+  /**
+   * Lists the {@link TableIdentifier} of all Iceberg tables under the given database.
+   *
+   * @param namespace the namespace corresponding to the database
+   * @param tableTypeValue the value of {@code parameters.table_type} to filter on.
+   */
+  private List<TableIdentifier> listIcebergTablesByFilter(
+      Namespace namespace, String tableTypeValue) throws TException, InterruptedException {
+    String database = namespace.level(0);
+    // HMS normalizes the `table_type` parameter value to upper case when persisting it
+    // (e.g. "iceberg" is stored as "ICEBERG"), so the filter value must be upper-cased to match.
+    // Note: `like` (rather than `=`) is used intentionally. Some HMS backends (e.g. Derby and
+    // Oracle, where PARAM_VALUE is a CLOB) do not support `=` comparison on property values and
+    // fail the filter query (see HIVE-21614); newer HMS versions internally rewrite `=` to `like`
+    // for this reason. As the value carries no `%`/`_` wildcards, `like` is equivalent to `=` here.
+    String filter =
+        hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS
+            + BaseMetastoreTableOperations.TABLE_TYPE_PROP
+            + " like \""
+            + tableTypeValue.toUpperCase(Locale.ROOT)
+            + "\"";
+
+    List<String> icebergTableNames =
+        clients.run(
+            client -> client.listTableNamesByFilter(database, filter, (short) -1 /* no limit */));
+
+    return icebergTableNames.stream()
+        .map(tableName -> TableIdentifier.of(namespace, tableName))
+        .collect(Collectors.toList());
+  }
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void renameTableOrView(
       TableIdentifier from,
@@ -347,13 +403,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
 
     if (tableExists(to)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Cannot rename %s to %s. Table already exists", from, to);
+      throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
     }
 
     if (viewExists(to)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Cannot rename %s to %s. View already exists", from, to);
+      throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
     }
 
     String toDatabase = to.namespace().level(0);
@@ -386,8 +440,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     } catch (InvalidOperationException e) {
       if (e.getMessage() != null
           && e.getMessage().contains(String.format("new table %s already exists", to))) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table already exists: %s", to);
+        throw new AlreadyExistsException("Table already exists: %s", to);
       } else {
         throw new RuntimeException("Failed to rename " + from + " to " + to, e);
       }
@@ -409,6 +462,66 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         break;
       case VIEW:
         HiveOperationsBase.validateTableIsIcebergView(table, fullName);
+    }
+  }
+
+  /**
+   * Check whether table or metadata table exists.
+   *
+   * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
+   * {@code false}.
+   *
+   * @param identifier a table identifier
+   * @return true if the table exists, false otherwise
+   */
+  @Override
+  public boolean tableExists(TableIdentifier identifier) {
+    TableIdentifier baseTableIdentifier = identifier;
+    if (!isValidIdentifier(identifier)) {
+      if (!isValidMetadataIdentifier(identifier)) {
+        return false;
+      } else {
+        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      }
+    }
+
+    String database = baseTableIdentifier.namespace().level(0);
+    String tableName = baseTableIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, tableName));
+      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, baseTableIdentifier));
+      return true;
+    } catch (NoSuchTableException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check table existence of " + baseTableIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check table existence of " + baseTableIdentifier, e);
+    }
+  }
+
+  @Override
+  public boolean viewExists(TableIdentifier viewIdentifier) {
+    if (!isValidIdentifier(viewIdentifier)) {
+      return false;
+    }
+
+    String database = viewIdentifier.namespace().level(0);
+    String viewName = viewIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, viewName));
+      HiveOperationsBase.validateTableIsIcebergView(table, fullTableName(name, viewIdentifier));
+      return true;
+    } catch (NoSuchIcebergViewException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check view existence of " + viewIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check view existence of " + viewIdentifier, e);
     }
   }
 
@@ -434,9 +547,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
       LOG.info("Created namespace: {}", namespace);
 
-    } catch (AlreadyExistsException e) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          e, "Namespace already exists: %s", namespace);
+    } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Namespace already exists: %s", namespace);
 
     } catch (TException e) {
       throw new RuntimeException(
@@ -451,7 +563,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
+    if (!namespace.isEmpty() && (!isValidateNamespace(namespace) || !namespaceExists(namespace))) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     if (!namespace.isEmpty()) {
@@ -629,10 +741,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
-    fileIOTracker.track(ops);
-    return ops;
+    return new HiveTableOperations(
+        conf, clients, fileIO, keyManagementClient, name, dbName, tableName);
   }
 
   @Override
@@ -648,12 +758,14 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     // - Create the metadata in HMS, and this way committing the changes
 
     // Create a new location based on the namespace / database if it is set on database level
+    String tableLocation = LocationUtil.tableLocation(tableIdentifier, uniqueTableLocation);
     try {
       Database databaseData =
           clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
-        return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
+        String databaseLocation = LocationUtil.stripTrailingSlash(databaseData.getLocationUri());
+        return String.format("%s/%s", databaseLocation, tableLocation);
       }
 
     } catch (NoSuchObjectException e) {
@@ -670,7 +782,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
     String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
-    return String.format("%s/%s", databaseLocation, tableIdentifier.name());
+    return String.format("%s/%s", databaseLocation, tableLocation);
   }
 
   private String databaseLocation(String databaseName) {
@@ -763,9 +875,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
-    if (fileIOTracker != null) {
-      fileIOTracker.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
     }
   }
 
@@ -797,8 +908,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public Transaction createOrReplaceTransaction() {
       if (viewExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "View with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
       return super.createOrReplaceTransaction();
     }
@@ -806,8 +916,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public org.apache.iceberg.Table create() {
       if (viewExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "View with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
       return super.create();
     }
@@ -831,8 +940,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public View createOrReplace() {
       if (tableExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
       return super.createOrReplace();
     }
@@ -840,10 +948,40 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public View create() {
       if (tableExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
       return super.create();
     }
+  }
+
+  /**
+   * Register a table with the catalog if it does not exist. This is overridden in order to add view
+   * existence detection before registering a table.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   * @throws AlreadyExistsException if a table or view with the same identifier already exists in
+   *     the catalog.
+   */
+  @Override
+  public org.apache.iceberg.Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    // throw an exception in case the table identifier already exists as a table/view
+    if (tableExists(identifier)) {
+      throw new AlreadyExistsException("Table already exists: %s", identifier);
+    }
+
+    if (viewExists(identifier)) {
+      throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+    }
+
+    return super.registerTable(identifier, metadataFileLocation);
   }
 }

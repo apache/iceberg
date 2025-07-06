@@ -27,33 +27,45 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.commons.collections.ListUtils;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +74,56 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMetadataTables extends ExtensionsTestBase {
+  @Parameter(index = 3)
+  private int formatVersion;
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        2
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        2
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
+        2
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
+        3
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build(),
+        2
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build(),
+        3
+      }
+    };
+  }
 
   @AfterEach
   public void removeTables() {
@@ -72,8 +134,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
   public void testUnpartitionedTable() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -95,7 +157,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     assertThat(expectedDataManifests).as("Should have 1 data manifest").hasSize(1);
     assertThat(expectedDeleteManifests).as("Should have 1 delete manifest").hasSize(1);
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".files").schema();
 
     // check delete files table
@@ -143,14 +208,146 @@ public class TestMetadataTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testAllManifestsTableWithNegatedContentFilters() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    // Create a delete manifest.
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    List<Object[]> expectedDeleteManifests =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content = 1 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertThat(expectedDeleteManifests)
+        .as("Test setup should create at least one delete manifest")
+        .isNotEmpty();
+
+    List<Object[]> notEqualResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content != 0 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "content != 0 should return all delete manifests",
+        expectedDeleteManifests,
+        notEqualResults);
+
+    List<Object[]> alternativeNotEqualResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE content <> 0 "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "content <> 0 should return all delete manifests",
+        expectedDeleteManifests,
+        alternativeNotEqualResults);
+
+    List<Object[]> explicitNotResults =
+        sql(
+            "SELECT content, path, reference_snapshot_id "
+                + "FROM %s.all_manifests "
+                + "WHERE NOT(content = 0) "
+                + "ORDER BY path, reference_snapshot_id",
+            tableName);
+
+    assertEquals(
+        "NOT(content = 0) should return all delete manifests",
+        expectedDeleteManifests,
+        explicitNotResults);
+  }
+
+  @TestTemplate
+  public void testPositionDeletesTable() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    sql("DELETE FROM %s WHERE id=1 OR id=3", tableName);
+
+    // check delete files table
+    assertThat(sql("SELECT * FROM %s.delete_files", tableName)).hasSize(1);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    DataFile dataFile = Iterables.getOnlyElement(TestHelpers.dataFiles(table));
+    DeleteFile deleteFile = Iterables.getOnlyElement(TestHelpers.deleteFiles(table));
+
+    List<Object[]> expectedRows;
+    if (formatVersion >= 3) {
+      expectedRows =
+          ImmutableList.of(
+              row(
+                  dataFile.location(),
+                  0L,
+                  null,
+                  dataFile.specId(),
+                  deleteFile.location(),
+                  deleteFile.contentOffset(),
+                  deleteFile.contentSizeInBytes()),
+              row(
+                  dataFile.location(),
+                  2L,
+                  null,
+                  dataFile.specId(),
+                  deleteFile.location(),
+                  deleteFile.contentOffset(),
+                  deleteFile.contentSizeInBytes()));
+    } else {
+      expectedRows =
+          ImmutableList.of(
+              row(dataFile.location(), 0L, null, dataFile.specId(), deleteFile.location()),
+              row(dataFile.location(), 2L, null, dataFile.specId(), deleteFile.location()));
+    }
+
+    // check position_deletes table
+    assertThat(sql("SELECT * FROM %s.position_deletes", tableName))
+        .hasSize(2)
+        .containsExactlyElementsOf(expectedRows);
+  }
+
+  @TestTemplate
   public void testPartitionedTable() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) "
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> recordsA =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
@@ -172,7 +369,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     sql("DELETE FROM %s WHERE id=1 AND data='b'", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
 
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
@@ -190,7 +390,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
     Dataset<Row> actualDeleteFilesDs =
         spark.sql("SELECT * FROM " + tableName + ".delete_files " + "WHERE partition.data='a'");
-    List<Row> actualDeleteFiles = actualDeleteFilesDs.collectAsList();
+    List<Row> actualDeleteFiles = TestHelpers.selectNonDerived(actualDeleteFilesDs).collectAsList();
 
     assertThat(actualDeleteFiles).as("Metadata table should return one delete file").hasSize(1);
     TestHelpers.assertEqualsSafe(
@@ -241,8 +441,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
   public void testAllFilesUnpartitioned() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -269,7 +469,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     List<Object[]> results = sql("DELETE FROM %s", tableName);
     assertThat(results).as("Table should be cleared").isEmpty();
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema =
         Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
@@ -303,7 +506,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
     // Check all files table
     Dataset<Row> actualFilesDs =
         spark.sql("SELECT * FROM " + tableName + ".all_files ORDER BY content");
-    List<Row> actualFiles = actualFilesDs.collectAsList();
+    List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
     List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     assertThat(actualFiles).as("Metadata table should return two files").hasSize(2);
@@ -319,8 +522,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> recordsA =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
@@ -351,7 +554,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
     List<Object[]> results = sql("DELETE FROM %s", tableName);
     assertThat(results).as("Table should be cleared").isEmpty();
 
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     Schema filesTableSchema =
         Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
@@ -409,8 +615,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES "
-            + "('format-version'='2')",
-        tableName);
+            + "('format-version'='%s')",
+        tableName, formatVersion);
 
     List<SimpleRecord> recordsA =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
@@ -446,7 +652,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 parentSnapshot.schemaId(),
                 parentSnapshot.sequenceNumber()),
             row(
-                DateTimeUtils.toJavaTimestamp(currentSnapshot.timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
@@ -465,8 +671,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
         "Result should match the latest snapshot entry",
         ImmutableList.of(
             row(
-                DateTimeUtils.toJavaTimestamp(
-                    tableMetadata.currentSnapshot().timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),
@@ -498,8 +703,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> recordsA =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
@@ -535,7 +740,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 + currentSnapshotId
                 + " ORDER BY content");
     List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
-    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema entriesTableSchema =
+        TypeUtil.selectNot(
+            Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
+            Set.of(DataFile.FIRST_ROW_ID.fieldId()));
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<Record> expectedFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
@@ -561,8 +769,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-        tableName);
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
 
     List<SimpleRecord> recordsA =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
@@ -614,7 +822,9 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranch)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH", currentSnapshotId, null, null, null));
+        .containsExactly(
+            RowFactory.create(
+                SnapshotRef.MAIN_BRANCH, "BRANCH", currentSnapshotId, null, null, null));
     assertThat(mainBranch.get(0).schema().fieldNames())
         .containsExactly(
             "name",
@@ -682,7 +892,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranchProjection)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH"));
+        .containsExactly(RowFactory.create(SnapshotRef.MAIN_BRANCH, "BRANCH"));
     assertThat(mainBranchProjection.get(0).schema().fieldNames()).containsExactly("name", "type");
 
     List<Row> testBranchProjection =
@@ -753,8 +963,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES "
-            + "('format-version'='2')",
-        tableName);
+            + "('format-version'='%s')",
+        tableName, formatVersion);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
@@ -813,8 +1023,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "USING iceberg "
             + "PARTITIONED BY (data) "
             + "TBLPROPERTIES "
-            + "('format-version'='2')",
-        tableName);
+            + "('format-version'='%s')",
+        tableName, formatVersion);
 
     tableMetadata = ((HasTableOperations) table).operations().refresh();
     assertThat(tableMetadata.snapshots()).hasSize(2);

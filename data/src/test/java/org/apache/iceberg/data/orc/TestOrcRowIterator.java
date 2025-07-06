@@ -19,7 +19,6 @@
 package org.apache.iceberg.data.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,8 +63,7 @@ public class TestOrcRowIterator {
 
   @BeforeEach
   public void writeFile() throws IOException {
-    testFile = File.createTempFile("junit", null, tempDir);
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    testFile = new File(tempDir, "junit" + System.nanoTime());
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

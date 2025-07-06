@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import java.util.Locale
@@ -28,32 +27,27 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
-import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.procedures.SparkProcedures
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
-class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface with ExtendedParser {
+class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
+    extends ParserInterface
+    with ExtendedParser {
 
   import IcebergSparkSqlExtensionsParser._
 
@@ -122,14 +116,17 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   override def parsePlan(sqlText: String): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
-      parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
+      parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
+        .asInstanceOf[LogicalPlan]
     } else {
       RewriteViewCommands(SparkSession.active).apply(delegate.parsePlan(sqlText))
     }
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
+    val normalized = sqlText
+      .toLowerCase(Locale.ROOT)
+      .trim()
       // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .
       .replaceAll("--.*?\\n", " ")
       // Strip newlines.
@@ -141,18 +138,17 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       .replaceAll("`", "")
       .trim()
 
-     isIcebergProcedure(normalized) || (
-        normalized.startsWith("alter table") && (
-            normalized.contains("add partition field") ||
-            normalized.contains("drop partition field") ||
-            normalized.contains("replace partition field") ||
-            normalized.contains("write ordered by") ||
-            normalized.contains("write locally ordered by") ||
-            normalized.contains("write distributed by") ||
-            normalized.contains("write unordered") ||
-            normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields") ||
-            isSnapshotRefDdl(normalized)))
+    isIcebergProcedure(normalized) || (normalized
+      .startsWith("alter table") && (normalized.contains("add partition field") ||
+      normalized.contains("drop partition field") ||
+      normalized.contains("replace partition field") ||
+      normalized.contains("write ordered by") ||
+      normalized.contains("write locally ordered by") ||
+      normalized.contains("write distributed by") ||
+      normalized.contains("write unordered") ||
+      normalized.contains("set identifier fields") ||
+      normalized.contains("drop identifier fields") ||
+      isSnapshotRefDdl(normalized)))
   }
 
   // All builtin Iceberg procedures are under the 'system' namespace
@@ -163,15 +159,16 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
     normalized.contains("create branch") ||
-      normalized.contains("replace branch") ||
-      normalized.contains("create tag") ||
-      normalized.contains("replace tag") ||
-      normalized.contains("drop branch") ||
-      normalized.contains("drop tag")
+    normalized.contains("replace branch") ||
+    normalized.contains("create tag") ||
+    normalized.contains("replace tag") ||
+    normalized.contains("drop branch") ||
+    normalized.contains("drop tag")
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
-    val lexer = new IcebergSqlExtensionsLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
+    val lexer = new IcebergSqlExtensionsLexer(
+      new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
     lexer.addErrorListener(IcebergParseErrorListener)
 
@@ -189,8 +186,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         parser.setErrorHandler(new BailErrorStrategy)
         parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
         toResult(parser)
-      }
-      catch {
+      } catch {
         case _: ParseCancellationException =>
           // if we fail, parse with LL mode with DefaultErrorStrategy
           tokenStream.seek(0) // rewind input stream
@@ -201,8 +197,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
           parser.getInterpreter.setPredictionMode(PredictionMode.LL)
           toResult(parser)
       }
-    }
-    catch {
+    } catch {
       case e: IcebergParseException if e.command.isDefined =>
         throw e
       case e: IcebergParseException =>
@@ -220,7 +215,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
 object IcebergSparkSqlExtensionsParser {
   private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
-    DynConstructors.builder()
+    DynConstructors
+      .builder()
       .impl(classOf[VariableSubstitution])
       .impl(classOf[VariableSubstitution], classOf[SQLConf])
       .build()
@@ -266,9 +262,7 @@ case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseLi
     replaceTokenByIdentifier(ctx, 0)(identity)
   }
 
-  private def replaceTokenByIdentifier(
-      ctx: ParserRuleContext,
-      stripMargins: Int)(
+  private def replaceTokenByIdentifier(ctx: ParserRuleContext, stripMargins: Int)(
       f: CommonToken => CommonToken = identity): Unit = {
     val parent = ctx.getParent
     parent.removeLastChild()
@@ -315,10 +309,12 @@ class IcebergParseException(
     val command: Option[String],
     message: String,
     val start: Origin,
-    val stop: Origin) extends AnalysisException(message, start.line, start.startPosition) {
+    val stop: Origin)
+    extends AnalysisException(message, start.line, start.startPosition) {
 
   def this(message: String, ctx: ParserRuleContext) = {
-    this(Option(IcebergParserUtils.command(ctx)),
+    this(
+      Option(IcebergParserUtils.command(ctx)),
       message,
       IcebergParserUtils.position(ctx.getStart),
       IcebergParserUtils.position(ctx.getStop))
@@ -328,8 +324,7 @@ class IcebergParseException(
     val builder = new StringBuilder
     builder ++= "\n" ++= message
     start match {
-      case Origin(
-          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName)) =>
+      case Origin(Some(l), Some(p), Some(_), Some(_), Some(_), Some(_), Some(_)) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

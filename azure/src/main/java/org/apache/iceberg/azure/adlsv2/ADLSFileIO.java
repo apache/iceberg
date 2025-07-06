@@ -27,6 +27,7 @@ import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -37,6 +38,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -55,6 +58,9 @@ public class ADLSFileIO implements DelegateFileIO {
   private AzureProperties azureProperties;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
+  private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
+  private SerializableFunction<ADLSLocation, DataLakeFileSystemClient> clientSupplier;
+  private transient volatile Map<String, DataLakeFileSystemClient> clientCache;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -66,6 +72,23 @@ public class ADLSFileIO implements DelegateFileIO {
   @VisibleForTesting
   ADLSFileIO(AzureProperties azureProperties) {
     this.azureProperties = azureProperties;
+  }
+
+  /**
+   * Constructor with custom DataLakeFileSystemClient function.
+   *
+   * <p>Unlike the no-arg constructor, this constructor initializes properties and azureProperties
+   * immediately, allowing immediate use without calling {@link ADLSFileIO#initialize(Map)}.
+   *
+   * <p>The function receives an {@link ADLSLocation} and should return an appropriate {@link
+   * DataLakeFileSystemClient} for that location. Clients are cached per storage account and
+   * container combination.
+   *
+   * @param clientSupplier function that creates a client for a given location
+   */
+  public ADLSFileIO(SerializableFunction<ADLSLocation, DataLakeFileSystemClient> clientSupplier) {
+    this.clientSupplier = clientSupplier;
+    initialize(Maps.newHashMap());
   }
 
   @Override
@@ -90,7 +113,7 @@ public class ADLSFileIO implements DelegateFileIO {
     // now as it is not a required operation for Iceberg.
     try {
       fileClient(path).delete();
-    } catch (DataLakeStorageException e) {
+    } catch (RuntimeException e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
   }
@@ -107,11 +130,30 @@ public class ADLSFileIO implements DelegateFileIO {
 
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
+    if (clientCache == null) {
+      synchronized (this) {
+        if (clientCache == null) {
+          clientCache = Maps.newConcurrentMap();
+        }
+      }
+    }
+    String cacheKey = location.host() + "/" + location.container().orElse("");
+    return clientCache.computeIfAbsent(cacheKey, k -> buildClient(location));
+  }
+
+  private DataLakeFileSystemClient buildClient(ADLSLocation location) {
+    if (clientSupplier != null) {
+      return clientSupplier.apply(location);
+    }
+
     DataLakeFileSystemClientBuilder clientBuilder =
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
-    azureProperties.applyClientConfiguration(location.storageAccount(), clientBuilder);
+    Optional.ofNullable(vendedAdlsCredentialProvider)
+        .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
+        .ifPresent(clientBuilder::addPolicy);
+    azureProperties.applyClientConfiguration(location.host(), clientBuilder);
 
     return clientBuilder.buildClient();
   }
@@ -126,6 +168,9 @@ public class ADLSFileIO implements DelegateFileIO {
     this.properties = SerializableMap.copyOf(props);
     this.azureProperties = new AzureProperties(properties);
     initMetrics(properties);
+    this.azureProperties
+        .vendedAdlsCredentialProvider()
+        .ifPresent(provider -> this.vendedAdlsCredentialProvider = provider);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -211,5 +256,14 @@ public class ADLSFileIO implements DelegateFileIO {
         throw e;
       }
     }
+  }
+
+  @Override
+  public void close() {
+    if (vendedAdlsCredentialProvider != null) {
+      vendedAdlsCredentialProvider.close();
+    }
+
+    DelegateFileIO.super.close();
   }
 }

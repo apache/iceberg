@@ -21,16 +21,23 @@ package org.apache.iceberg.avro;
 import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.SeekableFileInput;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
 
-class AvroTestHelpers {
+public class AvroTestHelpers {
 
   private AvroTestHelpers() {}
 
@@ -44,6 +51,15 @@ class AvroTestHelpers {
 
   static Schema record(String name, Schema.Field... fields) {
     return Schema.createRecord(name, null, null, false, Arrays.asList(fields));
+  }
+
+  static Schema variant(String name) {
+    Schema schema =
+        record(
+            name,
+            new Schema.Field("metadata", Schema.create(Schema.Type.BYTES), null, null),
+            new Schema.Field("value", Schema.create(Schema.Type.BYTES), null, null));
+    return VariantLogicalType.get().addToSchema(schema);
   }
 
   static Schema.Field addId(int id, Schema.Field field) {
@@ -119,11 +135,22 @@ class AvroTestHelpers {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case UUID:
       case FIXED:
       case BINARY:
       case DECIMAL:
+      case GEOMETRY:
+      case GEOGRAPHY:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Actual should be a Variant").isInstanceOf(Variant.class);
+        Variant expectedVariant = (Variant) expected;
+        Variant actualVariant = (Variant) actual;
+        VariantTestUtil.assertEqual(expectedVariant.metadata(), actualVariant.metadata());
+        VariantTestUtil.assertEqual(expectedVariant.value(), actualVariant.value());
         break;
       case STRUCT:
         assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
@@ -143,5 +170,21 @@ class AvroTestHelpers {
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
     }
+  }
+
+  /** Reads the {@code avro.codec} metadata value from an Avro data file. */
+  public static String readAvroCodec(File file) throws IOException {
+    try (DataFileReader<?> reader =
+        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
+      return reader.getMetaString("avro.codec");
+    }
+  }
+
+  public static boolean hasIds(Schema schema) {
+    return AvroSchemaUtil.hasIds(schema);
+  }
+
+  public static Schema removeIds(org.apache.iceberg.Schema schema) {
+    return RemoveIds.removeIds(schema);
   }
 }
