@@ -953,7 +953,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       assertThatThrownBy(() -> jdbcCatalog.createTable(identifier, SCHEMA, PARTITION_SPEC))
           .isInstanceOf(NoSuchNamespaceException.class)
           .hasMessage(
-              "Cannot create table testDb.ns1.ns2.someTable in catalog strict_jdbc_catalog. Namespace testDb.ns1.ns2 does not exist");
+              "Cannot create table testDb.ns1.ns2.someTable in catalog strict_jdbc_catalog. Namespace does not exist: testDb.ns1.ns2");
 
       assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
 

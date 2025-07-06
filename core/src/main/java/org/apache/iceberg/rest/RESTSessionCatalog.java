@@ -504,7 +504,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Namespace namespace = ident.namespace();
     if (!namespaceExists(context, namespace)) {
       throw new NoSuchNamespaceException(
-          "Cannot register table %s to catalog %s. Namespace %s does not exist",
+          "Cannot register table %s to catalog %s. Namespace does not exist: %s",
           ident, name(), namespace);
     }
 

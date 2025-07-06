@@ -101,7 +101,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     if (this instanceof SupportsNamespaces
         && !(((SupportsNamespaces) this).namespaceExists(namespace))) {
       throw new NoSuchNamespaceException(
-          "Cannot register table %s to catalog %s. Namespace %s does not exist",
+          "Cannot register table %s to catalog %s. Namespace does not exist: %s",
           identifier, name(), namespace);
     }
   }

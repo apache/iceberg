@@ -395,7 +395,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
         && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
       throw new NoSuchNamespaceException(
-          "Cannot register table %s to catalog %s. Namespace %s does not exist",
+          "Cannot register table %s to catalog %s. Namespace does not exist: %s",
           identifier, catalogName, namespace);
     }
   }
