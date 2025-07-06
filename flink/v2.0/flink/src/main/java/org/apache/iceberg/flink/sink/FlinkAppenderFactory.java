@@ -144,6 +144,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), format),
         format,
+        schema.schemaId(),
         file.encryptingOutputFile().location(),
         spec,
         partition,

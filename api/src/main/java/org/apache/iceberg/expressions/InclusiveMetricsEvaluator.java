@@ -54,15 +54,17 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
-
+  private final StructType struct;
   private final Expression expr;
+  private static final boolean ROWS_MIGHT_MATCH = true;
+  private static final boolean ROWS_CANNOT_MATCH = false;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
-    StructType struct = schema.asStruct();
+    this.struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
@@ -73,12 +75,39 @@ public class InclusiveMetricsEvaluator {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean eval(ContentFile<?> file) {
-    // TODO: detect the case where a column is missing from the file using file's max field id.
     return new MetricsEvalVisitor().eval(file);
   }
 
-  private static final boolean ROWS_MIGHT_MATCH = true;
-  private static final boolean ROWS_CANNOT_MATCH = false;
+  /**
+   * Skip file if column used in expression is greater than file's max field id File's max field id
+   * is nothing but the highest field Id of the Schema linked to it Test whether all records within
+   * the file match the expression.
+   *
+   * @param file a data file
+   * @param fileSchema a schema id linked to the data file
+   * @return false if the file may contain any row that doesn't match the expression, true
+   *     otherwise.
+   */
+  public boolean eval(ContentFile<?> file, Schema fileSchema) {
+    if (fileSchema == null) {
+      return eval(file);
+    }
+    String columnName;
+    if (this.expr instanceof Bound) {
+      columnName = ((Bound<?>) this.expr).ref().name();
+    } else if (this.expr instanceof Unbound) {
+      columnName = ((Unbound<?, ?>) this.expr).ref().name();
+    } else {
+      columnName = "";
+    }
+    if (!columnName.isEmpty()) {
+      if (this.struct.field(columnName) != null
+          && this.struct.field(columnName).fieldId() > fileSchema.highestFieldId()) {
+        return ROWS_CANNOT_MATCH;
+      }
+    }
+    return new MetricsEvalVisitor().eval(file);
+  }
 
   private class MetricsEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;

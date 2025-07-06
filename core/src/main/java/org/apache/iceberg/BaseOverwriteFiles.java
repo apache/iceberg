@@ -136,9 +136,16 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
         // the real test is that the strict or metrics test matches the file, indicating that all
         // records in the file match the filter. inclusive is used to avoid testing the metrics,
         // which is more complicated
+        Schema fileSchema =
+            (Schema)
+                base.schemas().stream()
+                    .filter(
+                        (Schema schema) -> {
+                          return schema.schemaId() == file.schemaId();
+                        });
         ValidationException.check(
             inclusive.eval(file.partition())
-                && (strict.eval(file.partition()) || metrics.eval(file)),
+                && (strict.eval(file.partition()) || metrics.eval(file, fileSchema)),
             "Cannot append file with rows that do not match filter: %s: %s",
             rowFilter,
             file.location());

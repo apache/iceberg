@@ -303,6 +303,7 @@ public class Avro {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private SortOrder sortOrder = null;
+    private org.apache.iceberg.Schema schema = null;
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -319,6 +320,7 @@ public class Avro {
 
     public DataWriteBuilder schema(org.apache.iceberg.Schema newSchema) {
       appenderBuilder.schema(newSchema);
+      this.schema = newSchema;
       return this;
     }
 
@@ -384,7 +386,14 @@ public class Avro {
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(
-          fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder);
+          fileAppender,
+          FileFormat.AVRO,
+          schema.schemaId(),
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder);
     }
   }
 

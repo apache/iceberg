@@ -71,24 +71,38 @@ public class StrictMetricsEvaluator {
    *     otherwise.
    */
   public boolean eval(ContentFile<?> file) {
-    if (file.valueCounts() != null) {
-      int maxFieldId = file.valueCounts().keySet().stream().mapToInt(i -> i).max().orElse(0);
-      String columnName;
-      if (this.expr instanceof Bound) {
-        columnName = ((Bound<?>) this.expr).ref().name();
-      } else if (this.expr instanceof Unbound) {
-        columnName = ((Unbound<?, ?>) this.expr).ref().name();
-      } else {
-        columnName = "";
-      }
-      if (!columnName.isEmpty()) {
-        if (this.struct.field(columnName) != null
-            && this.struct.field(columnName).fieldId() > maxFieldId) {
-          return ROWS_MIGHT_NOT_MATCH;
-        }
+    return new MetricsEvalVisitor().eval(file);
+  }
+
+  /**
+   * Skip file if column used in expression is greater than file's max field id File's max field id
+   * is nothing but the highest field Id of the Schema linked to it Test whether all records within
+   * the file match the expression.
+   *
+   * @param file a data file
+   * @param fileSchema a schema id linked to the data file
+   * @return false if the file may contain any row that doesn't match the expression, true
+   *     otherwise.
+   */
+  public boolean eval(ContentFile<?> file, Schema fileSchema) {
+    if (fileSchema == null) {
+      return eval(file);
+    }
+    String columnName;
+    if (this.expr instanceof Bound) {
+      columnName = ((Bound<?>) this.expr).ref().name();
+    } else if (this.expr instanceof Unbound) {
+      columnName = ((Unbound<?, ?>) this.expr).ref().name();
+    } else {
+      columnName = "";
+    }
+    if (!columnName.isEmpty()) {
+      if (this.struct.field(columnName) != null
+          && this.struct.field(columnName).fieldId() > fileSchema.highestFieldId()) {
+        return ROWS_MIGHT_NOT_MATCH;
       }
     }
-    return new MetricsEvalVisitor().eval(file);
+    return eval(file);
   }
 
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {

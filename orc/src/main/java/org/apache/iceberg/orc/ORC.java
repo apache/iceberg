@@ -406,6 +406,7 @@ public class ORC {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private SortOrder sortOrder = null;
+    private Schema schema = null;
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -422,6 +423,7 @@ public class ORC {
 
     public DataWriteBuilder schema(Schema newSchema) {
       appenderBuilder.schema(newSchema);
+      this.schema = newSchema;
       return this;
     }
 
@@ -488,7 +490,14 @@ public class ORC {
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(
-          fileAppender, FileFormat.ORC, location, spec, partition, keyMetadata, sortOrder);
+          fileAppender,
+          FileFormat.ORC,
+          schema.schemaId(),
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder);
     }
   }
 

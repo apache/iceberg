@@ -136,6 +136,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
+          .withSchemaId(1)
           .withPartitionPath("id_bucket=0") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
@@ -144,6 +145,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
+          .withSchemaId(2)
           .withPartitionPath("id_bucket=1") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
@@ -152,6 +154,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
+          .withSchemaId(3)
           .withPartitionPath("id_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
@@ -1644,6 +1647,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         DataFiles.builder(current)
             .withPath("/path/to/data-b.parquet")
             .withFileSizeInBytes(10)
+            .withSchemaId(table.schema().schemaId())
             .withPartitionPath("id_bucket=0/data=123") // easy way to set partition data for now
             .withRecordCount(2) // needs at least one record or else metrics will filter it out
             .build();

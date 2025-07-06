@@ -188,11 +188,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   /**
    * Filter deleted files out of a list of manifests.
    *
+   * @param schemas a list of table schemas
    * @param tableSchema the current table schema
    * @param manifests a list of manifests to be filtered
    * @return an array of filtered manifests
    */
-  List<ManifestFile> filterManifests(Schema tableSchema, List<ManifestFile> manifests) {
+  List<ManifestFile> filterManifests(
+      List<Schema> schemas, Schema tableSchema, List<ManifestFile> manifests) {
     if (manifests == null || manifests.isEmpty()) {
       validateRequiredDeletes();
       return ImmutableList.of();
@@ -208,7 +210,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         .run(
             index -> {
               ManifestFile manifest =
-                  filterManifest(tableSchema, manifests.get(index), trustManifestReferences);
+                  filterManifest(
+                      schemas, tableSchema, manifests.get(index), trustManifestReferences);
               filtered[index] = manifest;
             });
 
@@ -333,7 +336,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
   private ManifestFile filterManifest(
-      Schema tableSchema, ManifestFile manifest, boolean trustManifestReferences) {
+      List<Schema> schemas,
+      Schema tableSchema,
+      ManifestFile manifest,
+      boolean trustManifestReferences) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
@@ -347,7 +353,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     try (ManifestReader<F> reader = newManifestReader(manifest)) {
       PartitionSpec spec = reader.spec();
       PartitionAndMetricsEvaluator evaluator =
-          new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
+          new PartitionAndMetricsEvaluator(schemas, tableSchema, spec, deleteExpression);
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
@@ -530,12 +536,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // this class first partially evaluates the provided expression using the partition tuple
   // and then checks the remaining part of the expression using metrics evaluators
   private class PartitionAndMetricsEvaluator {
+    private final List<Schema> schemas;
     private final Schema tableSchema;
     private final ResidualEvaluator residualEvaluator;
     private final StructLikeMap<Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator>>
         metricsEvaluators;
 
-    PartitionAndMetricsEvaluator(Schema tableSchema, PartitionSpec spec, Expression expr) {
+    PartitionAndMetricsEvaluator(
+        List<Schema> schemas, Schema tableSchema, PartitionSpec spec, Expression expr) {
+      this.schemas = schemas;
       this.tableSchema = tableSchema;
       this.residualEvaluator = ResidualEvaluator.of(spec, expr, caseSensitive);
       this.metricsEvaluators = StructLikeMap.create(spec.partitionType());
@@ -544,13 +553,21 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean rowsMightMatch(F file) {
       Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> evaluators = metricsEvaluators(file);
       InclusiveMetricsEvaluator inclusiveMetricsEvaluator = evaluators.first();
-      return inclusiveMetricsEvaluator.eval(file);
+      Schema fileSchema =
+          schemas.stream().filter(s -> s.schemaId() == file.schemaId()).findFirst().orElse(null);
+      return fileSchema != null
+          ? inclusiveMetricsEvaluator.eval(file, fileSchema)
+          : inclusiveMetricsEvaluator.eval(file);
     }
 
     boolean rowsMustMatch(F file) {
       Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> evaluators = metricsEvaluators(file);
       StrictMetricsEvaluator strictMetricsEvaluator = evaluators.second();
-      return strictMetricsEvaluator.eval(file);
+      Schema fileSchema =
+          schemas.stream().filter(s -> s.schemaId() == file.schemaId()).findFirst().orElse(null);
+      return fileSchema != null
+          ? strictMetricsEvaluator.eval(file, fileSchema)
+          : strictMetricsEvaluator.eval(file);
     }
 
     private Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> metricsEvaluators(F file) {

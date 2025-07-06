@@ -199,7 +199,7 @@ public class PartitionsTable extends BaseMetadataTable {
       ManifestFile manifest, StaticTableScan scan) {
     Table table = scan.table();
     return CloseableIterable.transform(
-        ManifestFiles.open(manifest, table.io(), table.specs())
+        ManifestFiles.open(manifest, table.io(), table.specs(), table.schemas())
             .caseSensitive(scan.isCaseSensitive())
             .select(BaseScan.scanColumns(manifest.content())) // don't select stats columns
             .liveEntries(),

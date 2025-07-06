@@ -272,17 +272,30 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final Schema projection;
     private final Schema fileProjection;
     private final Schema dataTableSchema;
+    private final Map<Integer, Schema> schemas;
     private final FileIO io;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
     private ManifestReadTask(
         Table table, ManifestFile manifest, Schema projection, Expression filter) {
-      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+      this(
+          table.schema(), table.schemas(), table.io(), table.specs(), manifest, projection, filter);
     }
 
     ManifestReadTask(
         Schema dataTableSchema,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
+        ManifestFile manifest,
+        Schema projection,
+        Expression filter) {
+      this(dataTableSchema, null, io, specsById, manifest, projection, filter);
+    }
+
+    ManifestReadTask(
+        Schema dataTableSchema,
+        Map<Integer, Schema> schemas,
         FileIO io,
         Map<Integer, PartitionSpec> specsById,
         ManifestFile manifest,
@@ -299,6 +312,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(specsById);
       this.dataTableSchema = dataTableSchema;
+      this.schemas = schemas;
 
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
@@ -368,7 +382,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
      */
     private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
         Schema fileStructProjection) {
-      return ManifestFiles.open(manifest, io, specsById).project(fileStructProjection).entries();
+      return ManifestFiles.open(manifest, io, specsById, schemas)
+          .project(fileStructProjection)
+          .entries();
     }
 
     /**

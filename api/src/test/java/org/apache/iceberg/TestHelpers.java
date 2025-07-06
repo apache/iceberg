@@ -626,6 +626,7 @@ public class TestHelpers {
   public static class TestDataFile implements DataFile {
     private final String path;
     private final StructLike partition;
+    private final int schemaId;
     private final long recordCount;
     private final Map<Integer, Long> valueCounts;
     private final Map<Integer, Long> nullValueCounts;
@@ -646,8 +647,31 @@ public class TestHelpers {
         Map<Integer, Long> nanValueCounts,
         Map<Integer, ByteBuffer> lowerBounds,
         Map<Integer, ByteBuffer> upperBounds) {
+      this(
+          path,
+          partition,
+          0,
+          recordCount,
+          valueCounts,
+          nullValueCounts,
+          nanValueCounts,
+          lowerBounds,
+          upperBounds);
+    }
+
+    public TestDataFile(
+        String path,
+        StructLike partition,
+        int schemaId,
+        long recordCount,
+        Map<Integer, Long> valueCounts,
+        Map<Integer, Long> nullValueCounts,
+        Map<Integer, Long> nanValueCounts,
+        Map<Integer, ByteBuffer> lowerBounds,
+        Map<Integer, ByteBuffer> upperBounds) {
       this.path = path;
       this.partition = partition;
+      this.schemaId = schemaId;
       this.recordCount = recordCount;
       this.valueCounts = valueCounts;
       this.nullValueCounts = nullValueCounts;
@@ -689,6 +713,11 @@ public class TestHelpers {
     @Override
     public long fileSizeInBytes() {
       return 0;
+    }
+
+    @Override
+    public int schemaId() {
+      return schemaId;
     }
 
     @Override
