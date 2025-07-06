@@ -79,6 +79,7 @@ public class RESTCatalogServer {
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
     catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
     catalogProperties.putIfAbsent("jdbc.schema-version", "V1");
+    catalogProperties.putIfAbsent("jdbc.strict-mode", "true");
 
     // Configure a default location if one is not specified
     String warehouseLocation = catalogProperties.get(CatalogProperties.WAREHOUSE_LOCATION);
