@@ -445,7 +445,7 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableAfterRename() throws Exception {
+  public void testCreateTableInUniqueLocation() throws Exception {
     assumeThat(uniqueTableLocation()).isTrue();
 
     assumeThat(validationCatalog)

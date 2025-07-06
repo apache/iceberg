@@ -311,7 +311,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
-  public void testCreateTableAfterRename() {
+  public void testCreateTableInUniqueLocation() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     String newTableName = tableName + "_2";

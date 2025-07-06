@@ -179,7 +179,7 @@ public class TestEcsCatalog {
   }
 
   @Test
-  public void testCreateTableAfterRename() throws Exception {
+  public void testCreateTableInUniqueLocation() throws Exception {
     try (EcsCatalog catalog =
         createCatalog(
             "unique_location_catalog",
