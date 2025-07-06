@@ -23,12 +23,19 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTypeUtil {
   @Test
@@ -595,7 +602,12 @@ public class TestTypeUtil {
         new Schema(
             Lists.newArrayList(
                 required(10, "a", Types.IntegerType.get()),
-                required(11, "c", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(11)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
                 required(12, "B", Types.IntegerType.get())),
             Sets.newHashSet(10));
     Schema sourceSchema =
@@ -603,13 +615,20 @@ public class TestTypeUtil {
             Lists.newArrayList(
                 required(1, "a", Types.IntegerType.get()),
                 required(15, "B", Types.IntegerType.get())));
-    final Schema actualSchema = TypeUtil.reassignOrRefreshIds(schema, sourceSchema);
-    final Schema expectedSchema =
+
+    Schema actualSchema = TypeUtil.reassignOrRefreshIds(schema, sourceSchema);
+    Schema expectedSchema =
         new Schema(
             Lists.newArrayList(
                 required(1, "a", Types.IntegerType.get()),
-                required(16, "c", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(16)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
                 required(15, "B", Types.IntegerType.get())));
+
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
@@ -632,5 +651,298 @@ public class TestTypeUtil {
                 required(1, "FIELD1", Types.IntegerType.get()),
                 required(2, "FIELD2", Types.IntegerType.get())));
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testAssignIds() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Type actualSchema = TypeUtil.assignIds(schema.asStruct(), oldId -> oldId + 10);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(10, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(11)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(12, "B", Types.IntegerType.get())));
+
+    assertThat(actualSchema).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testAssignFreshIds() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Schema actualSchema = TypeUtil.assignFreshIds(schema, new AtomicInteger(10)::incrementAndGet);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(11, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(12)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(13, "B", Types.IntegerType.get())));
+
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testReassignDoc() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Schema docSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get(), "a_doc"),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withDoc("c_doc")
+                    .build(),
+                required(2, "B", Types.IntegerType.get(), "b_doc")));
+
+    Schema actualSchema = TypeUtil.reassignDoc(schema, docSchema);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get(), "a_doc"),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .withDoc("c_doc")
+                    .build(),
+                required(2, "B", Types.IntegerType.get(), "b_doc")));
+
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  private static Stream<Arguments> testTypes() {
+    return Stream.of(
+        Arguments.of(Types.UnknownType.get()),
+        Arguments.of(Types.VariantType.get()),
+        Arguments.of(Types.TimestampNanoType.withoutZone()),
+        Arguments.of(Types.TimestampNanoType.withZone()),
+        Arguments.of(Types.GeometryType.crs84()),
+        Arguments.of(Types.GeometryType.of("srid:3857")),
+        Arguments.of(Types.GeographyType.crs84()),
+        Arguments.of(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testAssignIdsWithType(Type testType) {
+    Types.StructType sourceType =
+        Types.StructType.of(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+    Type expectedType =
+        Types.StructType.of(required(10, "id", IntegerType.get()), optional(11, "data", testType));
+
+    Type assignedType = TypeUtil.assignIds(sourceType, oldId -> oldId + 10);
+    assertThat(assignedType).isEqualTo(expectedType);
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testAssignFreshIdsWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+
+    Schema assignedSchema = TypeUtil.assignFreshIds(schema, new AtomicInteger(10)::incrementAndGet);
+    Schema expectedSchema =
+        new Schema(required(11, "id", IntegerType.get()), optional(12, "data", testType));
+    assertThat(assignedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testReassignIdsWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+    Schema sourceSchema =
+        new Schema(required(1, "id", IntegerType.get()), optional(2, "data", testType));
+
+    Schema reassignedSchema = TypeUtil.reassignIds(schema, sourceSchema);
+    assertThat(reassignedSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testIndexByIdWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+
+    Map<Integer, Types.NestedField> indexByIds = TypeUtil.indexById(schema.asStruct());
+    assertThat(indexByIds.get(1).type()).isEqualTo(testType);
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testIndexNameByIdWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+
+    Map<Integer, String> indexNameByIds = TypeUtil.indexNameById(schema.asStruct());
+    assertThat(indexNameByIds.get(1)).isEqualTo("data");
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testProjectWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+
+    Schema expectedSchema = new Schema(optional(1, "data", testType));
+    Schema projectedSchema = TypeUtil.project(schema, Sets.newHashSet(1));
+    assertThat(projectedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testGetProjectedIdsWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+
+    Set<Integer> projectedIds = TypeUtil.getProjectedIds(schema);
+    assertThat(Set.of(0, 1)).isEqualTo(projectedIds);
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testReassignDocWithType(Type testType) {
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
+    Schema docSourceSchema =
+        new Schema(
+            required(0, "id", IntegerType.get(), "id"), optional(1, "data", testType, "data"));
+
+    Schema reassignedSchema = TypeUtil.reassignDoc(schema, docSourceSchema);
+    assertThat(reassignedSchema.asStruct()).isEqualTo(docSourceSchema.asStruct());
+  }
+
+  @Test
+  public void ancestorFieldsInEmptySchema() {
+    assertThat(TypeUtil.ancestorFields(new Schema(), -1)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(new Schema(), 1)).isEmpty();
+  }
+
+  @Test
+  public void ancestorFieldsInNonNestedSchema() {
+    Schema schema =
+        new Schema(
+            required(0, "a", Types.IntegerType.get()), required(1, "A", Types.IntegerType.get()));
+
+    assertThat(TypeUtil.ancestorFields(schema, 0)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 1)).isEmpty();
+  }
+
+  @Test
+  public void ancestorFieldsInNestedSchema() {
+    Types.NestedField innerPreferences =
+        optional(
+            8,
+            "inner_preferences",
+            Types.StructType.of(
+                required(12, "feature3", Types.BooleanType.get()),
+                optional(13, "feature4", Types.BooleanType.get())));
+    Types.NestedField preferences =
+        optional(
+            3,
+            "preferences",
+            Types.StructType.of(
+                required(6, "feature1", Types.BooleanType.get()),
+                optional(7, "feature2", Types.BooleanType.get()),
+                innerPreferences));
+
+    // define locations map with all nested fields
+    Types.StructType locationsKeyStruct =
+        Types.StructType.of(
+            required(20, "address", Types.StringType.get()),
+            required(21, "city", Types.StringType.get()),
+            required(22, "state", Types.StringType.get()),
+            required(23, "zip", IntegerType.get()));
+    Types.StructType locationsValueStruct =
+        Types.StructType.of(
+            required(14, "lat", Types.FloatType.get()),
+            required(15, "long", Types.FloatType.get()));
+    Types.NestedField locationsKey = required(9, "key", locationsKeyStruct);
+    Types.NestedField locationsValue = required(10, "value", locationsValueStruct);
+    Types.NestedField locations =
+        required(
+            4,
+            "locations",
+            Types.MapType.ofRequired(9, 10, locationsKeyStruct, locationsValueStruct));
+
+    // define points list with all nested fields
+    Types.StructType pointsStruct =
+        Types.StructType.of(
+            required(16, "x", Types.LongType.get()), required(17, "y", Types.LongType.get()));
+    Types.NestedField pointsElement = optional(11, "element", pointsStruct);
+    Types.NestedField points = optional(5, "points", Types.ListType.ofOptional(11, pointsStruct));
+
+    Types.NestedField id = required(1, "id", IntegerType.get());
+    Types.NestedField data = optional(2, "data", Types.StringType.get());
+    Schema schema = new Schema(id, data, preferences, locations, points);
+
+    // non-nested fields don't have parents
+    assertThat(TypeUtil.ancestorFields(schema, id.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, data.fieldId())).isEmpty();
+
+    // verify preferences struct and all of its nested fields (6-8, 12+13)
+    assertThat(TypeUtil.ancestorFields(schema, preferences.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 6)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 7)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, innerPreferences.fieldId()))
+        .containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 12)).containsExactly(innerPreferences, preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 13)).containsExactly(innerPreferences, preferences);
+
+    // verify locations map and all of its nested fields (IDs 9+10, 20-23 and 14+15)
+    assertThat(TypeUtil.ancestorFields(schema, locations.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, locationsKey.fieldId())).containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 20)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 21)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 22)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 23)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, locationsValue.fieldId()))
+        .containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 14)).containsExactly(locationsValue, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 15)).containsExactly(locationsValue, locations);
+
+    // verify points list and all of its nested fields (IDs 11 and 16+17)
+    assertThat(TypeUtil.ancestorFields(schema, points.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, pointsElement.fieldId())).containsExactly(points);
+    assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
+    assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
   }
 }

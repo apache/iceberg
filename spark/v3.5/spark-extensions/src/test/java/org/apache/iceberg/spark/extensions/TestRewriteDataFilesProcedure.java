@@ -22,29 +22,40 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionStatistics;
+import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
@@ -70,6 +81,29 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testFilterCaseSensitivity() {
+    createTable();
+    insertData(10);
+    sql("set %s = false", SQLConf.CASE_SENSITIVE().key());
+    List<Object[]> expectedRecords = currentData();
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testZOrderSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
@@ -84,7 +118,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0, 0)), output);
   }
 
   @TestTemplate
@@ -102,13 +136,59 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 2),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
+  public void testPartitionStatsIncrementalCompute() throws IOException {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsBeforeCompaction;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
+      statsBeforeCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    table.refresh();
+
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsAfterCompaction;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
+      statsAfterCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    for (int index = 0; index < statsBeforeCompaction.size(); index++) {
+      PartitionStatistics statsAfter = statsAfterCompaction.get(index);
+      PartitionStatistics statsBefore = statsBeforeCompaction.get(index);
+
+      assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
+      // data count should match after compaction
+      assertThat(statsAfter.dataRecordCount()).isEqualTo(statsBefore.dataRecordCount());
+      // file count should not match as new file count will be one after compaction
+      assertThat(statsAfter.dataFileCount()).isNotEqualTo(statsBefore.dataFileCount());
+    }
   }
 
   @TestTemplate
@@ -126,7 +206,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -150,7 +230,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0, 0L, 0)),
+        ImmutableList.of(row(0, 0, 0L, 0, 0)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -176,7 +256,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -238,7 +318,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -279,7 +359,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         "Action should rewrite 10 data files and add 1 data files",
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(snapshotSummary())
         .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(output.get(0)[2]));
     assertThat(sql("SELECT * FROM %s", tableName))
@@ -351,7 +431,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -376,7 +456,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -422,7 +502,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -435,7 +515,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
     createBucketPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -454,7 +534,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         row(output.get(0)[0], output.get(0)[1]));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -482,7 +562,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -562,7 +642,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithPossibleV2Filters() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
 
     SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
     sql(
@@ -615,7 +695,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(
@@ -698,6 +778,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -743,7 +824,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isEqualTo(
             Long.valueOf(snapshotSummary(identifier).get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -751,7 +832,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -782,7 +863,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -791,7 +872,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -822,7 +903,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -831,7 +912,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -858,7 +939,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(2, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -897,9 +978,60 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     Map<String, String> summary = snapshotSummary();
     assertThat(summary)
         .containsKey(CatalogProperties.APP_ID)
+        .containsKey(CatalogProperties.APP_NAME)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
         .hasEntrySatisfying(
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES('format-version' = '3')",
+        tableName);
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    int numRecords = 10;
+    for (int i = 0; i < numRecords; i++) {
+      records.add(new ThreeColumnRecord(i, null, null));
+    }
+
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(10)
+        .writeTo(tableName)
+        .append();
+    List<Object[]> expectedRowsWithLineage =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    List<Long> rowIds =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[1])
+            .collect(Collectors.toList());
+    List<Long> sequenceNumbers =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[2])
+            .collect(Collectors.toList());
+    assertThat(rowIds)
+        .isEqualTo(LongStream.range(0, numRecords).boxed().collect(Collectors.toList()));
+    assertThat(sequenceNumbers).isEqualTo(Collections.nCopies(numRecords, 1L));
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> rowsWithLineageAfterRewrite =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    assertEquals(
+        "Rows with lineage before rewrite should equal rows with lineage after rewrite",
+        expectedRowsWithLineage,
+        rowsWithLineageAfterRewrite);
   }
 
   private void createTable() {
@@ -907,14 +1039,22 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   private void createPartitionTable() {
+    createPartitionTable(
+        ImmutableMap.of(
+            TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE));
+  }
+
+  private void createPartitionTable(Map<String, String> properties) {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
-            + "PARTITIONED BY (c2) "
-            + "TBLPROPERTIES ('%s' '%s')",
-        tableName,
-        TableProperties.WRITE_DISTRIBUTION_MODE,
-        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+            + "PARTITIONED BY (c2)",
+        tableName);
+    properties.forEach(
+        (prop, value) ->
+            this.sql(
+                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+                new Object[] {this.tableName, prop, value}));
   }
 
   private void createBucketPartitionTable() {
@@ -967,5 +1107,210 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   private List<Object[]> currentData(String table) {
     return rowsToJava(spark.sql("SELECT * FROM " + table + " order by c1, c2, c3").collectAsList());
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesOnBranch() {
+    createTable();
+    insertData(10);
+
+    String branchName = "testBranch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    List<Object[]> expectedRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+
+    // Get snapshot IDs before rewrite
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    long branchSnapshotId = table.refs().get(branchName).snapshotId();
+
+    // Call rewrite_data_files on the branch
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
+            catalogName, tableName, branchName);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    // Verify branch data is preserved after compaction
+    List<Object[]> actualRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+
+    // Verify branch snapshot changed
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot should be updated when files are rewritten")
+        .isNotEqualTo(branchSnapshotId);
+
+    // Verify main snapshot unchanged
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot should remain unchanged")
+        .isEqualTo(mainSnapshotId);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesToNullBranchFails() {
+    createTable();
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThatThrownBy(() -> SparkActions.get(spark).rewriteDataFiles(table).toBranch(null))
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesOnBranchWithFilter() {
+    createPartitionTable();
+    insertData(10);
+
+    String branchName = "filteredBranch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    List<Object[]> expectedRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+
+    // Get snapshot IDs before rewrite
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    long branchSnapshotId = table.refs().get(branchName).snapshotId();
+
+    // Call rewrite_data_files on the branch with filter (select only partition c2 = 'bar')
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', where => 'c2 = \"bar\"')",
+            catalogName, tableName, branchName);
+
+    assertEquals(
+        "Action should rewrite 5 data files from single matching partition"
+            + "(containing c2 = bar) and add 1 data file",
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    // Verify branch data is preserved after compaction
+    List<Object[]> actualRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+
+    // Verify branch snapshot changed after rewrite
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot should be updated when files are rewritten")
+        .isNotEqualTo(branchSnapshotId);
+
+    // Verify main snapshot unchanged
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot should remain unchanged")
+        .isEqualTo(mainSnapshotId);
+  }
+
+  @TestTemplate
+  public void testBranchCompactionDoesNotAffectMain() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // Create branch from current main state
+    String branchName = "compactionBranch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // Add more data to MAIN to make it diverge from branch
+    insertData(tableName, 10);
+
+    // Refresh to get new main snapshot after divergence
+    table.refresh();
+    long mainSnapshotAfterDivergence = table.currentSnapshot().snapshotId();
+    List<Object[]> expectedMainRecords = currentData();
+
+    // Get branch data before compaction
+    List<Object[]> expectedBranchRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+
+    long branchSnapshotBeforeCompaction = table.refs().get(branchName).snapshotId();
+
+    // Verify that branch and main have diverged
+    assertThat(branchSnapshotBeforeCompaction)
+        .as("Branch and main should have different snapshots")
+        .isNotEqualTo(mainSnapshotAfterDivergence);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
+            catalogName, tableName, branchName);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    table.refresh();
+
+    // Verify main snapshot unchanged
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot ID must remain unchanged after branch compaction")
+        .isEqualTo(mainSnapshotAfterDivergence);
+
+    // Verify main data unchanged
+    List<Object[]> actualMainRecords = currentData();
+    assertEquals(
+        "Main data after compaction should not change", expectedMainRecords, actualMainRecords);
+
+    // Verify branch data unchanged
+    List<Object[]> actualBranchRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals(
+        "Branch data after compaction should not change",
+        expectedBranchRecords,
+        actualBranchRecords);
+
+    // Verify branch snapshot changed
+    long branchSnapshotAfterCompaction = table.refs().get(branchName).snapshotId();
+    assertThat(branchSnapshotAfterCompaction)
+        .as("Branch snapshot must be updated after compaction")
+        .isNotEqualTo(branchSnapshotBeforeCompaction);
+
+    // Verify the new branch snapshot is a child of the previous branch snapshot
+    assertThat(table.snapshot(branchSnapshotAfterCompaction).parentId())
+        .as("New branch snapshot must be a child of the previous branch snapshot")
+        .isEqualTo(branchSnapshotBeforeCompaction);
   }
 }

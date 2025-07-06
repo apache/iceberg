@@ -89,4 +89,19 @@ public class IOUtil {
 
     return length - remaining;
   }
+
+  private static final double LN2 = Math.log(2);
+
+  /**
+   * Returns a capacity that is the next power of 2 larger than the size.
+   *
+   * @param size an object size
+   * @return a capacity that is larger than the size for reused buffers
+   */
+  public static int capacityFor(int size) {
+    // find the power of 2 size that fits the value
+    int nextPow2 = (int) Math.ceil(Math.log(size) / LN2);
+    // return a capacity that is 2 the next power of 2 size up to the max
+    return Math.min(1 << (nextPow2 + 1), Integer.MAX_VALUE - 1);
+  }
 }

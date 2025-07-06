@@ -36,12 +36,14 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -185,6 +187,10 @@ public class SparkWriteConf {
   }
 
   public FileFormat deleteFileFormat() {
+    if (!(table instanceof BaseMetadataTable) && TableUtil.formatVersion(table) >= 3) {
+      return FileFormat.PUFFIN;
+    }
+
     String valueAsString =
         confParser
             .stringConf()

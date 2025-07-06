@@ -78,6 +78,17 @@ public class MetricsReporters {
       }
     }
 
+    @Override
+    public void close() {
+      for (MetricsReporter reporter : reporters) {
+        try {
+          reporter.close();
+        } catch (Exception e) {
+          LOG.warn("Failed to close metrics reporter {}", reporter.getClass().getName(), e);
+        }
+      }
+    }
+
     Set<MetricsReporter> reporters() {
       return Collections.unmodifiableSet(reporters);
     }

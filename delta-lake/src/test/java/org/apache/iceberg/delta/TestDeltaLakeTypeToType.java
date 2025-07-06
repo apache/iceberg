@@ -170,13 +170,13 @@ public class TestDeltaLakeTypeToType {
                 DeltaLakeDataTypeVisitor.visit(
                     deltaNullTypeSchema, new DeltaLakeTypeToType(deltaNullTypeSchema)))
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
+        .hasMessage("Not a supported type: %s", new NullType().getCatalogString());
     assertThatThrownBy(
             () ->
                 DeltaLakeDataTypeVisitor.visit(
                     deltaShallowNullTypeSchema,
                     new DeltaLakeTypeToType(deltaShallowNullTypeSchema)))
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
+        .hasMessage("Not a supported type: %s", new NullType().getCatalogString());
   }
 }

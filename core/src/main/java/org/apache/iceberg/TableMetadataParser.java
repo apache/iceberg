@@ -34,6 +34,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -110,6 +111,9 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
+  static final String ENCRYPTION_KEYS = "encryption-keys";
+  static final String NEXT_ROW_ID = "next-row-id";
+  static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -126,11 +130,10 @@ public class TableMetadataParser {
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
+      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }
   }
 
@@ -217,7 +220,23 @@ public class TableMetadataParser {
     if (metadata.currentSnapshot() != null) {
       generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
     } else {
-      generator.writeNullField(CURRENT_SNAPSHOT_ID);
+      if (metadata.formatVersion() >= MIN_NULL_CURRENT_SNAPSHOT_VERSION) {
+        generator.writeNullField(CURRENT_SNAPSHOT_ID);
+      } else {
+        generator.writeNumberField(CURRENT_SNAPSHOT_ID, -1L);
+      }
+    }
+
+    if (metadata.formatVersion() >= 3) {
+      generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
+    }
+
+    if (metadata.encryptionKeys() != null && !metadata.encryptionKeys().isEmpty()) {
+      generator.writeArrayFieldStart(ENCRYPTION_KEYS);
+      for (EncryptedKey key : metadata.encryptionKeys()) {
+        EncryptedKeyParser.toJson(key, generator);
+      }
+      generator.writeEndArray();
     }
 
     toJson(metadata.refs(), generator);
@@ -272,16 +291,16 @@ public class TableMetadataParser {
   }
 
   public static TableMetadata read(FileIO io, String path) {
-    return read(io, io.newInputFile(path));
+    return read(io.newInputFile(path));
   }
 
-  public static TableMetadata read(FileIO io, InputFile file) {
+  public static TableMetadata read(InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read file: %s", file);
+      throw new RuntimeIOException(e, "Failed to read file: %s", file.location());
     }
   }
 
@@ -454,7 +473,21 @@ public class TableMetadataParser {
       currentSnapshotId = -1L;
     }
 
+    long lastRowId;
+    if (formatVersion >= 3) {
+      lastRowId = JsonUtil.getLong(NEXT_ROW_ID, node);
+    } else {
+      lastRowId = TableMetadata.INITIAL_ROW_ID;
+    }
+
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
+
+    List<EncryptedKey> keys;
+    if (node.has(ENCRYPTION_KEYS)) {
+      keys = JsonUtil.getObjectList(ENCRYPTION_KEYS, node, EncryptedKeyParser::fromJson);
+    } else {
+      keys = List.of();
+    }
 
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
@@ -545,6 +578,8 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
+        lastRowId,
+        keys,
         ImmutableList.of() /* no changes from the file */);
   }
 

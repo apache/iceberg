@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.variants.Variant;
 
 class Literals {
   private Literals() {}
@@ -55,12 +56,14 @@ class Literals {
    * @param <T> Java type of value
    * @return a Literal for the given value
    */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");
 
-    if (value instanceof Boolean) {
+    if (value instanceof Literal) {
+      return (Literal<T>) value;
+    } else if (value instanceof Boolean) {
       return (Literal<T>) new Literals.BooleanLiteral((Boolean) value);
     } else if (value instanceof Integer) {
       return (Literal<T>) new Literals.IntegerLiteral((Integer) value);
@@ -80,6 +83,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Variant) {
+      return (Literal<T>) new Literals.VariantLiteral((Variant) value);
     }
 
     throw new IllegalArgumentException(
@@ -500,6 +505,33 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.DECIMAL;
+    }
+  }
+
+  static class VariantLiteral extends BaseLiteral<Variant> {
+    VariantLiteral(Variant value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case VARIANT:
+          return (Literal<T>) this;
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public Comparator<Variant> comparator() {
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.VARIANT;
     }
   }
 

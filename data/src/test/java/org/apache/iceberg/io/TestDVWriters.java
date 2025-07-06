@@ -21,8 +21,8 @@ package org.apache.iceberg.io;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -37,6 +37,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
@@ -58,8 +59,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(new Object[] {2, 3});
+  protected static List<Integer> parameters() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   private OutputFileFactory fileFactory = null;
@@ -224,6 +225,28 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // verify correctness
     assertRows(ImmutableList.of(toRow(3, "aaa")));
+  }
+
+  @TestTemplate
+  public void testNoPuffinFileCreatedWhenNoDeletesWritten() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DVFileWriter dvWriter =
+        new BaseDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
+
+    // close without writing any deletes
+    dvWriter.close();
+
+    // verify the writer result has no delete files
+    DeleteWriteResult result = dvWriter.result();
+    assertThat(result.deleteFiles()).isEmpty();
+    assertThat(result.referencedDataFiles()).isEmpty();
+    assertThat(result.referencesDataFiles()).isFalse();
+    assertThat(result.rewrittenDeleteFiles()).isEmpty();
+
+    // verify that the data directory doesn't exist, implying no puffin files were created
+    File dir = new File(table.location(), "data");
+    assertThat(dir).doesNotExist();
   }
 
   @TestTemplate

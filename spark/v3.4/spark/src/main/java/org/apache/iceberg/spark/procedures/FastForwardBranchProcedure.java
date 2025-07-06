@@ -30,12 +30,15 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class FastForwardBranchProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter BRANCH_PARAM =
+      requiredInParameter("branch", DataTypes.StringType);
+  private static final ProcedureParameter TO_PARAM =
+      requiredInParameter("to", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("branch", DataTypes.StringType),
-        ProcedureParameter.required("to", DataTypes.StringType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, BRANCH_PARAM, TO_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -70,19 +73,21 @@ public class FastForwardBranchProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String source = args.getString(1);
-    String target = args.getString(2);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    String from = input.asString(BRANCH_PARAM);
+    String to = input.asString(TO_PARAM);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          long currentRef = table.currentSnapshot().snapshotId();
-          table.manageSnapshots().fastForwardBranch(source, target).commit();
-          long updatedRef = table.currentSnapshot().snapshotId();
-
+          Long snapshotBefore =
+              table.snapshot(from) != null ? table.snapshot(from).snapshotId() : null;
+          table.manageSnapshots().fastForwardBranch(from, to).commit();
+          long snapshotAfter = table.snapshot(from).snapshotId();
           InternalRow outputRow =
-              newInternalRow(UTF8String.fromString(source), currentRef, updatedRef);
+              newInternalRow(UTF8String.fromString(from), snapshotBefore, snapshotAfter);
           return new InternalRow[] {outputRow};
         });
   }

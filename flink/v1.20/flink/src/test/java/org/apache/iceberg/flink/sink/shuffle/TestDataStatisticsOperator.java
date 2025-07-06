@@ -34,6 +34,8 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.OperatorStateStore;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.CloseableRegistry;
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
@@ -138,6 +140,34 @@ public class TestDataStatisticsOperator {
 
   @ParameterizedTest
   @EnumSource(StatisticsType.class)
+  public void testProcessElementWithNull(StatisticsType type) throws Exception {
+    DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
+      operator.processElement(new StreamRecord<>(GenericRowData.of(null, 5)));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 3)));
+
+      DataStatistics localStatistics = operator.localStatistics();
+      SortKeySerializer sortKeySerializer =
+          new SortKeySerializer(Fixtures.SCHEMA, Fixtures.SORT_ORDER);
+      DataStatisticsSerializer taskStatisticsSerializer =
+          new DataStatisticsSerializer(sortKeySerializer);
+      DataOutputSerializer outputView = new DataOutputSerializer(1024);
+
+      taskStatisticsSerializer.serialize(localStatistics, outputView);
+      DataInputDeserializer inputView = new DataInputDeserializer(outputView.getCopyOfBuffer());
+      DataStatistics dataStatistics = taskStatisticsSerializer.deserialize(inputView);
+
+      testHarness.endInput();
+
+      assertThat(localStatistics).isEqualTo(dataStatistics);
+    }
+  }
+
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
   public void testOperatorOutput(StatisticsType type) throws Exception {
     DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
     try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
@@ -219,6 +249,12 @@ public class TestDataStatisticsOperator {
         new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
+
+      // When we restore from the savepoint, we should ensure that `globalStatisticsState` has been
+      // completely cleaned up
+      Iterable<GlobalStatistics> globalStatisticsIterable =
+          restoredOperator.globalStatisticsState().get();
+      assertThat(globalStatisticsIterable).isEmpty();
 
       GlobalStatistics globalStatistics = restoredOperator.globalStatistics();
       // global statistics is always restored and used initially even if

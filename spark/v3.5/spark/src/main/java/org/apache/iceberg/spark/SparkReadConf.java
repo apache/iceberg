@@ -332,6 +332,18 @@ public class SparkReadConf {
     return executorCacheEnabled() && executorCacheLocalityEnabledInternal();
   }
 
+  public boolean cacheDeleteFilesOnExecutors() {
+    return executorCacheEnabled() && cacheDeleteFilesOnExecutorsInternal();
+  }
+
+  private boolean cacheDeleteFilesOnExecutorsInternal() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT)
+        .parse();
+  }
+
   private boolean executorCacheEnabled() {
     return confParser
         .booleanConf()
@@ -353,6 +365,14 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
+        .parse();
+  }
+
+  public ParquetReaderType parquetReaderType() {
+    return confParser
+        .enumConf(ParquetReaderType::fromString)
+        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
+        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 }

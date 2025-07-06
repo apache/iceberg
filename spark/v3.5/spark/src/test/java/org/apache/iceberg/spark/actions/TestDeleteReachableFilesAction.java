@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +52,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,8 +120,8 @@ public class TestDeleteReachableFilesAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   private Table table;
@@ -211,9 +209,8 @@ public class TestDeleteReachableFilesAction extends TestBase {
     // Verifies that the delete methods ran in the threads created by the provided ExecutorService
     // ThreadFactory
     assertThat(deleteThreads)
-        .isEqualTo(
-            Sets.newHashSet(
-                "remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3"));
+        .containsExactlyInAnyOrder(
+            "remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3");
 
     Lists.newArrayList(FILE_A, FILE_B, FILE_C, FILE_D)
         .forEach(

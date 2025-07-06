@@ -79,11 +79,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int fieldId = id(sourceStruct, field.name());
-      if (field.isRequired()) {
-        newFields.add(Types.NestedField.required(fieldId, field.name(), types.get(i), field.doc()));
-      } else {
-        newFields.add(Types.NestedField.optional(fieldId, field.name(), types.get(i), field.doc()));
-      }
+      newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(types.get(i)).build());
     }
 
     return Types.StructType.of(newFields);
@@ -159,6 +155,11 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     } finally {
       this.sourceType = sourceMap;
     }
+  }
+
+  @Override
+  public Type variant(Types.VariantType variant) {
+    return variant;
   }
 
   @Override

@@ -27,9 +27,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StatisticsFile;
@@ -57,9 +57,10 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestComputeTableStatsAction extends CatalogTestBase {
-
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
           optional(1, "leafLongCol", Types.LongType.get()),
@@ -75,6 +76,11 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
       new Schema(
           required(4, "nestedStructCol", NESTED_STRUCT_TYPE),
           required(5, "stringCol", Types.StringType.get()));
+
+  @AfterEach
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
 
   @TestTemplate
   public void testLoadingTableDirectly() {
@@ -116,15 +122,20 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles).hasSize(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(2);
-
-    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(blobMetadata.properties())
-        .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+    assertThat(statisticsFiles)
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .hasSize(2)
+                  .element(0)
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
   @TestTemplate
@@ -148,14 +159,23 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     ComputeTableStats.Result results = actions.computeTableStats(table).execute();
     assertThat(results).isNotNull();
 
-    assertThat(table.statisticsFiles()).hasSize(1);
-    StatisticsFile statisticsFile = table.statisticsFiles().get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(2);
-    assertThat(statisticsFile.blobMetadata().get(0).properties())
-        .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
-    assertThat(statisticsFile.blobMetadata().get(1).properties())
-        .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .hasSize(2)
+                  .satisfiesExactly(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      },
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
   @TestTemplate
@@ -199,15 +219,19 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles).hasSize(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(1);
-
-    assertThat(statisticsFile.blobMetadata().get(0).properties())
-        .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
   @TestTemplate
@@ -253,15 +277,19 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles).hasSize(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(1);
-
-    assertThat(statisticsFile.blobMetadata().get(0).properties())
-        .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "1");
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "1");
+                      });
+            });
   }
 
   @TestTemplate
@@ -282,11 +310,13 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     actions.computeTableStats(tbl).execute();
 
     tbl.refresh();
-    List<StatisticsFile> statisticsFiles = tbl.statisticsFiles();
-    assertThat(statisticsFiles).hasSize(1);
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(1);
+    assertThat(tbl.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata()).hasSize(1);
+            });
   }
 
   @TestTemplate
@@ -365,15 +395,19 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
         actions.computeTableStats(table).columns(columnName).execute();
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles).hasSize(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
-    assertThat(statisticsFile.blobMetadata()).hasSize(1);
-
-    assertThat(statisticsFile.blobMetadata().get(0).properties())
-        .containsKey(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY);
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsKey(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY);
+                      });
+            });
   }
 
   private GenericRecord createNestedRecord() {
@@ -398,10 +432,5 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   private void append(String table, Dataset<Row> df) throws NoSuchTableException {
     // fanout writes are enabled as write-time clustering is not supported without Spark extensions
     df.coalesce(1).writeTo(table).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-  }
-
-  @AfterEach
-  public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 }

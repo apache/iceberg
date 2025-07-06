@@ -51,7 +51,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle with Java 11, 17, or 21.
+Iceberg is built using Gradle with Java 17 or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
@@ -71,18 +71,27 @@ Iceberg table support is organized in library modules:
 
 Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
-* `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use [runtime jars](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version to avoid dependency conflicts)
+* `iceberg-flink` contains classes for integrating with Apache Flink (use [iceberg-flink-runtime](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
 ---
 **NOTE**
 
-The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+The tests require Docker to execute. On macOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
 
 ```
 sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
 ```
+
+In some cases the testcontainer may exit with an initialization error because of an illegal state exception in the GenericContainer.  One work around for this problem is to set `selinux` into permissive mode before running the tests. 
+
+```
+sudo setenforce Permissive
+./gradlew ...
+sudo setenforce Enforcing
+```
+
 ---
 
 ### Engine Compatibility
@@ -97,3 +106,4 @@ This repository contains the Java implementation of Iceberg. Other implementatio
 * **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
 * **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
 * **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)
+* **C++**: [iceberg-cpp](https://github.com/apache/iceberg-cpp)

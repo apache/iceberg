@@ -77,7 +77,7 @@ public class TestParquetDeleteWriters {
     OutputFile out = Files.localOutput(temp);
     EqualityDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(out)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
@@ -127,7 +127,7 @@ public class TestParquetDeleteWriters {
     OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(out)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
@@ -183,7 +183,7 @@ public class TestParquetDeleteWriters {
     OutputFile out = Files.localOutput(temp);
     PositionDeleteWriter<Void> deleteWriter =
         Parquet.writeDeletes(out)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .transformPaths(

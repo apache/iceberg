@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
@@ -34,8 +35,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +58,7 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -195,7 +196,7 @@ public class TestLocalScan {
 
   @BeforeEach
   public void createTables() throws IOException {
-    File location = Files.createTempDirectory(tempDir.toPath(), "shared").toFile();
+    File location = new File(tempDir, "shared" + System.nanoTime());
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(
@@ -226,8 +227,7 @@ public class TestLocalScan {
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    File location = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
-    assertThat(location.delete()).isTrue();
+    File location = new File(tempDir, "junit" + System.nanoTime());
 
     Table table =
         TABLES.create(
@@ -263,9 +263,16 @@ public class TestLocalScan {
 
     append.commit();
 
-    Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
+    Comparator<Record> recordComparator =
+        Comparator.comparing((Record r) -> r.get(0, Long.class))
+            .thenComparing(
+                (Record r) -> r.get(1, String.class), Comparator.nullsFirst(String::compareTo));
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+
+    expected.sort(recordComparator);
+    records.sort(recordComparator);
     assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
-    assertThat(records).as("Random record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(records).as("Random record set should match").isEqualTo(expected);
   }
 
   @TestTemplate
@@ -522,16 +529,17 @@ public class TestLocalScan {
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    FileAppender<Record> fileAppender =
-        new GenericAppenderFactory(schema).newAppender(fromPath(path, CONF), fileFormat);
-    try (FileAppender<Record> appender = fileAppender) {
-      appender.addAll(records);
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataSchema(schema)
+            .dataFileFormat(fileFormat)
+            .build()
+            .newDataWriter(encrypt(fromPath(path, CONF)), PartitionSpec.unpartitioned(), null);
+    try (writer) {
+      writer.write(records);
     }
 
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(HadoopInputFile.fromPath(path, CONF))
-        .withMetrics(fileAppender.metrics())
-        .build();
+    return writer.toDataFile();
   }
 
   @TestTemplate
@@ -546,8 +554,7 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
-    assertThat(tableLocation.delete()).isTrue();
+    File tableLocation = new File(tempDir, "junit" + System.nanoTime());
 
     Table table =
         TABLES.create(

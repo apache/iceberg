@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
+import java.util.function.Consumer;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -38,8 +39,12 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
 
   @Override
   public <T extends RESTResponse> T handleRequest(
-      Route route, Map<String, String> vars, Object body, Class<T> responseType) {
-    T restResponse = super.handleRequest(route, vars, body, responseType);
+      Route route,
+      Map<String, String> vars,
+      HTTPRequest httpRequest,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders) {
+    T restResponse = super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
 
     if (restResponse instanceof LoadTableResponse) {
       if (PropertyUtil.propertyAsBoolean(

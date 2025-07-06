@@ -50,7 +50,6 @@ public class TestSnapshotUtil {
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).build();
 
-  protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
   static final DataFile FILE_A =
@@ -80,7 +79,7 @@ public class TestSnapshotUtil {
 
   @BeforeEach
   public void before() throws Exception {
-    this.metadataDir = new File(tableDir, "metadata");
+    new File(tableDir, "metadata");
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
     Snapshot snapshotBase = appendFileToMain();

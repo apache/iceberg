@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -251,13 +252,13 @@ public class NessieIcebergClient implements AutoCloseable {
             String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Cannot create namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
@@ -270,6 +271,16 @@ public class NessieIcebergClient implements AutoCloseable {
       } else {
         org.projectnessie.model.Namespace root =
             org.projectnessie.model.Namespace.of(namespace.levels());
+        Content existing =
+            api.getContent()
+                .reference(getReference())
+                .key(root.toContentKey())
+                .get()
+                .get(root.toContentKey());
+        if (existing == null) {
+          throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+        }
+
         filter +=
             String.format(
                 Locale.ROOT,
@@ -338,8 +349,8 @@ public class NessieIcebergClient implements AutoCloseable {
               throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty.", namespace);
           }
         }
-        throw new RuntimeException(
-            String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()));
+        throw new UncheckedIOException(
+            String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
       }
     } catch (NessieNotFoundException e) {
       LOG.error(
@@ -348,7 +359,7 @@ public class NessieIcebergClient implements AutoCloseable {
           getRef().getName(),
           e);
     } catch (BaseNessieClientServerException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
     }
     return false;
@@ -372,7 +383,7 @@ public class NessieIcebergClient implements AutoCloseable {
               () -> new NoSuchNamespaceException("Namespace does not exist: %s", namespace))
           .getProperties();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Cannot load namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
@@ -420,19 +431,20 @@ public class NessieIcebergClient implements AutoCloseable {
           && conflict.get().conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
         throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
       }
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
-              "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()));
+              "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()),
+          e);
     } catch (NessieContentNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Cannot update properties on namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format("Cannot update namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
@@ -468,7 +480,7 @@ public class NessieIcebergClient implements AutoCloseable {
       // a not found exception. This is analogous to a merge conflict in git when a table has been
       // changed by one user
       // and removed by another.
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Cannot rename %s '%s' to '%s': ref '%s' no longer exists.",
               contentType, from, to, getRef().getName()),
@@ -616,6 +628,7 @@ public class NessieIcebergClient implements AutoCloseable {
     commitContent(key, newTable, properties, commitMeta);
   }
 
+  @SuppressWarnings("deprecation")
   public void commitView(
       ViewMetadata base,
       ViewMetadata metadata,

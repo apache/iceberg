@@ -103,9 +103,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
   private void addSchema(Schema writeSchema) {
     long fp = SchemaNormalization.parsingFingerprint64(writeSchema);
-    RawDecoder decoder =
-        new RawDecoder<>(
-            readSchema, avroSchema -> DataReader.create(readSchema, avroSchema), writeSchema);
+    RawDecoder<D> decoder = RawDecoder.create(readSchema, PlannedDataReader::create, writeSchema);
     decoders.put(fp, decoder);
   }
 

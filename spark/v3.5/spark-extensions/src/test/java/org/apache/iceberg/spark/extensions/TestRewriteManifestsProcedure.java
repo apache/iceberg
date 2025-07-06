@@ -22,13 +22,18 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionStatistics;
+import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -294,6 +299,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -316,7 +322,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
   @TestTemplate
@@ -386,5 +392,56 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         "Should have 2 manifests and their partition spec id should be 0 and 1",
         ImmutableList.of(row(0), row(1)),
         sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+  }
+
+  @TestTemplate
+  public void testPartitionStatsIncrementalCompute() throws IOException {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsBeforeRewrite;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
+      statsBeforeRewrite = Lists.newArrayList(recordIterator);
+    }
+
+    sql(
+        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, tAbLe => '%s')",
+        catalogName, tableIdent);
+
+    table.refresh();
+
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
+
+    List<PartitionStatistics> statsAfterRewrite;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
+      statsAfterRewrite = Lists.newArrayList(recordIterator);
+    }
+
+    for (int index = 0; index < statsBeforeRewrite.size(); index++) {
+      PartitionStatistics statsAfter = statsAfterRewrite.get(index);
+      PartitionStatistics statsBefore = statsBeforeRewrite.get(index);
+
+      assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
+      // data count should match
+      assertThat(statsAfter.dataRecordCount()).isEqualTo(statsBefore.dataRecordCount());
+      // file count should match
+      assertThat(statsAfter.dataFileCount()).isEqualTo(statsBefore.dataFileCount());
+    }
   }
 }

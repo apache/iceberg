@@ -49,7 +49,45 @@ public abstract class BaseMetastoreOperations {
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but don't have proof that this is the case. Note that all
    * the previous locations must also be searched on the chance that a second committer was able to
-   * successfully commit on top of our commit.
+   * successfully commit on top of our commit. When the {@code newMetadataLocation} is not in the
+   * history or the {@code commitStatusSupplier} fails repeatedly the method returns {@link
+   * CommitStatus#UNKNOWN}, because possible pending retries might still commit the change.
+   *
+   * @param tableOrViewName full name of the Table/View
+   * @param newMetadataLocation the path of the new commit file
+   * @param properties properties for retry
+   * @param commitStatusSupplier check if the latest metadata presents or not using metadata
+   *     location for table.
+   * @return Commit Status of Success or Unknown
+   */
+  protected CommitStatus checkCommitStatus(
+      String tableOrViewName,
+      String newMetadataLocation,
+      Map<String, String> properties,
+      Supplier<Boolean> commitStatusSupplier) {
+    CommitStatus strictStatus =
+        checkCommitStatusStrict(
+            tableOrViewName, newMetadataLocation, properties, commitStatusSupplier);
+    if (strictStatus == CommitStatus.FAILURE) {
+      LOG.warn(
+          "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
+              + "or in history",
+          tableOrViewName,
+          newMetadataLocation);
+      return CommitStatus.UNKNOWN;
+    }
+    return strictStatus;
+  }
+
+  /**
+   * Attempt to load the content and see if any current or past metadata location matches the one we
+   * were attempting to set. This is used as a last resort when we are dealing with exceptions that
+   * may indicate the commit has failed and don't have proof that this is the case, but we can be
+   * sure that no retry attempts for the commit will be successful later. Note that all the previous
+   * locations must also be searched on the chance that a second committer was able to successfully
+   * commit on top of our commit. When the {@code newMetadataLocation} is not in the history the
+   * method returns {@link CommitStatus#FAILURE}, when the {@code commitStatusSupplier} fails
+   * repeatedly the method returns {@link CommitStatus#UNKNOWN}.
    *
    * @param tableOrViewName full name of the Table/View
    * @param newMetadataLocation the path of the new commit file
@@ -58,7 +96,7 @@ public abstract class BaseMetastoreOperations {
    *     location for table.
    * @return Commit Status of Success, Failure or Unknown
    */
-  protected CommitStatus checkCommitStatus(
+  protected CommitStatus checkCommitStatusStrict(
       String tableOrViewName,
       String newMetadataLocation,
       Map<String, String> properties,
@@ -98,11 +136,7 @@ public abstract class BaseMetastoreOperations {
                     newMetadataLocation);
                 status.set(CommitStatus.SUCCESS);
               } else {
-                LOG.warn(
-                    "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
-                        + "or in history",
-                    tableOrViewName,
-                    newMetadataLocation);
+                status.set(CommitStatus.FAILURE);
               }
             });
 

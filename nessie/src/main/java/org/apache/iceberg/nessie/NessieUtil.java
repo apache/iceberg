@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -273,7 +274,7 @@ public final class NessieUtil {
         }
       }
     } catch (NessieNotFoundException e) {
-      return Optional.of(new RuntimeException(e));
+      return Optional.of(new UncheckedIOException(e));
     }
 
     return Optional.empty();

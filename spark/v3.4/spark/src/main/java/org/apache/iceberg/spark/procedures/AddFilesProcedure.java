@@ -21,10 +21,8 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -51,6 +49,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import scala.collection.JavaConverters;
 
 class AddFilesProcedure extends BaseProcedure {
 
@@ -62,7 +61,6 @@ class AddFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("partition_filter", STRING_MAP);
   private static final ProcedureParameter CHECK_DUPLICATE_FILES_PARAM =
       ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType);
-
   private static final ProcedureParameter PARALLELISM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
 
@@ -120,6 +118,7 @@ class AddFilesProcedure extends BaseProcedure {
     boolean checkDuplicateFiles = input.asBoolean(CHECK_DUPLICATE_FILES_PARAM, true);
 
     int parallelism = input.asInt(PARALLELISM, 1);
+    Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
 
     return importToIceberg(
         tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
@@ -157,20 +156,13 @@ class AddFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         destIdent,
         table -> {
-          validatePartitionSpec(table, partitionFilter);
           ensureNameMappingPresent(table);
 
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
             importFileTable(
-                table,
-                sourcePath,
-                format,
-                partitionFilter,
-                checkDuplicateFiles,
-                table.spec(),
-                parallelism);
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, parallelism);
           } else {
             importCatalogTable(
                 table, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
@@ -196,11 +188,21 @@ class AddFilesProcedure extends BaseProcedure {
       String format,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      PartitionSpec spec,
       int parallelism) {
+    org.apache.spark.sql.execution.datasources.PartitionSpec inferredSpec =
+        Spark3Util.getInferredSpec(spark(), tableLocation);
+
+    List<String> sparkPartNames =
+        JavaConverters.seqAsJavaList(inferredSpec.partitionColumns()).stream()
+            .map(StructField::name)
+            .collect(Collectors.toList());
+    PartitionSpec compatibleSpec = SparkTableUtil.findCompatibleSpec(sparkPartNames, table);
+
+    SparkTableUtil.validatePartitionFilter(compatibleSpec, partitionFilter, table.name());
+
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, compatibleSpec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
@@ -212,11 +214,12 @@ class AddFilesProcedure extends BaseProcedure {
       // Build a Global Partition for the source
       SparkPartition partition =
           new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
-      importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles, parallelism);
+      importPartitions(
+          table, ImmutableList.of(partition), checkDuplicateFiles, compatibleSpec, parallelism);
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(table, partitions, checkDuplicateFiles, parallelism);
+      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism);
     }
   }
 
@@ -242,16 +245,11 @@ class AddFilesProcedure extends BaseProcedure {
       Table table,
       List<SparkTableUtil.SparkPartition> partitions,
       boolean checkDuplicateFiles,
+      PartitionSpec spec,
       int parallelism) {
     String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(
-        spark(),
-        partitions,
-        table,
-        table.spec(),
-        stagingLocation,
-        checkDuplicateFiles,
-        parallelism);
+        spark(), partitions, table, spec, stagingLocation, checkDuplicateFiles, parallelism);
   }
 
   private String getMetadataLocation(Table table) {
@@ -263,57 +261,5 @@ class AddFilesProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "AddFiles";
-  }
-
-  private void validatePartitionSpec(Table table, Map<String, String> partitionFilter) {
-    List<PartitionField> partitionFields = table.spec().fields();
-    Set<String> partitionNames =
-        table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toSet());
-
-    boolean tablePartitioned = !partitionFields.isEmpty();
-    boolean partitionSpecPassed = !partitionFilter.isEmpty();
-
-    // Check for any non-identity partition columns
-    List<PartitionField> nonIdentityFields =
-        partitionFields.stream()
-            .filter(x -> !x.transform().isIdentity())
-            .collect(Collectors.toList());
-    Preconditions.checkArgument(
-        nonIdentityFields.isEmpty(),
-        "Cannot add data files to target table %s because that table is partitioned and contains non-identity"
-            + "partition transforms which will not be compatible. Found non-identity fields %s",
-        table.name(),
-        nonIdentityFields);
-
-    if (tablePartitioned && partitionSpecPassed) {
-      // Check to see there are sufficient partition columns to satisfy the filter
-      Preconditions.checkArgument(
-          partitionFields.size() >= partitionFilter.size(),
-          "Cannot add data files to target table %s because that table is partitioned, "
-              + "but the number of columns in the provided partition filter (%s) "
-              + "is greater than the number of partitioned columns in table (%s)",
-          table.name(),
-          partitionFilter.size(),
-          partitionFields.size());
-
-      // Check for any filters of non existent columns
-      List<String> unMatchedFilters =
-          partitionFilter.keySet().stream()
-              .filter(filterName -> !partitionNames.contains(filterName))
-              .collect(Collectors.toList());
-      Preconditions.checkArgument(
-          unMatchedFilters.isEmpty(),
-          "Cannot add files to target table %s. %s is partitioned but the specified partition filter "
-              + "refers to columns that are not partitioned: '%s' . Valid partition columns %s",
-          table.name(),
-          table.name(),
-          unMatchedFilters,
-          String.join(",", partitionNames));
-    } else {
-      Preconditions.checkArgument(
-          !partitionSpecPassed,
-          "Cannot use partition filter with an unpartitioned table %s",
-          table.name());
-    }
   }
 }

@@ -38,7 +38,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -337,7 +337,10 @@ public abstract class TestAppenderFactory<T> extends TestBase {
             .build();
 
       case AVRO:
-        return Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
+        return Avro.read(inputFile)
+            .project(schema)
+            .createResolvingReader(PlannedDataReader::create)
+            .build();
 
       case ORC:
         return ORC.read(inputFile)

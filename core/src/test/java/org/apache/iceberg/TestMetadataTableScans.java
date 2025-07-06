@@ -1704,7 +1704,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     table.newRowDelta().addDeletes(delete1).addDeletes(delete2).commit();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
-    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size()).isEqualTo(2010);
+    int expectedIds =
+        formatVersion >= 3
+            ? 2012 // partition col + 8 columns + 2003 ids inside the deleted row column
+            : 2010; // partition col + 6 columns + 2003 ids inside the deleted row column
+    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size())
+        .isEqualTo(expectedIds);
 
     BatchScan scan = positionDeletesTable.newBatchScan();
     assertThat(scan).isInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
@@ -1752,8 +1757,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       List<FileScanTask> taskList = Lists.newArrayList(tasks);
-      assertThat(taskList.size()).isGreaterThan(0);
-      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
+      assertThat(taskList)
+          .isNotEmpty()
+          .allSatisfy(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
     }
   }
 }

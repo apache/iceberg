@@ -141,7 +141,6 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithInvalidMetricsConfig() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
@@ -159,7 +158,6 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithConflictingProps() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
@@ -236,7 +234,6 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithParallelism() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
@@ -257,7 +254,6 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithInvalidParallelism() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
@@ -277,7 +273,6 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigratePartitionedWithParallelism() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.Spark3Util
@@ -34,7 +33,8 @@ case class ReplacePartitionFieldExec(
     ident: Identifier,
     transformFrom: Transform,
     transformTo: Transform,
-    name: Option[String]) extends LeafV2CommandExec {
+    name: Option[String])
+    extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
@@ -44,22 +44,26 @@ case class ReplacePartitionFieldExec(
       case iceberg: SparkTable =>
         val schema = iceberg.table.schema
         transformFrom match {
-          case IdentityTransform(FieldReference(parts)) if parts.size == 1 && schema.findField(parts.head) == null =>
+          case IdentityTransform(FieldReference(parts))
+              if parts.size == 1 && schema.findField(parts.head) == null =>
             // the name is not present in the Iceberg schema, so it must be a partition field name, not a column name
-            iceberg.table.updateSpec()
-                .removeField(parts.head)
-                .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
-                .commit()
+            iceberg.table
+              .updateSpec()
+              .removeField(parts.head)
+              .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
+              .commit()
 
           case _ =>
-            iceberg.table.updateSpec()
-                .removeField(Spark3Util.toIcebergTerm(transformFrom))
-                .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
-                .commit()
+            iceberg.table
+              .updateSpec()
+              .removeField(Spark3Util.toIcebergTerm(transformFrom))
+              .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
+              .commit()
         }
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot replace partition field in non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot replace partition field in non-Iceberg table: $table")
     }
 
     Nil
@@ -67,6 +71,6 @@ case class ReplacePartitionFieldExec(
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${catalog.name}.${ident.quoted} ${transformFrom.describe} " +
-        s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+      s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

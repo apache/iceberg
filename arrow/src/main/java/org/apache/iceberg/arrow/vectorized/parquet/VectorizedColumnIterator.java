@@ -214,24 +214,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public class FixedWidthTypeBinaryBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .fixedWidthBinaryPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
   public class BooleanBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -280,14 +262,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public VarWidthTypeBatchReader varWidthTypeBatchReader() {
     return new VarWidthTypeBatchReader();
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  public FixedWidthTypeBinaryBatchReader fixedWidthTypeBinaryBatchReader() {
-    return new FixedWidthTypeBinaryBatchReader();
   }
 
   public BooleanBatchReader booleanBatchReader() {

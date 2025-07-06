@@ -36,6 +36,33 @@ val df = spark.readStream
 !!! warning
     Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
+### Limit input rate
+To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
+
+* `streaming-max-files-per-micro-batch` Maximum number of files to be processed in every micro-batch.
+* `streaming-max-rows-per-micro-batch` A "soft max" on the number of rows to be processed in every micro-batch. A batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit.
+
+If both options are set, the micro-batch size will be limited by whichever option is reached first.
+
+```scala
+// Read a hard limit of 1 file per micro-batch
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-max-files-per-micro-batch", "1")
+    .load("database.table_name")
+```
+
+```scala
+// Read files until the number of included rows >= 1000 per micro-batch
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-max-rows-per-micro-batch", "1000")
+    .load("database.table_name")
+```
+
+!!! info
+    Note: In addition to limiting micro-batch sizes on queries that use the default trigger (i.e. `Trigger.ProcessingTime`), rate limiting options can be applied to queries that use `Trigger.AvailableNow` to split one-time processing of all available source data into multiple micro-batches for better query scalability. Rate limiting options will be ignored when using the deprecated `Trigger.Once` trigger.
+
 ## Streaming Writes
 
 To write values from streaming query to Iceberg table, use `DataStreamWriter`:
@@ -48,8 +75,6 @@ data.writeStream
     .option("checkpointLocation", checkpointPath)
     .toTable("database.table_name")
 ```
-
-If you're using Spark 3.0 or earlier, you need to use `.option("path", "database.table_name").start()`, instead of `.toTable("database.table_name")`.
 
 In the case of the directory-based Hadoop catalog:
 
@@ -74,7 +99,7 @@ Iceberg doesn't support experimental [continuous processing](https://spark.apach
 
 ### Partitioned table
 
-Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition.
+Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition
 against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
 (see [here](spark-writes.md#writing-distribution-modes)), but the approach would bring additional latency as
 repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
@@ -107,7 +132,7 @@ documents how to configure the interval.
 
 ### Expire old snapshots
 
-Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](maintenance.md#expire-snapshots). [Snapshot expiration](spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days. 
+Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](maintenance.md#expire-snapshots). [Snapshot expiration](spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days.
 
 ### Compacting data files
 

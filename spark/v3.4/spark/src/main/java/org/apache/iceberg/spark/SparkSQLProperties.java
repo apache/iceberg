@@ -27,6 +27,10 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  // Controls which Parquet reader implementation to use
+  public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
+  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
+
   // Controls whether reading/writing timestamps without timezones is allowed
   @Deprecated
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
@@ -82,6 +86,11 @@ public class SparkSQLProperties {
 
   public static final String EXECUTOR_CACHE_ENABLED = "spark.sql.iceberg.executor-cache.enabled";
   public static final boolean EXECUTOR_CACHE_ENABLED_DEFAULT = true;
+
+  // Controls whether to enable executor cache for delete files
+  public static final String EXECUTOR_CACHE_DELETE_FILES_ENABLED =
+      "spark.sql.iceberg.executor-cache.delete-files.enabled";
+  public static final boolean EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT = true;
 
   public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
   public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);

@@ -22,6 +22,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -41,7 +42,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -55,8 +56,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -406,6 +409,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
+  @Test
+  void testSerialization() {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    assertThatNoException().isThrownBy(() -> SerializationUtil.serializeToBytes(writerFactory));
+
+    byte[] serialized = SerializationUtil.serializeToBytes(writerFactory);
+    assertThatNoException().isThrownBy(() -> SerializationUtil.deserializeFromBytes(serialized));
+  }
+
   private DataFile writeData(
       FileWriterFactory<T> writerFactory, List<T> rows, PartitionSpec spec, StructLike partitionKey)
       throws IOException {
@@ -476,7 +488,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
       case AVRO:
         try (CloseableIterable<Record> records =
-            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build()) {
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build()) {
 
           return ImmutableList.copyOf(records);
         }

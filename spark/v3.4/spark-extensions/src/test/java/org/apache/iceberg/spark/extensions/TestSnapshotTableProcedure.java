@@ -18,42 +18,47 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
+import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.avro.GenericAvroReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
 
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
-  public TestSnapshotTableProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s PURGE", SOURCE_NAME);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshot() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -61,11 +66,13 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     Object result =
         scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
     String tableLocation = createdTable.location();
-    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+    assertThat(tableLocation)
+        .as("Table should not have the original location")
+        .isNotEqualTo(location);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -75,9 +82,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithProperties() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -87,15 +94,17 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
             catalogName, SOURCE_NAME, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
 
     String tableLocation = createdTable.location();
-    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+    assertThat(tableLocation)
+        .as("Table should not have the original location")
+        .isNotEqualTo(location);
 
     Map<String, String> props = createdTable.properties();
-    Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
+    assertThat(props).as("Should have extra property set").containsEntry("foo", "bar");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -105,13 +114,13 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithAlternateLocation() throws IOException {
-    Assume.assumeTrue(
-        "No Snapshoting with Alternate locations with Hadoop Catalogs",
-        !catalogName.contains("hadoop"));
-    String location = temp.newFolder().toString();
-    String snapshotLocation = temp.newFolder().toString();
+    assumeThat(catalogName)
+        .as("No Snapshoting with Alternate locations with Hadoop Catalogs")
+        .doesNotContain("hadoop");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    String snapshotLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -122,11 +131,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 catalogName, SOURCE_NAME, tableName, snapshotLocation)
             .get(0);
 
-    Assert.assertEquals("Should have added one file", 1L, result[0]);
+    assertThat(result[0]).as("Should have added one file").isEqualTo(1L);
 
     String storageLocation = validationCatalog.loadTable(tableIdent).location();
-    Assert.assertEquals(
-        "Snapshot should be made at specified location", snapshotLocation, storageLocation);
+    assertThat(storageLocation)
+        .as("Snapshot should be made at specified location")
+        .isEqualTo(snapshotLocation);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -136,9 +146,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDropTable() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -146,7 +156,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     Object result =
         scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
         "Should have expected rows",
@@ -161,9 +171,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", SOURCE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithConflictingProps() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -176,7 +186,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "properties => map('%s', 'true', 'snapshot', 'false'))",
             catalogName, SOURCE_NAME, tableName, TableProperties.GC_ENABLED);
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
         "Should have expected rows",
@@ -185,14 +195,13 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> props = table.properties();
-    Assert.assertEquals("Should override user value", "true", props.get("snapshot"));
-    Assert.assertEquals(
-        "Should override user value", "false", props.get(TableProperties.GC_ENABLED));
+    assertThat(props)
+        .contains(entry("snapshot", "true"), entry(TableProperties.GC_ENABLED, "false"));
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidSnapshotsCases() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -222,5 +231,149 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+  }
+
+  @TestTemplate
+  public void testSnapshotWithParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+            catalogName, SOURCE_NAME, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testSnapshotWithInvalidParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+                    catalogName, SOURCE_NAME, tableName, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
+  }
+
+  private static final Schema SNAPSHOT_ID_READ_SCHEMA =
+      new Schema(
+          Types.NestedField.required("snapshot_id")
+              .withId(1)
+              .ofType(Types.LongType.get())
+              .asOptional()
+              .build());
+
+  @TestTemplate
+  public void testSnapshotPartitionedWithParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(2L)),
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+            catalogName, SOURCE_NAME, tableName, 2));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testSnapshotPartitioned() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+    assertThat(
+            sql(
+                "CALL %s.system.snapshot(source_table => '%s', table => '%s')",
+                catalogName, SOURCE_NAME, tableName))
+        .containsExactly(row(2L));
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName))
+        .containsExactly(row("a", 1L), row("b", 2L));
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    for (ManifestFile manifest : createdTable.currentSnapshot().dataManifests(createdTable.io())) {
+      try (AvroIterable<GenericData.Record> reader =
+          Avro.read(org.apache.iceberg.Files.localInput(manifest.path()))
+              .project(SNAPSHOT_ID_READ_SCHEMA)
+              .createResolvingReader(GenericAvroReader::create)
+              .build()) {
+
+        assertThat(reader.getMetadata()).containsEntry("format-version", "2");
+
+        List<GenericData.Record> records = Lists.newArrayList(reader.iterator());
+        for (GenericData.Record row : records) {
+          assertThat(row.get(0)).as("Field-ID should be inherited").isNull();
+        }
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testSnapshotPartitionedV1() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+    assertThat(
+            sql(
+                "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('format-version', '1'))",
+                catalogName, SOURCE_NAME, tableName))
+        .containsExactly(row(2L));
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName))
+        .containsExactly(row("a", 1L), row("b", 2L));
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    for (ManifestFile manifest : createdTable.currentSnapshot().dataManifests(createdTable.io())) {
+      try (AvroIterable<GenericData.Record> reader =
+          Avro.read(org.apache.iceberg.Files.localInput(manifest.path()))
+              .project(SNAPSHOT_ID_READ_SCHEMA)
+              .createResolvingReader(GenericAvroReader::create)
+              .build()) {
+
+        assertThat(reader.getMetadata()).containsEntry("format-version", "1");
+
+        List<GenericData.Record> records = Lists.newArrayList(reader.iterator());
+        for (GenericData.Record row : records) {
+          assertThat(row.get(0)).as("Field-ID should not be inherited").isNotNull();
+        }
+      }
+    }
   }
 }

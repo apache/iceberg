@@ -43,9 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPHeaders;
+import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
@@ -129,6 +131,11 @@ public class OAuth2Util {
   }
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    return buildOptionalParam(properties, OAuth2Properties.CATALOG_SCOPE);
+  }
+
+  public static Map<String, String> buildOptionalParam(
+      Map<String, String> properties, String defaultScope) {
     // these are some options oauth params based on specification
     // for any new optional oauth param, define the constant and add the constant to this list
     Set<String> optionalParamKeys =
@@ -136,8 +143,7 @@ public class OAuth2Util {
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
     // add scope too,
     optionalParamBuilder.put(
-        OAuth2Properties.SCOPE,
-        properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE));
+        OAuth2Properties.SCOPE, properties.getOrDefault(OAuth2Properties.SCOPE, defaultScope));
     // add all other parameters
     for (String key : optionalParamKeys) {
       String value = properties.get(key);
@@ -150,29 +156,42 @@ public class OAuth2Util {
 
   private static OAuthTokenResponse refreshToken(
       RESTClient client,
+      AuthConfig config,
       Map<String, String> headers,
       String subjectToken,
       String subjectTokenType,
-      String scope,
-      String oauth2ServerUri,
       Map<String, String> optionalOAuthParams) {
-    Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalOAuthParams);
+    if (config.exchangeEnabled()) {
+      Map<String, String> request =
+          tokenExchangeRequest(
+              subjectToken,
+              subjectTokenType,
+              config.scope() != null ? ImmutableList.of(config.scope()) : ImmutableList.of(),
+              optionalOAuthParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
-    response.validate();
+      OAuthTokenResponse response =
+          client.postForm(
+              config.oauth2ServerUri(),
+              request,
+              OAuthTokenResponse.class,
+              headers,
+              ErrorHandlers.oauthErrorHandler());
+      response.validate();
 
-    return response;
+      return response;
+    } else {
+      if (null == config.credential()) {
+        return null;
+      }
+
+      return fetchToken(
+          client,
+          Map.of(),
+          config.credential(),
+          config.scope(),
+          config.oauth2ServerUri(),
+          ImmutableMap.of());
+    }
   }
 
   public static OAuthTokenResponse exchangeToken(
@@ -206,47 +225,6 @@ public class OAuth2Util {
     return response;
   }
 
-  public static OAuthTokenResponse exchangeToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String subjectToken,
-      String subjectTokenType,
-      String actorToken,
-      String actorTokenType,
-      String scope) {
-    return exchangeToken(
-        client,
-        headers,
-        subjectToken,
-        subjectTokenType,
-        actorToken,
-        actorTokenType,
-        scope,
-        ResourcePaths.tokens(),
-        ImmutableMap.of());
-  }
-
-  public static OAuthTokenResponse exchangeToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String subjectToken,
-      String subjectTokenType,
-      String actorToken,
-      String actorTokenType,
-      String scope,
-      String oauth2ServerUri) {
-    return exchangeToken(
-        client,
-        headers,
-        subjectToken,
-        subjectTokenType,
-        actorToken,
-        actorTokenType,
-        scope,
-        oauth2ServerUri,
-        ImmutableMap.of());
-  }
-
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,
@@ -270,23 +248,6 @@ public class OAuth2Util {
     response.validate();
 
     return response;
-  }
-
-  public static OAuthTokenResponse fetchToken(
-      RESTClient client, Map<String, String> headers, String credential, String scope) {
-
-    return fetchToken(
-        client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
-  }
-
-  public static OAuthTokenResponse fetchToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String credential,
-      String scope,
-      String oauth2ServerUri) {
-
-    return fetchToken(client, headers, credential, scope, oauth2ServerUri, ImmutableMap.of());
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -438,7 +399,7 @@ public class OAuth2Util {
     JsonNode node;
     try {
       node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts.get(1)));
-    } catch (IOException e) {
+    } catch (IOException | IllegalArgumentException e) {
       return null;
     }
 
@@ -451,16 +412,24 @@ public class OAuth2Util {
   }
 
   /** Class to handle authorization headers and token refresh. */
-  public static class AuthSession {
+  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
-    public AuthSession(Map<String, String> baseHeaders, AuthConfig config) {
-      this.headers = RESTUtil.merge(baseHeaders, authHeaders(config.token()));
+    public AuthSession(Map<String, String> headers, AuthConfig config) {
+      this.headers = ImmutableMap.copyOf(headers);
       this.config = config;
+    }
+
+    @Override
+    public HTTPRequest authenticate(HTTPRequest request) {
+      HTTPHeaders newHeaders = request.headers().putIfAbsent(HTTPHeaders.of(headers()));
+      return newHeaders.equals(request.headers())
+          ? request
+          : ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
     }
 
     public Map<String, String> headers() {
@@ -485,6 +454,11 @@ public class OAuth2Util {
 
     public synchronized void stopRefreshing() {
       this.config = ImmutableAuthConfig.copyOf(config).withKeepRefreshed(false);
+    }
+
+    @Override
+    public void close() {
+      stopRefreshing();
     }
 
     public String credential() {
@@ -573,32 +547,24 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(
-            client,
-            headers(),
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+        return refreshToken(client, config, headers(), token(), tokenType(), optionalOAuthParams());
       }
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
-      if (credential() != null) {
+      if (credential() == null) {
+        return null;
+      }
+
+      if (config.exchangeEnabled()) {
         Map<String, String> basicHeaders =
             RESTUtil.merge(headers(), basicAuthHeaders(credential()));
         return refreshToken(
-            client,
-            basicHeaders,
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+            client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
+      } else {
+        return fetchToken(
+            client, Map.of(), credential(), scope(), oauth2ServerUri(), ImmutableMap.of());
       }
-
-      return null;
     }
 
     /**
@@ -647,7 +613,7 @@ public class OAuth2Util {
         AuthSession parent) {
       AuthSession session =
           new AuthSession(
-              parent.headers(),
+              RESTUtil.merge(parent.headers(), authHeaders(token)),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(token)
@@ -727,7 +693,7 @@ public class OAuth2Util {
       }
       AuthSession session =
           new AuthSession(
-              parent.headers(),
+              RESTUtil.merge(parent.headers(), authHeaders(response.token())),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(response.token())

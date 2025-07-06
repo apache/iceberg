@@ -19,10 +19,11 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -32,23 +33,19 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestPublishChangesProcedure extends ExtensionsTestBase {
 
-  public TestPublishChangesProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesUsingPositionalArgs() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -84,7 +81,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesUsingNamedArgs() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -122,7 +119,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesRefreshesRelationCache() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -154,7 +151,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
     sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testApplyInvalidWapId() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
@@ -164,7 +161,27 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Cannot apply unknown WAP ID 'not_valid'");
   }
 
-  @Test
+  @TestTemplate
+  public void testApplyDuplicateWapId() {
+
+    String wapId = "wap_id_1";
+
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
+
+    spark.conf().set("spark.wap.id", wapId);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.publish_changes('%s', '%s')", catalogName, tableIdent, wapId))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID 'wap_id_1'");
+  }
+
+  @TestTemplate
   public void testInvalidApplyWapChangesCases() {
     assertThatThrownBy(
             () ->
@@ -175,11 +192,12 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
-              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
-              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
             });
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
@@ -188,6 +206,6 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('', 'not_valid')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 }

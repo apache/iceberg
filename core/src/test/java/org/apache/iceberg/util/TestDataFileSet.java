@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -30,6 +31,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Testing {@link DataFileSet} is easier in iceberg-core since the data file builders are located
@@ -288,16 +291,11 @@ public class TestDataFileSet {
     assertThat(set1.hashCode()).isEqualTo(set2.hashCode()).isEqualTo(set3.hashCode());
   }
 
-  @Test
-  public void kryoSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void serialization(TestHelpers.RoundTripSerializer<DataFileSet> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     DataFileSet dataFiles = DataFileSet.of(ImmutableList.of(FILE_C, FILE_B, FILE_A));
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(dataFiles)).isEqualTo(dataFiles);
-  }
-
-  @Test
-  public void javaSerialization() throws Exception {
-    DataFileSet dataFiles = DataFileSet.of(ImmutableList.of(FILE_C, FILE_B, FILE_A));
-    DataFileSet deserialized = TestHelpers.deserialize(TestHelpers.serialize(dataFiles));
-    assertThat(deserialized).isEqualTo(dataFiles);
+    assertThat(roundTripSerializer.apply(dataFiles)).isEqualTo(dataFiles);
   }
 }

@@ -37,12 +37,14 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -212,6 +214,10 @@ public class SparkWriteConf {
   }
 
   public FileFormat deleteFileFormat() {
+    if (!(table instanceof BaseMetadataTable) && TableUtil.formatVersion(table) >= 3) {
+      return FileFormat.PUFFIN;
+    }
+
     String valueAsString =
         confParser
             .stringConf()
@@ -712,13 +718,11 @@ public class SparkWriteConf {
   }
 
   public DeleteGranularity deleteGranularity() {
-    String valueAsString =
-        confParser
-            .stringConf()
-            .option(SparkWriteOptions.DELETE_GRANULARITY)
-            .tableProperty(TableProperties.DELETE_GRANULARITY)
-            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
-            .parse();
-    return DeleteGranularity.fromString(valueAsString);
+    return confParser
+        .enumConf(DeleteGranularity::fromString)
+        .option(SparkWriteOptions.DELETE_GRANULARITY)
+        .tableProperty(TableProperties.DELETE_GRANULARITY)
+        .defaultValue(DeleteGranularity.FILE)
+        .parse();
   }
 }

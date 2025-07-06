@@ -24,9 +24,13 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestComparators {
@@ -155,5 +159,64 @@ public class TestComparators {
             Types.StructType.of(Types.NestedField.optional(18, "str19", Types.StringType.get()))),
         TestHelpers.Row.of((String) null),
         TestHelpers.Row.of("a"));
+  }
+
+  @Test
+  public void testMap() {
+    Comparator<Map<String, Integer>> requiredComparator =
+        Comparators.forType(
+            Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get()));
+
+    assertComparesCorrectly(
+        requiredComparator, ImmutableMap.of("a", 1, "b", 2), ImmutableMap.of("a", 1, "b", 3));
+
+    assertComparesCorrectly(
+        requiredComparator, ImmutableMap.of("a", 1, "b", 2), ImmutableMap.of("a", 1, "c", 2));
+
+    assertComparesCorrectly(
+        requiredComparator, ImmutableMap.of("a", 1), ImmutableMap.of("a", 1, "b", 2));
+
+    assertComparesCorrectly(
+        requiredComparator,
+        ImmutableMap.of("a", 1, "c", 3, "b", 2),
+        ImmutableMap.of("a", 1, "b", 2, "c", 4));
+
+    Map<String, Integer> mapWithNull = Maps.newHashMapWithExpectedSize(1);
+    mapWithNull.put("a", 1);
+    mapWithNull.put("b", null);
+    mapWithNull.put("c", 2);
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        mapWithNull,
+        ImmutableMap.of("a", 1, "b", 2, "c", 3));
+  }
+
+  @Test
+  public void testNested() {
+    Comparator<StructLike> comparator =
+        Comparators.forType(
+            Types.StructType.of(
+                Types.NestedField.required(18, "str19", Types.StringType.get()),
+                Types.NestedField.required(
+                    19,
+                    "struct",
+                    Types.StructType.of(
+                        Types.NestedField.required(20, "struct_str", Types.StringType.get()),
+                        Types.NestedField.required(21, "struct_int", Types.IntegerType.get()))),
+                Types.NestedField.required(
+                    22, "list", Types.ListType.ofRequired(23, Types.IntegerType.get())),
+                Types.NestedField.required(
+                    24,
+                    "map",
+                    Types.MapType.ofRequired(
+                        25, 26, Types.StringType.get(), Types.IntegerType.get()))));
+
+    assertComparesCorrectly(
+        comparator,
+        TestHelpers.Row.of(
+            "a", TestHelpers.Row.of("b", 1), ImmutableList.of(1, 2), ImmutableMap.of("c", 3)),
+        TestHelpers.Row.of(
+            "a", TestHelpers.Row.of("b", 1), ImmutableList.of(1, 2), ImmutableMap.of("c", 4)));
   }
 }

@@ -41,7 +41,12 @@ public abstract class OrcSchemaVisitor<T> {
   public static <T> T visit(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
     switch (schema.getCategory()) {
       case STRUCT:
-        return visitRecord(schema, visitor);
+        String structType = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_STRUCT_TYPE_ATTRIBUTE);
+        if (ORCSchemaUtil.VARIANT.equalsIgnoreCase(structType)) {
+          return visitVariant(schema, visitor);
+        } else {
+          return visitRecord(schema, visitor);
+        }
 
       case UNION:
         throw new UnsupportedOperationException("Cannot handle " + schema);
@@ -110,6 +115,22 @@ public abstract class OrcSchemaVisitor<T> {
     return visitor.record(record, names, visitFields(fields, names, visitor));
   }
 
+  private static <T> T visitVariant(TypeDescription variant, OrcSchemaVisitor<T> visitor) {
+    List<String> names = variant.getFieldNames();
+    Preconditions.checkArgument(
+        names.size() == 2
+            && ORCSchemaUtil.VARIANT_METADATA.equals(names.get(0))
+            && ORCSchemaUtil.VARIANT_VALUE.equals(names.get(1)),
+        "Invalid variant metadata fields: %s",
+        String.join(", ", names));
+
+    List<TypeDescription> children = variant.getChildren();
+    T metadataResult = visit(children.get(0), visitor);
+    T valueResult = visit(children.get(1), visitor);
+
+    return visitor.variant(variant, metadataResult, valueResult);
+  }
+
   public String elementName() {
     return "_elem";
   }
@@ -168,6 +189,10 @@ public abstract class OrcSchemaVisitor<T> {
 
   public T map(TypeDescription map, T key, T value) {
     return null;
+  }
+
+  public T variant(TypeDescription variant, T metadata, T value) {
+    throw new UnsupportedOperationException("Variant is not supported");
   }
 
   public T primitive(TypeDescription primitive) {

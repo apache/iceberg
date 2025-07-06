@@ -18,203 +18,48 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Random;
-import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.io.RangeReadable;
-import org.apache.iceberg.io.SeekableInputStream;
+import java.io.InputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import software.amazon.awssdk.core.sync.RequestBody;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
-import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-@Testcontainers
-public class TestS3InputStream {
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+@ExtendWith(MockitoExtension.class)
+public final class TestS3InputStream {
 
-  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
-  private final Random random = new Random(1);
+  @Mock private S3Client s3Client;
+  @Mock private InputStream inputStream;
+
+  private S3InputStream s3InputStream;
 
   @BeforeEach
-  public void before() {
-    createBucket("bucket");
+  void before() {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+    s3InputStream = new S3InputStream(s3Client, mock());
   }
 
   @Test
-  public void testRead() throws Exception {
-    testRead(s3);
-  }
+  void testReadFullyClosesTheStream() throws IOException {
+    s3InputStream.readFully(0, new byte[0]);
 
-  S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
-    return new S3InputStream(s3Client, uri);
-  }
-
-  protected void testRead(S3Client s3Client) throws Exception {
-    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
-    int dataSize = 1024 * 1024 * 10;
-    byte[] data = randomData(dataSize);
-
-    writeS3Data(uri, data);
-
-    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
-      int readSize = 1024;
-      readAndCheck(in, in.getPos(), readSize, data, false);
-      readAndCheck(in, in.getPos(), readSize, data, true);
-
-      // Seek forward in current stream
-      int seekSize = 1024;
-      readAndCheck(in, in.getPos() + seekSize, readSize, data, false);
-      readAndCheck(in, in.getPos() + seekSize, readSize, data, true);
-
-      // Buffered read
-      readAndCheck(in, in.getPos(), readSize, data, true);
-      readAndCheck(in, in.getPos(), readSize, data, false);
-
-      // Seek with new stream
-      long seekNewStreamPosition = 2 * 1024 * 1024;
-      readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, true);
-      readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, false);
-
-      // Backseek and read
-      readAndCheck(in, 0, readSize, data, true);
-      readAndCheck(in, 0, readSize, data, false);
-    }
-  }
-
-  private void readAndCheck(
-      SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
-      throws IOException {
-    in.seek(rangeStart);
-    assertThat(in.getPos()).isEqualTo(rangeStart);
-
-    long rangeEnd = rangeStart + size;
-    byte[] actual = new byte[size];
-
-    if (buffered) {
-      IOUtil.readFully(in, actual, 0, size);
-    } else {
-      int read = 0;
-      while (read < size) {
-        actual[read++] = (byte) in.read();
-      }
-    }
-
-    assertThat(in.getPos()).isEqualTo(rangeEnd);
-    assertThat(actual).isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
+    verify(inputStream).close();
   }
 
   @Test
-  public void testRangeRead() throws Exception {
-    testRangeRead(s3);
-  }
+  void testReadTailClosesTheStream() throws IOException {
+    s3InputStream.readTail(new byte[0], 0, 0);
 
-  protected void testRangeRead(S3Client s3Client) throws Exception {
-    S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
-    int dataSize = 1024 * 1024 * 10;
-    byte[] expected = randomData(dataSize);
-    byte[] actual = new byte[dataSize];
-
-    long position;
-    int offset;
-    int length;
-
-    writeS3Data(uri, expected);
-
-    try (RangeReadable in = newInputStream(s3Client, uri)) {
-      // first 1k
-      position = 0;
-      offset = 0;
-      length = 1024;
-      readAndCheckRanges(in, expected, position, actual, offset, length);
-
-      // last 1k
-      position = dataSize - 1024;
-      offset = dataSize - 1024;
-      readAndCheckRanges(in, expected, position, actual, offset, length);
-
-      // middle 2k
-      position = dataSize / 2 - 1024;
-      offset = dataSize / 2 - 1024;
-      length = 1024 * 2;
-      readAndCheckRanges(in, expected, position, actual, offset, length);
-    }
-  }
-
-  private void readAndCheckRanges(
-      RangeReadable in, byte[] original, long position, byte[] buffer, int offset, int length)
-      throws IOException {
-    in.readFully(position, buffer, offset, length);
-
-    assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
-        .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
-  }
-
-  @Test
-  public void testClose() throws Exception {
-    S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = newInputStream(s3, uri);
-    closed.close();
-    assertThatThrownBy(() -> closed.seek(0))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("already closed");
-  }
-
-  @Test
-  public void testSeek() throws Exception {
-    testSeek(s3);
-  }
-
-  protected void testSeek(S3Client s3Client) throws Exception {
-    S3URI uri = new S3URI("s3://bucket/path/to/seek.dat");
-    byte[] expected = randomData(1024 * 1024);
-
-    writeS3Data(uri, expected);
-
-    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
-      in.seek(expected.length / 2);
-      byte[] actual = new byte[expected.length / 2];
-      IOUtil.readFully(in, actual, 0, expected.length / 2);
-      assertThat(actual)
-          .isEqualTo(Arrays.copyOfRange(expected, expected.length / 2, expected.length));
-    }
-  }
-
-  private byte[] randomData(int size) {
-    byte[] data = new byte[size];
-    random.nextBytes(data);
-    return data;
-  }
-
-  private void writeS3Data(S3URI uri, byte[] data) throws IOException {
-    s3.putObject(
-        PutObjectRequest.builder()
-            .bucket(uri.bucket())
-            .key(uri.key())
-            .contentLength((long) data.length)
-            .build(),
-        RequestBody.fromBytes(data));
-  }
-
-  private void createBucket(String bucketName) {
-    try {
-      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
-      // don't do anything
-    }
-  }
-
-  protected S3Client s3Client() {
-    return s3;
+    verify(inputStream).close();
   }
 }

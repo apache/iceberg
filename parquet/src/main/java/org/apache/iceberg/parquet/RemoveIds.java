@@ -77,6 +77,16 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
         .named(primitive.getName());
   }
 
+  @Override
+  public Type variant(GroupType variant) {
+    Types.GroupBuilder<GroupType> builder =
+        Types.buildGroup(variant.getRepetition()).as(variant.getLogicalTypeAnnotation());
+    for (Type field : variant.getFields()) {
+      builder.addField(field);
+    }
+    return builder.named(variant.getName());
+  }
+
   public static MessageType removeIds(MessageType type) {
     return (MessageType) ParquetTypeVisitor.visit(type, new RemoveIds());
   }

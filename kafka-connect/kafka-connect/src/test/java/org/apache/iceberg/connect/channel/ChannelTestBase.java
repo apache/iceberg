@@ -23,14 +23,18 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.MockIcebergSinkTask;
 import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -39,6 +43,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.producer.MockProducer;
@@ -60,6 +65,8 @@ public class ChannelTestBase {
   protected KafkaClientFactory clientFactory;
   protected MockProducer<String, byte[]> producer;
   protected MockConsumer<String, byte[]> consumer;
+  protected MockConsumer<String, byte[]> sourceConsumer;
+  protected MockIcebergSinkTask mockIcebergSinkTask;
   protected Admin admin;
 
   private InMemoryCatalog initInMemoryCatalog() {
@@ -86,7 +93,7 @@ public class ChannelTestBase {
   @BeforeEach
   @SuppressWarnings("deprecation")
   public void before() {
-    catalog = initInMemoryCatalog();
+    catalog = spy(initInMemoryCatalog());
     catalog.createNamespace(NAMESPACE);
     table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
 
@@ -109,9 +116,10 @@ public class ChannelTestBase {
 
     producer = new MockProducer<>(false, new StringSerializer(), new ByteArraySerializer());
     producer.initTransactions();
-
+    mockIcebergSinkTask = new MockIcebergSinkTask();
     consumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
-
+    sourceConsumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
+    sourceConsumer.subscribe(Collections.singleton(SRC_TOPIC_NAME), new Listener());
     clientFactory = mock(KafkaClientFactory.class);
     when(clientFactory.createProducer(any())).thenReturn(producer);
     when(clientFactory.createConsumer(any())).thenReturn(consumer);
@@ -127,5 +135,21 @@ public class ChannelTestBase {
     TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
     consumer.rebalance(ImmutableList.of(tp));
     consumer.updateBeginningOffsets(ImmutableMap.of(tp, 0L));
+  }
+
+  private class Listener implements ConsumerRebalanceListener {
+    @Override
+    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+      if (!partitions.isEmpty()) {
+        mockIcebergSinkTask.close(partitions);
+      }
+    }
+
+    @Override
+    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+      if (!partitions.isEmpty()) {
+        mockIcebergSinkTask.open(partitions);
+      }
+    }
   }
 }

@@ -21,7 +21,14 @@ package org.apache.iceberg.util;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -38,6 +45,9 @@ public class RandomUtil {
     int choice = random.nextInt(20);
 
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        return null;
+
       case BOOLEAN:
         return choice < 10;
 
@@ -119,6 +129,9 @@ public class RandomUtil {
       case TIMESTAMP:
         return random.nextLong() % FIFTY_YEARS_IN_MICROS;
 
+      case TIMESTAMP_NANO:
+        return random.nextLong() % ABOUT_TEN_YEARS_IN_NANOS;
+
       case STRING:
         return randomString(random);
 
@@ -154,6 +167,8 @@ public class RandomUtil {
       Type.PrimitiveType primitive, Random random) {
     int value = random.nextInt(3);
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        return null;
       case BOOLEAN:
         return true; // doesn't really matter for booleans since they are not dictionary encoded
       case INTEGER:
@@ -166,6 +181,7 @@ public class RandomUtil {
       case LONG:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return (long) value;
       case STRING:
         return String.valueOf(value);
@@ -194,13 +210,17 @@ public class RandomUtil {
 
   private static final long FIFTY_YEARS_IN_MICROS =
       (50L * (365 * 3 + 366) * 24 * 60 * 60 * 1_000_000) / 4;
+  private static final long ABOUT_TEN_YEARS_IN_NANOS = 10L * 365 * 24 * 60 * 60 * 1_000_000_000;
   private static final int ABOUT_380_YEARS_IN_DAYS = 380 * 365;
   private static final long ONE_DAY_IN_MICROS = 24 * 60 * 60 * 1_000_000L;
   private static final String CHARS =
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.!?";
 
   private static String randomString(Random random) {
-    int length = random.nextInt(50);
+    return generateString(random.nextInt(50), random);
+  }
+
+  public static String generateString(int length, Random random) {
     byte[] buffer = new byte[length];
 
     for (int i = 0; i < length; i += 1) {
@@ -224,5 +244,58 @@ public class RandomUtil {
     }
 
     return new BigInteger(sb.toString());
+  }
+
+  public static List<Object> generateList(
+      Random random, Types.ListType list, Supplier<Object> elementSupplier) {
+    int numElements = random.nextInt(20);
+
+    List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
+    for (int i = 0; i < numElements; i += 1) {
+      // return null 5% of the time when the value is optional
+      if (list.isElementOptional() && random.nextInt(20) == 1) {
+        result.add(null);
+      } else {
+        result.add(elementSupplier.get());
+      }
+    }
+
+    return result;
+  }
+
+  public static Map<Object, Object> generateMap(
+      Random random,
+      Types.MapType map,
+      Supplier<Object> keySupplier,
+      Supplier<Object> valueSupplier) {
+    int numEntries = random.nextInt(20);
+
+    Map<Object, Object> result = Maps.newLinkedHashMap();
+    Supplier<Object> keyFunc;
+    if (map.keyType() == Types.StringType.get()) {
+      keyFunc = () -> keySupplier.get().toString();
+    } else {
+      keyFunc = keySupplier;
+    }
+
+    Set<Object> keySet = Sets.newHashSet();
+    for (int i = 0; i < numEntries; i += 1) {
+      Object key = keyFunc.get();
+      // ensure no collisions
+      while (keySet.contains(key)) {
+        key = keyFunc.get();
+      }
+
+      keySet.add(key);
+
+      // return null 5% of the time when the value is optional
+      if (map.isValueOptional() && random.nextInt(20) == 1) {
+        result.put(key, null);
+      } else {
+        result.put(key, valueSupplier.get());
+      }
+    }
+
+    return result;
   }
 }

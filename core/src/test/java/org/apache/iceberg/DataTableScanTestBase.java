@@ -302,7 +302,7 @@ public abstract class DataTableScanTestBase<
       }
     }
 
-    assertThat(deletes.size()).isEqualTo(1);
+    assertThat(deletes).hasSize(1);
     ManifestFile deleteManifest =
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())

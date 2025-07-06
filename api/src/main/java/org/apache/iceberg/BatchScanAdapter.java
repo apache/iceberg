@@ -25,11 +25,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 /** An adapter that allows using {@link TableScan} as {@link BatchScan}. */
-class BatchScanAdapter implements BatchScan {
+public class BatchScanAdapter implements BatchScan {
 
   private final TableScan scan;
 
-  BatchScanAdapter(TableScan scan) {
+  public BatchScanAdapter(TableScan scan) {
     this.scan = scan;
   }
 
@@ -150,5 +150,10 @@ class BatchScanAdapter implements BatchScan {
   @Override
   public BatchScan metricsReporter(MetricsReporter reporter) {
     return new BatchScanAdapter(scan.metricsReporter(reporter));
+  }
+
+  @Override
+  public BatchScan minRowsRequested(long numRows) {
+    return new BatchScanAdapter(scan.minRowsRequested(numRows));
   }
 }

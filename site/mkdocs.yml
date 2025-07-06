@@ -18,6 +18,7 @@
 INHERIT: ./nav.yml
 
 site_name: "Apache Iceberg™"
+site_url: "https://iceberg.apache.org"
 
 theme:
   custom_dir: overrides
@@ -30,11 +31,12 @@ theme:
   font:
     text: Nunito Sans
   palette:
-    scheme: iceberg  
+    scheme: iceberg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.path
+    - navigation.sections
     - navigation.top
     - navigation.tracking
     - toc.follow
@@ -47,11 +49,31 @@ theme:
 
 plugins:
   - search
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_date_format: long
+      post_url_format: "{slug}"
+  - rss:
+      feed_description: "Blogs for Apache Iceberg"
+      match_path: "blog/posts/.*"
+      image: "https://iceberg.apache.org/assets/images/Iceberg-logo.svg"
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+      feeds_filenames:
+        rss_created: rss.xml
   - macros
   - monorepo
   - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
+  - redirects:
+      redirect_maps:
+        'docs/nightly/amoro.md': 'integrations/amoro.md'
+        'docs/nightly/daft.md': 'integrations/daft.md'
+        'docs/nightly/risingwave.md': 'integrations/risingwave.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -65,7 +87,7 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - pymdownx.mark
   - pymdownx.tilde
   - attr_list
@@ -78,10 +100,11 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.7.0'
-  nessieVersion: '0.92.1'
-  flinkVersion: '1.19.0'
-  flinkVersionMajor: '1.19'
+  icebergVersion: '1.10.1'
+  nessieVersion: '0.104.5'
+  flinkVersion: '2.0.0'
+  flinkVersionMajor: '2.0'
+  sparkVersionMajor: '4.0_2.13'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
@@ -93,7 +116,7 @@ extra:
       link: 'https://www.youtube.com/@ApacheIceberg'
       title: youtube
     - icon: fontawesome/brands/slack
-      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
+      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg'
       title: slack
 
 exclude_docs: |
@@ -104,7 +127,7 @@ extra_css:
   - assets/stylesheets/bootstrap-grid.css
   - assets/stylesheets/bootstrap-buttons.css
   - assets/stylesheets/home.css
-  
+
 extra_javascript:
   - assets/javascript/extra.js
 

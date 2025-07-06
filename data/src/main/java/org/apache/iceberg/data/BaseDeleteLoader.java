@@ -31,7 +31,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
@@ -52,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -235,7 +234,7 @@ public class BaseDeleteLoader implements DeleteLoader {
         return Avro.read(inputFile)
             .project(projection)
             .reuseContainers()
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build();
 
       case PARQUET:
@@ -294,7 +293,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     try {
       long recordCount = deleteFile.recordCount();
       int recordSize = estimateRecordSize(projection);
-      return LongMath.checkedMultiply(recordCount, recordSize);
+      return Math.multiplyExact(recordCount, recordSize);
     } catch (ArithmeticException e) {
       return Long.MAX_VALUE;
     }

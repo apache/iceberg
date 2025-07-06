@@ -66,7 +66,17 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
                 ImmutableMap.of(
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
+                    String.valueOf(TimeUnit.SECONDS.toMillis(10)),
+                    CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+                    "catalog-default-key1",
+                    CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+                    "catalog-default-key2",
+                    CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+                    "catalog-default-key3",
+                    CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+                    "catalog-override-key3",
+                    CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+                    "catalog-override-key4"),
                 HIVE_METASTORE_EXTENSION.hiveConf());
   }
 
@@ -123,6 +133,66 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
                     .create())
         .isInstanceOf(NoSuchIcebergViewException.class)
         .hasMessageStartingWith("Not an iceberg view: hive.hivedb.test_hive_view");
+  }
+
+  @Test
+  public void testHiveViewExists() throws IOException, TException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    String viewName = "test_hive_view_exists";
+    TableIdentifier identifier = TableIdentifier.of(ns, viewName);
+    TableIdentifier invalidIdentifier = TableIdentifier.of(dbName, "invalid", viewName);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog.viewExists(invalidIdentifier))
+        .as("Should return false on invalid view identifier")
+        .isFalse();
+    assertThat(catalog.viewExists(identifier)).as("View should not exist before create").isFalse();
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", "select * from hivedb.tbl")
+        .create();
+    assertThat(catalog.viewExists(identifier)).as("View should exist after create").isTrue();
+
+    assertThat(catalog.dropView(identifier)).as("Should drop a view that does exist").isTrue();
+    assertThat(catalog.viewExists(identifier)).as("View should not exist after drop").isFalse();
+
+    // viewExits with existing hiveTable
+    String hiveTableName = "test_hive_table";
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(
+            createHiveTable(
+                hiveTableName,
+                dbName,
+                Files.createTempDirectory("hive-table-tests-name").toString()));
+    assertThat(catalog.viewExists(TableIdentifier.of(ns, hiveTableName)))
+        .as("ViewExists should return false if identifier refers to a hive table")
+        .isFalse();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(dbName, hiveTableName);
+
+    // viewExits with existing hiveView
+    Table hiveTable =
+        createHiveView(
+            viewName, dbName, Files.createTempDirectory("hive-view-tests-name").toString());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
+    assertThat(catalog.viewExists(identifier))
+        .as("ViewExists should return false if identifier refers to a non-iceberg view")
+        .isFalse();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(dbName, viewName);
+
+    // viewExits with existing icebergTable
+    catalog.buildTable(identifier, SCHEMA).create();
+    assertThat(catalog.viewExists(identifier))
+        .as("ViewExists should return false if identifier refers to a iceberg table")
+        .isFalse();
+    assertThat(catalog.tableExists(identifier)).isTrue();
+    catalog.dropTable(identifier);
   }
 
   @Test
@@ -280,7 +350,8 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
-  private Table createHiveView(String hiveViewName, String dbName, String location) {
+  private Table createHiveTableWithType(
+      String hiveTableName, String dbName, String location, TableType type) {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(
         serdeConstants.SERIALIZATION_CLASS, "org.apache.hadoop.hive.serde2.thrift.test.IntString");
@@ -304,20 +375,26 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
             Lists.newArrayList(),
             Maps.newHashMap());
 
-    Table hiveTable =
-        new Table(
-            hiveViewName,
-            dbName,
-            "test_owner",
-            0,
-            0,
-            0,
-            sd,
-            Lists.newArrayList(),
-            Maps.newHashMap(),
-            "viewOriginalText",
-            "viewExpandedText",
-            TableType.VIRTUAL_VIEW.name());
-    return hiveTable;
+    return new Table(
+        hiveTableName,
+        dbName,
+        "test_owner",
+        0,
+        0,
+        0,
+        sd,
+        Lists.newArrayList(),
+        Maps.newHashMap(),
+        "viewOriginalText",
+        "viewExpandedText",
+        type.name());
+  }
+
+  private Table createHiveTable(String hiveTableName, String dbName, String location) {
+    return createHiveTableWithType(hiveTableName, dbName, location, TableType.EXTERNAL_TABLE);
+  }
+
+  private Table createHiveView(String hiveViewName, String dbName, String location) {
+    return createHiveTableWithType(hiveViewName, dbName, location, TableType.VIRTUAL_VIEW);
   }
 }

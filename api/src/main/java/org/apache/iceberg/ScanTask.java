@@ -28,7 +28,7 @@ public interface ScanTask extends Serializable {
    * @return the total number of bytes to read
    */
   default long sizeBytes() {
-    return 4 * 1028 * 1028; // 4 MB
+    return 4 * 1024 * 1024; // 4 MB
   }
 
   /**

@@ -230,7 +230,9 @@ public interface RewriteDataFiles
     }
 
     default int removedDeleteFilesCount() {
-      return 0;
+      return rewriteResults().stream()
+          .mapToInt(FileGroupRewriteResult::removedDeleteFilesCount)
+          .sum();
     }
   }
 
@@ -247,6 +249,10 @@ public interface RewriteDataFiles
 
     default long rewrittenBytesCount() {
       return 0L;
+    }
+
+    default int removedDeleteFilesCount() {
+      return 0;
     }
   }
 

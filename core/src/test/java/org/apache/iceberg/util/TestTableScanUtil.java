@@ -314,6 +314,22 @@ public class TestTableScanUtil {
 
     long adjusted2 = TableScanUtil.adjustSplitSize(scanSize, parallelism, largeDefaultSplitSize);
     assertThat(adjusted2).isEqualTo(scanSize / parallelism);
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, parallelism, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Split size must be > 0: -1");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, parallelism, 0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Split size must be > 0: 0");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, -1, smallDefaultSplitSize))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Parallelism must be > 0: -1");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, 0, largeDefaultSplitSize))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Parallelism must be > 0: 0");
   }
 
   private PartitionScanTask taskWithPartition(

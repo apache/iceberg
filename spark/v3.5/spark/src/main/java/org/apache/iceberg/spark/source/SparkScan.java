@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
@@ -195,8 +196,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     if (readConf.reportColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
-      if (!files.isEmpty()) {
-        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+      Optional<StatisticsFile> file =
+          files.stream().filter(f -> f.snapshotId() == snapshot.snapshotId()).findFirst();
+      if (file.isPresent()) {
+        List<BlobMetadata> metadataList = file.get().blobMetadata();
 
         Map<Integer, List<BlobMetadata>> groupedByField =
             metadataList.stream()

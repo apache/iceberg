@@ -38,9 +38,10 @@ package org.apache.iceberg.actions;
  * <ol>
  *   <li>The name of the latest metadata.json rewritten to staging location. After the files are
  *       copied, this will be the root of the copied table.
- *   <li>A list of all files added to the table between startVersion and endVersion, including their
- *       original and target paths under the target prefix. This list covers both original and
- *       rewritten files, allowing for copying to the target paths to form the copied table.
+ *   <li>A 'copy-plan'. This is a list of all files added to the table between startVersion and
+ *       endVersion, including their original and target paths under the target prefix. This list
+ *       covers both original and rewritten files, allowing for copying a functioning version of the
+ *       source table to the target prefix.
  * </ol>
  */
 public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTablePath.Result> {
@@ -85,19 +86,54 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    */
   RewriteTablePath stagingLocation(String stagingLocation);
 
+  /**
+   * Whether to create the file list.
+   *
+   * <p>The default value is true, which means the file list will be created. If set to false, the
+   * file list will not be created.
+   *
+   * @param createFileList true to create the file list, false to skip it
+   * @return this instance for method chaining
+   */
+  default RewriteTablePath createFileList(boolean createFileList) {
+    return this;
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Staging location of rewritten files */
     String stagingLocation();
 
     /**
-     * Path to a comma-separated list of source and target paths for all files added to the table
-     * between startVersion and endVersion, including original data files and metadata files
-     * rewritten to staging.
+     * Result file list location. This file contains a listing of all files added to the table
+     * between startVersion and endVersion, comma-separated. <br>
+     * For each file, it will include the source path (either the original path in the table, or in
+     * the staging location if rewritten), and the target path (under the new prefix).
+     *
+     * <p>Example file content:
+     *
+     * <pre><code>
+     * sourcepath/datafile1.parquet,targetpath/datafile1.parquet
+     * sourcepath/datafile2.parquet,targetpath/datafile2.parquet
+     * stagingpath/manifest.avro,targetpath/manifest.avro
+     * </code></pre>
+     *
+     * <br>
+     * This allows for copying a functioning version of the table to the target prefix.
      */
     String fileListLocation();
 
     /** Name of latest metadata file version */
     String latestVersion();
+
+    /** Number of delete files with rewritten paths. */
+    default int rewrittenDeleteFilePathsCount() {
+      return 0;
+    }
+
+    /** Number of manifest files with rewritten paths. */
+    default int rewrittenManifestFilePathsCount() {
+      return 0;
+    }
   }
 }

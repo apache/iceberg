@@ -52,24 +52,34 @@ subprojects {
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.diffplug.spotless'
 
-  pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
-    checkstyle {
-      // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-      // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934.
-      // So, override its checkstyle version using CheckstyleExtension to 9.3 (the latest java 8 supported version) which contains a fix.
-      toolVersion '9.3'
-    }
-  }
-
+  String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
         // 1.23.0 has an issue in formatting comments https://github.com/google/google-java-format/issues/1155
-        // so we stick to 1.22.0 to produce consistent result for JDK 11/17/21
+        // so we stick to 1.22.0 to produce consistent result for JDK 17/21
         googleJavaFormat("1.22.0")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
+      }
+
+      if (project.name.startsWith("iceberg-spark")) {
+        String scalafmtConfigFile = null
+        // Configure different scalafmt rules for specific Scala version
+        if (scalaVersion?.startsWith("2.12")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala212fmt.conf"
+        } else if (scalaVersion?.startsWith("2.13")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala213fmt.conf"
+        }
+
+        if (scalafmtConfigFile != null) {
+          scala {
+            target 'src/**/*.scala'
+            scalafmt("3.9.7").configFile(scalafmtConfigFile)
+            licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+          }
+        }
       }
     }
   }
@@ -78,7 +88,7 @@ subprojects {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests/generated-src/generated
-          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
+          '-XepExcludedPaths:.*/(test|integration|generated-src|generated)/.*',
           '-Xep:AnnotateFormatMethod:ERROR',
           '-Xep:BadComparable:ERROR',
           '-Xep:BadInstanceof:ERROR',
@@ -153,9 +163,11 @@ subprojects {
           '-Xep:UnicodeEscape:ERROR',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLambdaArgumentParentheses:ERROR',
           '-Xep:UnnecessaryLongToIntConversion:ERROR',
           '-Xep:UnnecessaryMethodReference:ERROR',
           '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedTypeParameter:ERROR',
           '-Xep:UnusedVariable:ERROR',
           '-Xep:UseEnumSwitch:ERROR',
       )
@@ -170,6 +182,23 @@ subprojects {
       failOnWarning = false
       verbose = false
       quiet = false
+    }
+  }
+
+  pluginManager.withPlugin('scala') {
+    tasks.withType(ScalaCompile).configureEach { scalaCompile ->
+      if (scalaVersion?.startsWith("2.12")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                // Scala 2.12 does not support treating unused imports as errors individually,
+                // so we only enable warnings for unused imports when using Scala 2.12.
+                "-Ywarn-unused:imports",
+        ]
+      } else if (scalaVersion?.startsWith("2.13")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                "-Wconf:cat=unused:error",
+                "-Wunused:imports"
+        ]
+      }
     }
   }
 }

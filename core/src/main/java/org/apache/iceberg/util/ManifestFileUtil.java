@@ -41,9 +41,11 @@ public class ManifestFileUtil {
     private final T upperBound;
     private final boolean containsNull;
     private final boolean containsNaN;
+    private final Type.PrimitiveType type;
 
     @SuppressWarnings("unchecked")
     FieldSummary(Type.PrimitiveType primitive, ManifestFile.PartitionFieldSummary summary) {
+      this.type = primitive;
       this.comparator = Comparators.forType(primitive);
       this.javaClass = (Class<T>) primitive.typeId().javaClass();
       this.lowerBound = Conversions.fromByteBuffer(primitive, summary.lowerBound());
@@ -59,6 +61,10 @@ public class ManifestFileUtil {
 
       if (NaNUtil.isNaN(value)) {
         return containsNaN;
+      }
+
+      if (Types.UnknownType.get().equals(type)) {
+        return true;
       }
 
       // if lower bound is null, then there are no non-null values

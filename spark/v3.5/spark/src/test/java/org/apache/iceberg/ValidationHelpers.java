@@ -42,7 +42,7 @@ public class ValidationHelpers {
   }
 
   public static List<String> files(ContentFile<?>... files) {
-    return Arrays.stream(files).map(file -> file.location()).collect(Collectors.toList());
+    return Arrays.stream(files).map(ContentFile::location).collect(Collectors.toList());
   }
 
   public static void validateDataManifest(

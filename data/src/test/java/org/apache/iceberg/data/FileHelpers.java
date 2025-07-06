@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -133,9 +134,14 @@ public class FileHelpers {
 
   public static DataFile writeDataFile(Table table, OutputFile out, List<Record> rows)
       throws IOException {
+    return writeDataFile(table, out, rows, null);
+  }
+
+  public static DataFile writeDataFile(
+      Table table, OutputFile out, List<Record> rows, PartitionData partition) throws IOException {
     FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
-    DataWriter<Record> writer = factory.newDataWriter(encrypt(out), table.spec(), null);
+    DataWriter<Record> writer = factory.newDataWriter(encrypt(out), table.spec(), partition);
     try (Closeable toClose = writer) {
       writer.write(rows);
     }
@@ -197,7 +203,7 @@ public class FileHelpers {
     }
   }
 
-  private static EncryptedOutputFile encrypt(OutputFile out) {
+  public static EncryptedOutputFile encrypt(OutputFile out) {
     return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 }

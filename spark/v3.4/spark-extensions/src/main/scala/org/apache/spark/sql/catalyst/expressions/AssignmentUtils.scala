@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.expressions
 
 import org.apache.spark.sql.AnalysisException
@@ -40,12 +39,13 @@ object AssignmentUtils extends SQLConfHelper {
     sameSize && table.output.zip(assignments).forall { case (attr, assignment) =>
       val key = assignment.key
       val value = assignment.value
-      val refsEqual = toAssignmentRef(attr).zip(toAssignmentRef(key))
-        .forall{ case (attrRef, keyRef) => conf.resolver(attrRef, keyRef)}
+      val refsEqual = toAssignmentRef(attr)
+        .zip(toAssignmentRef(key))
+        .forall { case (attrRef, keyRef) => conf.resolver(attrRef, keyRef) }
 
       refsEqual &&
-        DataType.equalsIgnoreCompatibleNullability(value.dataType, attr.dataType) &&
-        (attr.nullable || !value.nullable)
+      DataType.equalsIgnoreCompatibleNullability(value.dataType, attr.dataType) &&
+      (attr.nullable || !value.nullable)
     }
   }
 
@@ -66,16 +66,16 @@ object AssignmentUtils extends SQLConfHelper {
     val key = assignment.key
     val value = assignment.value
 
-    val rawKeyType = key.transform {
-      case attr: AttributeReference =>
-        CharVarcharUtils.getRawType(attr.metadata)
-          .map(attr.withDataType)
-          .getOrElse(attr)
+    val rawKeyType = key.transform { case attr: AttributeReference =>
+      CharVarcharUtils
+        .getRawType(attr.metadata)
+        .map(attr.withDataType)
+        .getOrElse(attr)
     }.dataType
 
     if (CharVarcharUtils.hasCharVarchar(rawKeyType)) {
-      val newKey = key.transform {
-        case attr: AttributeReference => CharVarcharUtils.cleanAttrMetadata(attr)
+      val newKey = key.transform { case attr: AttributeReference =>
+        CharVarcharUtils.cleanAttrMetadata(attr)
       }
       val newValue = CharVarcharUtils.stringLengthCheck(value, rawKeyType)
       Assignment(newKey, newValue)

@@ -30,8 +30,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -186,7 +186,7 @@ public class TestAvroFileSplit {
       throws IOException {
     try (AvroIterable<Record> reader =
         Avro.read(in)
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .split(start, length)
             .project(projection)
             .build()) {

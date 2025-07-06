@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution
 
 import org.apache.spark.rdd.PartitionCoalescer
@@ -31,7 +30,8 @@ import org.apache.spark.sql.catalyst.plans.physical.UnknownPartitioning
 case class OrderAwareCoalesceExec(
     numPartitions: Int,
     coalescer: PartitionCoalescer,
-    child: SparkPlan) extends UnaryExecNode {
+    child: SparkPlan)
+    extends UnaryExecNode {
 
   override def output: Seq[Attribute] = child.output
 

@@ -21,13 +21,17 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -37,21 +41,22 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.transforms.Transforms;
@@ -78,17 +83,15 @@ import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.assertj.core.api.AbstractObjectAssert;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFilteredScan {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
@@ -116,9 +119,13 @@ public class TestFilteredScan {
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
-    TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestFilteredScan.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
 
     // define UDFs used by partition tests
     Function<Object, Integer> bucket4 = Transforms.bucket(4).bind(Types.LongType.get());
@@ -144,46 +151,45 @@ public class TestFilteredScan {
     spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestFilteredScan.spark;
     TestFilteredScan.spark = null;
     currentSpark.stop();
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  private final String format;
-  private final boolean vectorized;
-  private final PlanningMode planningMode;
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameter(index = 1)
+  private boolean vectorized;
+
+  @Parameter(index = 2)
+  private PlanningMode planningMode;
+
+  @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, LOCAL},
-      {"parquet", true, DISTRIBUTED},
-      {"avro", false, LOCAL},
-      {"orc", false, DISTRIBUTED},
-      {"orc", true, LOCAL}
+      {FileFormat.PARQUET, false, LOCAL},
+      {FileFormat.PARQUET, true, DISTRIBUTED},
+      {FileFormat.AVRO, false, LOCAL},
+      {FileFormat.ORC, false, DISTRIBUTED},
+      {FileFormat.ORC, true, LOCAL}
     };
-  }
-
-  public TestFilteredScan(String format, boolean vectorized, PlanningMode planningMode) {
-    this.format = format;
-    this.vectorized = vectorized;
-    this.planningMode = planningMode;
   }
 
   private File parent = null;
   private File unpartitioned = null;
   private List<Record> records = null;
 
-  @Before
+  @BeforeEach
   public void writeUnpartitionedTable() throws IOException {
-    this.parent = temp.newFolder("TestFilteredScan");
+    this.parent = temp.resolve("TestFilteredScan").toFile();
     this.unpartitioned = new File(parent, "unpartitioned");
     File dataFolder = new File(unpartitioned, "data");
-    Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("Mkdir should succeed").isTrue();
 
     Table table =
         TABLES.create(
@@ -197,28 +203,26 @@ public class TestFilteredScan {
             unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
-    FileFormat fileFormat = FileFormat.fromString(format);
-
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 
     this.records = testRecords(tableSchema);
 
-    try (FileAppender<Record> writer =
-        new GenericAppenderFactory(tableSchema).newAppender(localOutput(testFile), fileFormat)) {
-      writer.addAll(records);
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataFileFormat(fileFormat)
+            .dataSchema(tableSchema)
+            .build()
+            .newDataWriter(encrypt(localOutput(testFile)), PartitionSpec.unpartitioned(), null);
+    try (writer) {
+      writer.write(records);
     }
 
-    DataFile file =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(records.size())
-            .withFileSizeInBytes(testFile.length())
-            .withPath(testFile.toString())
-            .build();
+    DataFile file = writer.toDataFile();
 
     table.newAppend().appendFile(file).commit();
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
@@ -230,7 +234,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] partitions = scan.planInputPartitions();
-      Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
+      assertThat(partitions).as("Should only create one task for a small file").hasSize(1);
 
       // validate row filtering
       assertEqualsSafe(
@@ -238,7 +242,7 @@ public class TestFilteredScan {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedCaseInsensitiveIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
@@ -260,7 +264,7 @@ public class TestFilteredScan {
         Batch scan = builder.build().toBatch();
 
         InputPartition[] tasks = scan.planInputPartitions();
-        Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
+        assertThat(tasks).as("Should only create one task for a small file").hasSize(1);
 
         // validate row filtering
         assertEqualsSafe(
@@ -274,7 +278,7 @@ public class TestFilteredScan {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTimestampFilter() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
@@ -286,7 +290,7 @@ public class TestFilteredScan {
     Batch scan = builder.build().toBatch();
 
     InputPartition[] tasks = scan.planInputPartitions();
-    Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
+    assertThat(tasks).as("Should only create one task for a small file").hasSize(1);
 
     assertEqualsSafe(
         SCHEMA.asStruct(),
@@ -297,7 +301,99 @@ public class TestFilteredScan {
             "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
-  @Test
+  @TestTemplate
+  public void limitPushedDownToSparkScan() {
+    assumeThat(fileFormat)
+        .as("no need to run this across the entire test matrix")
+        .isEqualTo(FileFormat.PARQUET);
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    long limit = 23;
+    // simulate Spark pushing down the limit to the scan builder
+    builder.pushLimit((int) limit);
+    assertThat(builder).extracting("limit").isEqualTo((int) limit);
+
+    // verify batch scan
+    AbstractObjectAssert<?, ?> scanAssert = assertThat(builder.build()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+
+    // verify changelog scan
+    assertThat(builder.buildChangelogScan())
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify CoW scan
+    assertThat(builder.buildCopyOnWriteScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify MoR scan
+    scanAssert = assertThat(builder.buildMergeOnReadScan()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+  }
+
+  @TestTemplate
+  public void limitPushedDownToSparkScanForMetadataTable() {
+    assumeThat(fileFormat)
+        .as("no need to run this across the entire test matrix")
+        .isEqualTo(FileFormat.PARQUET);
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    // load the snapshots metadata table
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path") + "#snapshots"), options);
+
+    long limit = 23;
+    // simulate Spark pushing down the limit to the scan builder
+    builder.pushLimit((int) limit);
+    assertThat(builder).extracting("limit").isEqualTo((int) limit);
+
+    // verify batch scan
+    assertThat(builder.build())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify CoW scan
+    assertThat(builder.buildCopyOnWriteScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify MoR scan
+    assertThat(builder.buildMergeOnReadScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+  }
+
+  @TestTemplate
   public void testBucketPartitionedIDFilters() {
     Table table = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
     CaseInsensitiveStringMap options =
@@ -305,8 +401,9 @@ public class TestFilteredScan {
 
     Batch unfiltered =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
-    Assert.assertEquals(
-        "Unfiltered table should created 4 read tasks", 4, unfiltered.planInputPartitions().length);
+    assertThat(unfiltered.planInputPartitions())
+        .as("Unfiltered table should created 4 read tasks")
+        .hasSize(4);
 
     for (int i = 0; i < 10; i += 1) {
       SparkScanBuilder builder =
@@ -318,7 +415,7 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
 
       // validate predicate push-down
-      Assert.assertEquals("Should create one task for a single bucket", 1, tasks.length);
+      assertThat(tasks).as("Should only create one task for a single bucket").hasSize(1);
 
       // validate row filtering
       assertEqualsSafe(
@@ -327,7 +424,7 @@ public class TestFilteredScan {
   }
 
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
-  @Test
+  @TestTemplate
   public void testDayPartitionedTimestampFilters() {
     Table table = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
     CaseInsensitiveStringMap options =
@@ -335,8 +432,9 @@ public class TestFilteredScan {
     Batch unfiltered =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
-    Assert.assertEquals(
-        "Unfiltered table should created 2 read tasks", 2, unfiltered.planInputPartitions().length);
+    assertThat(unfiltered.planInputPartitions())
+        .as("Unfiltered table should created 2 read tasks")
+        .hasSize(2);
 
     {
       SparkScanBuilder builder =
@@ -346,7 +444,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
-      Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.length);
+      assertThat(tasks).as("Should create one task for 2017-12-21").hasSize(1);
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
@@ -367,7 +465,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
-      Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.length);
+      assertThat(tasks).as("Should create one task for 2017-12-22").hasSize(1);
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
@@ -381,7 +479,7 @@ public class TestFilteredScan {
   }
 
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
-  @Test
+  @TestTemplate
   public void testHourPartitionedTimestampFilters() {
     Table table = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
@@ -390,8 +488,9 @@ public class TestFilteredScan {
     Batch unfiltered =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
-    Assert.assertEquals(
-        "Unfiltered table should created 9 read tasks", 9, unfiltered.planInputPartitions().length);
+    assertThat(unfiltered.planInputPartitions())
+        .as("Unfiltered table should created 9 read tasks")
+        .hasSize(9);
 
     {
       SparkScanBuilder builder =
@@ -401,7 +500,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
-      Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.length);
+      assertThat(tasks).as("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22").hasSize(4);
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
@@ -422,7 +521,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
-      Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.length);
+      assertThat(tasks).as("Should create 2 tasks for 2017-12-22: 6, 7").hasSize(2);
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
@@ -436,7 +535,7 @@ public class TestFilteredScan {
   }
 
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
-  @Test
+  @TestTemplate
   public void testFilterByNonProjectedColumn() {
     {
       Schema actualProjection = SCHEMA.select("id", "data");
@@ -477,7 +576,7 @@ public class TestFilteredScan {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedByDataStartsWithFilter() {
     Table table =
         buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
@@ -490,10 +589,10 @@ public class TestFilteredScan {
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
 
-    Assert.assertEquals(1, scan.planInputPartitions().length);
+    assertThat(scan.planInputPartitions()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedByDataNotStartsWithFilter() {
     Table table =
         buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
@@ -506,10 +605,10 @@ public class TestFilteredScan {
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();
 
-    Assert.assertEquals(9, scan.planInputPartitions().length);
+    assertThat(scan.planInputPartitions()).hasSize(9);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedByIdStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
@@ -522,10 +621,10 @@ public class TestFilteredScan {
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
 
-    Assert.assertEquals(1, scan.planInputPartitions().length);
+    assertThat(scan.planInputPartitions()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedByIdNotStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
@@ -538,10 +637,10 @@ public class TestFilteredScan {
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();
 
-    Assert.assertEquals(9, scan.planInputPartitions().length);
+    assertThat(scan.planInputPartitions()).hasSize(9);
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedStartsWith() {
     Dataset<Row> df =
         spark
@@ -553,11 +652,10 @@ public class TestFilteredScan {
     List<String> matchedData =
         df.select("data").where("data LIKE 'jun%'").as(Encoders.STRING()).collectAsList();
 
-    Assert.assertEquals(1, matchedData.size());
-    Assert.assertEquals("junction", matchedData.get(0));
+    assertThat(matchedData).singleElement().isEqualTo("junction");
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedNotStartsWith() {
     Dataset<Row> df =
         spark
@@ -575,8 +673,7 @@ public class TestFilteredScan {
             .filter(d -> !d.startsWith("jun"))
             .collect(Collectors.toList());
 
-    Assert.assertEquals(9, matchedData.size());
-    Assert.assertEquals(Sets.newHashSet(expected), Sets.newHashSet(matchedData));
+    assertThat(matchedData).hasSize(9).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   private static Record projectFlat(Schema projection, Record record) {
@@ -596,7 +693,7 @@ public class TestFilteredScan {
     for (int i = 0; i < numRecords; i += 1) {
       GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
     }
-    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
+    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
   public static void assertEqualsSafe(
@@ -606,7 +703,7 @@ public class TestFilteredScan {
     for (int i = 0; i < numRecords; i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
-    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
+    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
   private List<Record> expected(int... ordinals) {

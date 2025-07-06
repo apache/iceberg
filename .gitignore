@@ -29,14 +29,17 @@ site/site/
 site/docs/docs/
 site/docs/.asf.yaml
 site/docs/javadoc/
+site/.venv/
 
 # benchmark output
-spark/v3.3/spark/benchmark/*
-spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
 spark/v3.5/spark/benchmark/*
 spark/v3.5/spark-extensions/benchmark/*
+spark/v4.0/spark/benchmark/*
+spark/v4.0/spark-extensions/benchmark/*
+spark/v4.1/spark/benchmark/*
+spark/v4.1/spark-extensions/benchmark/*
 */benchmark/*
 
 __pycache__/
@@ -69,3 +72,6 @@ derby.log
 
 # jenv
 .java-version
+
+# sdkman
+.sdkmanrc

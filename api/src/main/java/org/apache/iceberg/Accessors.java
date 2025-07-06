@@ -233,6 +233,11 @@ public class Accessors {
     }
 
     @Override
+    public Map<Integer, Accessor<StructLike>> variant(Types.VariantType variant) {
+      return null;
+    }
+
+    @Override
     public Map<Integer, Accessor<StructLike>> field(
         Types.NestedField field, Map<Integer, Accessor<StructLike>> fieldResult) {
       return fieldResult;

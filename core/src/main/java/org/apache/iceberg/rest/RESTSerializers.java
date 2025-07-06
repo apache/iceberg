@@ -28,8 +28,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdateParser;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -46,11 +48,18 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequestParser;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequestParser;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequestParser;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequestParser;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -59,6 +68,10 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponseParser;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
@@ -68,6 +81,8 @@ import org.apache.iceberg.rest.responses.LoadTableResponseParser;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -119,10 +134,27 @@ public class RESTSerializers {
         .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
         .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addSerializer(RegisterViewRequest.class, new RegisterViewRequestSerializer<>())
+        .addDeserializer(RegisterViewRequest.class, new RegisterViewRequestDeserializer<>())
+        .addSerializer(ImmutableRegisterViewRequest.class, new RegisterViewRequestSerializer<>())
+        .addDeserializer(
+            ImmutableRegisterViewRequest.class, new RegisterViewRequestDeserializer<>())
         .addSerializer(ConfigResponse.class, new ConfigResponseSerializer<>())
         .addDeserializer(ConfigResponse.class, new ConfigResponseDeserializer<>())
         .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer<>())
         .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>())
+        .addSerializer(PlanTableScanRequest.class, new PlanTableScanRequestSerializer<>())
+        .addDeserializer(PlanTableScanRequest.class, new PlanTableScanRequestDeserializer<>())
+        .addSerializer(FetchScanTasksRequest.class, new FetchScanTasksRequestSerializer<>())
+        .addDeserializer(FetchScanTasksRequest.class, new FetchScanTasksRequestDeserializer<>())
+        .addSerializer(PlanTableScanResponse.class, new PlanTableScanResponseSerializer<>())
+        .addDeserializer(PlanTableScanResponse.class, new PlanTableScanResponseDeserializer<>())
+        .addSerializer(
+            FetchPlanningResultResponse.class, new FetchPlanningResultResponseSerializer<>())
+        .addDeserializer(
+            FetchPlanningResultResponse.class, new FetchPlanningResultResponseDeserializer<>())
+        .addSerializer(FetchScanTasksResponse.class, new FetchScanTaskResponseSerializer<>())
+        .addDeserializer(FetchScanTasksResponse.class, new FetchScanTaskResponseDeserializer<>())
         .addSerializer(LoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
         .addSerializer(
             ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
@@ -420,6 +452,24 @@ public class RESTSerializers {
     }
   }
 
+  static class RegisterViewRequestSerializer<T extends RegisterViewRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RegisterViewRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class RegisterViewRequestDeserializer<T extends RegisterViewRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RegisterViewRequestParser.fromJson(jsonNode);
+    }
+  }
+
   static class ConfigResponseSerializer<T extends ConfigResponse> extends JsonSerializer<T> {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
@@ -468,6 +518,136 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) LoadCredentialsResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class PlanTableScanRequestSerializer<T extends PlanTableScanRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      PlanTableScanRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class PlanTableScanRequestDeserializer<T extends PlanTableScanRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) PlanTableScanRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class FetchScanTasksRequestSerializer<T extends FetchScanTasksRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      FetchScanTasksRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class FetchScanTasksRequestDeserializer<T extends FetchScanTasksRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) FetchScanTasksRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class PlanTableScanResponseSerializer<T extends PlanTableScanResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      PlanTableScanResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class PlanTableScanResponseDeserializer<T extends PlanTableScanResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
+
+      return (T)
+          PlanTableScanResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  static class FetchPlanningResultResponseSerializer<T extends FetchPlanningResultResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      FetchPlanningResultResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class FetchPlanningResultResponseDeserializer<T extends FetchPlanningResultResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
+      return (T)
+          FetchPlanningResultResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  static class FetchScanTaskResponseSerializer<T extends FetchScanTasksResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      FetchScanTasksResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class FetchScanTaskResponseDeserializer<T extends FetchScanTasksResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
+      return (T)
+          FetchScanTasksResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  private static TableScanResponseContext parseScanResponseContext(DeserializationContext context)
+      throws IOException {
+    @SuppressWarnings("unchecked")
+    Map<Integer, PartitionSpec> specsById =
+        (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+    boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
+    return new TableScanResponseContext(specsById, caseSensitive);
+  }
+
+  static class TableScanResponseContext {
+    private final Map<Integer, PartitionSpec> specsById;
+    private final boolean caseSensitive;
+
+    TableScanResponseContext(Map<Integer, PartitionSpec> specs, boolean isCaseSensitive) {
+      this.specsById = specs;
+      this.caseSensitive = isCaseSensitive;
+    }
+
+    Map<Integer, PartitionSpec> getSpecsById() {
+      return specsById;
+    }
+
+    boolean isCaseSensitive() {
+      return caseSensitive;
     }
   }
 }

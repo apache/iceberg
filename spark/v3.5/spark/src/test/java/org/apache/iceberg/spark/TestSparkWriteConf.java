@@ -51,6 +51,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -61,7 +63,9 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkWriteConf extends TestBaseWithCatalog {
 
   @BeforeEach
@@ -142,7 +146,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
 
     DeleteGranularity value = writeConf.deleteGranularity();
-    assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
   }
 
   @TestTemplate
@@ -151,13 +155,13 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
 
     table
         .updateProperties()
-        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.FILE.toString())
+        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.PARTITION.toString())
         .commit();
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
 
     DeleteGranularity value = writeConf.deleteGranularity();
-    assertThat(value).isEqualTo(DeleteGranularity.FILE);
+    assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
   }
 
   @TestTemplate
@@ -538,6 +542,14 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     for (List<Map<String, String>> propertiesSuite : propertiesSuites) {
       testWriteProperties(propertiesSuite);
     }
+  }
+
+  @TestTemplate
+  public void testDVWriteConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    assertThat(writeConf.deleteFileFormat()).isEqualTo(FileFormat.PUFFIN);
   }
 
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {

@@ -71,4 +71,9 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
             "Cannot commit to branch %s: %s does not support branch commits",
             branch, this.getClass().getName()));
   }
+
+  default ThisT validateWith(SnapshotAncestryValidator validator) {
+    throw new UnsupportedOperationException(
+        "Snapshot validation not supported by " + this.getClass().getName());
+  }
 }

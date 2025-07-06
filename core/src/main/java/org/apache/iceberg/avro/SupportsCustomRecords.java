@@ -20,7 +20,7 @@ package org.apache.iceberg.avro;
 
 import java.util.Map;
 
-/** An interface for Avro DatumReaders to support custom record classes. */
+/** An interface for Avro DatumReaders to support custom record classes by name. */
 interface SupportsCustomRecords {
   void setClassLoader(ClassLoader loader);
 

@@ -57,8 +57,10 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
@@ -89,7 +91,7 @@ public class TestHelpers {
             .toArray(TypeSerializer[]::new);
     RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
-      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      fieldGetters[i] = FlinkRowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
 
     return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
@@ -131,7 +133,7 @@ public class TestHelpers {
         .collect(Collectors.toList());
   }
 
-  private static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
+  public static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
     DataStructureConverter<RowData, Row> converter =
@@ -175,6 +177,16 @@ public class TestHelpers {
       LogicalType rowType,
       StructLike expectedRecord,
       RowData actualRowData) {
+    assertRowData(structType, rowType, expectedRecord, actualRowData, null, -1);
+  }
+
+  public static void assertRowData(
+      Types.StructType structType,
+      LogicalType rowType,
+      StructLike expectedRecord,
+      RowData actualRowData,
+      Map<Integer, Object> idToConstant,
+      int rowPosition) {
     if (expectedRecord == null && actualRowData == null) {
       return;
     }
@@ -187,22 +199,56 @@ public class TestHelpers {
       types.add(field.type());
     }
 
-    for (int i = 0; i < types.size(); i += 1) {
-      LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-      Object expected = expectedRecord.get(i, Object.class);
-      // The RowData.createFieldGetter won't return null for the required field. But in the
-      // projection case, if we are
-      // projecting a nested required field from an optional struct, then we should give a null for
-      // the projected field
-      // if the outer struct value is null. So we need to check the nullable for actualRowData here.
-      // For more details
-      // please see issue #2738.
-      Object actual =
-          actualRowData.isNullAt(i)
-              ? null
-              : RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
-      assertEquals(types.get(i), logicalType, expected, actual);
+    if (expectedRecord instanceof Record) {
+      Record expected = (Record) expectedRecord;
+      Types.StructType expectedType = expected.struct();
+      int pos = 0;
+      for (Types.NestedField field : structType.fields()) {
+        Types.NestedField expectedField = expectedType.field(field.fieldId());
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
+        Object actualValue =
+            FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
+        Object expectedValue =
+            expectedField != null
+                ? getExpectedValue(idToConstant, rowPosition, expectedField, expected)
+                : GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
+
+        assertEquals(field.type(), logicalType, expectedValue, actualValue);
+        pos++;
+      }
+    } else {
+      for (int i = 0; i < types.size(); i += 1) {
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
+        Object expected = expectedRecord.get(i, Object.class);
+        Object actual =
+            FlinkRowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+        assertEquals(types.get(i), logicalType, expected, actual);
+      }
     }
+  }
+
+  private static Object getExpectedValue(
+      Map<Integer, Object> idToConstant,
+      int pos,
+      Types.NestedField expectedField,
+      Record expected) {
+    Object expectedValue;
+    int id = expectedField.fieldId();
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      expectedValue = expected.getField(expectedField.name());
+      if (expectedValue == null && idToConstant != null) {
+        expectedValue = (Long) idToConstant.get(id) + pos;
+      }
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      expectedValue = expected.getField(expectedField.name());
+      if (expectedValue == null && idToConstant != null) {
+        expectedValue = idToConstant.get(id);
+      }
+    } else {
+      expectedValue = expected.getField(expectedField.name());
+    }
+
+    return expectedValue;
   }
 
   private static void assertEquals(
@@ -249,6 +295,25 @@ public class TestHelpers {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
+        } else {
+          assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
+        }
+        break;
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           assertThat(expected)
               .as("Should expect a OffsetDataTime")
               .isInstanceOf(OffsetDateTime.class);
@@ -602,7 +667,7 @@ public class TestHelpers {
     assertThat(actual).isNotNull();
     assertThat(actual.specId()).as("SpecId").isEqualTo(expected.specId());
     assertThat(actual.content()).as("Content").isEqualTo(expected.content());
-    assertThat(actual.path()).as("Path").isEqualTo(expected.path());
+    assertThat(actual.location()).as("Location").isEqualTo(expected.location());
     assertThat(actual.format()).as("Format").isEqualTo(expected.format());
     assertThat(actual.partition().size())
         .as("Partition size")

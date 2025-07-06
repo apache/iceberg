@@ -21,10 +21,11 @@ package org.apache.iceberg;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -32,6 +33,14 @@ import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 abstract class FileCleanupStrategy {
+  private final Consumer<String> defaultDeleteFunc =
+      new Consumer<>() {
+        @Override
+        public void accept(String file) {
+          fileIO.deleteFile(file);
+        }
+      };
+
   private static final Logger LOG = LoggerFactory.getLogger(FileCleanupStrategy.class);
 
   protected final FileIO fileIO;
@@ -50,7 +59,23 @@ abstract class FileCleanupStrategy {
     this.deleteFunc = deleteFunc;
   }
 
-  public abstract void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration);
+  /**
+   * Clean up files that are only reachable by expired snapshots.
+   *
+   * <p>This method is responsible for identifying and deleting files that are safe to remove based
+   * on the table metadata state before and after snapshot expiration. The cleanup level controls
+   * which types of files are eligible for deletion.
+   *
+   * <p>Note that {@link ExpireSnapshots.CleanupLevel#NONE} is handled before reaching this method
+   *
+   * @param beforeExpiration table metadata before snapshot expiration
+   * @param afterExpiration table metadata after snapshot expiration
+   * @param cleanupLevel controls which types of files are eligible for deletion
+   */
+  public abstract void cleanFiles(
+      TableMetadata beforeExpiration,
+      TableMetadata afterExpiration,
+      ExpireSnapshots.CleanupLevel cleanupLevel);
 
   private static final Schema MANIFEST_PROJECTION =
       ManifestFile.schema()
@@ -63,11 +88,11 @@ abstract class FileCleanupStrategy {
 
   protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {
-      return Avro.read(fileIO.newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .classLoader(GenericManifestFile.class.getClassLoader())
+      return InternalData.read(
+              FileFormat.AVRO, fileIO.newInputFile(snapshot.manifestListLocation()))
+          .setRootType(GenericManifestFile.class)
           .project(MANIFEST_PROJECTION)
-          .reuseContainers(true)
+          .reuseContainers()
           .build();
     } else {
       return CloseableIterable.withNoopClose(snapshot.allManifests(fileIO));
@@ -75,14 +100,32 @@ abstract class FileCleanupStrategy {
   }
 
   protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
-    Tasks.foreach(pathsToDelete)
-        .executeWith(deleteExecutorService)
-        .retry(3)
-        .stopRetryOn(NotFoundException.class)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
-        .run(deleteFunc::accept);
+    if (deleteFunc == null && fileIO instanceof SupportsBulkOperations) {
+      try {
+        ((SupportsBulkOperations) fileIO).deleteFiles(pathsToDelete);
+      } catch (BulkDeletionFailureException e) {
+        LOG.warn(
+            "Bulk deletion failed for {} of {} {} file(s)",
+            e.numberFailedObjects(),
+            pathsToDelete.size(),
+            fileType,
+            e);
+      } catch (RuntimeException e) {
+        LOG.warn("Bulk deletion failed", e);
+      }
+    } else {
+      Consumer<String> deleteFuncToUse = deleteFunc == null ? defaultDeleteFunc : deleteFunc;
+
+      Tasks.foreach(pathsToDelete)
+          .executeWith(deleteExecutorService)
+          .retry(3)
+          .stopRetryOn(NotFoundException.class)
+          .stopOnFailure()
+          .suppressFailureWhenFinished()
+          .onFailure(
+              (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
+          .run(deleteFuncToUse::accept);
+    }
   }
 
   protected boolean hasAnyStatisticsFiles(TableMetadata tableMetadata) {

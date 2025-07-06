@@ -32,6 +32,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
+  private static final Schema NULL_SCHEMA = Schema.create(Schema.Type.NULL);
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);
   private static final Schema INTEGER_SCHEMA = Schema.create(Schema.Type.INT);
   private static final Schema LONG_SCHEMA = Schema.create(Schema.Type.LONG);
@@ -45,6 +46,10 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMP_NANO_SCHEMA =
+      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
+      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
@@ -53,6 +58,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   static {
     TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
@@ -188,9 +195,27 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
+  public Schema variant(Types.VariantType variant) {
+    String recordName = fieldIds.peek() != null ? "r" + fieldIds.peek() : "variant";
+    Schema schema =
+        Schema.createRecord(
+            recordName,
+            null,
+            null,
+            false,
+            List.of(
+                new Schema.Field("metadata", BINARY_SCHEMA),
+                new Schema.Field("value", BINARY_SCHEMA)));
+    return VariantLogicalType.get().addToSchema(schema);
+  }
+
+  @Override
   public Schema primitive(Type.PrimitiveType primitive) {
     Schema primitiveSchema;
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        primitiveSchema = NULL_SCHEMA;
+        break;
       case BOOLEAN:
         primitiveSchema = BOOLEAN_SCHEMA;
         break;
@@ -217,6 +242,13 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
           primitiveSchema = TIMESTAMPTZ_SCHEMA;
         } else {
           primitiveSchema = TIMESTAMP_SCHEMA;
+        }
+        break;
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
+          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
+        } else {
+          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:

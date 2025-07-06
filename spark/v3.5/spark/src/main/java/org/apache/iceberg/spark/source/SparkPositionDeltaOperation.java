@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -96,9 +99,17 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {
-    NamedReference specId = Expressions.column(MetadataColumns.SPEC_ID.name());
-    NamedReference partition = Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME);
-    return new NamedReference[] {specId, partition};
+    List<NamedReference> metadataAttributes = Lists.newArrayList();
+    metadataAttributes.add(Expressions.column(MetadataColumns.SPEC_ID.name()));
+    metadataAttributes.add(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME));
+
+    if (TableUtil.supportsRowLineage(table)) {
+      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_ID.name()));
+      metadataAttributes.add(
+          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
+    }
+
+    return metadataAttributes.toArray(new NamedReference[0]);
   }
 
   @Override

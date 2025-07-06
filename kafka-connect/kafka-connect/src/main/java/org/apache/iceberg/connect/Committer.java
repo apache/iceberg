@@ -20,13 +20,38 @@ package org.apache.iceberg.connect;
 
 import java.util.Collection;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 
 public interface Committer {
+
+  /**
+   * @deprecated will be removed in 2.0.0. Use {@link #open(Catalog, IcebergSinkConfig,
+   *     SinkTaskContext, Collection)} instead.
+   */
+  @Deprecated
   void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
+  default void open(
+      Catalog catalog,
+      IcebergSinkConfig config,
+      SinkTaskContext context,
+      Collection<TopicPartition> addedPartitions) {
+    // Default implementation calls the deprecated method. Implementations may override this.
+    start(catalog, config, context);
+  }
+
+  /**
+   * @deprecated will be removed in 2.0.0. Use {@link #close(Collection)} instead.
+   */
+  @Deprecated
   void stop();
+
+  default void close(Collection<TopicPartition> closedPartitions) {
+    // Default implementation calls the deprecated method. Implementations may override this.
+    stop();
+  }
 
   void save(Collection<SinkRecord> sinkRecords);
 }

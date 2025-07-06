@@ -237,7 +237,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
-    if (dataFiles.add(file)) {
+    if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
@@ -249,17 +249,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file));
+    addInternal(Delegates.pendingDeleteFile(file, null));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    validateNewDeleteFile(file);
-    add(new PendingDeleteFile(file, dataSequenceNumber));
+    addInternal(Delegates.pendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(PendingDeleteFile file) {
+  private void addInternal(DeleteFile file) {
+    validateNewDeleteFile(file);
     PartitionSpec spec = spec(file.specId());
     Preconditions.checkArgument(
         spec != null,
@@ -290,6 +289,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             ContentFileUtil.dvDesc(file));
         break;
       case 3:
+      case 4:
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
             "Must use DVs for position deletes in V%s: %s",
@@ -310,10 +310,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
+      Preconditions.checkArgument(
+          manifest.firstRowId() == null,
+          "Cannot append manifest with assigned first_row_id: %s",
+          manifest.firstRowId());
       appendedManifestsSummary.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and null first_row_ids
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
     }
@@ -925,6 +929,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                             .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
             .reduce(base.lastSequenceNumber(), Math::min);
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
+
+    // retrieve the data files to be deleted from the DataFileFilterManager and pass it to the
+    // DeleteFileFilterManager so that it can potentially remove orphaned DVs
+    Set<DataFile> filesToBeDeleted = filterManager.filesToBeDeleted();
+    deleteFilterManager.removeDanglingDeletesFor(filesToBeDeleted);
+
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
@@ -958,7 +968,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    Snapshot justSaved = ops().refresh().snapshot(snapshotId);
+
+    Snapshot justSaved = ops().current().snapshot(snapshotId);
+    if (justSaved == null) {
+      justSaved = ops().refresh().snapshot(snapshotId);
+    }
+
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
     Map<String, String> summary;
     if (justSaved == null) {
@@ -975,53 +990,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
-    if (!cachedNewDataManifests.isEmpty()) {
-      boolean hasDeletes = false;
-      for (ManifestFile manifest : cachedNewDataManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-          hasDeletes = true;
-        }
-      }
-
-      if (hasDeletes) {
-        this.cachedNewDataManifests.clear();
-      }
-    }
-
-    boolean hasDeleteDeletes = false;
-    for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
-      if (!committed.contains(cachedNewDeleteManifest)) {
-        deleteFile(cachedNewDeleteManifest.path());
-        hasDeleteDeletes = true;
-      }
-    }
-
-    if (hasDeleteDeletes) {
-      this.cachedNewDeleteManifests.clear();
-    }
-
-    // rewritten manifests are always owned by the table
-    for (ManifestFile manifest : rewrittenAppendManifests) {
-      if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
-      }
-    }
-
-    // manifests that are not rewritten are only owned by the table if the commit succeeded
-    if (!committed.isEmpty()) {
-      // the commit succeeded if at least one manifest was committed
-      // the table now owns appendManifests; clean up any that are not used
-      for (ManifestFile manifest : appendManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-        }
-      }
-    }
-  }
-
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     mergeManager.cleanUncommitted(committed);
@@ -1029,6 +997,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteMergeManager.cleanUncommitted(committed);
     deleteFilterManager.cleanUncommitted(committed);
     cleanUncommittedAppends(committed);
+  }
+
+  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
+    deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
+    deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
+    // rewritten manifests are always owned by the table
+    deleteUncommitted(rewrittenAppendManifests, committed, false);
+
+    // manifests that are not rewritten are only owned by the table if the commit succeeded
+    if (!committed.isEmpty()) {
+      // the commit succeeded if at least one manifest was committed
+      // the table now owns appendManifests; clean up any that are not used
+      deleteUncommitted(appendManifests, committed, false);
+    }
   }
 
   private Iterable<ManifestFile> prepareNewDataManifests() {
@@ -1119,6 +1101,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected Set<DataFile> newFileSet() {
       return DataFileSet.create();
+    }
+
+    @Override
+    protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
+      throw new UnsupportedOperationException("Cannot remove dangling deletes");
     }
   }
 

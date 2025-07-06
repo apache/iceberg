@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * An Iterable that merges the items from other Iterables in order.
@@ -39,6 +41,17 @@ import org.apache.iceberg.io.CloseableIterator;
  * @param <T> the type of objects produced by this Iterable
  */
 public class SortedMerge<T> extends CloseableGroup implements CloseableIterable<T> {
+  public static <C extends Comparable<C>> CloseableIterable<C> of(
+      Iterable<C> left, Iterable<C> right) {
+    return of(Arrays.asList(left, right));
+  }
+
+  public static <C extends Comparable<C>> CloseableIterable<C> of(List<Iterable<C>> iterables) {
+    List<CloseableIterable<C>> closeableIterables =
+        Lists.transform(iterables, CloseableIterable::of);
+    return new SortedMerge<>(Comparator.naturalOrder(), closeableIterables);
+  }
+
   private final Comparator<T> comparator;
   private final List<CloseableIterable<T>> iterables;
 

@@ -223,6 +223,30 @@ public class TypeUtil {
   }
 
   /**
+   * Searches in the given schema for all ancestor fields of the given field ID. If the field ID is
+   * defined in a nested type, then all of its ancestor fields are returned. If the field ID is not
+   * nested, an empty list is returned.
+   *
+   * @param schema The schema to search for the field ID
+   * @param fieldId The field ID to find the parents of
+   * @return A list of all ancestor fields of the given field ID if the field ID points to a nested
+   *     field. If the field ID is not a nested field, then an empty list is returned.
+   */
+  public static List<Types.NestedField> ancestorFields(Schema schema, int fieldId) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    List<Types.NestedField> parents = Lists.newArrayList();
+    if (idToParent.containsKey(fieldId)) {
+      Integer parentId = idToParent.get(fieldId);
+      while (parentId != null) {
+        parents.add(schema.findField(parentId));
+        parentId = idToParent.get(parentId);
+      }
+    }
+
+    return parents;
+  }
+
+  /**
    * Assigns fresh ids from the {@link NextID nextId function} for all fields in a type.
    *
    * @param type a type
@@ -395,6 +419,10 @@ public class TypeUtil {
     return visit(schema, new FindTypeVisitor(predicate));
   }
 
+  public static Type find(Type type, Predicate<Type> predicate) {
+    return visit(type, new FindTypeVisitor(predicate));
+  }
+
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
@@ -536,6 +564,15 @@ public class TypeUtil {
       case BINARY:
       case VARIANT:
         return 80;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // 80 bytes is an approximate size for a polygon or linestring with 4 to 5 coordinates.
+        // This is a reasonable estimate for the size of a geometry or geography object without
+        // additional details.
+        return 80;
+      case UNKNOWN:
+        // Consider Unknown as null
+        return 0;
       case DECIMAL:
         // 12 (header) + (12 + 12 + 4) (BigInteger) + 4 (scale) = 44 bytes
         return 44;
@@ -613,8 +650,16 @@ public class TypeUtil {
       return null;
     }
 
+    /**
+     * @deprecated will be removed in 2.0.0; use {@link #variant(Types.VariantType)} instead.
+     */
+    @Deprecated
     public T variant() {
-      return null;
+      return variant(Types.VariantType.get());
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -681,7 +726,7 @@ public class TypeUtil {
         return visitor.map(map, keyResult, valueResult);
 
       case VARIANT:
-        return visitor.variant();
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());
@@ -707,6 +752,10 @@ public class TypeUtil {
 
     public T map(Types.MapType map, Supplier<T> keyResult, Supplier<T> valueResult) {
       return null;
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -784,6 +833,9 @@ public class TypeUtil {
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
+
+      case VARIANT:
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());

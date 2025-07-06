@@ -34,8 +34,9 @@ public class EqualityDeleteRowReader extends RowDataReader {
       Table table,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
-    super(table, task, tableSchema, expectedSchema, caseSensitive);
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(table, task, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   @Override

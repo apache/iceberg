@@ -29,6 +29,8 @@ public class CatalogProperties {
   public static final String WAREHOUSE_LOCATION = "warehouse";
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
+  public static final String VIEW_DEFAULT_PREFIX = "view-default.";
+  public static final String VIEW_OVERRIDE_PREFIX = "view-override.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
@@ -153,6 +155,7 @@ public class CatalogProperties {
   public static final String LOCK_TABLE = "lock.table";
 
   public static final String APP_ID = "app-id";
+  public static final String APP_NAME = "app-name";
   public static final String USER = "user";
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";

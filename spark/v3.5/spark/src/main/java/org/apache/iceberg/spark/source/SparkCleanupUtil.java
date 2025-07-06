@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -64,6 +65,7 @@ class SparkCleanupUtil {
       return "unknown task";
     } else {
       return String.format(
+          Locale.ROOT,
           "partition %d (task %d, attempt %d, stage %d.%d)",
           taskContext.partitionId(),
           taskContext.taskAttemptId(),
@@ -105,7 +107,8 @@ class SparkCleanupUtil {
           "Deleted only {} of {} file(s) using bulk deletes ({})",
           deletedFilesCount,
           paths.size(),
-          context);
+          context,
+          e);
     }
   }
 

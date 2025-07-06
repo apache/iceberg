@@ -25,16 +25,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestAwsProperties {
 
-  @Test
-  public void testKryoSerialization() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(TestHelpers.RoundTripSerializer<AwsProperties> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     AwsProperties awsPropertiesWithProps =
         new AwsProperties(ImmutableMap.of(GLUE_CATALOG_ID, "foo", DYNAMODB_TABLE_NAME, "ice"));
     AwsProperties deSerializedAwsPropertiesWithProps =
-        TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
+        roundTripSerializer.apply(awsPropertiesWithProps);
     assertThat(deSerializedAwsPropertiesWithProps.glueCatalogId())
         .isEqualTo(awsPropertiesWithProps.glueCatalogId());
     assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())

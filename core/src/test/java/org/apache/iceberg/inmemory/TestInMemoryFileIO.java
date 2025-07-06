@@ -57,14 +57,16 @@ public class TestInMemoryFileIO {
   public void testNewInputFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)
-        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"));
+        .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"))
+        .withMessageContaining("No in-memory file found");
   }
 
   @Test
   public void testDeleteFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)
-        .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"));
+        .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"))
+        .withMessageContaining("No in-memory file found");
   }
 
   @Test
@@ -73,7 +75,8 @@ public class TestInMemoryFileIO {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     assertThatExceptionOfType(AlreadyExistsException.class)
-        .isThrownBy(() -> fileIO.newOutputFile(location).create());
+        .isThrownBy(() -> fileIO.newOutputFile(location).create())
+        .withMessage("Already exists");
   }
 
   @Test
