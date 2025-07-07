@@ -412,14 +412,19 @@ public abstract class PartitionStatsHandlerTestBase {
             snapshot1.snapshotId(),
             0));
 
-    DeleteFile posDeletes = commitPositionDeletes(testTable);
+    DeleteFile posDelete =
+        FileGenerationUtil.generatePositionDeleteFile(testTable, TestHelpers.Row.of("bar", "A"));
+    testTable.newRowDelta().addDeletes(posDelete).commit();
     // snapshot2 is unused in the result as same partition was updated by snapshot4
 
-    DeleteFile eqDeletes = commitEqualityDeletes(testTable);
+    DeleteFile eqDelete =
+        FileGenerationUtil.generateEqualityDeleteFile(testTable, TestHelpers.Row.of("foo", "A"));
+    testTable.newRowDelta().addDeletes(eqDelete).commit();
     Snapshot snapshot3 = testTable.currentSnapshot();
 
     testTable.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
-    DeleteFile dvs = commitDVs(testTable, dataFile3);
+    DeleteFile dv = FileGenerationUtil.generateDV(testTable, dataFile3);
+    testTable.newRowDelta().addDeletes(dv).commit();
     Snapshot snapshot4 = testTable.currentSnapshot();
 
     recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 3);
@@ -435,7 +440,7 @@ public abstract class PartitionStatsHandlerTestBase {
             3 * dataFile1.fileSizeInBytes(),
             0L,
             0,
-            eqDeletes.recordCount(),
+            eqDelete.recordCount(),
             1,
             null,
             snapshot3.timestampMillis(),
@@ -461,7 +466,7 @@ public abstract class PartitionStatsHandlerTestBase {
             3 * dataFile3.recordCount(),
             3,
             3 * dataFile3.fileSizeInBytes(),
-            posDeletes.recordCount() + dvs.recordCount(),
+            posDelete.recordCount() + dv.recordCount(),
             1,
             0L,
             0,
@@ -706,7 +711,7 @@ public abstract class PartitionStatsHandlerTestBase {
       partitionStatsV3 = Lists.newArrayList(recordIterator);
     }
 
-    assertThat(partitionStatsV2).hasSize(partitionStatsV3.size());
+    assertThat(partitionStatsV2).hasSameSizeAs(partitionStatsV3);
     Comparator<StructLike> comparator = Comparators.forType(partitionSchema);
     for (int i = 0; i < partitionStatsV2.size(); i++) {
       assertThat(isEqual(comparator, partitionStatsV2.get(i), partitionStatsV3.get(i))).isTrue();
@@ -753,26 +758,6 @@ public abstract class PartitionStatsHandlerTestBase {
             PartitionStats::lastUpdatedSnapshotId,
             PartitionStats::dvCount)
         .containsExactlyInAnyOrder(expectedValues);
-  }
-
-  private DeleteFile commitEqualityDeletes(Table testTable) {
-    DeleteFile eqDelete =
-        FileGenerationUtil.generateEqualityDeleteFile(testTable, TestHelpers.Row.of("foo", "A"));
-    testTable.newRowDelta().addDeletes(eqDelete).commit();
-    return eqDelete;
-  }
-
-  private DeleteFile commitPositionDeletes(Table testTable) {
-    DeleteFile posDelete =
-        FileGenerationUtil.generatePositionDeleteFile(testTable, TestHelpers.Row.of("bar", "A"));
-    testTable.newRowDelta().addDeletes(posDelete).commit();
-    return posDelete;
-  }
-
-  private DeleteFile commitDVs(Table testTable, DataFile dataFile) {
-    DeleteFile dv = FileGenerationUtil.generateDV(testTable, dataFile);
-    testTable.newRowDelta().addDeletes(dv).commit();
-    return dv;
   }
 
   private File tempDir(String folderName) throws IOException {
