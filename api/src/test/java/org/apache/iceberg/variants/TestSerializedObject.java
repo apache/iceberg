@@ -255,8 +255,8 @@ public class TestSerializedObject {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   @SuppressWarnings({"unchecked", "rawtypes"})
-  public void testLargeObjectUsingShortStringWithBigHeader(boolean sortFieldNames) {
-    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
+    public void testLargeObjectUsingShortStringWithBigHeader(boolean sortFieldNames) {
+    Map<String, SerializedPrimitive> fields = Maps.newHashMap();
     for (int i = 0; i < 10_000; i += 1) {
       fields.put(
           RandomUtil.generateString(10, random),
@@ -272,7 +272,7 @@ public class TestSerializedObject {
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(10_000);
 
-    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
+    for (Map.Entry<String, SerializedPrimitive> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
