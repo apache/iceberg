@@ -145,9 +145,8 @@ public class RewriteDataFilesBenchmark {
     rowDelta.commit();
 
     List<DataFile> dataFilesReadFromManifests = Lists.newArrayList();
-    for (ManifestFile deleteManifest : table.currentSnapshot().dataManifests(table.io())) {
-      try (ManifestReader<DataFile> manifestReader =
-          ManifestFiles.read(deleteManifest, table.io())) {
+    for (ManifestFile dataManifest : table.currentSnapshot().dataManifests(table.io())) {
+      try (ManifestReader<DataFile> manifestReader = ManifestFiles.read(dataManifest, table.io())) {
         manifestReader
             .iterator()
             .forEachRemaining(

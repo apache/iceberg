@@ -492,14 +492,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                   F file = entry.file();
                   boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
                   boolean markedForDelete =
-                      deletePaths.contains(file.location())
+                      isDanglingDV
+                          || deletePaths.contains(file.location())
                           || deleteFiles.contains(file)
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete
                               && entry.isLive()
                               && entry.dataSequenceNumber() > 0
-                              && entry.dataSequenceNumber() < minSequenceNumber)
-                          || isDanglingDV;
+                              && entry.dataSequenceNumber() < minSequenceNumber);
                   if (markedForDelete || evaluator.rowsMightMatch(file)) {
                     boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
                     ValidationException.check(
@@ -512,10 +512,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
                     if (allRowsMatch) {
                       writer.delete(entry);
-                      F copyWithoutStats = file.copyWithoutStats();
+                      F fileCopy = file.copyWithoutStats();
                       // add the file here in case it was deleted using an expression. The
                       // DeleteManifestFilterManager will then remove its matching DV
-                      deleteFiles.add(copyWithoutStats);
+                      deleteFiles.add(fileCopy);
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
@@ -526,7 +526,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(copyWithoutStats);
+                        deletedFiles.add(fileCopy);
                       }
                     } else {
                       writer.existing(entry);
