@@ -1057,6 +1057,9 @@ project(':iceberg-open-api') {
     systemProperties System.properties
             .findAll { k, v -> k.startsWith("rck") }
             .collectEntries { k, v -> { [(k):v, (k.replaceFirst("rck.", "")):v] }} // strip prefix
+
+    // Turn on strict mode for JdbcCatalog backend in RESTCatalogServer only in :iceberg-open-api module
+    environment "CATALOG_JDBC_STRICT__MODE", "true"
   }
 
   def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
