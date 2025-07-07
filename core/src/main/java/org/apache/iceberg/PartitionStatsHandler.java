@@ -33,6 +33,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -89,17 +91,57 @@ public class PartitionStatsHandler {
       NestedField.optional(11, "last_updated_at", LongType.get());
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
       NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
+  // Using default value for v3 field to support v3 reader reading file written by v2
+  public static final NestedField DV_COUNT =
+      NestedField.required("dv_count")
+          .withId(13)
+          .ofType(Types.IntegerType.get())
+          .withInitialDefault(Literal.of(0))
+          .withWriteDefault(Literal.of(0))
+          .build();
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
    * all specs in a table.
    *
+   * <p>Use this only for format version 1 and 2. For version 3 and above use {@link
+   * #schema(StructType, int)}
+   *
+   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
+   *     Partitioning#partitionType(Table)}.
+   * @return a schema that corresponds to the provided unified partition type.
+   * @deprecated since 1.10.0, will be removed in 1.11.0. Use {@link #schema(StructType, int)}
+   *     instead.
+   */
+  @Deprecated
+  public static Schema schema(StructType unifiedPartitionType) {
+    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    return v2Schema(unifiedPartitionType);
+  }
+
+  /**
+   * Generates the partition stats file schema for a given format version based on a combined
+   * partition type which considers all specs in a table.
+   *
    * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
    *     Partitioning#partitionType(Table)}.
    * @return a schema that corresponds to the provided unified partition type.
    */
-  public static Schema schema(StructType unifiedPartitionType) {
+  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
+    Preconditions.checkState(
+        formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
+        "Invalid format version: %d",
+        formatVersion);
+
+    if (formatVersion <= 2) {
+      return v2Schema(unifiedPartitionType);
+    }
+
+    return v3Schema(unifiedPartitionType);
+  }
+
+  private static Schema v2Schema(StructType unifiedPartitionType) {
     return new Schema(
         NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
         SPEC_ID,
@@ -113,6 +155,35 @@ public class PartitionStatsHandler {
         TOTAL_RECORD_COUNT,
         LAST_UPDATED_AT,
         LAST_UPDATED_SNAPSHOT_ID);
+  }
+
+  private static Schema v3Schema(StructType unifiedPartitionType) {
+    return new Schema(
+        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
+        SPEC_ID,
+        DATA_RECORD_COUNT,
+        DATA_FILE_COUNT,
+        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+        NestedField.required(
+            POSITION_DELETE_RECORD_COUNT.fieldId(),
+            POSITION_DELETE_RECORD_COUNT.name(),
+            LongType.get()),
+        NestedField.required(
+            POSITION_DELETE_FILE_COUNT.fieldId(),
+            POSITION_DELETE_FILE_COUNT.name(),
+            IntegerType.get()),
+        NestedField.required(
+            EQUALITY_DELETE_RECORD_COUNT.fieldId(),
+            EQUALITY_DELETE_RECORD_COUNT.name(),
+            LongType.get()),
+        NestedField.required(
+            EQUALITY_DELETE_FILE_COUNT.fieldId(),
+            EQUALITY_DELETE_FILE_COUNT.name(),
+            IntegerType.get()),
+        TOTAL_RECORD_COUNT,
+        LAST_UPDATED_AT,
+        LAST_UPDATED_SNAPSHOT_ID,
+        DV_COUNT);
   }
 
   /**
@@ -190,7 +261,10 @@ public class PartitionStatsHandler {
 
     List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
-        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+        table,
+        snapshot.snapshotId(),
+        schema(partitionType, TableUtil.formatVersion(table)),
+        sortedStats);
   }
 
   @VisibleForTesting
@@ -269,13 +343,13 @@ public class PartitionStatsHandler {
       Table table,
       Snapshot snapshot,
       StructType partitionType,
-      PartitionStatisticsFile previousStatsFile)
-      throws IOException {
+      PartitionStatisticsFile previousStatsFile) {
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     // read previous stats, note that partition field will be read as GenericRecord
     try (CloseableIterable<PartitionStats> oldStats =
         readPartitionStatsFile(
-            schema(partitionType), table.io().newInputFile(previousStatsFile.path()))) {
+            schema(partitionType, TableUtil.formatVersion(table)),
+            table.io().newInputFile(previousStatsFile.path()))) {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
