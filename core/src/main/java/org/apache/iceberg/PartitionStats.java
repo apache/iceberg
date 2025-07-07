@@ -22,7 +22,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class PartitionStats implements StructLike {
 
-  static final int STATS_COUNT = 13;
+  private static final int STATS_COUNT = 13;
 
   private StructLike partition;
   private int specId;
@@ -203,6 +203,7 @@ public class PartitionStats implements StructLike {
     this.positionDeleteFileCount += entry.positionDeleteFileCount;
     this.equalityDeleteRecordCount += entry.equalityDeleteRecordCount;
     this.equalityDeleteFileCount += entry.equalityDeleteFileCount;
+    this.dvCount += entry.dvCount;
 
     if (entry.totalRecordCount != null) {
       if (totalRecordCount == null) {
@@ -215,8 +216,6 @@ public class PartitionStats implements StructLike {
     if (entry.lastUpdatedAt != null) {
       updateSnapshotInfo(entry.lastUpdatedSnapshotId, entry.lastUpdatedAt);
     }
-
-    this.dvCount += entry.dvCount;
   }
 
   private void updateSnapshotInfo(long snapshotId, long updatedAt) {

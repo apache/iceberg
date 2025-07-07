@@ -57,7 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ContentFileUtil;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -71,7 +70,7 @@ public abstract class PartitionStatsHandlerTestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Integer> formatVersions() {
-    return Arrays.asList(2, 3);
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   @Parameter protected int formatVersion;
@@ -317,15 +316,15 @@ public abstract class PartitionStatsHandlerTestBase {
   }
 
   @SuppressWarnings("checkstyle:MethodLength")
-  @TestTemplate
+  @Test
   public void testPartitionStats() throws Exception {
     Table testTable =
         TestTables.create(
-            tempDir("partition_stats_compute_" + formatVersion),
-            "partition_stats_compute_" + formatVersion,
+            tempDir("partition_stats_compute"),
+            "partition_stats_compute",
             SCHEMA,
             SPEC,
-            formatVersion,
+            2,
             fileFormatProperty);
 
     DataFile dataFile1 =
@@ -349,8 +348,7 @@ public abstract class PartitionStatsHandlerTestBase {
     }
 
     Snapshot snapshot1 = testTable.currentSnapshot();
-    Schema recordSchema =
-        PartitionStatsHandler.schema(Partitioning.partitionType(testTable), formatVersion);
+    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
         recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
@@ -414,17 +412,17 @@ public abstract class PartitionStatsHandlerTestBase {
             snapshot1.snapshotId(),
             0));
 
-    DeleteFile posDeletes = null;
-    if (formatVersion >= 3) {
-      posDeletes = commitDVs(testTable, dataFile3);
-    } else if (formatVersion == 2) {
-      posDeletes = commitPositionDeletes(testTable);
-    }
-
-    Snapshot snapshot2 = testTable.currentSnapshot();
+    DeleteFile posDeletes = commitPositionDeletes(testTable);
+    // snapshot2 is unused in the result as same partition was updated by snapshot4
 
     DeleteFile eqDeletes = commitEqualityDeletes(testTable);
     Snapshot snapshot3 = testTable.currentSnapshot();
+
+    testTable.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    DeleteFile dvs = commitDVs(testTable, dataFile3);
+    Snapshot snapshot4 = testTable.currentSnapshot();
+
+    recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 3);
 
     computeAndValidatePartitionStats(
         testTable,
@@ -463,14 +461,14 @@ public abstract class PartitionStatsHandlerTestBase {
             3 * dataFile3.recordCount(),
             3,
             3 * dataFile3.fileSizeInBytes(),
-            posDeletes.recordCount(),
-            ContentFileUtil.isDV(posDeletes) ? 0 : 1, // pos delete file count
+            posDeletes.recordCount() + dvs.recordCount(),
+            1,
             0L,
             0,
             null,
-            snapshot2.timestampMillis(),
-            snapshot2.snapshotId(),
-            ContentFileUtil.isDV(posDeletes) ? 1 : 0), // dv count
+            snapshot4.timestampMillis(),
+            snapshot4.snapshotId(),
+            1), // dv count
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
             0,
@@ -674,6 +672,47 @@ public abstract class PartitionStatsHandlerTestBase {
     assertThat(partitionStats.get(0).dataFileCount()).isEqualTo(2);
   }
 
+  @Test
+  public void testV2toV3SchemaEvolution() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("schema_evolution"), "schema_evolution", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    // write stats file using v2 schema
+    DataFile dataFile =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    testTable.newAppend().appendFile(dataFile).commit();
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+
+    Types.StructType partitionSchema = Partitioning.partitionType(testTable);
+
+    // read with v2 schema
+    Schema v2Schema = PartitionStatsHandler.schema(partitionSchema, 2);
+    List<PartitionStats> partitionStatsV2;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            v2Schema, testTable.io().newInputFile(statisticsFile.path()))) {
+      partitionStatsV2 = Lists.newArrayList(recordIterator);
+    }
+
+    // read with v3 schema
+    Schema v3Schema = PartitionStatsHandler.schema(partitionSchema, 3);
+    List<PartitionStats> partitionStatsV3;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            v3Schema, testTable.io().newInputFile(statisticsFile.path()))) {
+      partitionStatsV3 = Lists.newArrayList(recordIterator);
+    }
+
+    assertThat(partitionStatsV2).hasSize(partitionStatsV3.size());
+    Comparator<StructLike> comparator = Comparators.forType(partitionSchema);
+    for (int i = 0; i < partitionStatsV2.size(); i++) {
+      assertThat(isEqual(comparator, partitionStatsV2.get(i), partitionStatsV3.get(i))).isTrue();
+    }
+  }
+
   private static StructLike partitionRecord(
       Types.StructType partitionType, String val1, String val2) {
     GenericRecord record = GenericRecord.create(partitionType);
@@ -731,9 +770,9 @@ public abstract class PartitionStatsHandlerTestBase {
   }
 
   private DeleteFile commitDVs(Table testTable, DataFile dataFile) {
-    DeleteFile posDeleteVector = FileGenerationUtil.generateDV(testTable, dataFile);
-    testTable.newRowDelta().addDeletes(posDeleteVector).commit();
-    return posDeleteVector;
+    DeleteFile dv = FileGenerationUtil.generateDV(testTable, dataFile);
+    testTable.newRowDelta().addDeletes(dv).commit();
+    return dv;
   }
 
   private File tempDir(String folderName) throws IOException {

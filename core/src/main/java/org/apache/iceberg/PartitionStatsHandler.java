@@ -33,6 +33,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -89,8 +91,14 @@ public class PartitionStatsHandler {
       NestedField.optional(11, "last_updated_at", LongType.get());
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
       NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
+  // Using default value for v3 field to support v3 reader reading file written by v2
   public static final NestedField DV_COUNT =
-      NestedField.required(13, "dv_count", IntegerType.get());
+      NestedField.required("dv_count")
+          .withId(13)
+          .ofType(Types.IntegerType.get())
+          .withInitialDefault(Literal.of(0))
+          .withWriteDefault(Literal.of(0))
+          .build();
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
