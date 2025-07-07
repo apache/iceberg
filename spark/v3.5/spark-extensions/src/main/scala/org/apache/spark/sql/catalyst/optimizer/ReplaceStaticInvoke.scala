@@ -48,7 +48,7 @@ import org.apache.spark.sql.types.StructType
 object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
-    plan.transformWithPruning (_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
+    plan.transformWithPruning(_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
       case replace @ ReplaceData(_, cond, _, _, _, _) =>
         replaceStaticInvoke(replace, cond, newCond => replace.copy(condition = newCond))
 
@@ -57,7 +57,7 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
       case filter @ Filter(cond, _) =>
         replaceStaticInvoke(filter, cond, newCond => filter.copy(condition = newCond))
-  }
+    }
 
   private def replaceStaticInvoke[T <: LogicalPlan](
       node: T,
@@ -90,16 +90,17 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] {
       return invoke
     }
 
-    val inputType = StructType(invoke.arguments.zipWithIndex.map {
-      case (exp, pos) => StructField(s"_$pos", exp.dataType, exp.nullable)
+    val inputType = StructType(invoke.arguments.zipWithIndex.map { case (exp, pos) =>
+      StructField(s"_$pos", exp.dataType, exp.nullable)
     })
 
-    val bound = try {
-      unbound.bind(inputType)
-    } catch {
-      case _: Exception =>
-        return invoke
-    }
+    val bound =
+      try {
+        unbound.bind(inputType)
+      } catch {
+        case _: Exception =>
+          return invoke
+      }
 
     if (bound.inputTypes().length != invoke.arguments.length) {
       return invoke
