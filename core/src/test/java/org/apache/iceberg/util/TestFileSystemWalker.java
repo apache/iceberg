@@ -64,11 +64,13 @@ public class TestFileSystemWalker {
     specs = ImmutableMap.of(0, spec);
 
     Files.createDirectories(Paths.get(basePath, "normal_dir"));
+    Files.createDirectories(Paths.get(basePath, "normal_dir_1"));
     Files.createDirectories(Paths.get(basePath, "normal_dir/dep1"));
     Files.createDirectories(Paths.get(basePath, "hidden_dir/_partition"));
     Files.createFile(Paths.get(basePath, "file1.txt"));
     Files.createFile(Paths.get(basePath, "normal_dir/file2.txt"));
     Files.createFile(Paths.get(basePath, "normal_dir/dep1/file3.txt"));
+    Files.createFile(Paths.get(basePath, "normal_dir_1/file4.txt"));
     Files.createFile(Paths.get(basePath, "hidden_dir/.hidden_file.txt"));
     Files.createFile(Paths.get(basePath, "hidden_dir/_partition/file3.txt"));
   }
@@ -89,12 +91,14 @@ public class TestFileSystemWalker {
         remainingDirs::add,
         foundFiles::add);
 
-    assertThat(foundFiles).hasSize(3);
+    assertThat(foundFiles).hasSize(4);
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
     assertThat(remainingDirs).isEmpty();
   }
 
@@ -114,10 +118,12 @@ public class TestFileSystemWalker {
         remainingDirs::add,
         foundFiles::add);
 
-    assertThat(foundFiles).hasSize(2);
+    assertThat(foundFiles).hasSize(3);
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
     assertThat(remainingDirs).hasSize(1);
     assertThat(remainingDirs)
         .contains(Paths.get("file://", basePath, "normal_dir/dep1").toString());
@@ -141,8 +147,9 @@ public class TestFileSystemWalker {
 
     assertThat(foundFiles).hasSize(1);
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
-    assertThat(remainingDirs).hasSize(2);
+    assertThat(remainingDirs).hasSize(3);
     assertThat(remainingDirs).contains(Paths.get("file://", basePath, "normal_dir").toString());
+    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "normal_dir_1").toString());
     assertThat(remainingDirs).contains(Paths.get("file://", basePath, "hidden_dir").toString());
   }
 
@@ -153,12 +160,47 @@ public class TestFileSystemWalker {
     FileSystemWalker.listDirRecursivelyWithFileIO(
         fileIO, basePath, specs, fileFilter, foundFiles::add);
 
-    assertThat(foundFiles).hasSize(3);
+    assertThat(foundFiles).hasSize(4);
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
     assertThat(foundFiles)
         .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testListDirRecursivelyNotInclude(boolean useHadoop) {
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+    String path = basePath + "/normal_dir";
+    if (useHadoop) {
+      Predicate<FileStatus> fileFilter =
+          fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
+      FileSystemWalker.listDirRecursivelyWithHadoop(
+          path,
+          specs,
+          fileFilter,
+          hadoopConf,
+          Integer.MAX_VALUE, // maxDepth
+          Integer.MAX_VALUE, // maxDirectSubDirs
+          remainingDirs::add,
+          foundFiles::add);
+    } else {
+      Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+      FileSystemWalker.listDirRecursivelyWithFileIO(
+          fileIO, path, specs, fileFilter, foundFiles::add);
+    }
+
+    assertThat(foundFiles).hasSize(2);
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
+    assertThat(foundFiles)
+        .doesNotContain(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
   }
 
   @ParameterizedTest
