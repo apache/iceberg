@@ -549,25 +549,24 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 Group: com.google.escapevelocity Name: escapevelocity Version: 0.9
 Project URL: https://github.com/google/escapevelocity
-NOTE: This library is shaded within the com.google.auto.value:auto-value artifact.
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: net.ltgt.gradle.incapture Name: net.ltgt.gradle.incapture.processor Version: 0.2
-Project URL: https://github.com/tbroyer/gradle-incap-processor
-NOTE: This library is shaded within the com.google.auto.value:auto-value artifact.
+Project URL: https://github.com/tbroyer/gradle-incap-helper
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: com.squareup Name: javapoet Version: 1.13.0
 Project URL: https://github.com/square/javapoet
-NOTE: This library is shaded within the com.google.auto.value:auto-value artifact.
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
 Group: org.ow2.asm Name: asm Version: 9.2
 Project URL: https://asm.ow2.io/
-NOTE: This library is shaded within the com.google.auto.value:auto-value artifact.
 License: BSD-3-Clause
 
 Copyright (c) 2000-2011 INRIA, France Telecom
