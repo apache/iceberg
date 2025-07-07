@@ -27,8 +27,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Map;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 /** A TLS configurer that supports custom keystore and truststore configuration. */
@@ -58,26 +60,29 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     try {
       SSLContext context = SSLContext.getInstance(DEFAULT_SSL_PROTOCOL);
 
-      KeyManagerFactory keyManagerFactory = null;
+      KeyManager[] keyManagers = null;
       if (keystorePath != null) {
-        KeyStore keyStore = loadKeyStore(keystorePath, keystorePassword, keystoreType);
-        keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        keyManagerFactory.init(
-            keyStore, keystorePassword != null ? keystorePassword.toCharArray() : null);
+        char[] keystorePasswordChars =
+            keystorePassword != null ? keystorePassword.toCharArray() : null;
+        KeyStore keyStore = loadKeyStore(keystorePath, keystorePasswordChars, keystoreType);
+        KeyManagerFactory keyManagerFactory =
+            KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keyStore, keystorePasswordChars);
+        keyManagers = keyManagerFactory.getKeyManagers();
       }
 
-      TrustManagerFactory trustManagerFactory = null;
+      TrustManager[] trustManagers = null;
       if (truststorePath != null) {
-        KeyStore trustStore = loadKeyStore(truststorePath, truststorePassword, truststoreType);
-        trustManagerFactory =
+        char[] truststorePasswordChars =
+            truststorePassword != null ? truststorePassword.toCharArray() : null;
+        KeyStore trustStore = loadKeyStore(truststorePath, truststorePasswordChars, truststoreType);
+        TrustManagerFactory trustManagerFactory =
             TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(trustStore);
+        trustManagers = trustManagerFactory.getTrustManagers();
       }
 
-      context.init(
-          keyManagerFactory != null ? keyManagerFactory.getKeyManagers() : null,
-          trustManagerFactory != null ? trustManagerFactory.getTrustManagers() : null,
-          null);
+      context.init(keyManagers, trustManagers, null);
 
       this.sslContext = context;
     } catch (NoSuchAlgorithmException
@@ -97,10 +102,10 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     }
   }
 
-  private KeyStore loadKeyStore(String path, String password, String type) {
+  private KeyStore loadKeyStore(String path, char[] password, String type) {
     try (FileInputStream fis = new FileInputStream(path)) {
       KeyStore keyStore = KeyStore.getInstance(type);
-      keyStore.load(fis, password != null ? password.toCharArray() : null);
+      keyStore.load(fis, password);
       return keyStore;
     } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
       throw new IllegalStateException(
