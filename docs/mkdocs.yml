@@ -94,7 +94,7 @@ nav:
     - nessie.md
     - custom-catalog.md
   - Storage and Management:
-    - Amoro: amoro.md
+    - Apache Amoro: amoro.md
     - AWS S3: aws.md
     - Dell ECS: dell.md
 
