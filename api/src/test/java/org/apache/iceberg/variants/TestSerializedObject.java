@@ -234,7 +234,7 @@ public class TestSerializedObject {
     for (int i = 0; i < 10_000; i += 1) {
       fields.put(
           RandomUtil.generateString(10, random),
-          VariantTestUtil.createShortString(RandomUtil.generateString(10, random)));
+          VariantTestUtil.createString(RandomUtil.generateString(10, random)));
     }
 
     ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
@@ -252,31 +252,33 @@ public class TestSerializedObject {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  @SuppressWarnings({"unchecked", "rawtypes"})
-    public void testLargeObjectUsingShortStringWithBigHeader(boolean sortFieldNames) {
-    Map<String, SerializedPrimitive> fields = Maps.newHashMap();
-    for (int i = 0; i < 10_000; i += 1) {
-      fields.put(
-          RandomUtil.generateString(10, random),
-          VariantTestUtil.createString(RandomUtil.generateString(10, random)));
-    }
+  @Test
+    public void testShortStringsInVariantPrimitives() {
+    Map<String, SerializedShortString> fields = Maps.newHashMap();
 
-    ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
-    ByteBuffer value = VariantTestUtil.createObject(meta, (Map) fields);
+    // note that order doesn't matter. fields are sorted by name
+    Map<String, VariantValue> data =
+            ImmutableMap.of(
+                    "5-byte-header",
+                    VariantTestUtil.createString("iceberg"),
+                    "1-byte-header",
+                    VariantTestUtil.createShortString("iceberg"));
+    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
+    ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     VariantMetadata metadata = VariantMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(10_000);
+    assertThat(object.numFields()).isEqualTo(2);
 
-    for (Map.Entry<String, SerializedPrimitive> entry : fields.entrySet()) {
-      VariantValue fieldValue = object.get(entry.getKey());
-      assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
-      assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
-    }
+    assertThat(object.get("5-byte-header").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("5-byte-header").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("5-byte-header").asPrimitive().sizeInBytes()).isEqualTo(5+7);
+
+    assertThat(object.get("1-byte-header").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("1-byte-header").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("1-byte-header").asPrimitive().sizeInBytes()).isEqualTo(1+7);
   }
 
   @ParameterizedTest
