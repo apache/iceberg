@@ -254,8 +254,6 @@ public class TestSerializedObject {
 
   @Test
     public void testShortStringsInVariantPrimitives() {
-    Map<String, SerializedShortString> fields = Maps.newHashMap();
-
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
             ImmutableMap.of(
