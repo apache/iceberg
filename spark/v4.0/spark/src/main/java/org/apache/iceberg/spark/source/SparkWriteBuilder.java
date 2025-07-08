@@ -126,7 +126,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     boolean writeIncludesRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
     StructType sparkWriteSchema = dsSchema;
     if (writeIncludesRowLineage) {
-      sparkWriteSchema = sparkWriteSchema.add("_row_id", LongType$.MODULE$);
+      sparkWriteSchema = sparkWriteSchema.add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$);
       sparkWriteSchema =
           sparkWriteSchema.add(
               MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$);

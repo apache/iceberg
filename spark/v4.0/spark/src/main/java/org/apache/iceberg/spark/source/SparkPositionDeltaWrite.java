@@ -428,7 +428,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .writeProperties(writeProperties)
               .build();
 
-      Function<InternalRow, InternalRow> extractRowLineage =
+      Function<InternalRow, InternalRow> rowLineageExtractor =
           context.dataSchema() != null
                   && context.dataSchema().findField(MetadataColumns.ROW_ID.fieldId()) != null
               ? new ExtractRowLineageFromMetadata()
@@ -445,7 +445,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
             writerFactory,
             dataFileFactory,
             deleteFileFactory,
-            extractRowLineage,
+            rowLineageExtractor,
             context);
 
       } else {
@@ -455,7 +455,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
             writerFactory,
             dataFileFactory,
             deleteFileFactory,
-            extractRowLineage,
+            rowLineageExtractor,
             context);
       }
     }

@@ -288,16 +288,24 @@ public class SparkTable
 
     if (TableUtil.supportsRowLineage(icebergTable)) {
       metadataColumns.add(
-          new SparkMetadataColumn(
-              MetadataColumns.ROW_ID.name(), DataTypes.LongType, true, true, true, false));
+          SparkMetadataColumn.builder()
+              .name(MetadataColumns.ROW_ID.name())
+              .dataType(DataTypes.LongType)
+              .withNullability(true)
+              .preserveOnReinsert(true)
+              .preserveOnUpdate(true)
+              .preserveOnDelete(false)
+              .build());
+
       metadataColumns.add(
-          new SparkMetadataColumn(
-              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-              DataTypes.LongType,
-              true,
-              false,
-              false,
-              false));
+          SparkMetadataColumn.builder()
+              .name(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+              .dataType(DataTypes.LongType)
+              .withNullability(true)
+              .preserveOnReinsert(false)
+              .preserveOnUpdate(false)
+              .preserveOnDelete(false)
+              .build());
     }
 
     return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
