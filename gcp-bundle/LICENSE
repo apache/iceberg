@@ -1042,7 +1042,6 @@ License: Apache 2 - https://www.apache.org/licenses/LICENSE-2.0
 --------------------------------------------------------------------------------
 
 Group: org.threeten  Name: threetenbp  Version: 1.7.0
-Project URL: https://www.threeten.org
 Project URL: https://www.threeten.org/threetenbp
 License: BSD-3-Clause
 Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
