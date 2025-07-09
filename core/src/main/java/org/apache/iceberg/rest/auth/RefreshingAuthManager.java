@@ -30,7 +30,10 @@ import org.slf4j.LoggerFactory;
 /**
  * An {@link AuthManager} that provides machinery for refreshing authentication data asynchronously,
  * using a background thread pool.
+ *
+ * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link ThreadPools#authRefreshPool()}.
  */
+@Deprecated
 public abstract class RefreshingAuthManager implements AuthManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(RefreshingAuthManager.class);
