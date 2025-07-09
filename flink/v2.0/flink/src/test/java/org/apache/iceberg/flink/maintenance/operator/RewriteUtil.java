@@ -27,6 +27,7 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -46,8 +47,11 @@ class RewriteUtil {
                     0,
                     tableLoader,
                     11,
-                    10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(
+                        MIN_INPUT_FILES,
+                        "2",
+                        BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE,
+                        "10000000")))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
