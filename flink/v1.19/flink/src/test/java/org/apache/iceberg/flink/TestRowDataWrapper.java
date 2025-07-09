@@ -61,7 +61,7 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
   @Override
   protected void generateAndValidate(
-          Schema schema, RecordWrapperTestBase.AssertMethod assertMethod) {
+      Schema schema, RecordWrapperTestBase.AssertMethod assertMethod) {
     int numRecords = 100;
     Iterable<Record> recordList = RandomGenericData.generate(schema, numRecords, 101L);
     Iterable<RowData> rowDataList = RandomRowData.generate(schema, numRecords, 101L);
