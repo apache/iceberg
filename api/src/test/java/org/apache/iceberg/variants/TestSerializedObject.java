@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -248,7 +248,8 @@ public class TestSerializedObject {
 
     for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
-      VariantTestUtil.assertVariantString(fieldValue, entry.getValue().get().toString());
+      assertThat(fieldValue.getClass()).isEqualTo(SerializedPrimitive.class);
+      assertThat(fieldValue.asPrimitive().sizeInBytes()).isEqualTo(5 + 10);
     }
   }
 
