@@ -32,6 +32,29 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class VariantTestUtil {
+
+  private static final VariantMetadata EMPTY_METADATA = SerializedMetadata.EMPTY_V1_METADATA;
+  private static final SerializedPrimitive NULL = SerializedPrimitive.from(new byte[] {0x00});
+  private static final SerializedPrimitive TRUE = SerializedPrimitive.from(new byte[] {0b100});
+  private static final SerializedPrimitive FALSE = SerializedPrimitive.from(new byte[] {0b1000});
+  private static final SerializedShortString STR =
+      SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
+  private static final SerializedShortString A =
+      SerializedShortString.from(new byte[] {0b101, 'a'});
+  private static final SerializedShortString B =
+      SerializedShortString.from(new byte[] {0b101, 'b'});
+  private static final SerializedShortString C =
+      SerializedShortString.from(new byte[] {0b101, 'c'});
+  private static final SerializedShortString D =
+      SerializedShortString.from(new byte[] {0b101, 'd'});
+  private static final SerializedShortString E =
+      SerializedShortString.from(new byte[] {0b101, 'e'});
+  private static final SerializedPrimitive I34 = SerializedPrimitive.from(new byte[] {0b1100, 34});
+  private static final SerializedPrimitive I1234 =
+      SerializedPrimitive.from(new byte[] {0b10000, (byte) 0xD2, 0x04});
+  private static final SerializedPrimitive DATE =
+      SerializedPrimitive.from(new byte[] {0b101100, (byte) 0xF4, 0x43, 0x00, 0x00});
+
   private VariantTestUtil() {}
 
   public static void assertEqual(VariantMetadata expected, VariantMetadata actual) {
@@ -78,10 +101,6 @@ public class VariantTestUtil {
     }
   }
 
-  private static byte primitiveHeader(int primitiveType) {
-    return (byte) (primitiveType << 2);
-  }
-
   private static byte metadataHeader(boolean isSorted, int offsetSize) {
     return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
   }
@@ -98,13 +117,35 @@ public class VariantTestUtil {
   }
 
   /** Creates a random string primitive of the given length for forcing large offset sizes */
-  static SerializedPrimitive createString(String string) {
+  public static SerializedPrimitive createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
     buffer.putInt(1, utf8.length);
     writeBufferAbsolute(buffer, 5, ByteBuffer.wrap(utf8));
     return SerializedPrimitive.from(buffer, buffer.get(0));
+  }
+
+  public static SerializedArray createMixedArray() {
+    ByteBuffer nestedBuffer = VariantTestUtil.createArray(A, C, D);
+    SerializedArray nested =
+        SerializedArray.from(EMPTY_METADATA, nestedBuffer, nestedBuffer.get(0));
+    ByteBuffer buffer =
+        VariantTestUtil.createArray(DATE, I34, STR, nested, NULL, E, B, FALSE, TRUE, I1234);
+    return SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
+  }
+
+  static byte primitiveHeader(int primitiveType) {
+    return (byte) (primitiveType << 2);
+  }
+
+  public static SerializedPrimitive createSerializedPrimitive(int primitiveType, byte[] bytes) {
+    byte[] header = new byte[1];
+    header[0] = primitiveHeader(primitiveType);
+    byte[] primitives = new byte[bytes.length + header.length];
+    System.arraycopy(header, 0, primitives, 0, header.length);
+    System.arraycopy(bytes, 0, primitives, header.length, bytes.length);
+    return SerializedPrimitive.from(primitives);
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
