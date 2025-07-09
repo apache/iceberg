@@ -197,11 +197,10 @@ public class TestS3InputStream {
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
   public void testClose(Map<String, String> aalProperties) throws Exception {
-    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
-    skipIfAnalyticsAcceleratorEnabled(
-        s3FileIOProperties,
-        "Analytics Accelerator Library has different exception handling when closed");
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
+    int dataSize = 1024 * 1024 * 10;
+    byte[] data = randomData(dataSize);
+    writeS3Data(uri, data);
     SeekableInputStream closed = newInputStream(s3, s3Async, uri, aalProperties);
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))

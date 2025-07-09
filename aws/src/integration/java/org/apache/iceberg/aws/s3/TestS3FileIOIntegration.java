@@ -242,6 +242,7 @@ public class TestS3FileIOIntegration {
           RequestBody.fromBytes(contentBytes));
       // make a copy in cross-region bucket
       S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      s3FileIO.initialize(aalProperties);
       validateRead(s3FileIO, crossBucketObjectUri);
     } finally {
       AwsIntegTestUtil.cleanS3GeneralPurposeBucket(

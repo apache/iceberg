@@ -26,6 +26,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.ParquetObjectRange;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
@@ -36,6 +37,7 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
       LoggerFactory.getLogger(AnalyticsAcceleratorInputStreamWrapper.class);
 
   private final S3SeekableInputStream delegate;
+  private boolean closed = false;
 
   AnalyticsAcceleratorInputStreamWrapper(S3SeekableInputStream stream) {
     this.delegate = stream;
@@ -43,21 +45,26 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     return this.delegate.read();
   }
 
   @Override
   public int read(byte[] b) throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     return this.delegate.read(b, 0, b.length);
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     return this.delegate.read(b, off, len);
   }
 
   @Override
   public void seek(long l) throws IOException {
+    Preconditions.checkState(!closed, "already closed");
+    Preconditions.checkArgument(l >= 0, "position is negative: %s", l);
     this.delegate.seek(l);
   }
 
@@ -68,6 +75,7 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
 
   @Override
   public void close() throws IOException {
+    this.closed = true;
     this.delegate.close();
   }
 
@@ -77,6 +85,7 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
   @Override
   public void readVectored(List<ParquetObjectRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     this.delegate.readVectored(convertRanges(ranges), allocate, LOG_BYTE_BUFFER_RELEASED);
   }
 

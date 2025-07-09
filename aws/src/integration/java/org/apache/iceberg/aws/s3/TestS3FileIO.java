@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.apache.iceberg.aws.s3.S3TestUtil.mergeProperties;
-import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;
@@ -415,9 +414,6 @@ public class TestS3FileIO {
   @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
   public void testReadMissingLocation(Map<String, String> aalProperties) {
     final Map<String, String> testProperties = mergeProperties(aalProperties, this.properties);
-    skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(testProperties),
-        "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
     final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
     testS3FileIO.initialize(testProperties);
     String location = "s3://bucket/path/to/data.parquet";
@@ -433,9 +429,6 @@ public class TestS3FileIO {
   @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
   public void testMissingTableMetadata(Map<String, String> aalProperties) {
     final Map<String, String> testProperties = mergeProperties(aalProperties, this.properties);
-    skipIfAnalyticsAcceleratorEnabled(
-        new S3FileIOProperties(testProperties),
-        "Analytics Accelerator Library does not support custom Iceberg exception: NotFoundException");
     final S3FileIO testS3FileIO = new S3FileIO(() -> s3mock, () -> s3Asyncmock);
     testS3FileIO.initialize(testProperties);
     Map<String, String> conf = Maps.newHashMap();
