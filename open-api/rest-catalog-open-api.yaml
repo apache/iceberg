@@ -4237,7 +4237,6 @@ components:
         - operation-type
         - identifier
         - table-uuid
-        - metadata
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
@@ -4253,7 +4252,6 @@ components:
         - operation-type
         - identifier
         - table-uuid
-        - metadata
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
