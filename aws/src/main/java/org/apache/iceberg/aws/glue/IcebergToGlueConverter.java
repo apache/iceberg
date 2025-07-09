@@ -59,7 +59,7 @@ class IcebergToGlueConverter {
 
   private IcebergToGlueConverter() {}
 
-  private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
+  private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_.]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
   public static final String GLUE_DB_LOCATION_KEY = "location";
   // Utilized for defining descriptions at both the Glue database and table levels.
@@ -85,7 +85,7 @@ class IcebergToGlueConverter {
 
   /**
    * A Glue database name cannot be longer than 252 characters. The only acceptable characters are
-   * lowercase letters, numbers, and the underscore character. More details:
+   * lowercase letters, numbers, the underscore and dot characters. More details:
    * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
    *
    * @param namespace namespace
@@ -109,7 +109,7 @@ class IcebergToGlueConverter {
     ValidationException.check(
         isValidNamespace(namespace),
         "Cannot convert namespace %s to Glue database name, "
-            + "because it must be 1-252 chars of lowercase letters, numbers, underscore",
+            + "because it must be 1-252 chars of lowercase letters, numbers, underscore, dot",
         namespace);
   }
 

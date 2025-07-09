@@ -423,7 +423,7 @@ public class TestGlueCatalog {
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
               "to Glue database name, "
-                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore, dot");
     }
   }
 
@@ -485,7 +485,7 @@ public class TestGlueCatalog {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot convert namespace db-1 to Glue database name, "
-                + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+                + "because it must be 1-252 chars of lowercase letters, numbers, underscore, dot");
   }
 
   @Test
