@@ -110,7 +110,7 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 ### [Ryft](https://ryft.io/)
 
-[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, handling compaction, all based on actual usage patterns. Ryft engine customizes compaction intelligently to fit different use cases like streaming, CDC, batch jobs etc'. Ryft also automates governance, GDPR compliance for Iceberg tables and data lifecycle so data stays secure and compliant. It integrates directly with existing lakehouses using the catalog and storage so users don't need to replace any part of their stack.
+[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle for Iceberg tables, to ensure your lakeehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
 
 
 ### [SingleStore](https://singlestore.com/)
