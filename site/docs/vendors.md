@@ -108,6 +108,11 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 [RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
 
+### [Ryft](https://ryft.io/)
+
+[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, handling compaction, all based on actual usage patterns. Ryft engine customizes compaction intelligently to fit different use cases like streaming, CDC, batch jobs etc'. Ryft also automates governance, GDPR compliance for Iceberg tables and data lifecycle so data stays secure and compliant. It integrates directly with existing lakehouses using the catalog and storage so users don't need to replace any part of their stack.
+
+
 ### [SingleStore](https://singlestore.com/)
 
 SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
