@@ -256,11 +256,11 @@ public class TestSerializedObject {
   public void testShortStringsInVariantPrimitives() {
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
-            ImmutableMap.of(
-                    "5-byte-header",
-                    VariantTestUtil.createString("iceberg"),
-                    "1-byte-header",
-                    VariantTestUtil.createShortString("iceberg"));
+        ImmutableMap.of(
+            "5-byte-header",
+            VariantTestUtil.createString("iceberg"),
+            "1-byte-header",
+            VariantTestUtil.createShortString("iceberg"));
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
@@ -272,11 +272,11 @@ public class TestSerializedObject {
 
     assertThat(object.get("5-byte-header").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("5-byte-header").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("5-byte-header").asPrimitive().sizeInBytes()).isEqualTo(5+7);
+    assertThat(object.get("5-byte-header").asPrimitive().sizeInBytes()).isEqualTo(5 + 7);
 
     assertThat(object.get("1-byte-header").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("1-byte-header").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("1-byte-header").asPrimitive().sizeInBytes()).isEqualTo(1+7);
+    assertThat(object.get("1-byte-header").asPrimitive().sizeInBytes()).isEqualTo(1 + 7);
   }
 
   @ParameterizedTest
