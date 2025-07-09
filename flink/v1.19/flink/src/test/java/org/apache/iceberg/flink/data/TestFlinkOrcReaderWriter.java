@@ -28,9 +28,9 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.TestData;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -40,7 +40,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestFlinkOrcReaderWriter extends TestData {
+public class TestFlinkOrcReaderWriter extends DataTestBase {
   private static final int NUM_RECORDS = 100;
 
   /** Orc writers don't have notion of non-null / required fields. */
