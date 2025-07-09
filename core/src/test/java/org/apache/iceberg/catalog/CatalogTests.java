@@ -990,7 +990,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             : Paths.get(metadataFileLocation);
     Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
 
-    assertThatThrownBy(() -> catalog.loadTable(TBL)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
     Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
   }
 
