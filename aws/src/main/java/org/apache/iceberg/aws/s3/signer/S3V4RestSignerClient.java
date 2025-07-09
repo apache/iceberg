@@ -62,10 +62,6 @@ import software.amazon.awssdk.utils.IoUtils;
 public abstract class S3V4RestSignerClient
     extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> implements AutoCloseable {
 
-  static {
-    installShutdownHook();
-  }
-
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
   public static final String S3_SIGNER_URI = "s3.signer.uri";
   public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
@@ -87,18 +83,6 @@ public abstract class S3V4RestSignerClient
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
   static volatile RESTClient httpClient;
-
-  @SuppressWarnings("ShutdownHook")
-  private static void installShutdownHook() {
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread(
-                () -> {
-                  IoUtils.closeQuietlyV2(authManager, null);
-                  IoUtils.closeQuietlyV2(httpClient, null);
-                },
-                "s3-signer-shutdown-hook"));
-  }
 
   public abstract Map<String, String> properties();
 
