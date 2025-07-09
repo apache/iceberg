@@ -906,6 +906,8 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-nessie') {
+  // Starting from Nessie 0.104.2, JDK 17+ is required for test dependencies
+  test.onlyIf { JavaVersion.current() != JavaVersion.VERSION_11 }
   test {
     useJUnitPlatform()
   }
