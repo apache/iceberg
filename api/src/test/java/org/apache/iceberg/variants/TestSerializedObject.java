@@ -253,7 +253,7 @@ public class TestSerializedObject {
   }
 
   @Test
-    public void testShortStringsInVariantPrimitives() {
+  public void testShortStringsInVariantPrimitives() {
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
             ImmutableMap.of(
