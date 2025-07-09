@@ -96,7 +96,9 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
     table.io().deleteFile(metadataFileLocation);
-    assertThatThrownBy(() -> catalog.loadTable(TBL)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("No in-memory file found for location: " + metadataFileLocation);
     table.io().newOutputFile(metadataFileLocation).create();
   }
 }
