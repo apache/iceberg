@@ -48,7 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
- * /** Flink source builder for old {@link SourceFunction} implementation.
+ * Flink source builder for old {@link SourceFunction} implementation.
  *
  * @deprecated since 1.7.0, will be removed in 2.0.0. Use {@link IcebergSource} instead, which
  *     implement the newer FLIP-27 source interface. This class implements the old {@link
