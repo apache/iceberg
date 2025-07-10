@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.UpdatePartitionStatistics;
 import org.apache.iceberg.actions.ComputePartitionStats;
 import org.apache.iceberg.actions.ComputePartitionStats.Result;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -50,11 +49,9 @@ public class ComputePartitionStatsProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter SNAPSHOT_ID_PARAM =
       ProcedureParameter.optional("snapshot_id", DataTypes.LongType);
-  private static final ProcedureParameter FULL_REFRESH_PARAM =
-      ProcedureParameter.optional("full_refresh", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM, FULL_REFRESH_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -91,19 +88,10 @@ public class ComputePartitionStatsProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     Long snapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
-    Boolean fullRefresh = input.asBoolean(FULL_REFRESH_PARAM, false);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          if (fullRefresh) {
-            UpdatePartitionStatistics updateStats = table.updatePartitionStatistics();
-            table
-                .partitionStatisticsFiles()
-                .forEach(file -> updateStats.removePartitionStatistics(file.snapshotId()));
-            updateStats.commit();
-          }
-
           ComputePartitionStats action = actions().computePartitionStats(table);
           if (snapshotId != null) {
             action.snapshot(snapshotId);

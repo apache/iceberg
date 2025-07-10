@@ -83,7 +83,7 @@ public class TestComputePartitionStatsProcedure extends ExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.compute_partition_stats(table => '%s', snapshot_id => %s, full_refresh => true)",
+            "CALL %s.system.compute_partition_stats(table => '%s', snapshot_id => %s)",
             catalogName, tableIdent, branchSnapshotId);
     table.refresh();
     assertThat(table.partitionStatisticsFiles()).hasSize(1);
@@ -92,25 +92,6 @@ public class TestComputePartitionStatsProcedure extends ExtensionsTestBase {
     // should be from the branch's snapshot instead of latest snapshot of the table
     assertThat(statisticsFile.snapshotId()).isEqualTo(branchSnapshotId);
     assertThat(new File(statisticsFile.path().replace("file:", ""))).exists();
-  }
-
-  @TestTemplate
-  public void procedureWithFullRefresh() throws NoSuchTableException, ParseException {
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
-        tableName);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
-    sql("CALL %s.system.compute_partition_stats('%s')", catalogName, tableIdent);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
-    sql("CALL %s.system.compute_partition_stats('%s')", catalogName, tableIdent);
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    assertThat(table.partitionStatisticsFiles()).hasSize(2);
-    sql(
-        "CALL %s.system.compute_partition_stats(table => '%s', full_refresh => true)",
-        catalogName, tableIdent);
-    table.refresh();
-    // should unregister old stats files and register one new snapshot
-    assertThat(table.partitionStatisticsFiles()).hasSize(1);
   }
 
   @TestTemplate
