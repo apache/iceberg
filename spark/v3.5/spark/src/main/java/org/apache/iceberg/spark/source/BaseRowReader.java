@@ -48,7 +48,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+    super(
+        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 

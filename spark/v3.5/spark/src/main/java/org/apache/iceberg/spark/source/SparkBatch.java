@@ -99,7 +99,8 @@ class SparkBatch implements Batch {
               branch,
               expectedSchemaString,
               caseSensitive,
-              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              executorCacheLocalityEnabled);
     }
 
     return partitions;
@@ -122,18 +123,16 @@ class SparkBatch implements Batch {
   @Override
   public PartitionReaderFactory createReaderFactory() {
     if (useCometBatchReads()) {
-      return new SparkColumnarReaderFactory(
-          parquetBatchReadConf(ParquetReaderType.COMET), cacheDeleteFilesOnExecutors);
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
 
     } else if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(
-          parquetBatchReadConf(ParquetReaderType.ICEBERG), cacheDeleteFilesOnExecutors);
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
 
     } else if (useOrcBatchReads()) {
-      return new SparkColumnarReaderFactory(orcBatchReadConf(), cacheDeleteFilesOnExecutors);
+      return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory(cacheDeleteFilesOnExecutors);
+      return new SparkRowReaderFactory();
     }
   }
 

@@ -31,18 +31,15 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
-  private final boolean cacheDeleteFilesOnExecutors;
 
-  SparkColumnarReaderFactory(ParquetBatchReadConf conf, boolean cacheDeleteFilesOnExecutors) {
+  SparkColumnarReaderFactory(ParquetBatchReadConf conf) {
     this.parquetConf = conf;
     this.orcConf = null;
-    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
-  SparkColumnarReaderFactory(OrcBatchReadConf conf, boolean cacheDeleteFilesOnExecutors) {
+  SparkColumnarReaderFactory(OrcBatchReadConf conf) {
     this.orcConf = conf;
     this.parquetConf = null;
-    this.cacheDeleteFilesOnExecutors = true;
   }
 
   @Override
@@ -60,7 +57,7 @@ class SparkColumnarReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new BatchDataReader(partition, parquetConf, orcConf, cacheDeleteFilesOnExecutors);
+      return new BatchDataReader(partition, parquetConf, orcConf);
     } else {
       throw new UnsupportedOperationException(
           "Unsupported task group for columnar reads: " + partition.taskGroup());

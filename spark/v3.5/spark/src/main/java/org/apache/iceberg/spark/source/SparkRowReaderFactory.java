@@ -29,11 +29,8 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkRowReaderFactory implements PartitionReaderFactory {
-  private final boolean cacheDeleteFilesOnExecutors;
 
-  SparkRowReaderFactory(boolean cacheDeleteFilesOnExecutors) {
-    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-  }
+  SparkRowReaderFactory() {}
 
   @Override
   public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
@@ -45,13 +42,13 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new RowDataReader(partition, cacheDeleteFilesOnExecutors);
+      return new RowDataReader(partition);
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
-      return new ChangelogRowReader(partition, cacheDeleteFilesOnExecutors);
+      return new ChangelogRowReader(partition);
 
     } else if (partition.allTasksOfType(PositionDeletesScanTask.class)) {
-      return new PositionDeletesRowReader(partition, cacheDeleteFilesOnExecutors);
+      return new PositionDeletesRowReader(partition);
 
     } else {
       throw new UnsupportedOperationException(

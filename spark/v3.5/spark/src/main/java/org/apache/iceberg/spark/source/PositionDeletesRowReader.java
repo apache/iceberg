@@ -46,14 +46,14 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   private static final Logger LOG = LoggerFactory.getLogger(PositionDeletesRowReader.class);
 
-  PositionDeletesRowReader(SparkInputPartition partition, boolean cacheDeleteFilesOnExecutors) {
+  PositionDeletesRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        cacheDeleteFilesOnExecutors);
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   PositionDeletesRowReader(
