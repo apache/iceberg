@@ -53,6 +53,7 @@ nav:
   - hive.md
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Daft: daft.md
+  - BladePipe: bladepipe.md
   - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
   - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
   - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg

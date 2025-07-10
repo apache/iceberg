@@ -26,12 +26,18 @@ This page contains some of the vendors who are shipping and supporting Apache Ic
 
 AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg) to support Apache Iceberg as part of its modern data architecture. [Amazon Athena](https://aws.amazon.com/athena/) offers a serverless, interactive query engine with native support for Iceberg, enabling fast and cost-efficient querying of large-scale datasets. [Amazon EMR](https://aws.amazon.com/emr/) integrates Iceberg with Apache Spark, Apache Flink, Apache Hive, Presto and Trino, making it easy to process and analyze data at scale. [AWS Glue](https://aws.amazon.com/glue/) provides fully managed data integration capabilities, including schema evolution, maintenance, optimizations and partition management for Iceberg tables. With [Amazon S3](https://aws.amazon.com/s3/) as the underlying storage layer, AWS enables a high-performance and cost-effective data lakehouse solution powered by Iceberg.
 
+### [BladePipe](https://bladepipe.com)
+
+BladePipe is a real-time end-to-end data integration tool, offering 40+ out-of-the-box connectors. It provides a one-stop data movement solution, including schema evolution, data migration and sync, verification and correction, monitoring and alerting. With sub-second latency, BladePipe captures change data from MySQL, Oracle, PostgreSQL and other sources and streams it to Iceberg and more, all without writing a single line of code. It offers [on-premise and BYOC deployment options](https://www.bladepipe.com/pricing). Learn more about how to build a pipeline with BladePipe [here](https://doc.bladepipe.com/quick/quick_start_byoc).
+
+
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
 Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
 tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
 AWS and Azure, and as well as an on-premises solution.
+
 
 ### [CelerData](https://celerdata.com)
 
