@@ -172,14 +172,17 @@ public class RewriteDataFilesSparkAction
         partialProgressEnabled
             ? doExecuteWithPartialProgress(plan, commitManager(startingSnapshotId))
             : doExecute(plan, commitManager(startingSnapshotId));
+    ImmutableRewriteDataFiles.Result result = resultBuilder.build();
 
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
           new RemoveDanglingDeletesSparkAction(spark(), table);
-      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
-      resultBuilder.removedDeleteFilesCount(removedCount);
+      int removedDeleteFiles = Iterables.size(action.execute().removedDeleteFiles());
+      return result.withRemovedDeleteFilesCount(
+          result.removedDeleteFilesCount() + removedDeleteFiles);
     }
-    return resultBuilder.build();
+
+    return result;
   }
 
   private void init(long startingSnapshotId) {

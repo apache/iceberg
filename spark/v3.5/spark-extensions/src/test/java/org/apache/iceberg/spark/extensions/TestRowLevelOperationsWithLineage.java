@@ -19,6 +19,10 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.MetadataColumns.schemaWithRowLineage;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 import static org.apache.iceberg.spark.Spark3Util.loadIcebergTable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -33,6 +37,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -47,8 +52,11 @@ import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -57,7 +65,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOperationsTestBase {
@@ -81,16 +88,66 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
           createRecord(SCHEMA, 103, "d", 3L, 1L),
           createRecord(SCHEMA, 104, "e", 4L, 1L));
 
+  @Parameters(
+      name =
+          "catalogName = {0}, implementation = {1}, config = {2},"
+              + " format = {3}, vectorized = {4}, distributionMode = {5},"
+              + " fanout = {6}, branch = {7}, planningMode = {8}, formatVersion = {9}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        FileFormat.PARQUET,
+        true,
+        WRITE_DISTRIBUTION_MODE_HASH,
+        true,
+        null,
+        LOCAL,
+        3
+      },
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        FileFormat.PARQUET,
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        true,
+        null,
+        DISTRIBUTED,
+        3
+      },
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "false",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+        FileFormat.AVRO,
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        false,
+        null,
+        DISTRIBUTED,
+        3
+      },
+    };
+  }
+
   @BeforeAll
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
-  }
-
-  @BeforeEach
-  public void beforeEach() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // ToDo: Remove these as row lineage inheritance gets implemented in the other readers
-    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
   }
 
   @AfterEach
@@ -549,6 +606,7 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
   }
 
   private Snapshot latestSnapshot(Table table) {
+    table.refresh();
     return branch != null ? table.snapshot(branch) : table.currentSnapshot();
   }
 

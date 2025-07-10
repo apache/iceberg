@@ -78,6 +78,18 @@ public abstract class BaseHTTPClient implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      ParserContext parserContext) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers, null);
+    return execute(request, responseType, errorHandler, h -> {}, parserContext);
+  }
+
+  @Override
   public <T extends RESTResponse> T post(
       String path,
       RESTRequest body,
@@ -98,6 +110,19 @@ public abstract class BaseHTTPClient implements RESTClient {
       Consumer<Map<String, String>> responseHeaders) {
     HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
     return execute(request, responseType, errorHandler, responseHeaders);
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
+    return execute(request, responseType, errorHandler, responseHeaders, parserContext);
   }
 
   @Override
@@ -123,4 +148,17 @@ public abstract class BaseHTTPClient implements RESTClient {
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders);
+
+  protected <T extends RESTResponse> T execute(
+      HTTPRequest request,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext) {
+    if (null != parserContext) {
+      throw new UnsupportedOperationException("Parser context is not supported");
+    }
+
+    return execute(request, responseType, errorHandler, responseHeaders);
+  }
 }

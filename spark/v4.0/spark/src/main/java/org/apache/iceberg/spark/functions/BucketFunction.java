@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.spark.functions;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BucketUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
+import org.apache.spark.sql.connector.catalog.functions.Reducer;
+import org.apache.spark.sql.connector.catalog.functions.ReducibleFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
@@ -114,7 +118,8 @@ public class BucketFunction implements UnboundFunction {
     return "bucket";
   }
 
-  public abstract static class BucketBase extends BaseScalarFunction<Integer> {
+  public abstract static class BucketBase extends BaseScalarFunction<Integer>
+      implements ReducibleFunction<Integer, Integer> {
     public static int apply(int numBuckets, int hashedValue) {
       return (hashedValue & Integer.MAX_VALUE) % numBuckets;
     }
@@ -127,6 +132,24 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public DataType resultType() {
       return DataTypes.IntegerType;
+    }
+
+    protected int gcd(int num1, int num2) {
+      return BigInteger.valueOf(num1).gcd(BigInteger.valueOf(num2)).intValue();
+    }
+
+    @Override
+    public Reducer<Integer, Integer> reducer(
+        int thisNumBuckets, ReducibleFunction<?, ?> otherBucketFunction, int otherNumBuckets) {
+
+      if (otherBucketFunction instanceof BucketBase) {
+        int commonDivisor = gcd(thisNumBuckets, otherNumBuckets);
+        if (commonDivisor > 1 && commonDivisor != thisNumBuckets) {
+          return new BucketReducer(commonDivisor);
+        }
+      }
+
+      return null;
     }
   }
 
@@ -325,6 +348,19 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.bucket(decimal)";
+    }
+  }
+
+  static class BucketReducer implements Reducer<Integer, Integer>, Serializable {
+    private int commonDivisor;
+
+    BucketReducer(int commonDivisor) {
+      this.commonDivisor = commonDivisor;
+    }
+
+    @Override
+    public Integer reduce(Integer bucketNo) {
+      return bucketNo % this.commonDivisor;
     }
   }
 }
