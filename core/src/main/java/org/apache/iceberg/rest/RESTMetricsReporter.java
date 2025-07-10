@@ -19,13 +19,12 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,14 +38,12 @@ class RESTMetricsReporter implements MetricsReporter {
   private final RESTClient client;
   private final String metricsEndpoint;
   private final Supplier<Map<String, String>> headers;
-  private final ExecutorService executor;
 
   RESTMetricsReporter(
       RESTClient client, String metricsEndpoint, Supplier<Map<String, String>> headers) {
     this.client = client;
     this.metricsEndpoint = metricsEndpoint;
     this.headers = headers;
-    this.executor = Executors.newCachedThreadPool();
   }
 
   @Override
@@ -56,30 +53,17 @@ class RESTMetricsReporter implements MetricsReporter {
       return;
     }
 
-    executor.submit(() -> {
-      try {
-        client.post(
-            metricsEndpoint,
-            ReportMetricsRequest.of(report),
-            null,
-            headers,
-            ErrorHandlers.defaultErrorHandler());
-      } catch (Exception e) {
-        LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
-      }
-    });
-  }
-
-  @Override
-  public void close() {
-    executor.shutdown();
-    try {
-      if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-        executor.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      executor.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
+    Tasks.range(1)
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure((item, exception) ->
+            LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
+        .run(item -> {
+          client.post(
+              metricsEndpoint,
+              ReportMetricsRequest.of(report),
+              null,
+              headers,
+              ErrorHandlers.defaultErrorHandler());
+        });
   }
 }
