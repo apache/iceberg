@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -30,17 +31,28 @@ import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructType;
 import scala.collection.JavaConverters;
 
-class ProjectRowLineageFromMetadata implements Function<InternalRow, InternalRow> {
+class ExtractRowLineage implements Function<InternalRow, InternalRow> {
   private static final StructType ROW_LINEAGE_SCHEMA =
       new StructType()
           .add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$, true)
           .add(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$, true);
+  private final Schema writeSchema;
 
   private ProjectingInternalRow cachedRowLineageProjection;
 
+  ExtractRowLineage(Schema writeSchema) {
+    this.writeSchema = writeSchema;
+  }
+
   @Override
   public InternalRow apply(InternalRow meta) {
-    // If metadata row is null, project nulls for both fields
+    // If output schema is null, i.e. deletes in MoR, or row lineage is not required on write,
+    // return a null row
+    if (writeSchema == null || writeSchema.findField(MetadataColumns.ROW_ID.name()) == null) {
+      return null;
+    }
+
+    // If metadata row is null, return a row where both fields are null
     if (meta == null) {
       return new GenericInternalRow(2);
     }
