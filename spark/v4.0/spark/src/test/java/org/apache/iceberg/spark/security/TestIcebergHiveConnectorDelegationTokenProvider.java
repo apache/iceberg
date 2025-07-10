@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.security;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -74,15 +75,15 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
     boolean expected;
 
     TestCase(
-        String catalogType,
-        String uri,
-        String catalogClass,
-        String auth,
-        String sasl,
-        boolean tokenExists,
-        boolean renewalDisabled,
-        boolean allMet,
-        boolean expected) {
+            String catalogType,
+            String uri,
+            String catalogClass,
+            String auth,
+            String sasl,
+            boolean tokenExists,
+            boolean renewalDisabled,
+            boolean allMet,
+            boolean expected) {
       this.catalogType = catalogType;
       this.uri = uri;
       this.catalogClass = catalogClass;
@@ -102,85 +103,85 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
    */
   static Stream<TestCase> delegationTokenCases() {
     return Stream.of(
-        // No catalog config
-        new TestCase(null, null, null, null, null, false, false, false, false),
-        // Catalog type not hive
-        new TestCase(
-            "custom",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "true",
-            false,
-            false,
-            false,
-            false),
-        // Missing metastore uri
-        new TestCase(
-            "hive",
-            null,
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "true",
-            false,
-            false,
-            false,
-            false),
-        // Delegation token renewal disabled
-        new TestCase(
-            "hive",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "true",
-            false,
-            true,
-            false,
-            false),
-        // Non-kerberos authentication
-        new TestCase(
-            "hive",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "simple",
-            "true",
-            false,
-            false,
-            false,
-            false),
-        // SASL disabled
-        new TestCase(
-            "hive",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "false",
-            false,
-            false,
-            false,
-            false),
-        // Token already exists
-        new TestCase(
-            "hive",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "true",
-            true,
-            false,
-            false,
-            false),
-        // All conditions met
-        new TestCase(
-            "hive",
-            "thrift://localhost:9083",
-            SparkCatalog.class.getName(),
-            "kerberos",
-            "true",
-            false,
-            false,
-            true,
-            true));
+            // No catalog config
+            new TestCase(null, null, null, null, null, false, false, false, false),
+            // Catalog type not hive
+            new TestCase(
+                    "custom",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "true",
+                    false,
+                    false,
+                    false,
+                    false),
+            // Missing metastore uri
+            new TestCase(
+                    "hive",
+                    null,
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "true",
+                    false,
+                    false,
+                    false,
+                    false),
+            // Delegation token renewal disabled
+            new TestCase(
+                    "hive",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "true",
+                    false,
+                    true,
+                    false,
+                    false),
+            // Non-kerberos authentication
+            new TestCase(
+                    "hive",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "simple",
+                    "true",
+                    false,
+                    false,
+                    false,
+                    false),
+            // SASL disabled
+            new TestCase(
+                    "hive",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "false",
+                    false,
+                    false,
+                    false,
+                    false),
+            // Token already exists
+            new TestCase(
+                    "hive",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "true",
+                    true,
+                    false,
+                    false,
+                    false),
+            // All conditions met
+            new TestCase(
+                    "hive",
+                    "thrift://localhost:9083",
+                    SparkCatalog.class.getName(),
+                    "kerberos",
+                    "true",
+                    false,
+                    false,
+                    true,
+                    true));
   }
 
   @ParameterizedTest
@@ -218,7 +219,7 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
 
     if (tc.tokenExists && tc.uri != null) {
       proxyUser.addToken(
-          new org.apache.hadoop.io.Text(tc.uri), new org.apache.hadoop.security.token.Token<>());
+              new org.apache.hadoop.io.Text(tc.uri), new org.apache.hadoop.security.token.Token<>());
     }
 
     boolean result = tokenProvider.delegationTokensRequired(sparkConf, hadoopConf);
@@ -226,8 +227,26 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
   }
 
   @Test
+  public void testDelegationTokensRequiredWithIllegalCatalogName_ShouldReturnFalse() {
+    // Configure catalog with illegal name
+    sparkConf.set("spark.sql.catalog.test.test1.type", "hive");
+    sparkConf.set("spark.sql.catalog.test.test1", "thrift://localhost:9083");
+    sparkConf.set("spark.sql.catalog.test.test1.uri", SparkCatalog.class.getName());
+
+    hadoopConf.set("hadoop.security.authentication", "kerberos");
+    hadoopConf.set("hive.metastore.sasl.enabled", String.valueOf(true));
+    // Set up user info
+    UserGroupInformation realUser = UserGroupInformation.createRemoteUser("testUser");
+    UserGroupInformation proxyUser = UserGroupInformation.createProxyUser("proxyUser", realUser);
+    UserGroupInformation.setLoginUser(proxyUser);
+
+    boolean result = tokenProvider.delegationTokensRequired(sparkConf, hadoopConf);
+    assertFalse(result);
+  }
+
+  @Test
   public void obtainDelegationTokens_TwoCatalogs_OneFails_ShouldNotBlockOther()
-      throws IOException, TException {
+          throws IOException, TException {
     // Configure two catalogs
     sparkConf.set("spark.sql.catalog.test1.type", "hive");
     sparkConf.set("spark.sql.catalog.test1.uri", "thrift://localhost:9083");
@@ -248,16 +267,16 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
     // Mock HMS client for test1 (failure case)
     HiveMetaStoreClient hmsClientTest1 = mock(HiveMetaStoreClient.class);
     when(hmsClientTest1.getDelegationToken(anyString(), anyString()))
-        .thenThrow(new TException("Token fetch failed"));
+            .thenThrow(new TException("Token fetch failed"));
 
     // Mock HMS client for test2 (success case)
     HiveMetaStoreClient hmsClientTest2 = mock(HiveMetaStoreClient.class);
     DelegationTokenIdentifier tokenId =
-        new DelegationTokenIdentifier(
-            new Text("testOwner"), new Text("testRenewer"), new Text("testRealUser"));
+            new DelegationTokenIdentifier(
+                    new Text("testOwner"), new Text("testRenewer"), new Text("testRealUser"));
     String encodedToken;
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(baos)) {
+         DataOutputStream out = new DataOutputStream(baos)) {
       out.writeLong(123456789L);
       tokenId.write(out);
       encodedToken = Base64.getEncoder().encodeToString(baos.toByteArray());
@@ -276,8 +295,8 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
               }
               return null;
             })
-        .when(tokenProvider)
-        .createHmsClient(any(HiveConf.class));
+            .when(tokenProvider)
+            .createHmsClient(any(HiveConf.class));
 
     // Execute and verify
     Credentials credentials = new Credentials();
