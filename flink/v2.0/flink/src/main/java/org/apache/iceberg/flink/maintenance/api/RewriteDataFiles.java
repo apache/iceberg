@@ -20,12 +20,15 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
@@ -56,9 +59,10 @@ public class RewriteDataFiles {
         org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
+    private Expression filter = null;
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "RewriteDataFiles";
     }
 
@@ -191,6 +195,18 @@ public class RewriteDataFiles {
     }
 
     /**
+     * A user provided filter for determining which files will be considered by the rewrite
+     * strategy.
+     *
+     * @param newFilter the filter expression to apply
+     * @return this for method chaining
+     */
+    public Builder filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
+    /**
      * Configures the properties for the rewriter.
      *
      * @param rewriteDataFilesConfig properties for the rewriter
@@ -233,7 +249,8 @@ public class RewriteDataFiles {
                       tableLoader(),
                       partialProgressEnabled ? partialProgressMaxCommits : 1,
                       maxRewriteBytes,
-                      rewriteOptions))
+                      rewriteOptions,
+                      filter))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
@@ -273,6 +290,24 @@ public class RewriteDataFiles {
           .uid(AGGREGATOR_TASK_NAME + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
           .forceNonParallel();
+    }
+  }
+
+  public static class RewriteDataFilesResult implements TaskResult.Result {
+    private final Set<DataFile> deletedDataFiles;
+    private final Set<DataFile> addedDataFiles;
+
+    public RewriteDataFilesResult(Set<DataFile> deletedDataFiles, Set<DataFile> addedDataFiles) {
+      this.deletedDataFiles = deletedDataFiles;
+      this.addedDataFiles = addedDataFiles;
+    }
+
+    public Set<DataFile> deletedDataFiles() {
+      return deletedDataFiles;
+    }
+
+    public Set<DataFile> addedDataFiles() {
+      return addedDataFiles;
     }
   }
 }

@@ -48,7 +48,7 @@ public class ExpireSnapshots {
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "ExpireSnapshots";
     }
 
