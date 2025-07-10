@@ -43,8 +43,8 @@ nav:
     - Python: https://py.iceberg.apache.org/
     - Rust: https://rust.iceberg.apache.org/
     - Go: https://pkg.go.dev/github.com/apache/iceberg-go/
-  - Clients:
-    # Iceberg-maintained clients come first
+  - Integrations:
+    # Iceberg-maintained integrations come first
     - Spark:
       - spark-getting-started.md
       - spark-configuration.md
@@ -63,13 +63,14 @@ nav:
       - flink-configuration.md
     - Kafka Connect: kafka-connect.md
     - Third-party:
-    # Now all the 3rd party clients
+    # Now all the 3rd party integrations
       - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
       - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
       - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
       - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
       - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
       - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
+      - Apache Hive: hive.md
       - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
       - Daft: daft.md
       - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
@@ -78,7 +79,6 @@ nav:
       - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
       - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
       - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
-      - hive.md
       - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
       - Presto: https://prestodb.io/docs/current/connector/iceberg.html
       - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
