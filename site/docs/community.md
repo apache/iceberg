@@ -70,12 +70,12 @@ The Apache Iceberg community regularly meets for technical discussion both in-pe
 
 ### Hosting an Apache Iceberg Meetup
 
-Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are allowed to host a community meetup where the name **Apache Iceberg Meetup <geographical location\>** may be used in
+Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are encouraged to host community meetups using the name **Apache Iceberg Meetup <geographical location\>** in
 compliance with [Apache Software Foundation's branding and trademarks guidelines](https://www.apache.org/foundation/marks/events.html#approval). No explicit PMC approval is required.
 
-In addition, hosts are required to ensure that their event abides by the following: 
+Hosts are required to ensure that: 
 
-1. Apache Iceberg should be championed in every meetup and technical session 
+1. The Apache Iceberg ecosystem should be championed in every meetup and technical session 
 2. All talks should be vendor-neutral and not sales pitches
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
@@ -83,7 +83,7 @@ In addition, hosts are required to ensure that their event abides by the followi
 
 ### Apache Iceberg Community Calendar
 
-This calendar contains two calendar feeds:
+The community maintains two calendar feeds:
 
 * [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
 * [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
