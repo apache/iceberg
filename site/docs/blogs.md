@@ -21,10 +21,6 @@ title: "Blogs"
 ## Iceberg Blogs
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
-<!-- markdown-link-check-disable-next-line -->
-### [Athena vs. Snowflake on Iceberg: Performance and Cost Comparison on TPC-H](https://www.ryft.io/blog/athena-vs-snowflake-on-iceberg-tpch-comparison)
-**Date:** July 9, 2025, **Company**: Ryft
-**Author**: [Yuval Yogev](https://www.linkedin.com/in/yuvalyogev)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [Making Sense of Apache Iceberg Statistics](https://www.ryft.io/blog/making-sense-of-apache-iceberg-statistics)
