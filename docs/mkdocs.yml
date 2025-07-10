@@ -40,9 +40,9 @@ nav:
       - Quickstart: java-api-quickstart.md
       - API: api.md
       - Javadoc: ../../javadoc/latest/
-    - PyIceberg: https://py.iceberg.apache.org/
-    - IcebergRust: https://rust.iceberg.apache.org/
-    - IcebergGo: https://pkg.go.dev/github.com/apache/iceberg-go/
+    - Python: https://py.iceberg.apache.org/
+    - Rust: https://rust.iceberg.apache.org/
+    - Go: https://pkg.go.dev/github.com/apache/iceberg-go/
   - Clients:
     # Iceberg-maintained clients come first
     - Spark:
