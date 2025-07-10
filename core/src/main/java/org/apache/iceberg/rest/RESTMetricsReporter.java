@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -34,6 +35,9 @@ import org.slf4j.LoggerFactory;
  */
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
+
+  private static final ExecutorService METRICS_EXECUTOR =
+      ThreadPools.newExitingWorkerPool("rest-metrics-reporter", 1);
 
   private final RESTClient client;
   private final String metricsEndpoint;
@@ -54,7 +58,7 @@ class RESTMetricsReporter implements MetricsReporter {
     }
 
     Tasks.range(1)
-        .executeWith(ThreadPools.getMetricsPool())
+        .executeWith(METRICS_EXECUTOR)
         .onFailure((item, exception) ->
             LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
         .run(item -> {
