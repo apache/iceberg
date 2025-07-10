@@ -132,10 +132,6 @@ The Stackable Data Platform is completely open source, providing maximum portabi
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
 
-### [Tabular](https://tabular.io)
-
-[Tabular](https://tabular.io/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
-
 ### [Tinybird](https://tinybird.co)
 
 [Tinybird](https://tinybird.co) is a real-time data platform that lets developers and data teams build fast APIs on top of analytical data using SQL. It now offers native support for Apache Iceberg through ClickHouse’s [iceberg() table function](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg), allowing seamless querying of Iceberg tables stored in S3.
