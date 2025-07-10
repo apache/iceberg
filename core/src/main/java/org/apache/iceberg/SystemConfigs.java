@@ -53,6 +53,17 @@ public class SystemConfigs {
           Math.max(2, 4 * Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /**
+   * Sets the size of the metrics reporting thread pool. This limits the number of concurrent
+   * metrics reporting operations.
+   */
+  public static final ConfigEntry<Integer> METRICS_THREAD_POOL_SIZE =
+      new ConfigEntry<>(
+          "iceberg.metrics.num-threads",
+          "ICEBERG_METRICS_NUM_THREADS",
+          2,
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

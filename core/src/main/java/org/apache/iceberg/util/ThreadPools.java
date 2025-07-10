@@ -51,6 +51,11 @@ public class ThreadPools {
   private static final ExecutorService DELETE_WORKER_POOL =
       newExitingWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
 
+  public static final int METRICS_THREAD_POOL_SIZE = SystemConfigs.METRICS_THREAD_POOL_SIZE.value();
+
+  private static final ExecutorService METRICS_POOL =
+      newExitingWorkerPool("iceberg-metrics-publisher-pool", METRICS_THREAD_POOL_SIZE);
+
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
    *
@@ -80,6 +85,21 @@ public class ThreadPools {
    */
   public static ExecutorService getDeleteWorkerPool() {
     return DELETE_WORKER_POOL;
+  }
+
+  /**
+   * Return an {@link ExecutorService} that uses the "metrics" thread-pool.
+   *
+   * <p>The size of this pool limits the number of concurrent metrics reporting operations within a
+   * single JVM.
+   *
+   * <p>The size of this thread-pool is controlled by the Java system property {@code
+   * iceberg.metrics.num-threads}.
+   *
+   * @return an {@link ExecutorService} that uses the metrics pool
+   */
+  public static ExecutorService getMetricsPool() {
+    return METRICS_POOL;
   }
 
   /**
