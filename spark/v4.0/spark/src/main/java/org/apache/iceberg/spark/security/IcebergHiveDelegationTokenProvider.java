@@ -40,17 +40,50 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.SparkConf;
-import org.apache.spark.deploy.SparkHadoopUtil;
+import org.apache.spark.launcher.SparkLauncher;
 import org.apache.spark.security.HadoopDelegationTokenProvider;
-import org.apache.spark.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Option;
-import scala.Tuple2;
 
-public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelegationTokenProvider {
+/**
+ * Delegation token provider for Iceberg Hive catalogs in Kerberos environments.
+ *
+ * <p>This provider automatically obtains and renews Hive Metastore delegation tokens for Iceberg
+ * catalogs configured in Spark. It supports:
+ *
+ * <ul>
+ *   <li>Multiple Hive Metastore instances
+ *   <li>Custom token signatures
+ *   <li>Failure isolation (one HMS failure doesn't block others)
+ *   <li>Proxy user support
+ * </ul>
+ *
+ * <p><b>Important Limitations:</b>
+ *
+ * <ul>
+ *   <li>Catalogs must be configured before Spark application starts (via spark-defaults.conf or
+ *       --conf)
+ *   <li>Dynamic catalog registration (via SQL SET) is NOT supported
+ *   <li>spark-sql command may not work properly due to Spark internal implementation
+ * </ul>
+ *
+ * <p><b>Configuration Example:</b>
+ *
+ * <pre>{@code
+ * spark.sql.catalog.hive_prod=org.apache.iceberg.spark.SparkSessionCatalog
+ * spark.sql.catalog.hive_prod.type=hive
+ * spark.sql.catalog.hive_prod.uri=thrift://metastore-host:port
+ * spark.sql.catalog.hive_prod.hive.metastore.token.signature=hive_prod
+ * spark.sql.catalog.hive_prod.delegation.token.renewal.enabled=true
+ * }</pre>
+ *
+ * @see <a href="https://github.com/apache/kyuubi/pull/4560">Kyuubi PR #4560</a> for reference
+ *     implementation
+ */
+public class IcebergHiveDelegationTokenProvider implements HadoopDelegationTokenProvider {
   private static final Logger LOG =
-      LoggerFactory.getLogger(IcebergHiveConnectorDelegationTokenProvider.class);
+      LoggerFactory.getLogger(IcebergHiveDelegationTokenProvider.class);
 
   private static final String SERVICE_NAME = "iceberg_hive";
   private static final String SPARK_SQL_CATALOG_PREFIX = "spark.sql.catalog.";
@@ -60,6 +93,8 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
   private static final String DOT = ".";
   private static final String DELEGATION_TOKEN_RENEWAL_ENABLE = "delegation.token.renewal.enabled";
   private static final String SPARK_KERBEROS_KEYTAB = "spark.kerberos.keytab";
+  private static final String DEPLOY_MODE_CLIENT = "client";
+  private static final String HIVE_METASTORE_TOKEN_SIGNATURE = "hive.metastore.token.signature";
 
   @Override
   public String serviceName() {
@@ -84,7 +119,7 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
       Arrays.stream(sparkConf.getAllWithPrefix(targetPrefix))
           .forEach(
               entry -> {
-                if (entry._1.contains(URI_KEY)) {
+                if (entry._1.equals(URI_KEY)) {
                   hiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, entry._2);
                 } else {
                   hiveConf.set(entry._1, entry._2);
@@ -97,7 +132,7 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
 
       return Optional.of(hiveConf);
     } catch (Exception e) {
-      LOG.warn("Fail to create Hive Configuration for catalog {}: {}", catalogName, e.getMessage());
+      LOG.warn("Failed to create Hive Configuration for catalog: {}", catalogName, e);
       return Optional.empty();
     }
   }
@@ -111,24 +146,47 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
    * @param sparkConf The SparkConf object containing Spark configurations.
    * @return A Set of Strings representing the names of Iceberg catalogs.
    */
-  private Set<String> extractIcebergCatalogNames(SparkConf sparkConf) {
+  Set<String> extractIcebergCatalogNames(SparkConf sparkConf) {
     return Arrays.stream(sparkConf.getAllWithPrefix(SPARK_SQL_CATALOG_PREFIX))
         .filter(
             entry -> {
-              String val = entry._2();
-              return val.contains(SparkSessionCatalog.class.getName())
-                  || val.contains(SparkCatalog.class.getName());
+              return entry._2.equals(SparkSessionCatalog.class.getName())
+                  || entry._2.equals(SparkCatalog.class.getName());
             })
-        .map(Tuple2::_1)
+        .map(entry -> entry._1)
+        // Filter out illegal catalog names (e.g. containing dots)
+        .filter(catalogName -> isValidCatalogName(catalogName))
         .collect(Collectors.toSet());
   }
 
-  @Override
-  public boolean delegationTokensRequired(SparkConf sparkConf, Configuration hadoopConf) {
-    return !getRequireTokenCatalogs(sparkConf, hadoopConf).isEmpty();
+  /**
+   * Checks if a catalog name is valid according to Spark's naming rules.
+   *
+   * @param catalogName The catalog name to validate
+   * @return true if the catalog name is valid, false otherwise
+   */
+  private boolean isValidCatalogName(String catalogName) {
+    // A valid catalog name should not contain dots (to avoid nested catalogs)
+    // and should not be empty
+    return !catalogName.contains(DOT) && !catalogName.isEmpty();
   }
 
-  private Set<String> getRequireTokenCatalogs(SparkConf sparkConf, Configuration hadoopConf) {
+  /**
+   * Determines if delegation tokens are required for any configured Iceberg Hive catalogs.
+   *
+   * <p>This method is called by Spark to check if the delegation token provider should be invoked.
+   * It returns {@code true} if at least one catalog requires delegation token renewal.
+   *
+   * @param sparkConf Spark configuration
+   * @param hadoopConf Hadoop configuration from SparkContext
+   * @return true if delegation tokens are required for any catalog
+   */
+  @Override
+  public boolean delegationTokensRequired(SparkConf sparkConf, Configuration hadoopConf) {
+    return !obtainRequireTokenCatalogs(sparkConf, hadoopConf).isEmpty();
+  }
+
+  private Set<String> obtainRequireTokenCatalogs(SparkConf sparkConf, Configuration hadoopConf) {
     return extractIcebergCatalogNames(sparkConf).stream()
         .filter(
             catalogName ->
@@ -146,7 +204,7 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
     boolean isNeedRenewal =
         sparkConf.getBoolean(targetPrefix + DELEGATION_TOKEN_RENEWAL_ENABLE, true);
     boolean isHiveType = CATALOG_TYPE.equalsIgnoreCase(sparkConf.get(targetPrefix + TYPE_KEY, ""));
-    String metastoreUri = sparkConf.get(targetPrefix + URI_KEY, "");
+    String metastoreUri = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     if (!isNeedRenewal || !isHiveType || StringUtils.isBlank(metastoreUri)) {
       LOG.debug(
           "Delegation token not required for catalog: {}, isNeedRenewal: {}, isHiveType: {}, metastoreUri: {}",
@@ -165,77 +223,97 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
         throw new RuntimeException("Failed to get current user for delegation token check");
       }
     } catch (IOException e) {
-      throw new RuntimeException("Error retrieving current user: " + e.getMessage(), e);
+      throw new RuntimeException("Error retrieving current user", e);
     }
 
     boolean authenticated =
         SecurityUtil.getAuthenticationMethod(hiveConf)
             != UserGroupInformation.AuthenticationMethod.SIMPLE;
-    boolean saslEnable =
+    boolean saslEnabled =
         hiveConf.getBoolean(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname, false);
 
-    Token<?> currentToken = currentUser.getCredentials().getToken(new Text(metastoreUri));
-    boolean securityEnabled = SparkHadoopUtil.get().isProxyUser(currentUser);
+    // Use token signature instead of metastore URI as service
+    String tokenSignature = hiveConf.get(HIVE_METASTORE_TOKEN_SIGNATURE, null);
+    if (StringUtils.isBlank(tokenSignature)) {
+      tokenSignature = metastoreUri;
+    }
+    Token<?> currentToken = currentUser.getCredentials().getToken(new Text(tokenSignature));
+    // Check if current user is a proxy user (has a real user behind it)
+    boolean isProxyUser = currentUser.getRealUser() != null;
     boolean keytabExists = sparkConf.contains(SPARK_KERBEROS_KEYTAB);
 
-    boolean isClientMode = Utils.isClientMode(sparkConf);
+    boolean isClientMode =
+        DEPLOY_MODE_CLIENT.equals(sparkConf.get(SparkLauncher.DEPLOY_MODE, DEPLOY_MODE_CLIENT));
+
     LOG.debug(
-        "Delegation token check for catalog: {}, authenticated: {}, saslEnable: {}, currentToken: {}, securityEnabled: {}, isClientMode: {}, keytabExists: {}",
+        "Delegation token check for catalog: {}, authenticated: {}, saslEnabled: {}, currentTokenExists: {}, isProxyUser: {}, isClientMode: {}, keytabExists: {}",
         catalogName,
         authenticated,
-        saslEnable,
+        saslEnabled,
         currentToken != null,
-        securityEnabled,
+        isProxyUser,
         isClientMode,
         keytabExists);
 
     return authenticated
-        && saslEnable
+        && saslEnabled
         && currentToken == null
-        && (securityEnabled || (!isClientMode && !keytabExists));
+        && (isProxyUser || (!isClientMode && !keytabExists));
   }
 
   IMetaStoreClient createHmsClient(HiveConf conf) throws MetaException {
     return new HiveMetaStoreClient(conf, null, false);
   }
 
+  /**
+   * Obtains delegation tokens for all configured Iceberg Hive catalogs.
+   *
+   * <p>This method is called periodically by Spark to renew delegation tokens. It iterates through
+   * all catalogs that require tokens and attempts to obtain them. Failures for individual catalogs
+   * are isolated and logged, but do not prevent token acquisition for other catalogs.
+   *
+   * @param hadoopConf Hadoop configuration from SparkContext
+   * @param sparkConf Spark configuration
+   * @param creds Credentials object to store obtained tokens
+   * @return Empty Option (required by Spark interface)
+   */
   @Override
   public Option<Object> obtainDelegationTokens(
       Configuration hadoopConf, SparkConf sparkConf, Credentials creds) {
-    Set<String> requireTokenCatalogs = getRequireTokenCatalogs(sparkConf, hadoopConf);
+    Set<String> requireTokenCatalogs = obtainRequireTokenCatalogs(sparkConf, hadoopConf);
 
     for (String catalogName : requireTokenCatalogs) {
-      LOG.debug("Require token Hive catalog: {}", catalogName);
+      LOG.debug("Processing delegation token for catalog: {}", catalogName);
 
       Optional<HiveConf> hiveConfOpt = buildHiveConf(sparkConf, hadoopConf, catalogName);
-      // one token request failure should not block the subsequent token obtaining
       if (!hiveConfOpt.isPresent()) {
-        LOG.warn("Failed to create HiveConf for listed catalog: {}", catalogName);
+        LOG.warn("Skipping catalog {}: failed to build HiveConf", catalogName);
         continue;
       }
 
       try {
         HiveConf remoteHmsConf = hiveConfOpt.get();
-        obtainTokenForCatalog(remoteHmsConf, creds);
+        obtainTokenForCatalog(remoteHmsConf, creds, catalogName);
       } catch (Exception e) {
-        // one token request failure should not block the subsequent token obtaining
-        LOG.warn("Failed to obtain token for catalog {}: {}", catalogName, e.getMessage(), e);
+        // Failure isolation: one HMS failure should not block token acquisition for other HMS
+        LOG.warn("Failed to obtain delegation token for catalog: {}", catalogName, e);
       }
     }
 
     return Option.empty();
   }
 
-  private void obtainTokenForCatalog(HiveConf remoteHmsConf, Credentials creds) throws Exception {
+  private void obtainTokenForCatalog(
+      HiveConf remoteHmsConf, Credentials creds, String catalogName) {
     String metastoreUri = remoteHmsConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     String principal =
         remoteHmsConf.get(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL.varname, "");
     if (StringUtils.isBlank(metastoreUri)) {
-      throw new RuntimeException("Metastore URI is empty");
+      throw new RuntimeException("Metastore URI is empty for catalog: " + catalogName);
     }
 
     if (StringUtils.isBlank(principal)) {
-      throw new RuntimeException("Hive principal is empty");
+      throw new RuntimeException("Hive principal is empty for catalog: " + catalogName);
     }
 
     doAsRealUser(
@@ -243,8 +321,9 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
           IMetaStoreClient hmsClient = null;
           try {
             UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
-            LOG.debug(
-                "Getting Hive delegation token for {} against {} at {}",
+            LOG.info(
+                "Obtaining delegation token for catalog {}: user={}, principal={}, metastoreUri={}",
+                catalogName,
                 currentUser.getUserName(),
                 principal,
                 metastoreUri);
@@ -253,9 +332,12 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
             String tokenStr = hmsClient.getDelegationToken(currentUser.getUserName(), principal);
             Token<DelegationTokenIdentifier> hive2Token = new Token<>();
             hive2Token.decodeFromUrlString(tokenStr);
-            hive2Token.setService(new Text(metastoreUri));
-            LOG.debug("Get Token from hive metastore: {}", hive2Token);
-            creds.addToken(new Text(metastoreUri), hive2Token);
+
+            // Use token signature instead of metastore URI as service
+            String tokenSignature = obtainTokenSignature(remoteHmsConf);
+            hive2Token.setService(new Text(tokenSignature));
+            LOG.info("Successfully obtained delegation token for catalog: {}", catalogName);
+            creds.addToken(new Text(tokenSignature), hive2Token);
 
             return null;
           } finally {
@@ -263,11 +345,28 @@ public class IcebergHiveConnectorDelegationTokenProvider implements HadoopDelega
               try {
                 hmsClient.close();
               } catch (Exception e) {
-                LOG.warn("Failed to close HiveMetaStoreClient: {}", e.getMessage(), e);
+                LOG.warn("Failed to close HiveMetaStoreClient for catalog: {}", catalogName, e);
               }
             }
           }
         });
+  }
+
+  /**
+   * Get token signature for the given catalog. Fallback to hive.metastore.uris if
+   * hive.metastore.token.signature is absent
+   *
+   * @param conf Hive configuration
+   * @return token signature
+   */
+  private String obtainTokenSignature(HiveConf conf) {
+    String tokenSignature = conf.get(HIVE_METASTORE_TOKEN_SIGNATURE, null);
+    if (StringUtils.isNotBlank(tokenSignature)) {
+      return tokenSignature;
+    }
+
+    // Fallback to metastore URI
+    return conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
   }
 
   private <T> void doAsRealUser(PrivilegedExceptionAction<T> action) {

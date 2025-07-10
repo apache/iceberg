@@ -32,11 +32,53 @@ spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
 # omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
-If Hive Metastore uses kerberos authentication, it will automatically obtain and use delegation token.
+
+Iceberg obtains Hive Metastore delegation tokens that Spark automatically renews when running in Kerberos-enabled cluster mode without a keytab.
+
+Catalog configurations must be present at Spark application startup:
+
+Option 1: `spark-defaults.conf`
+```properties
+spark.sql.catalog.hive_prod=org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.hive_prod.type=hive
+spark.sql.catalog.hive_prod.uri=thrift://metastore-host:port
+```
+
+Option 2: Command-line arguments
+```bash
+spark-[shell|submit] \
+  --conf spark.sql.catalog.hive_prod=org.apache.iceberg.spark.SparkCatalog \
+  --conf spark.sql.catalog.hive_prod.type=hive \
+  --conf spark.sql.catalog.hive_prod.uri=thrift://metastore-host:port
+```
+
+!!! warning "Configuration Limitations"
+    Delegation tokens are only obtained for catalogs configured **before Spark application starts**. Dynamic catalog registration (e.g., via SQL `SET` statements) is **not supported**. Use `spark-shell` or `spark-submit`; `spark-sql` may not work correctly.
+
 In addition, it allows disabling delegation token renewal for each catalog by setting the following configuration parameter:
 ```plain
 spark.sql.catalog.hive_prod.delegation.token.renewal.enabled = false
 ```
+
+Custom token signature (default: metastore URI):
+```properties
+spark.sql.catalog.hive_prod.hive.metastore.token.signature=custom_signature
+```
+Use custom signatures to distinguish multiple logical catalogs on the same HMS or for custom token management.
+
+Multiple Hive Metastores:
+```properties
+# Catalog 1
+spark.sql.catalog.hive1=org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.hive1.type=hive
+spark.sql.catalog.hive1.uri=thrift://metastore1:9083
+
+# Catalog 2
+spark.sql.catalog.hive2=org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.hive2.type=hive
+spark.sql.catalog.hive2.uri=thrift://metastore2:9083
+```
+Token acquisition failures for one catalog do not affect others.
 
 Below is an example for a REST catalog named `rest_prod` that loads tables from REST URL `http://localhost:8080`:
 

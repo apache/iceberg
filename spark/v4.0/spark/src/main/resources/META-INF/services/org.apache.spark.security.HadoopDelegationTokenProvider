@@ -17,4 +17,4 @@
 # under the License.
 #
 
-org.apache.iceberg.spark.security.IcebergHiveConnectorDelegationTokenProvider
+org.apache.iceberg.spark.security.IcebergHiveDelegationTokenProvider
