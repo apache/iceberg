@@ -261,7 +261,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public ExpireSnapshots expireSnapshots() {
     checkLastOperationCommitted("ExpireSnapshots");
-    ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
+    ExpireSnapshots expire = new RemoveSnapshots(tableName, transactionOps);
     expire.deleteWith(enqueueDelete);
     updates.add(expire);
     return expire;
