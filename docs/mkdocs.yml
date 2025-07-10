@@ -88,13 +88,13 @@ nav:
       - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
       - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Catalogs:
-    - AWS Glue: aws.md
-    - AWS DynamoDB: aws.md
+    - AWS Glue: aws/#glue-catalog
+    - AWS DynamoDB: aws/#dynamodb-catalog
     - jdbc.md
     - nessie.md
     - custom-catalog.md
   - Storage and Management:
     - Apache Amoro: amoro.md
-    - AWS S3: aws.md
+    - AWS S3: aws/#s3-fileio
     - Dell ECS: dell.md
 
