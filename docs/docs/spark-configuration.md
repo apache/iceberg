@@ -32,7 +32,22 @@ spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
 # omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
-If Hive Metastore uses kerberos authentication, it will automatically obtain and use delegation token.
+In addition, with the above configuration, Iceberg can enable access to a Kerberized Hive metastore.
+The current implementation has some limitations:
+The `hive_prod` catalog configuration must be present on the Spark application bootstrap, which means the catalog configurations should be set in spark-defaults.conf or append as --conf like:
+```plain
+spark-[shell|submit] \
+--conf spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
+--conf spark.sql.catalog.hive_prod.type = hive
+--conf spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
+```
+note: spark-sql may not work properly, because of some tricky code inside Spark.
+Besides, it does not work for dynamic registering through SET statement, such as 
+```plain
+set spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
+set spark.sql.catalog.hive_prod.type = hive
+set spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
+```
 In addition, it allows disabling delegation token renewal for each catalog by setting the following configuration parameter:
 ```plain
 spark.sql.catalog.hive_prod.delegation.token.renewal.enabled = false

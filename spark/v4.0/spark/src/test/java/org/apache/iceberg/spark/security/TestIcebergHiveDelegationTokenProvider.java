@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.spark.security;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -50,14 +51,14 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.mockito.Spy;
 
-public class TestIcebergHiveConnectorDelegationTokenProvider {
-  @Spy private IcebergHiveConnectorDelegationTokenProvider tokenProvider;
+public class TestIcebergHiveDelegationTokenProvider {
+  @Spy private IcebergHiveDelegationTokenProvider tokenProvider;
   private SparkConf sparkConf;
   private Configuration hadoopConf;
 
   @BeforeEach
   public void before() {
-    tokenProvider = Mockito.spy(new IcebergHiveConnectorDelegationTokenProvider());
+    tokenProvider = Mockito.spy(new IcebergHiveDelegationTokenProvider());
     sparkConf = new SparkConf();
     hadoopConf = new Configuration();
   }
@@ -223,6 +224,24 @@ public class TestIcebergHiveConnectorDelegationTokenProvider {
 
     boolean result = tokenProvider.delegationTokensRequired(sparkConf, hadoopConf);
     assertEquals(tc.expected, result);
+  }
+
+  @Test
+  public void testDelegationTokensRequiredWithIllegalCatalogName_ShouldReturnFalse() {
+    // Configure catalog with illegal name
+    sparkConf.set("spark.sql.catalog.test.test1.type", "hive");
+    sparkConf.set("spark.sql.catalog.test.test1", "thrift://localhost:9083");
+    sparkConf.set("spark.sql.catalog.test.test1.uri", SparkCatalog.class.getName());
+
+    hadoopConf.set("hadoop.security.authentication", "kerberos");
+    hadoopConf.set("hive.metastore.sasl.enabled", String.valueOf(true));
+    // Set up user info
+    UserGroupInformation realUser = UserGroupInformation.createRemoteUser("testUser");
+    UserGroupInformation proxyUser = UserGroupInformation.createProxyUser("proxyUser", realUser);
+    UserGroupInformation.setLoginUser(proxyUser);
+
+    boolean result = tokenProvider.delegationTokensRequired(sparkConf, hadoopConf);
+    assertFalse(result);
   }
 
   @Test
