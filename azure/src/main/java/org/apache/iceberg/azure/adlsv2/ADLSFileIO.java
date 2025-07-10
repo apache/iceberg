@@ -133,7 +133,7 @@ public class ADLSFileIO implements DelegateFileIO {
     initMetrics(properties);
     this.azureProperties
         .vendedAdlsCredentialProvider()
-        .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
+        .ifPresent(provider -> this.vendedAdlsCredentialProvider = provider);
   }
 
   @SuppressWarnings("CatchBlockLogException")

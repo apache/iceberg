@@ -29,7 +29,6 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.column.Dictionary;
 
 public final class VectorizedParquetDefinitionLevelReader
@@ -84,7 +83,7 @@ public final class VectorizedParquetDefinitionLevelReader
         final int typeWidth,
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader) {
+        VectorizedValuesReader valuesReader) {
       nextBatch(
           vector,
           startOffset,
@@ -147,7 +146,7 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector,
         int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray);
@@ -156,7 +155,7 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector,
         int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray);
@@ -220,7 +219,7 @@ public final class VectorizedParquetDefinitionLevelReader
         final FieldVector vector,
         final int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray) {
@@ -232,7 +231,7 @@ public final class VectorizedParquetDefinitionLevelReader
         final FieldVector vector,
         final int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray) {
@@ -252,13 +251,13 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     protected abstract void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode);
+        FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode);
   }
 
   class LongReader extends NumericBaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+        FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setLong(idx, valuesReader.readLong());
     }
 
@@ -285,7 +284,7 @@ public final class VectorizedParquetDefinitionLevelReader
   class DoubleReader extends NumericBaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+        FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setDouble(idx, valuesReader.readDouble());
     }
 
@@ -312,7 +311,7 @@ public final class VectorizedParquetDefinitionLevelReader
   class FloatReader extends NumericBaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+        FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setFloat(idx, valuesReader.readFloat());
     }
 
@@ -339,7 +338,7 @@ public final class VectorizedParquetDefinitionLevelReader
   class IntegerReader extends NumericBaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+        FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setInt(idx, valuesReader.readInteger());
     }
 
@@ -371,7 +370,7 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector,
         int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray) {
@@ -392,7 +391,7 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector,
         int typeWidth,
         NullabilityHolder nullabilityHolder,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int idx,
         int numValues,
         byte[] byteArray) {
@@ -411,7 +410,7 @@ public final class VectorizedParquetDefinitionLevelReader
     protected abstract void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray);
   }
@@ -422,7 +421,7 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
       vector.getDataBuffer().setLong((long) idx * typeWidth, valuesReader.readLong() * 1000);
@@ -455,11 +454,11 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
       // 8 bytes (time of day nanos) + 4 bytes(julianDay) = 12 bytes
-      ByteBuffer buffer = valuesReader.getBuffer(12).order(ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer buffer = valuesReader.readBinary(12).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }
@@ -500,10 +499,10 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+      valuesReader.readBinary(typeWidth).toByteBuffer().get(byteArray, 0, typeWidth);
       ((FixedSizeBinaryVector) vector).set(idx, byteArray);
     }
 
@@ -535,11 +534,11 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
       int len = valuesReader.readInteger();
-      ByteBuffer buffer = valuesReader.getBuffer(len);
+      ByteBuffer buffer = valuesReader.readBinary(len).toByteBuffer();
       // Calling setValueLengthSafe takes care of allocating a larger buffer if
       // running out of space.
       ((BaseVariableWidthVector) vector).setValueLengthSafe(idx, len);
@@ -580,10 +579,10 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      ((BitVector) vector).setSafe(idx, valuesReader.readBooleanAsInt());
+      ((BitVector) vector).setSafe(idx, valuesReader.readBoolean() ? 1 : 0);
     }
 
     @Override
@@ -606,7 +605,7 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector,
         int idx,
-        ValuesAsBytesReader valuesReader,
+        VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
       throw new UnsupportedOperationException();
@@ -651,13 +650,13 @@ public final class VectorizedParquetDefinitionLevelReader
   private void setNextNValuesInVector(
       int typeWidth,
       NullabilityHolder nullabilityHolder,
-      ValuesAsBytesReader valuesReader,
+      VectorizedValuesReader valuesReader,
       int bufferIdx,
       FieldVector vector,
       int numValues) {
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     if (currentValue == maxDefLevel) {
-      ByteBuffer buffer = valuesReader.getBuffer(numValues * typeWidth);
+      ByteBuffer buffer = valuesReader.readBinary(numValues * typeWidth).toByteBuffer();
       vector.getDataBuffer().setBytes((long) bufferIdx * typeWidth, buffer);
       nullabilityHolder.setNotNulls(bufferIdx, numValues);
       if (setArrowValidityVector) {

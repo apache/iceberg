@@ -110,7 +110,9 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+        isTableSchema
+            ? IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA).table(table)
+            : IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
@@ -158,15 +160,21 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheck() {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-            .writeParallelism(parallelism)
-            .upsert(true);
+        isTableSchema
+            ? IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .tableLoader(tableLoader)
+                .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true)
+            : IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .tableLoader(tableLoader)
+                .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true);
 
     assertThatThrownBy(
             () ->
@@ -238,15 +246,27 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .equalityFieldColumns(equalityFieldColumns)
-        .upsert(insertAsUpsert)
-        .toBranch(branch)
-        .uidSuffix("sink")
-        .append();
+    if (isTableSchema) {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .tableLoader(tableLoader)
+          .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .uidSuffix("sink")
+          .append();
+    } else {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .tableLoader(tableLoader)
+          .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+          .writeParallelism(parallelism)
+          .equalityFieldColumns(equalityFieldColumns)
+          .upsert(insertAsUpsert)
+          .toBranch(branch)
+          .uidSuffix("sink")
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");

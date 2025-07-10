@@ -21,6 +21,8 @@ package org.apache.iceberg.spark.functions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
+import org.apache.spark.sql.connector.catalog.functions.Reducer;
+import org.apache.spark.sql.connector.catalog.functions.ReducibleFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DateType;
@@ -60,7 +62,8 @@ public class DaysFunction extends UnaryUnboundFunction {
     return "days";
   }
 
-  private abstract static class BaseToDaysFunction extends BaseScalarFunction<Integer> {
+  protected abstract static class BaseToDaysFunction extends BaseScalarFunction<Integer>
+      implements ReducibleFunction<Integer, Integer> {
     @Override
     public String name() {
       return "days";
@@ -69,6 +72,11 @@ public class DaysFunction extends UnaryUnboundFunction {
     @Override
     public DataType resultType() {
       return DataTypes.DateType;
+    }
+
+    @Override
+    public Reducer<Integer, Integer> reducer(ReducibleFunction<?, ?> otherFunction) {
+      return null;
     }
   }
 

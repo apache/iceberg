@@ -51,11 +51,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -539,6 +543,74 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void removeDanglingDVsFromDeleteManifest() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    int numPositionsToDelete = 10;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+          .forEach(rowDelta::addDeletes);
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(deleteFiles).hasSize(numDataFiles);
+
+    Set<String> validDataFilePaths =
+        TestHelpers.dataFiles(table).stream()
+            .map(ContentFile::location)
+            .collect(Collectors.toSet());
+    for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
+      ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(
+              manifestFile, table.io(), ((BaseTable) table).operations().current().specsById());
+      for (DeleteFile deleteFile : reader) {
+        // make sure there are no orphaned DVs
+        assertThat(validDataFilePaths).contains(deleteFile.referencedDataFile());
+      }
+    }
+
+    // all data files should be rewritten. Set MIN_INPUT_FILES > to the number of data files so that
+    // compaction is only triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+    assertThat(result.removedDeleteFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    assertThat(TestHelpers.dataFiles(table)).hasSize(1);
+    assertThat(TestHelpers.deleteFiles(table)).isEmpty();
+
+    validDataFilePaths =
+        TestHelpers.dataFiles(table).stream()
+            .map(ContentFile::location)
+            .collect(Collectors.toSet());
+    for (ManifestFile manifestFile : table.currentSnapshot().deleteManifests(table.io())) {
+      ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(
+              manifestFile, table.io(), ((BaseTable) table).operations().current().specsById());
+      for (DeleteFile deleteFile : reader) {
+        // make sure there are no orphaned DVs
+        assertThat(validDataFilePaths).contains(deleteFile.referencedDataFile());
+      }
+    }
+  }
+
+  @TestTemplate
   public void testRemoveDangledEqualityDeletesPartitionEvolution() {
     Table table =
         TABLES.create(
@@ -656,7 +728,9 @@ public class TestRewriteDataFilesAction extends TestBase {
         .containsExactly(1, 2, 1);
     shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
 
-    shouldHaveSnapshots(table, 5);
+    // v3 removes orphaned DVs during rewrite already, so there should be one snapshot less
+    int expectedSnapshots = formatVersion >= 3 ? 4 : 5;
+    shouldHaveSnapshots(table, expectedSnapshots);
     assertThat(table.currentSnapshot().summary()).containsEntry("total-position-deletes", "0");
     assertEquals("Rows must match", expectedRecords, currentData());
   }
@@ -693,6 +767,9 @@ public class TestRewriteDataFilesAction extends TestBase {
             .execute();
     assertThat(result.rewrittenDataFilesCount()).as("Action should rewrite 1 data files").isOne();
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    if (formatVersion >= 3) {
+      assertThat(result.removedDeleteFilesCount()).isEqualTo(dataFiles.size());
+    }
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -706,7 +783,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(table.currentSnapshot().deleteManifests(table.io()).get(0).addedRowsCount())
         .as("Delete manifest added row count should equal total count")
-        .isEqualTo(total);
+        // v3 removes orphaned DVs during rewrite
+        .isEqualTo(formatVersion >= 3 ? 0 : 1);
   }
 
   @TestTemplate

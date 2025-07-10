@@ -21,10 +21,9 @@ package org.apache.iceberg.flink.sink.dynamic;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -41,13 +40,19 @@ class DynamicTableUpdateOperator
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
+  private final int inputSchemasPerTableCacheMaximumSize;
+
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
-      CatalogLoader catalogLoader, int cacheMaximumSize, long cacheRefreshMs) {
+      CatalogLoader catalogLoader,
+      int cacheMaximumSize,
+      long cacheRefreshMs,
+      int inputSchemasPerTableCacheMaximumSize) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
   }
 
   @Override
@@ -56,22 +61,23 @@ class DynamicTableUpdateOperator
     Catalog catalog = catalogLoader.loadCatalog();
     this.updater =
         new TableUpdater(
-            new TableMetadataCache(catalog, cacheMaximumSize, cacheRefreshMs), catalog);
+            new TableMetadataCache(
+                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
+            catalog);
   }
 
   @Override
   public DynamicRecordInternal map(DynamicRecordInternal data) throws Exception {
-    Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> newData =
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
         updater.update(
             TableIdentifier.parse(data.tableName()), data.branch(), data.schema(), data.spec());
+    TableMetadataCache.ResolvedSchemaInfo compareInfo = newData.f0;
 
-    data.setSchema(newData.f0);
-    data.setSpec(newData.f2);
+    data.setSchema(compareInfo.resolvedTableSchema());
+    data.setSpec(newData.f1);
 
-    if (newData.f1 == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
-      RowData newRowData = RowDataEvolver.convert(data.rowData(), data.schema(), newData.f0);
-      data.setRowData(newRowData);
-    }
+    RowData newRowData = (RowData) newData.f0.recordConverter().convert(data.rowData());
+    data.setRowData(newRowData);
 
     return data;
   }

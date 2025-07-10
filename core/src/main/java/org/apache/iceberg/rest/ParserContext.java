@@ -22,8 +22,9 @@ import com.fasterxml.jackson.databind.InjectableValues;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.hadoop.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class ParserContext {
+public class ParserContext {
 
   private final Map<String, Object> data;
 
@@ -44,11 +45,9 @@ class ParserContext {
   }
 
   static class Builder {
-    private Map<String, Object> data;
+    private final Map<String, Object> data = Maps.newHashMap();
 
-    private Builder() {
-      this.data = Collections.emptyMap();
-    }
+    private Builder() {}
 
     public Builder add(String key, Object value) {
       Preconditions.checkNotNull(key, "Key cannot be null");

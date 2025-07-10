@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -54,5 +55,18 @@ public class TestPrefixedStorage {
     assertThat(storage.storage()).isNotNull();
     assertThat(storage.storagePrefix()).isEqualTo("gs://bucket");
     assertThat(storage.gcpProperties().properties()).isEqualTo(properties);
+  }
+
+  @Test
+  public void userAgentPrefix() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID, "myProject",
+            GCPProperties.GCS_OAUTH2_TOKEN, "token",
+            GCPProperties.GCS_USER_PROJECT, "myUserProject");
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    assertThat(storage.storage().getOptions().getUserAgent())
+        .isEqualTo("gcsfileio/" + EnvironmentContext.get());
   }
 }

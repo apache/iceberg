@@ -83,6 +83,15 @@ The tests require Docker to execute. On macOS (with Docker Desktop), you might n
 ```
 sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
 ```
+
+In some cases the testcontainer may exit with an initialization error because of an illegal state exception in the GenericContainer.  One work around for this problem is to set `selinux` into permissive mode before running the tests. 
+
+```
+sudo setenforce Permissive
+./gradlew ...
+sudo setenforce Enforcing
+```
+
 ---
 
 ### Engine Compatibility
