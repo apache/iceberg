@@ -70,7 +70,7 @@ The Apache Iceberg community regularly meets for technical discussion both in-pe
 
 ### Hosting an Apache Iceberg Meetup
 
-Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are allowed to host a community meetup where the name **"Apache Iceberg Meetup <geographical location>"**  may be used in
+Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are allowed to host a community meetup where the name **Apache Iceberg Meetup <geographical location\>** may be used in
 compliance with [Apache Software Foundation's branding and trademarks guidelines](https://www.apache.org/foundation/marks/events.html#approval). No explicit PMC approval is required.
 
 In addition, hosts are required to ensure that their event abides by the following: 
