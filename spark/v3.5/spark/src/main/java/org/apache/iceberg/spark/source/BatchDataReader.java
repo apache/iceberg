@@ -50,8 +50,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   BatchDataReader(
       SparkInputPartition partition,
       ParquetBatchReadConf parquetBatchReadConf,
-      OrcBatchReadConf orcBatchReadConf,
-      boolean cacheDeleteFilesOnExecutors) {
+      OrcBatchReadConf orcBatchReadConf) {
     this(
         partition.table(),
         partition.taskGroup(),
@@ -60,7 +59,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,
-        cacheDeleteFilesOnExecutors);
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   BatchDataReader(

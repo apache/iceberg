@@ -170,7 +170,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               branch,
               expectedSchema,
               caseSensitive,
-              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
@@ -182,7 +183,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new SparkRowReaderFactory(cacheDeleteFilesOnExecutors);
+    return new SparkRowReaderFactory();
   }
 
   @Override
