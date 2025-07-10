@@ -100,7 +100,7 @@ class SparkBatch implements Batch {
               expectedSchemaString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              executorCacheLocalityEnabled);
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
