@@ -102,10 +102,9 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two ways to encode a row-level delete:
-
-* [_Position deletes_](#position-delete-files) mark a row deleted by data file path and the row position in the data file
-* [_Equality deletes_](#equality-delete-files) mark a row deleted by one or more column values, like `id = 5`
+There are two types of row-level deletes:
+* _Position deletes_ mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+* _Equality deletes_ mark a row deleted by one or more column values, like `id = 5`. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -1114,7 +1113,7 @@ Notes:
 
 This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
 
-There are three types of row-level deletes:
+There are different formats for encoding row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
 * Position delete files identify deleted rows by file location and row position (**deprecated** in v3)

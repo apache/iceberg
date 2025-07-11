@@ -156,7 +156,8 @@ public class GenericArrowVectorAccessorFactory<
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new DictionaryBinaryAccessor<>((IntVector) vector, dictionary);
+          return new DictionaryBinaryAccessor<>(
+              (IntVector) vector, dictionary, stringFactorySupplier.get());
         case FLOAT:
           return new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
         case INT64:
@@ -452,16 +453,26 @@ public class GenericArrowVectorAccessorFactory<
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
     private final Dictionary dictionary;
+    private final StringFactory<Utf8StringT> stringFactory;
 
-    DictionaryBinaryAccessor(IntVector vector, Dictionary dictionary) {
+    DictionaryBinaryAccessor(
+        IntVector vector, Dictionary dictionary, StringFactory<Utf8StringT> stringFactory) {
       super(vector);
       this.offsetVector = vector;
       this.dictionary = dictionary;
+      this.stringFactory = stringFactory;
     }
 
     @Override
     public final byte[] getBinary(int rowId) {
       return dictionary.decodeToBinary(offsetVector.get(rowId)).getBytes();
+    }
+
+    @Override
+    public Utf8StringT getUTF8String(int rowId) {
+      return null == stringFactory
+          ? super.getUTF8String(rowId)
+          : stringFactory.ofRow(offsetVector, dictionary, rowId);
     }
   }
 
@@ -813,6 +824,13 @@ public class GenericArrowVectorAccessorFactory<
           String.format(
               "Creating %s from a FixedSizeBinaryVector is not supported",
               getGenericClass().getSimpleName()));
+    }
+
+    /** Create a UTF8 String from the row value in the Dictionary. */
+    default Utf8StringT ofRow(IntVector offsetVector, Dictionary dictionary, int rowId) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Creating %s from a Dictionary is not supported", getGenericClass().getSimpleName()));
     }
 
     /** Create a UTF8 String from the byte array. */
