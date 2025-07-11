@@ -32,7 +32,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -701,14 +700,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .writeProperties(writeProperties)
               .build();
 
-      Function<InternalRow, InternalRow> rowLineageProjector =
-          writeSchema.findField(MetadataColumns.ROW_ID.fieldId()) != null
-              ? new ProjectRowLineageFromMetadata()
-              : row -> null;
+      Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
 
       if (spec.isUnpartitioned()) {
         return new UnpartitionedDataWriter(
-            writerFactory, fileFactory, io, spec, targetFileSize, rowLineageProjector);
+            writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor);
 
       } else {
         return new PartitionedDataWriter(
@@ -720,7 +716,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             dsSchema,
             targetFileSize,
             useFanoutWriter,
-            rowLineageProjector);
+            rowLineageExtractor);
       }
     }
   }
@@ -728,7 +724,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static class UnpartitionedDataWriter extends DataWriterWithLineage<InternalRow> {
     private final FileWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
-    private final Function<InternalRow, InternalRow> rowLineageProjector;
 
     private UnpartitionedDataWriter(
         SparkFileWriterFactory writerFactory,
@@ -736,11 +731,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         FileIO io,
         PartitionSpec spec,
         long targetFileSize,
-        Function<InternalRow, InternalRow> rowLineageProjector) {
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       this.delegate =
           new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
-      this.rowLineageProjector = rowLineageProjector;
     }
 
     @Override
@@ -750,10 +745,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void write(InternalRow meta, InternalRow record) throws IOException {
-      InternalRow rowLineage = rowLineageProjector.apply(meta);
-      InternalRow recordWithLineage =
-          rowLineage == null ? record : new JoinedRow(record, rowLineage);
-      delegate.write(recordWithLineage);
+      delegate.write(decorateWithRowLineage(meta, record));
     }
 
     @Override
@@ -786,7 +778,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final PartitionSpec spec;
     private final PartitionKey partitionKey;
     private final InternalRowWrapper internalRowWrapper;
-    private final Function<InternalRow, InternalRow> rowLineageProjector;
 
     private PartitionedDataWriter(
         SparkFileWriterFactory writerFactory,
@@ -797,7 +788,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         StructType dataSparkType,
         long targetFileSize,
         boolean fanoutEnabled,
-        Function<InternalRow, InternalRow> rowLineageProjector) {
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       if (fanoutEnabled) {
         this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
@@ -807,7 +799,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);
       this.internalRowWrapper = new InternalRowWrapper(dataSparkType, dataSchema.asStruct());
-      this.rowLineageProjector = rowLineageProjector;
     }
 
     @Override
@@ -818,10 +809,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void write(InternalRow meta, InternalRow record) throws IOException {
       partitionKey.partition(internalRowWrapper.wrap(record));
-      InternalRow rowLineage = rowLineageProjector.apply(meta);
-      InternalRow recordWithLineage =
-          rowLineage == null ? record : new JoinedRow(record, rowLineage);
-      delegate.write(recordWithLineage, spec, partitionKey);
+      delegate.write(decorateWithRowLineage(meta, record), spec, partitionKey);
     }
 
     @Override

@@ -120,12 +120,15 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // The write schema should only include row lineage in the output if it's an overwrite
-    // operation.
+    // operation or if it's a compaction.
     // In any other case, only null row IDs and sequence numbers would be produced which
     // means the row lineage columns can be excluded from the output files
-    boolean writeIncludesRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
+    boolean writeIncludesRowLineage =
+        TableUtil.supportsRowLineage(table)
+            && (overwriteFiles || writeConf.rewrittenFileSetId() != null);
     StructType sparkWriteSchema = dsSchema;
-    if (writeIncludesRowLineage) {
+    if (writeIncludesRowLineage
+        && !dsSchema.exists(field -> field.name().equals(MetadataColumns.ROW_ID.name()))) {
       sparkWriteSchema = sparkWriteSchema.add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$);
       sparkWriteSchema =
           sparkWriteSchema.add(

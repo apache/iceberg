@@ -45,6 +45,7 @@ import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -54,6 +55,7 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -976,19 +978,67 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));
   }
 
+  @TestTemplate
+  public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
+    createTable(ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      records.add(new ThreeColumnRecord(i, null, null));
+    }
+
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(10)
+        .writeTo(tableName)
+        .append();
+    List<Object[]> expectedRowsWithLineage =
+        sql("SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY c1", tableName);
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> rowsWithLineageAfterRewrite =
+        sql("SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY c1", tableName);
+    assertEquals(
+        "Rows with lineage before rewrite should equal rows with lineage after rewrite",
+        expectedRowsWithLineage,
+        rowsWithLineageAfterRewrite);
+  }
+
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
   }
 
+  private void createTable(Map<String, String> properties) {
+    sql("CREATE TABLE %s (c1 int, c2 string, c3 string) " + "USING iceberg ", tableName);
+    properties.forEach(
+        (prop, value) ->
+            this.sql(
+                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+                new Object[] {this.tableName, prop, value}));
+  }
+
   private void createPartitionTable() {
+    createPartitionTable(
+        ImmutableMap.of(
+            TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE));
+  }
+
+  private void createPartitionTable(Map<String, String> properties) {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
-            + "PARTITIONED BY (c2) "
-            + "TBLPROPERTIES ('%s' '%s')",
-        tableName,
-        TableProperties.WRITE_DISTRIBUTION_MODE,
-        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+            + "PARTITIONED BY (c2)",
+        tableName);
+    properties.forEach(
+        (prop, value) ->
+            this.sql(
+                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+                new Object[] {this.tableName, prop, value}));
   }
 
   private void createBucketPartitionTable() {
