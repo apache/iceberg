@@ -35,10 +35,10 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
- * A procedure that computes the stats incrementally after the snapshot that has partition stats
- * file till the given snapshot (uses current snapshot if not specified) and writes the combined
- * result into a {@link PartitionStatisticsFile} after merging the stats for a given snapshot. Does
- * a full compute if previous statistics file does not exist. Also registers the {@link
+ * A procedure that computes the stats incrementally from the last snapshot that has partition stats
+ * file until the given snapshot (uses current snapshot if not specified) and writes the combined
+ * result into a {@link PartitionStatisticsFile} after merging the partition stats. Does a full
+ * compute if previous statistics file does not exist. Also registers the {@link
  * PartitionStatisticsFile} to table metadata.
  *
  * @see SparkActions#computePartitionStats(Table)
