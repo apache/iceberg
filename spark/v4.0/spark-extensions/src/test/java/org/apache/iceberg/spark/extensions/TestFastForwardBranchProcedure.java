@@ -165,20 +165,27 @@ public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.fast_forward('test_table', branch => 'main', to => 'newBranch')",
+                    "CALL %s.system.fast_forward(table => 'test_table', 'main', to => 'newBranch')",
                     catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessageStartingWith(
+            "[UNEXPECTED_POSITIONAL_ARGUMENT] Cannot invoke routine `fast_forward` "
+                + "because it contains positional argument(s) following the named argument assigned to `table`; "
+                + "please rearrange them so the positional arguments come first and then retry the query again. "
+                + "SQLSTATE: 4274K");
 
     assertThatThrownBy(
             () ->
                 sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Catalog %s does not support procedures.", catalogName);
+        .hasMessage(
+            "[FAILED_TO_LOAD_ROUTINE] Failed to load routine `%s`.`custom`.`fast_forward`. SQLSTATE: 38000",
+            catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [to]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `fast_forward` because the parameter named `to` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.fast_forward('', 'main', 'newBranch')", catalogName))

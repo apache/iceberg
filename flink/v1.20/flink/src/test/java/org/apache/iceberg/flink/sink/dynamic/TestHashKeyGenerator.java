@@ -20,8 +20,8 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -302,7 +302,7 @@ class TestHashKeyGenerator {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(maxCacheSize, maxWriteParallelism);
-    Cache<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
+    Map<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
         generator.getKeySelectorCache();
 
     PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
@@ -317,18 +317,14 @@ class TestHashKeyGenerator {
             writeParallelism);
 
     int writeKey1 = generator.generateKey(record);
-    assertThat(keySelectorCache.estimatedSize()).isEqualTo(1);
+    assertThat(keySelectorCache).hasSize(1);
 
     int writeKey2 = generator.generateKey(record);
     assertThat(writeKey2).isNotEqualTo(writeKey1);
-    // Manually clean up because the cleanup is not always triggered
-    keySelectorCache.cleanUp();
-    assertThat(keySelectorCache.estimatedSize()).isEqualTo(1);
+    assertThat(keySelectorCache).hasSize(1);
 
     int writeKey3 = generator.generateKey(record);
-    // Manually clean up because the cleanup is not always triggered
-    keySelectorCache.cleanUp();
-    assertThat(keySelectorCache.estimatedSize()).isEqualTo(1);
+    assertThat(keySelectorCache).hasSize(1);
     // We create a new key selector which will start off at the same position
     assertThat(writeKey1).isEqualTo(writeKey3);
   }

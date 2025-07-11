@@ -20,9 +20,8 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -62,11 +61,11 @@ class HashKeyGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(HashKeyGenerator.class);
 
   private final int maxWriteParallelism;
-  private final Cache<SelectorKey, KeySelector<RowData, Integer>> keySelectorCache;
+  private final Map<SelectorKey, KeySelector<RowData, Integer>> keySelectorCache;
 
   HashKeyGenerator(int maxCacheSize, int maxWriteParallelism) {
     this.maxWriteParallelism = maxWriteParallelism;
-    this.keySelectorCache = Caffeine.newBuilder().maximumSize(maxCacheSize).build();
+    this.keySelectorCache = new LRUCache<>(maxCacheSize);
   }
 
   int generateKey(DynamicRecord dynamicRecord) throws Exception {
@@ -89,7 +88,7 @@ class HashKeyGenerator {
             dynamicRecord.spec(),
             dynamicRecord.equalityFields());
     KeySelector<RowData, Integer> keySelector =
-        keySelectorCache.get(
+        keySelectorCache.computeIfAbsent(
             cacheKey,
             k ->
                 getKeySelector(
@@ -377,7 +376,7 @@ class HashKeyGenerator {
   }
 
   @VisibleForTesting
-  Cache<SelectorKey, KeySelector<RowData, Integer>> getKeySelectorCache() {
+  Map<SelectorKey, KeySelector<RowData, Integer>> getKeySelectorCache() {
     return keySelectorCache;
   }
 }

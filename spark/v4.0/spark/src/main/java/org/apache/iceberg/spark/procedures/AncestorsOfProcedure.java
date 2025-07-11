@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -26,7 +27,9 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -34,10 +37,12 @@ import org.apache.spark.sql.types.StructType;
 
 public class AncestorsOfProcedure extends BaseProcedure {
 
+  static final String NAME = "ancestors_of";
+
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SNAPSHOT_ID_PARAM =
-      ProcedureParameter.optional("snapshot_id", DataTypes.LongType);
+      optionalInParameter("snapshot_id", DataTypes.LongType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};
@@ -63,17 +68,17 @@ public class AncestorsOfProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     Identifier tableIdent = input.ident(TABLE_PARAM);
@@ -91,7 +96,12 @@ public class AncestorsOfProcedure extends BaseProcedure {
         Lists.newArrayList(
             SnapshotUtil.ancestorIdsBetween(toSnapshotId, null, icebergTable::snapshot));
 
-    return toOutputRow(icebergTable, snapshotIds);
+    return asScanIterator(OUTPUT_TYPE, toOutputRow(icebergTable, snapshotIds));
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override

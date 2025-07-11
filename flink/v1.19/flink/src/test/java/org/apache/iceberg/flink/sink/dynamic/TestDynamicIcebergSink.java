@@ -42,9 +42,10 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
@@ -200,8 +201,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
   private static DataFormatConverters.RowConverter converter(Schema schema) {
     RowType rowType = FlinkSchemaUtil.convert(schema);
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(rowType);
-    return new DataFormatConverters.RowConverter(tableSchema.getFieldDataTypes());
+    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(rowType);
+    return new DataFormatConverters.RowConverter(
+        resolvedSchema.getColumnDataTypes().toArray(DataType[]::new));
   }
 
   @Test

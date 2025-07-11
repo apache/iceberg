@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -49,9 +50,20 @@ public class TestIcebergSinkBranch extends TestFlinkIcebergSinkBase {
   @Parameter(index = 0)
   private String branch;
 
-  @Parameters(name = "branch = {0}")
+  @Parameter(index = 1)
+  private boolean isTableSchema;
+
+  @Parameters(name = "branch = {0}, isTableSchema = {1}")
   public static Object[][] parameters() {
-    return new Object[][] {new Object[] {"main"}, new Object[] {"testBranch"}};
+    return new Object[][] {
+      // Remove after the deprecation of TableSchema - BEGIN
+      {"main", true},
+      {"testBranch", true},
+      // Remove after the deprecation of TableSchema - END
+
+      {"main", false},
+      {"testBranch", false},
+    };
   }
 
   @BeforeEach
@@ -83,18 +95,28 @@ public class TestIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     verifyOtherBranchUnmodified();
   }
 
-  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
+  private void testWriteRow(ResolvedSchema resolvedSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .toBranch(branch)
-        .distributionMode(distributionMode)
-        .append();
+    if (isTableSchema) {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .tableSchema(TableSchema.fromResolvedSchema(resolvedSchema))
+          .toBranch(branch)
+          .distributionMode(distributionMode)
+          .append();
+    } else {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .resolvedSchema(resolvedSchema)
+          .toBranch(branch)
+          .distributionMode(distributionMode)
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
