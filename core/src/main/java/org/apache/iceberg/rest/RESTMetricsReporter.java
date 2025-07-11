@@ -19,10 +19,13 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +35,9 @@ import org.slf4j.LoggerFactory;
  */
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
+
+  private static final ExecutorService METRICS_EXECUTOR =
+      ThreadPools.newExitingWorkerPool("rest-metrics-reporter", 1);
 
   private final RESTClient client;
   private final String metricsEndpoint;
@@ -51,15 +57,21 @@ class RESTMetricsReporter implements MetricsReporter {
       return;
     }
 
-    try {
-      client.post(
-          metricsEndpoint,
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
-    } catch (Exception e) {
-      LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
-    }
+    Tasks.range(1)
+        .executeWith(METRICS_EXECUTOR)
+        .suppressFailureWhenFinished()
+        .onFailure(
+            (item, exception) ->
+                LOG.warn(
+                    "Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
+        .run(
+            item -> {
+              client.post(
+                  metricsEndpoint,
+                  ReportMetricsRequest.of(report),
+                  null,
+                  headers,
+                  ErrorHandlers.defaultErrorHandler());
+            });
   }
 }
