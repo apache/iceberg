@@ -59,6 +59,7 @@ class RESTMetricsReporter implements MetricsReporter {
 
     Tasks.range(1)
         .executeWith(METRICS_EXECUTOR)
+        .suppressFailureWhenFinished()
         .onFailure(
             (item, exception) ->
                 LOG.warn(
