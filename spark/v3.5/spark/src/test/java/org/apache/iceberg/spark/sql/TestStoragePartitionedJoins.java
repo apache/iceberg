@@ -371,6 +371,54 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsWhichReorderPartitionsViaSpecEvolution() {
+    sql(
+            "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
+                    + "USING iceberg "
+                    + "PARTITIONED BY (bucket(8, id), int_col, dep) "
+                    + "TBLPROPERTIES (%s)",
+            tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // evolve the spec in the first table by reordering the final two partition columns by first
+    // removing them and re-adding them
+    table.updateSpec().removeField("int_col").commit();
+    table.updateSpec().removeField("dep").commit();
+
+    table.updateSpec().addField("dep").commit();
+    table.updateSpec().addField("int_col").commit();
+
+    sql("REFRESH TABLE %s", tableName);
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (2L, 200, 'hr')", tableName);
+
+    // create another table partitioned by `other_dep` partitioned identically to the original
+    // partitioning of the first table but with the last two partition columns reordered (e.g.
+    // the current state of the first table)
+    sql(
+            "CREATE TABLE %s (other_id BIGINT, other_int_col INT, other_dep STRING)"
+                    + "USING iceberg "
+                    + "PARTITIONED BY (bucket(8, other_id), other_dep, other_int_col)"
+                    + "TBLPROPERTIES (%s)",
+            tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (2L, 200, 'hr')", tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+            1, /* expected num of shuffles with SPJ */
+            3, /* expected num of shuffles without SPJ */
+            "SELECT * "
+                    + "FROM %s "
+                    + "INNER JOIN %s "
+                    + "ON id = other_id AND int_col = other_int_col AND dep = other_dep "
+                    + "ORDER BY id, int_col, dep",
+            tableName,
+            tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
   public void testJoinsWithIncompatibleSpecs() {
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING)"
