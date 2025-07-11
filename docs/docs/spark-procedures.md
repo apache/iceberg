@@ -974,6 +974,38 @@ Collect statistics of the snapshot with id `snap1` of table `my_table` for colum
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
 ```
 
+## Partition Statistics
+
+### `compute_partition_stats`
+
+This procedure computes the stats incrementally from the last snapshot that has partition stats file until the given 
+snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`
+after merging the partition stats. Does a full compute if previous statistics file does not exist. Also registers the 
+`PartitionStatisticsFile` to table metadata.
+
+| Argument Name | Required? | Type          | Description                         |
+|---------------|-----------|---------------|-------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                   |
+| `snapshot_id` |           | string        | Id of the snapshot to collect stats |
+
+#### Output
+
+| Output Name       | Type   | Description                                     |
+|-------------------|--------|-------------------------------------------------|
+| `partition_statistics_file` | string | Path to stats file created from by this command |
+
+#### Examples
+
+Collect statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats('my_table');
+```
+
+Collect statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1' );
+```
+
 ## Table Replication
 
 The `rewrite_table_path` procedure prepares an Iceberg table for copying to another location.
