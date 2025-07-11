@@ -78,6 +78,14 @@ A low-latency, high-fidelity data movement platform, Estuary lets developers qui
 
 Estuary's catalog of pre-built data connectors provides integrations with databases, APIs, event logs, and more. [Apache Iceberg](https://estuary.dev/solutions/technology/apache-iceberg/) is a primary destination option with two configurable materializations: one that [merges](https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/) new updates and one that simply [appends](https://docs.estuary.dev/reference/Connectors/materialization-connectors/amazon-s3-iceberg/) them.
 
+### [Firebolt](https://www.firebolt.io)
+
+[Firebolt](https://www.firebolt.io) is a cloud data warehouse built to power data-intensive applications that demand low latency and high concurrency. It is optimized for reading Apache Iceberg tables with sub-second performance and integrates seamlessly with major Iceberg catalogs.
+
+Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-core), a free, self-hosted edition of its distributed query engine.
+
+Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
+
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
 [IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
@@ -92,9 +100,18 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
 
+### [Redpanda](https://redpanda.com)
+
+Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceberg topics](https://www.redpanda.com/use-case/streaming-iceberg-tables) automatically transform Kafka messages into Iceberg tables in real-time. This allows users to query their Kafka data as part of an established Iceberg deployment, no connectors or additional technology required. Redpanda Iceberg integrates with an expanding list of Iceberg catalogs and query engines, including many listed here.
+
 ### [RisingWave](https://risingwave.com/)
 
 [RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
+
+### [Ryft](https://ryft.io/)
+
+[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
+
 
 ### [SingleStore](https://singlestore.com/)
 
@@ -123,6 +140,14 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 ### [Tabular](https://tabular.io)
 
 [Tabular](https://tabular.io/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
+
+### [Tinybird](https://tinybird.co)
+
+[Tinybird](https://tinybird.co) is a real-time data platform that lets developers and data teams build fast APIs on top of analytical data using SQL. It now offers native support for Apache Iceberg through ClickHouse’s [iceberg() table function](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg), allowing seamless querying of Iceberg tables stored in S3.
+
+This integration enables low-latency, high-concurrency access to Iceberg data, with Tinybird handling ingestion, transformation, and API publishing. Developers can now leverage Iceberg for open storage and governance, while using Tinybird for blazing-fast query performance and real-time delivery.
+
+Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg).
 
 ### [Upsolver](https://upsolver.com)
 

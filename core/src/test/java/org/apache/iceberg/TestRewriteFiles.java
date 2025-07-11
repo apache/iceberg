@@ -48,7 +48,7 @@ public class TestRewriteFiles extends TestBase {
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
     return TestHelpers.ALL_VERSIONS.stream()
-        .flatMap(i -> Stream.of(new Object[] {i, "main"}, new Object[] {i, "branch"}))
+        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "branch"}))
         .collect(Collectors.toList());
   }
 
@@ -379,12 +379,12 @@ public class TestRewriteFiles extends TestBase {
         pending.allManifests(table.io()).get(2),
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
-        ids(baseSnapshotId, baseSnapshotId),
+        ids(formatVersion >= 3 ? pendingId : baseSnapshotId, baseSnapshotId),
         files(fileADeletes(), fileBDeletes()),
-        statuses(ADDED, ADDED));
+        statuses(formatVersion >= 3 ? DELETED : ADDED, formatVersion >= 3 ? EXISTING : ADDED));
 
-    // We should only get the 4 manifests that this test is expected to add.
-    assertThat(listManifestFiles()).hasSize(4);
+    // We should only get the 4 (5 for v3) manifests that this test is expected to add.
+    assertThat(listManifestFiles()).hasSize(formatVersion >= 3 ? 5 : 4);
   }
 
   @TestTemplate
@@ -776,5 +776,41 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(snapshotAfterDeletes)
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
         branch);
+  }
+
+  @TestTemplate
+  public void removingDataFileAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+
+    commit(
+        table,
+        table.newRewrite().validateFromSnapshot(snapshot.snapshotId()).deleteFile(FILE_A),
+        branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 }

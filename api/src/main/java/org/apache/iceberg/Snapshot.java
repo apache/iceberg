@@ -195,4 +195,13 @@ public interface Snapshot extends Serializable {
   default Long addedRows() {
     return null;
   }
+
+  /**
+   * ID of the encryption key used to encrypt this snapshot's manifest list.
+   *
+   * @return a string key ID
+   */
+  default String keyId() {
+    return null;
+  }
 }

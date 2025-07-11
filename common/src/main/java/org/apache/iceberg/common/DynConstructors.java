@@ -76,13 +76,9 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
-    /**
-     * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
-     */
-    @Deprecated // will become package-private
     @Override
     @SuppressWarnings("unchecked")
-    public <R> R invokeChecked(Object target, Object... args) throws Exception {
+    <R> R invokeChecked(Object target, Object... args) throws Exception {
       Preconditions.checkArgument(
           target == null, "Invalid call to constructor: target must be null");
       return (R) newInstanceChecked(args);

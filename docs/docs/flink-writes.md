@@ -75,10 +75,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
-
-
-
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields. 
 
 ## Writing with DataStream
 
@@ -142,7 +139,8 @@ env.execute("Test Iceberg DataStream");
 ```
 
 !!! info
-    OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
+
 
 
 ### Write with Avro GenericRecord
@@ -393,6 +391,8 @@ SET table.exec.iceberg.use-v2-sink = true;
 ## Writing with DataStream
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
-Warning: There are some slight differences between these implementations:
-- The `RANGE` distribution mode is not yet available for the `IcebergSink`
-- When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
+!!! warning
+    There are some slight differences between these implementations:
+
+     - The `RANGE` distribution mode is not yet available for the `IcebergSink`
+     - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`

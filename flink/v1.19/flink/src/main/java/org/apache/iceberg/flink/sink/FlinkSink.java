@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -44,6 +38,7 @@ import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
@@ -114,7 +109,10 @@ public class FlinkSink {
    * @param input the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
    * @return {@link Builder} to connect the iceberg table.
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #forRow(DataStream,
+   *     ResolvedSchema)} instead.
    */
+  @Deprecated
   public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
     RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
     DataType[] fieldDataTypes = tableSchema.getFieldDataTypes();
@@ -123,6 +121,26 @@ public class FlinkSink {
         new DataFormatConverters.RowConverter(fieldDataTypes);
     return builderFor(input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
         .tableSchema(tableSchema);
+  }
+
+  /**
+   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into
+   * iceberg table. We use {@link RowData} inside the sink connector, so users need to provide a
+   * {@link ResolvedSchema} for builder to convert those {@link Row}s to a {@link RowData}
+   * DataStream.
+   *
+   * @param input the source input data stream with {@link Row}s.
+   * @param resolvedSchema defines the {@link TypeInformation} for input data.
+   * @return {@link Builder} to connect the iceberg table.
+   */
+  public static Builder forRow(DataStream<Row> input, ResolvedSchema resolvedSchema) {
+    RowType rowType = (RowType) resolvedSchema.toSinkRowDataType().getLogicalType();
+    DataType[] fieldDataTypes = resolvedSchema.getColumnDataTypes().toArray(DataType[]::new);
+
+    DataFormatConverters.RowConverter rowConverter =
+        new DataFormatConverters.RowConverter(fieldDataTypes);
+    return builderFor(input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
+        .resolvedSchema(resolvedSchema);
   }
 
   /**
@@ -140,7 +158,8 @@ public class FlinkSink {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
-    private TableSchema tableSchema;
+    @Deprecated private TableSchema tableSchema;
+    private ResolvedSchema resolvedSchema;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
@@ -217,8 +236,18 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link
+     *     #resolvedSchema(ResolvedSchema)} instead.
+     */
+    @Deprecated
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
+      return this;
+    }
+
+    public Builder resolvedSchema(ResolvedSchema newResolvedSchema) {
+      this.resolvedSchema = newResolvedSchema;
       return this;
     }
 
@@ -407,10 +436,13 @@ public class FlinkSink {
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+      RowType flinkRowType =
+          resolvedSchema != null
+              ? toFlinkRowType(table.schema(), resolvedSchema)
+              : toFlinkRowType(table.schema(), tableSchema);
       int writerParallelism =
           flinkWriteConf.writeParallelism() == null
               ? rowDataInput.getParallelism()
@@ -510,7 +542,7 @@ public class FlinkSink {
     private SingleOutputStreamOperator<FlinkWriteResult> appendWriter(
         DataStream<RowData> input,
         RowType flinkRowType,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         int writerParallelism) {
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (flinkWriteConf.upsertMode()) {
@@ -524,7 +556,8 @@ public class FlinkSink {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
-                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                "In UPSERT mode, source column '%s' of partition field '%s', should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
                 partitionField,
                 equalityFieldColumns);
           }
@@ -560,7 +593,7 @@ public class FlinkSink {
 
     private DataStream<RowData> distributeDataStream(
         DataStream<RowData> input,
-        List<Integer> equalityFieldIds,
+        Set<Integer> equalityFieldIds,
         RowType flinkRowType,
         int writerParallelism) {
       DistributionMode writeMode = flinkWriteConf.distributionMode();
@@ -601,8 +634,9 @@ public class FlinkSink {
               for (PartitionField partitionField : partitionSpec.fields()) {
                 Preconditions.checkState(
                     equalityFieldIds.contains(partitionField.sourceId()),
-                    "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                    "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
                         + "should be included in equality fields: '%s'",
+                    table.schema().findColumnName(partitionField.sourceId()),
                     partitionField,
                     equalityFieldColumns);
               }
@@ -674,6 +708,13 @@ public class FlinkSink {
     }
   }
 
+  /**
+   * Clean up after removing {@link Builder#tableSchema}
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toFlinkRowType(Schema,
+   *     ResolvedSchema)} instead.
+   */
+  @Deprecated
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
@@ -691,11 +732,28 @@ public class FlinkSink {
     }
   }
 
+  static RowType toFlinkRowType(Schema schema, ResolvedSchema requestedSchema) {
+    if (requestedSchema != null) {
+      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
+      // iceberg schema.
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
+
+      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will
+      // be promoted to iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT
+      // (backend by 1 'byte'), we will read 4 bytes rather than 1 byte, it will mess up the
+      // byte array in BinaryRowData. So here we must use flink schema.
+      return (RowType) requestedSchema.toSinkRowDataType().getLogicalType();
+    } else {
+      return FlinkSchemaUtil.convert(schema);
+    }
+  }
+
   static IcebergStreamWriter<RowData> createStreamWriter(
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
+      Set<Integer> equalityFieldIds) {
     Preconditions.checkArgument(tableSupplier != null, "Iceberg table supplier shouldn't be null");
 
     Table initTable = tableSupplier.get();
@@ -706,51 +764,10 @@ public class FlinkSink {
             flinkRowType,
             flinkWriteConf.targetDataFileSize(),
             format,
-            writeProperties(initTable, format, flinkWriteConf),
+            SinkUtil.writeProperties(format, flinkWriteConf, initTable),
             equalityFieldIds,
             flinkWriteConf.upsertMode());
 
     return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
-  }
-
-  /**
-   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
-   * write.
-   *
-   * @param table The table to get the table level settings
-   * @param format The FileFormat to use
-   * @param conf The write configuration
-   * @return The properties to use for writing
-   */
-  private static Map<String, String> writeProperties(
-      Table table, FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
-
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
-
-    return writeProperties;
   }
 }

@@ -34,6 +34,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -110,6 +111,7 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
+  static final String ENCRYPTION_KEYS = "encryption-keys";
   static final String NEXT_ROW_ID = "next-row-id";
   static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
@@ -227,6 +229,14 @@ public class TableMetadataParser {
 
     if (metadata.formatVersion() >= 3) {
       generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
+    }
+
+    if (metadata.encryptionKeys() != null && !metadata.encryptionKeys().isEmpty()) {
+      generator.writeArrayFieldStart(ENCRYPTION_KEYS);
+      for (EncryptedKey key : metadata.encryptionKeys()) {
+        EncryptedKeyParser.toJson(key, generator);
+      }
+      generator.writeEndArray();
     }
 
     toJson(metadata.refs(), generator);
@@ -472,6 +482,13 @@ public class TableMetadataParser {
 
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
+    List<EncryptedKey> keys;
+    if (node.has(ENCRYPTION_KEYS)) {
+      keys = JsonUtil.getObjectList(ENCRYPTION_KEYS, node, EncryptedKeyParser::fromJson);
+    } else {
+      keys = List.of();
+    }
+
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
       refs = refsFromJson(node.get(REFS));
@@ -562,6 +579,7 @@ public class TableMetadataParser {
         statisticsFiles,
         partitionStatisticsFiles,
         lastRowId,
+        keys,
         ImmutableList.of() /* no changes from the file */);
   }
 

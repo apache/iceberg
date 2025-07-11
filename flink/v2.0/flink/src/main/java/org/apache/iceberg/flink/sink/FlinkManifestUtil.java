@@ -38,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class FlinkManifestUtil {
+public class FlinkManifestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
   private static final int FORMAT_V2 = 2;
@@ -66,7 +66,7 @@ class FlinkManifestUtil {
     }
   }
 
-  static ManifestOutputFileFactory createOutputFileFactory(
+  public static ManifestOutputFileFactory createOutputFileFactory(
       Supplier<Table> tableSupplier,
       Map<String, String> tableProps,
       String flinkJobId,
@@ -83,7 +83,7 @@ class FlinkManifestUtil {
    * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
    *     partition spec
    */
-  static DeltaManifests writeCompletedFiles(
+  public static DeltaManifests writeCompletedFiles(
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
@@ -114,7 +114,7 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static WriteResult readCompletedFiles(
+  public static WriteResult readCompletedFiles(
       DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
@@ -135,19 +135,28 @@ class FlinkManifestUtil {
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
   }
 
-  static void deleteCommittedManifests(
+  public static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    for (ManifestFile manifest : manifests) {
+    deleteCommittedManifests(table.name(), table.io(), manifests, newFlinkJobId, checkpointId);
+  }
+
+  static void deleteCommittedManifests(
+      String tableName,
+      FileIO io,
+      List<ManifestFile> manifestsPath,
+      String newFlinkJobId,
+      long checkpointId) {
+    for (ManifestFile manifest : manifestsPath) {
       try {
-        table.io().deleteFile(manifest.path());
+        io.deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
             MoreObjects.toStringHelper(FlinkManifestUtil.class)
-                .add("tableName", table.name())
+                .add("tableName", tableName)
                 .add("flinkJobId", newFlinkJobId)
                 .add("checkpointId", checkpointId)
-                .add("manifestPath", manifest.path())
+                .add("manifestPath", manifest)
                 .toString();
         LOG.warn(
             "The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",

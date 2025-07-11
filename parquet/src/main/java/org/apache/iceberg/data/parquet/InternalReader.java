@@ -27,7 +27,6 @@ import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
 
@@ -45,19 +44,6 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   public static <T extends StructLike> ParquetValueReader<T> create(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
-  }
-
-  /**
-   * Create a struct reader.
-   *
-   * @deprecated will be removed in 1.10.0; use {@link #createStructReader(List, StructType)}
-   *     instead.
-   */
-  @Deprecated
-  @SuppressWarnings("unchecked")
-  protected ParquetValueReader<T> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 
   @Override

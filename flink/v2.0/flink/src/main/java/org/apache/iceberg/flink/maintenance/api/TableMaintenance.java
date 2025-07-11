@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -57,6 +58,10 @@ public class TableMaintenance {
   static final String WATERMARK_ASSIGNER_OPERATOR_NAME = "Watermark Assigner";
   static final String FILTER_OPERATOR_NAME_PREFIX = "Filter ";
   static final String LOCK_REMOVER_OPERATOR_NAME = "Lock remover";
+
+  static final long RATE_LIMIT_SECOND_DEFAULT = 60;
+  static final long LOCK_CHECK_DELAY_SECOND_DEFAULT = 30;
+  static final int MAX_READ_BACK_DEFAULT = 100;
 
   private TableMaintenance() {}
 
@@ -108,10 +113,10 @@ public class TableMaintenance {
 
     private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
     private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-    private Duration rateLimit = Duration.ofMinutes(1);
-    private Duration lockCheckDelay = Duration.ofSeconds(30);
+    private Duration rateLimit = Duration.ofSeconds(RATE_LIMIT_SECOND_DEFAULT);
+    private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
-    private int maxReadBack = 100;
+    private int maxReadBack = MAX_READ_BACK_DEFAULT;
 
     private Builder(
         StreamExecutionEnvironment env,
@@ -257,9 +262,9 @@ public class TableMaintenance {
           DataStream<TaskResult> result =
               builder.append(
                   filtered,
-                  taskIndex,
-                  taskNames.get(taskIndex),
                   tableName,
+                  taskNames.get(taskIndex),
+                  taskIndex,
                   loader,
                   uidSuffix,
                   slotSharingGroup,
@@ -300,8 +305,7 @@ public class TableMaintenance {
     }
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
-      return String.format(
-          "%s [%s]", streamBuilder.getClass().getSimpleName(), String.valueOf(taskIndex));
+      return String.format(Locale.ROOT, "%s [%d]", streamBuilder.maintenanceTaskName(), taskIndex);
     }
   }
 

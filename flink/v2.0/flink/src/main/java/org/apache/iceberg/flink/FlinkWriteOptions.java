@@ -81,6 +81,9 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Integer> WRITE_PARALLELISM =
       ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 
+  public static final ConfigOption<Boolean> COMPACTION_ENABLE =
+      ConfigOptions.key("compaction-enabled").booleanType().defaultValue(false);
+
   @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =
       ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();

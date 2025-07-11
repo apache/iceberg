@@ -42,14 +42,6 @@ public class RewritePositionDeletesGroup
 
   private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0
-   */
-  @Deprecated
-  public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
-    this(info, tasks, 0L, 0L, 0);
-  }
-
   public RewritePositionDeletesGroup(
       FileGroupInfo info,
       List<PositionDeletesScanTask> tasks,
@@ -60,14 +52,6 @@ public class RewritePositionDeletesGroup
     Preconditions.checkArgument(!tasks.isEmpty(), "Tasks must not be empty");
     this.maxRewrittenDataSequenceNumber =
         tasks.stream().mapToLong(t -> t.file().dataSequenceNumber()).max().getAsLong();
-  }
-
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #fileScanTasks()}
-   */
-  @Deprecated
-  public List<PositionDeletesScanTask> tasks() {
-    return fileScanTasks();
   }
 
   public void setOutputFiles(Set<DeleteFile> files) {
@@ -119,24 +103,8 @@ public class RewritePositionDeletesGroup
         .toString();
   }
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFilesSizeInBytes()}
-   */
-  @Deprecated
-  public long rewrittenBytes() {
-    return inputFilesSizeInBytes();
-  }
-
   public long addedBytes() {
     return addedDeleteFiles.stream().mapToLong(ScanTaskUtil::contentSizeInBytes).sum();
-  }
-
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFileNum()}
-   */
-  @Deprecated
-  public int numRewrittenDeleteFiles() {
-    return inputFileNum();
   }
 
   public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {

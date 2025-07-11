@@ -348,7 +348,7 @@ public interface Catalog {
   }
 
   /**
-   * /** Instantiate a builder to either create a table or start a create/replace transaction.
+   * Instantiate a builder to either create a table or start a create/replace transaction.
    *
    * @param identifier a table identifier
    * @param schema a schema

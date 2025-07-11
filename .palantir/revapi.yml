@@ -1253,6 +1253,116 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
+  "1.9.0":
+    org.apache.iceberg:iceberg-common:
+    - code: "java.method.visibilityReduced"
+      old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Reduce visibilty of deprecated method"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.MetadataUpdate.EnableRowLineage"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.MetadataUpdate.RemoveSnapshot"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedDataRewriter"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedFileRewriter<T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F>"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedPositionDeletesRewriter"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.actions.FileRewriter<T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F>"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.ROW_LINEAGE"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.inheritedMovedToClass"
+      old: "method org.apache.iceberg.rest.auth.AuthSession org.apache.iceberg.rest.auth.AuthManager::tableSession(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>) @ org.apache.iceberg.rest.auth.OAuth2Manager"
+      new: "method org.apache.iceberg.rest.auth.OAuth2Util.AuthSession org.apache.iceberg.rest.auth.OAuth2Manager::tableSession(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>)"
+      justification: "overriding a default method is source- and binary-compatible"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.TableMetadata::rowLineageEnabled()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method int org.apache.iceberg.actions.RewriteFileGroup::numFiles()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method int org.apache.iceberg.actions.RewritePositionDeletesGroup::numRewrittenDeleteFiles()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.FileScanTask> org.apache.iceberg.actions.RewriteFileGroup::fileScans()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.PositionDeletesScanTask> org.apache.iceberg.actions.RewritePositionDeletesGroup::tasks()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method long org.apache.iceberg.PartitionStats::totalRecordCount()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method long org.apache.iceberg.actions.RewriteFileGroup::sizeInBytes()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method long org.apache.iceberg.actions.RewritePositionDeletesGroup::rewrittenBytes()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::enableRowLineage()"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.GenericManifestFile::<init>(java.lang.String,\
+        \ long, int, org.apache.iceberg.ManifestContent, long, long, java.lang.Long,\
+        \ int, long, int, long, int, long, java.util.List<org.apache.iceberg.ManifestFile.PartitionFieldSummary>,\
+        \ java.nio.ByteBuffer)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.actions.RewriteFileGroup::<init>(org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.FileScanTask>)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.actions.RewritePositionDeletesGroup::<init>(org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.PositionDeletesScanTask>)"
+      justification: "Removing deprecations for 1.10.0"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.removed"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.parquet.ParquetValueWriter<T>\
+        \ org.apache.iceberg.data.parquet.InternalWriter<T extends org.apache.iceberg.StructLike>::create(org.apache.parquet.schema.MessageType)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<T>\
+        \ org.apache.iceberg.parquet.ParquetValueWriters::recordWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.InternalReader<T\
+        \ extends org.apache.iceberg.StructLike>::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
+        \ java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.types.Types.StructType)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueReader<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.data.parquet.GenericParquetReaders::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
+        \ java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.types.Types.StructType)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.data.parquet.GenericParquetWriter::buildWriter(org.apache.parquet.schema.MessageType)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<T>\
+        \ org.apache.iceberg.data.parquet.InternalWriter<T extends org.apache.iceberg.StructLike>::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
+      justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.data.parquet.GenericParquetWriter::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
+      justification: "Removing deprecations for 1.10.0"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

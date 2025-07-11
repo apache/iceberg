@@ -49,8 +49,8 @@ public abstract class DeleteFileIndexTestBase<
     extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   static final DeleteFile FILE_A_EQ_1 =

@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.List;
@@ -37,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRowLineageMetadata {
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
-    return TestHelpers.ALL_VERSIONS;
+    return TestHelpers.V3_AND_ABOVE;
   }
 
   @Parameter private int formatVersion;
@@ -70,52 +69,54 @@ public class TestRowLineageMetadata {
   @Test
   public void testSnapshotRowIDValidation() {
     Snapshot snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null);
+        new BaseSnapshot(
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, null, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows will be set to null if first-row-id is null
     snapshot =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L);
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", null, 10L, null);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
 
     // added-rows and first-row-id can be 0
-    snapshot = new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, 0L);
+    snapshot =
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, 0L, null);
     assertThat(snapshot.firstRowId()).isEqualTo(0);
     assertThat(snapshot.addedRows()).isEqualTo(0);
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(
-                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null))
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (required when first-row-id is set): null");
 
     assertThatThrownBy(
             () ->
-                new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L))
+                new BaseSnapshot(
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
-                new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L))
+                new BaseSnapshot(
+                    0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
 
   @TestTemplate
   public void testSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     long newRows = 30L;
 
     TableMetadata base = baseMetadata();
 
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
 
     TableMetadata firstAddition = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
@@ -123,7 +124,17 @@ public class TestRowLineageMetadata {
 
     Snapshot addMoreRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", firstAddition.nextRowId(), newRows);
+            1,
+            2,
+            1L,
+            0,
+            DataOperations.APPEND,
+            null,
+            1,
+            "foo",
+            firstAddition.nextRowId(),
+            newRows,
+            null);
 
     TableMetadata secondAddition =
         TableMetadata.buildFrom(firstAddition).addSnapshot(addMoreRows).build();
@@ -133,14 +144,12 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testInvalidSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     Long newRows = 30L;
 
     TableMetadata base = baseMetadata();
 
     Snapshot invalidLastRow =
-        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, newRows);
+        new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", null, newRows, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -149,12 +158,12 @@ public class TestRowLineageMetadata {
     // add rows to check TableMetadata validation; Snapshot rejects negative next-row-id
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows, null);
     TableMetadata added = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L);
+            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(added).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)
@@ -164,8 +173,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testFastAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -185,8 +192,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -206,7 +211,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppendBranch() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
     // should also affect commits to main
 
@@ -239,8 +243,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -265,8 +267,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testPositionDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -303,8 +303,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testEqualityDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -338,8 +336,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testReplace() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -368,8 +364,6 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testMetadataRewrite() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);

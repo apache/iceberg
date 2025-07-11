@@ -24,35 +24,38 @@ activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 analyticsaccelerator = "1.0.0"
 antlr = "4.9.3"
+antlr413 = "4.13.1" # For Spark 4.0 support
 aircompressor = "0.27"
 apiguardian = "1.1.2"
 arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.27.3"
 awaitility = "4.3.0"
-awssdk-bom = "2.31.30"
-azuresdk-bom = "1.2.31"
+awssdk-bom = "2.31.77"
+azuresdk-bom = "1.2.36"
 awssdk-s3accessgrants = "2.3.0"
 bson-ver = "4.11.5"
 caffeine = "2.9.3"
-calcite = "1.39.0"
+calcite = "1.40.0"
+comet = "0.8.1"
 datasketches = "6.2.0"
-delta-standalone = "3.3.1"
-delta-spark = "3.3.1"
+delta-standalone = "3.3.2"
+delta-spark = "3.3.2"
+derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.37.0"
+errorprone-annotations = "2.39.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
-google-libraries-bom = "26.59.0"
-guava = "33.4.7-jre"
+google-libraries-bom = "26.62.0"
+guava = "33.4.8-jre"
 hadoop3 = "3.4.1"
-httpcomponents-httpclient5 = "5.4.4"
+httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
-immutables-value = "2.10.1"
-jackson-bom = "2.19.0"
+immutables-value = "2.11.0"
+jackson-bom = "2.19.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
@@ -63,26 +66,27 @@ jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.25"
-junit = "5.12.2"
-junit-platform = "1.12.2"
-kafka = "3.9.0"
+junit = "5.13.2"
+junit-platform = "1.13.2"
+kafka = "3.9.1"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.103.5"
-netty-buffer = "4.2.0.Final"
+nessie = "0.104.2"
+netty-buffer = "4.2.2.Final"
 object-client-bundle = "3.3.2"
-orc = "1.9.5"
-parquet = "1.15.1"
+orc = "1.9.6"
+parquet = "1.15.2"
 roaringbitmap = "1.3.0"
 scala-collection-compat = "2.13.0"
 slf4j = "2.0.17"
-snowflake-jdbc = "3.23.2"
+snowflake-jdbc = "3.24.2"
 spark34 = "3.4.4"
-spark35 = "3.5.5"
-sqlite-jdbc = "3.49.1.0"
-testcontainers = "1.21.0"
+spark35 = "3.5.6"
+spark40 = "4.0.0"
+sqlite-jdbc = "3.50.2.0"
+testcontainers = "1.21.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -92,6 +96,8 @@ aliyun-sdk-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliy
 analyticsaccelerator-s3 = { module = "software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3", version.ref = "analyticsaccelerator" }
 antlr-antlr4 = { module = "org.antlr:antlr4", version.ref = "antlr" }
 antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
+antlr-antlr413 = { module = "org.antlr:antlr4", version.ref = "antlr413" }
+antlr-runtime413 = { module = "org.antlr:antlr4-runtime", version.ref = "antlr413" }
 arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.ref = "arrow" }
 arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
 avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
@@ -171,6 +177,8 @@ apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apigu
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
+derby-core = { module = "org.apache.derby:derby", version.ref = "derby"}
+derby-tools = { module = "org.apache.derby:derbytools", version.ref = "derby"}
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
 flink119-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink119" }
 flink119-core = { module = "org.apache.flink:flink-core", version.ref = "flink119" }
@@ -197,7 +205,6 @@ junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", vers
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
-junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
