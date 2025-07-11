@@ -19,7 +19,7 @@
 
 # Iceberg Spark Fixtures
 
-For a standalone iceberg spark environment with bundled Spark runtimes, Iceberg spark libraries, storage and catalogs services for 
+For a standalone iceberg environment with bundled engine runtimes, Iceberg libraries, storage and catalogs services for 
 testing and demo purposes.
 
 ## Build the Docker Images
