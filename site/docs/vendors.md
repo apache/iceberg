@@ -30,14 +30,12 @@ AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/
 
 BladePipe is a real-time end-to-end data integration tool, offering 40+ out-of-the-box connectors. It provides a one-stop data movement solution, including schema evolution, data migration and sync, verification and correction, monitoring and alerting. With sub-second latency, BladePipe captures change data from MySQL, Oracle, PostgreSQL and other sources and streams it to Iceberg and more, all without writing a single line of code. It offers [on-premise and BYOC deployment options](https://www.bladepipe.com/pricing). Learn more about how to build a pipeline with BladePipe [here](https://doc.bladepipe.com/quick/quick_start_byoc).
 
-
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
 Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
 tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
 AWS and Azure, and as well as an on-premises solution.
-
 
 ### [CelerData](https://celerdata.com)
 

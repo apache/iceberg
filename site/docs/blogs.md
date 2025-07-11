@@ -24,8 +24,13 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 <!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
-**Date:** June 20, 2025, **Company**: BladePipe
+**Date:** July 10, 2025, **Company**: BladePipe
 **Author**: [BladePipe](https://www.bladepipe.com)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Making Sense of Apache Iceberg Statistics](https://www.ryft.io/blog/making-sense-of-apache-iceberg-statistics)
+**Date:** July 9, 2025, **Company**: Ryft
+**Author**: [Guy Yasoor](https://www.linkedin.com/in/guy-yasoor/)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [Querying Apache Iceberg with Sub-Second Performance](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance)
