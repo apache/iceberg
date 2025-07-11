@@ -41,6 +41,7 @@ import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -95,7 +96,11 @@ public abstract class ScanTestBase extends AvroDataTest {
     // If V3 spec features are used, set the format version to 3
     Map<String, String> tableProperties =
         writeSchema.columns().stream()
-                .anyMatch(f -> f.initialDefaultLiteral() != null || f.writeDefaultLiteral() != null)
+                .anyMatch(
+                    f ->
+                        f.initialDefaultLiteral() != null
+                            || f.writeDefaultLiteral() != null
+                            || f.type().equals(Types.UnknownType.get()))
             ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
             : ImmutableMap.of();
     Table table =

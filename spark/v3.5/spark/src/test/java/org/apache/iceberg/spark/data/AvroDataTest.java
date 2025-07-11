@@ -183,6 +183,18 @@ public abstract class AvroDataTest {
   }
 
   @Test
+  public void testUnknown() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()), optional(2, "unknown", Types.UnknownType.get())
+            // ,
+            //            optional(3, "list", ListType.ofOptional(30, Types.UnknownType.get()))
+            );
+
+    writeAndValidate(schema);
+  }
+
+  @Test
   public void testNumericMapKey() throws IOException {
     Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
