@@ -58,6 +58,7 @@ public class SparkProcedures {
         RewritePositionDeleteFilesProcedure.NAME, RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put(FastForwardBranchProcedure.NAME, FastForwardBranchProcedure::builder);
     mapBuilder.put(ComputeTableStatsProcedure.NAME, ComputeTableStatsProcedure::builder);
+    mapBuilder.put("compute_partition_stats", ComputePartitionStatsProcedure::builder);
     mapBuilder.put(RewriteTablePathProcedure.NAME, RewriteTablePathProcedure::builder);
     return mapBuilder.build();
   }
