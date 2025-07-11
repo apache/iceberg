@@ -158,6 +158,11 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   // Overriding the below rename view testcases to exclude checking same view metadata after rename.
   // Nessie adds extra properties (like commit id) on every operation. Hence, view metadata will not
   // be same after rename.
