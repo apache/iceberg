@@ -39,7 +39,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
-  private final boolean cacheDeleteFilesOnExecutors;
 
   BaseRowReader(
       Table table,
@@ -50,11 +49,6 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
-    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-  }
-
-  protected boolean cacheDeleteFilesOnExecutors() {
-    return cacheDeleteFilesOnExecutors;
   }
 
   protected CloseableIterable<InternalRow> newIterable(
