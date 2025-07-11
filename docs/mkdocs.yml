@@ -93,7 +93,7 @@ nav:
     - jdbc.md
     - nessie.md
     - custom-catalog.md
-  - Storage and Management:
+  - Storage:
     - Apache Amoro: amoro.md
     - AWS S3: aws/#s3-fileio
     - Dell ECS: dell.md
