@@ -359,13 +359,14 @@ public class SparkTable
           task -> {
             DataFile file = task.file();
             PartitionSpec spec = task.spec();
+            Schema fileSchema = table().schemas().get(file.schemaId());
             Evaluator evaluator =
                 evaluators.computeIfAbsent(
                     spec.specId(),
                     specId ->
                         new Evaluator(
                             spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
-            return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
+            return evaluator.eval(file.partition()) || metricsEvaluator.eval(file, fileSchema);
           });
 
     } catch (IOException ioe) {

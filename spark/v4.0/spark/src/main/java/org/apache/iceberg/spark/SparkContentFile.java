@@ -43,6 +43,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   private final int partitionPosition;
   private final int recordCountPosition;
   private final int fileSizeInBytesPosition;
+  private final int schemaIdPosition;
   private final int columnSizesPosition;
   private final int valueCountsPosition;
   private final int nullValueCountsPosition;
@@ -95,6 +96,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     this.partitionPosition = positions.get(DataFile.PARTITION_NAME);
     this.recordCountPosition = positions.get(DataFile.RECORD_COUNT.name());
     this.fileSizeInBytesPosition = positions.get(DataFile.FILE_SIZE.name());
+    this.schemaIdPosition = positions.get(DataFile.SCHEMA_ID.name());
     this.columnSizesPosition = positions.get(DataFile.COLUMN_SIZES.name());
     this.valueCountsPosition = positions.get(DataFile.VALUE_COUNTS.name());
     this.nullValueCountsPosition = positions.get(DataFile.NULL_VALUE_COUNTS.name());
@@ -165,6 +167,11 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   @Override
   public long fileSizeInBytes() {
     return wrapped.getAs(fileSizeInBytesPosition);
+  }
+
+  @Override
+  public int schemaId() {
+    return wrapped.getAs(schemaIdPosition);
   }
 
   @Override
