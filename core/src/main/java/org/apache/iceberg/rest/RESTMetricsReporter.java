@@ -59,15 +59,18 @@ class RESTMetricsReporter implements MetricsReporter {
 
     Tasks.range(1)
         .executeWith(METRICS_EXECUTOR)
-        .onFailure((item, exception) ->
-            LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
-        .run(item -> {
-          client.post(
-              metricsEndpoint,
-              ReportMetricsRequest.of(report),
-              null,
-              headers,
-              ErrorHandlers.defaultErrorHandler());
-        });
+        .onFailure(
+            (item, exception) ->
+                LOG.warn(
+                    "Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
+        .run(
+            item -> {
+              client.post(
+                  metricsEndpoint,
+                  ReportMetricsRequest.of(report),
+                  null,
+                  headers,
+                  ErrorHandlers.defaultErrorHandler());
+            });
   }
 }
