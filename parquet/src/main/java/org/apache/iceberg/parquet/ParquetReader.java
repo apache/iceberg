@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.function.Function;
+import org.apache.curator.utils.CloseableUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -99,9 +100,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private static class FileIterator<T> implements CloseableIterator<T> {
     private static final Logger LOG = LoggerFactory.getLogger(FileIterator.class);
 
-    private final ParquetFileReader reader;
+    private volatile ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final ParquetValueReader<T> model;
+    private volatile ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
 
@@ -120,7 +121,13 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public boolean hasNext() {
-      return valuesRead < totalValues;
+      boolean hasNext = valuesRead < totalValues;
+      if (!hasNext) {
+        model = null;
+        CloseableUtils.closeQuietly(reader);
+        reader = null;
+      }
+      return hasNext;
     }
 
     @Override
@@ -171,7 +178,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public void close() throws IOException {
-      reader.close();
+      if (reader != null) {
+        reader.close();
+      }
     }
   }
 }
