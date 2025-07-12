@@ -37,7 +37,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
 
 /** An AvroDataScan test that validates data by reading through Spark */
-public abstract class ScanTestBase extends AvroDataTest {
+public abstract class ScanTestBase extends AvroDataTestBase {
   private static final Configuration CONF = new Configuration();
 
   protected static SparkSession spark = null;

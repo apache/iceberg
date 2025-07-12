@@ -18,4 +18,4 @@
  */
 package org.apache.iceberg.flink;
 
-public class IcebergConnectorSmokeTest extends TestIcebergConnector {}
+public class TestIcebergConnectorSmoke extends TestIcebergConnector {}

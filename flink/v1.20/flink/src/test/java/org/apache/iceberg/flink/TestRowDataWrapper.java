@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.RecordWrapperTest;
+import org.apache.iceberg.RecordWrapperTestBase;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.InternalRecordWrapper;
@@ -31,7 +31,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.util.StructLikeWrapper;
 
-public class TestRowDataWrapper extends RecordWrapperTest {
+public class TestRowDataWrapper extends RecordWrapperTestBase {
 
   /**
    * Flink's time type has been truncated to millis seconds, so we need a customized assert method
@@ -60,7 +60,8 @@ public class TestRowDataWrapper extends RecordWrapperTest {
   }
 
   @Override
-  protected void generateAndValidate(Schema schema, RecordWrapperTest.AssertMethod assertMethod) {
+  protected void generateAndValidate(
+      Schema schema, RecordWrapperTestBase.AssertMethod assertMethod) {
     int numRecords = 100;
     Iterable<Record> recordList = RandomGenericData.generate(schema, numRecords, 101L);
     Iterable<RowData> rowDataList = RandomRowData.generate(schema, numRecords, 101L);

@@ -54,7 +54,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class AvroDataTest {
+public abstract class AvroDataTestBase {
 
   private static final long FIRST_ROW_ID = 2_000L;
   protected static final Map<Integer, Object> ID_TO_CONSTANT =
