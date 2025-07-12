@@ -59,7 +59,8 @@ class RESTViewOperations implements ViewOperations {
   public ViewMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_VIEW);
     return updateCurrentMetadata(
-        client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
+        client.get(
+            path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler(), h -> {}));
   }
 
   @Override

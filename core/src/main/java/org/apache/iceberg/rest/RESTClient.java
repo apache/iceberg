@@ -76,8 +76,9 @@ public interface RESTClient extends Closeable {
       String path,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return get(path, ImmutableMap.of(), responseType, headers, errorHandler, responseHeaders);
   }
 
   default <T extends RESTResponse> T get(
@@ -85,7 +86,7 @@ public interface RESTClient extends Closeable {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
+    return get(path, ImmutableMap.of(), responseType, headers, errorHandler, h -> {});
   }
 
   default <T extends RESTResponse> T get(
@@ -93,8 +94,9 @@ public interface RESTClient extends Closeable {
       Map<String, String> queryParams,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    return get(path, queryParams, responseType, headers.get(), errorHandler);
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return get(path, queryParams, responseType, headers.get(), errorHandler, responseHeaders);
   }
 
   default <T extends RESTResponse> T get(
@@ -107,7 +109,16 @@ public interface RESTClient extends Closeable {
     if (parserContext != null) {
       throw new UnsupportedOperationException("Parser context is not supported");
     }
-    return get(path, queryParams, responseType, headers, errorHandler);
+    return get(path, queryParams, responseType, headers, errorHandler, h -> {});
+  }
+
+  default <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return get(path, queryParams, responseType, headers, errorHandler, h -> {});
   }
 
   <T extends RESTResponse> T get(
@@ -115,7 +126,8 @@ public interface RESTClient extends Closeable {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler);
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders);
 
   default <T extends RESTResponse> T post(
       String path,

@@ -72,9 +72,10 @@ public abstract class BaseHTTPClient implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
     HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers, null);
-    return execute(request, responseType, errorHandler, h -> {});
+    return execute(request, responseType, errorHandler, responseHeaders);
   }
 
   @Override
