@@ -635,7 +635,7 @@ DROP VIEW IF EXISTS <viewName>
 
 Update a view's schema, its properties, or the underlying SQL statement using `CREATE OR REPLACE`:
 ```sql
-CREATE OR REPLACE <viewName> (updated_id COMMENT 'updated ID')
+CREATE OR REPLACE VIEW <viewName> (updated_id COMMENT 'updated ID')
     TBLPROPERTIES ('key1' = 'new_val1')
     AS SELECT id FROM <tableName>
 ```
