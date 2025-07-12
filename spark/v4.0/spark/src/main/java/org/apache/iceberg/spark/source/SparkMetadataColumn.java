@@ -18,19 +18,89 @@
  */
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.MetadataBuilder;
 
 public class SparkMetadataColumn implements MetadataColumn {
 
   private final String name;
   private final DataType dataType;
   private final boolean isNullable;
+  private final boolean preserveOnReinsert;
+  private final boolean preserveOnUpdate;
+  private final boolean preserveOnDelete;
 
-  public SparkMetadataColumn(String name, DataType dataType, boolean isNullable) {
+  public static class Builder {
+    private String name;
+    private DataType dataType;
+    private boolean isNullable;
+    private boolean preserveOnReinsert = MetadataColumn.PRESERVE_ON_REINSERT_DEFAULT;
+    private boolean preserveOnUpdate = MetadataColumn.PRESERVE_ON_UPDATE_DEFAULT;
+    private boolean preserveOnDelete = MetadataColumn.PRESERVE_ON_DELETE_DEFAULT;
+
+    public Builder name(String fieldName) {
+      Preconditions.checkArgument(
+          !Strings.isNullOrEmpty(fieldName), "Cannot have a null or empty name");
+      this.name = fieldName;
+      return this;
+    }
+
+    public Builder dataType(DataType type) {
+      Preconditions.checkArgument(type != null, "Cannot have a null datatype");
+      this.dataType = type;
+      return this;
+    }
+
+    public Builder withNullability(boolean nullable) {
+      this.isNullable = nullable;
+      return this;
+    }
+
+    public Builder preserveOnReinsert(boolean shouldPreserveOnReinsert) {
+      this.preserveOnReinsert = shouldPreserveOnReinsert;
+      return this;
+    }
+
+    public Builder preserveOnUpdate(boolean shouldPreserveOnUpdate) {
+      this.preserveOnUpdate = shouldPreserveOnUpdate;
+      return this;
+    }
+
+    public Builder preserveOnDelete(boolean shouldPreserveOnDelete) {
+      this.preserveOnDelete = shouldPreserveOnDelete;
+      return this;
+    }
+
+    public SparkMetadataColumn build() {
+      Preconditions.checkArgument(
+          name != null, "Cannot build a SparkMetadataColumn with a null name");
+      Preconditions.checkArgument(
+          dataType != null, "Cannot build a SparkMetadataColumn with a null data type");
+      return new SparkMetadataColumn(
+          name, dataType, isNullable, preserveOnReinsert, preserveOnUpdate, preserveOnDelete);
+    }
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  private SparkMetadataColumn(
+      String name,
+      DataType dataType,
+      boolean isNullable,
+      boolean preserveOnReinsert,
+      boolean preserveOnUpdate,
+      boolean preserveOnDelete) {
     this.name = name;
     this.dataType = dataType;
     this.isNullable = isNullable;
+    this.preserveOnReinsert = preserveOnReinsert;
+    this.preserveOnUpdate = preserveOnUpdate;
+    this.preserveOnDelete = preserveOnDelete;
   }
 
   @Override
@@ -46,5 +116,15 @@ public class SparkMetadataColumn implements MetadataColumn {
   @Override
   public boolean isNullable() {
     return isNullable;
+  }
+
+  @Override
+  public String metadataInJSON() {
+    return new MetadataBuilder()
+        .putBoolean(MetadataColumn.PRESERVE_ON_REINSERT, preserveOnReinsert)
+        .putBoolean(MetadataColumn.PRESERVE_ON_UPDATE, preserveOnUpdate)
+        .putBoolean(MetadataColumn.PRESERVE_ON_DELETE, preserveOnDelete)
+        .build()
+        .json();
   }
 }
