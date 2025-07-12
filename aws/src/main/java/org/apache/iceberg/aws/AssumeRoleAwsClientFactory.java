@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
   private HttpClientProperties httpClientProperties;
+  private HttpAsyncClientProperties httpAsyncClientProperties;
   private S3FileIOProperties s3FileIOProperties;
   private String roleSessionName;
   private AwsClientProperties awsClientProperties;
@@ -61,18 +62,19 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     if (s3FileIOProperties.isS3CRTEnabled()) {
       return S3AsyncClient.crtBuilder()
           .applyMutation(this::applyAssumeRoleConfigurations)
-          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(httpAsyncClientProperties::applyHttpAsyncClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
-          .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
+          .applyMutation(s3FileIOProperties::applyServiceConfigurations)
           .build();
     }
     return S3AsyncClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-        .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
         .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+        .applyMutation(httpAsyncClientProperties::applyHttpAsyncClientConfigurations)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+        .applyMutation(s3FileIOProperties::applyServiceConfigurations)
+        .applyMutation(s3FileIOProperties::applySignerConfiguration)
+        .applyMutation(s3FileIOProperties::applyRetryConfigurations)
         .build();
   }
 
@@ -107,6 +109,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.awsProperties = new AwsProperties(properties);
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.httpClientProperties = new HttpClientProperties(properties);
+    this.httpAsyncClientProperties = new HttpAsyncClientProperties(properties);
     this.awsClientProperties = new AwsClientProperties(properties);
     this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
@@ -148,6 +151,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected HttpClientProperties httpClientProperties() {
     return httpClientProperties;
+  }
+
+  protected HttpAsyncClientProperties httpAsyncClientProperties() {
+    return httpAsyncClientProperties;
   }
 
   protected S3FileIOProperties s3FileIOProperties() {
