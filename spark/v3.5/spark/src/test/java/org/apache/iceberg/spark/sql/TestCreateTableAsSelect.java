@@ -22,6 +22,7 @@ import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 import static org.apache.spark.sql.functions.when;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -29,6 +30,9 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
@@ -447,5 +451,42 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
+  }
+
+  @TestTemplate
+  public void testCreateTableInUniqueLocation() throws Exception {
+    assumeThat(uniqueTableLocation()).isTrue();
+
+    assumeThat(validationCatalog)
+        .as("Hadoop catalog does not support rename")
+        .isNotInstanceOf(HadoopCatalog.class);
+
+    TableIdentifier renamedIdent = TableIdentifier.of(Namespace.of("default"), "table2");
+    try {
+      assertThat(validationCatalog.tableExists(tableIdent))
+          .as("Table should not already exist")
+          .isFalse();
+      assertThat(validationCatalog.tableExists(renamedIdent))
+          .as("Table should not already exist")
+          .isFalse();
+
+      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", tableName, sourceName);
+
+      sql("ALTER TABLE %s RENAME TO %s", tableName, renamedIdent);
+
+      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", tableName, sourceName);
+
+      Table table = validationCatalog.loadTable(tableIdent);
+      assertThat(table).as("Should load the new table").isNotNull();
+
+      Table renamedTable = validationCatalog.loadTable(renamedIdent);
+      assertThat(renamedTable).as("Should load the new table").isNotNull();
+
+      assertThat(table.location())
+          .as("Should have a different table location")
+          .isNotEqualTo(renamedTable.location());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", renamedIdent);
+    }
   }
 }

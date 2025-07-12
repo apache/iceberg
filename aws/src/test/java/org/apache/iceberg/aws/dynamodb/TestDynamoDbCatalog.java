@@ -49,14 +49,15 @@ public class TestDynamoDbCatalog {
   public void before() {
     dynamo = Mockito.mock(DynamoDbClient.class);
     dynamoCatalog = new DynamoDbCatalog();
-    dynamoCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null);
+    dynamoCatalog.initialize(
+        CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null, false);
   }
 
   @Test
   public void testConstructorWarehousePathWithEndSlash() {
     DynamoDbCatalog catalogWithSlash = new DynamoDbCatalog();
     catalogWithSlash.initialize(
-        CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), dynamo, null);
+        CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), dynamo, null, false);
     Mockito.doReturn(GetItemResponse.builder().item(Maps.newHashMap()).build())
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
@@ -102,5 +103,38 @@ public class TestDynamoDbCatalog {
         .as("default warehouse can't be called on non existent namespace")
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Cannot find default warehouse location:");
+  }
+
+  @Test
+  public void testDefaultWarehouseLocationUniqueNoDbUri() throws Exception {
+    try (DynamoDbCatalog catalog = new DynamoDbCatalog()) {
+      catalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null, true);
+      Mockito.doReturn(GetItemResponse.builder().item(Maps.newHashMap()).build())
+          .when(dynamo)
+          .getItem(any(GetItemRequest.class));
+
+      String defaultWarehouseLocation = catalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
+      assertThat(defaultWarehouseLocation).matches(WAREHOUSE_PATH + "/db.db/table-[a-z0-9]{32}");
+    }
+  }
+
+  @Test
+  public void testDefaultWarehouseLocationUniqueDbUri() throws Exception {
+    try (DynamoDbCatalog catalog = new DynamoDbCatalog()) {
+      catalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null, true);
+      String dbUri = "s3://bucket2/db";
+      Mockito.doReturn(
+              GetItemResponse.builder()
+                  .item(
+                      ImmutableMap.of(
+                          toPropertyCol(DynamoDbCatalog.defaultLocationProperty()),
+                          AttributeValue.builder().s(dbUri).build()))
+                  .build())
+          .when(dynamo)
+          .getItem(any(GetItemRequest.class));
+
+      String defaultWarehouseLocation = catalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
+      assertThat(defaultWarehouseLocation).matches("s3://bucket2/db/table-[a-z0-9]{32}");
+    }
   }
 }
