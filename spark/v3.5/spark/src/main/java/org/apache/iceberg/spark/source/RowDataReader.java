@@ -51,7 +51,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive());
+        partition.isCaseSensitive(),
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   RowDataReader(
@@ -59,9 +60,11 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
 
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+    super(
+        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
@@ -84,7 +87,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(
+            filePath, task.deletes(), counter(), true, cacheDeleteFilesOnExecutors());
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();

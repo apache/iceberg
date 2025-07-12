@@ -34,14 +34,16 @@ public class EqualityDeleteRowReader extends RowDataReader {
       Table table,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
-    super(table, task, tableSchema, expectedSchema, caseSensitive);
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(table, task, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   @Override
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     SparkDeleteFilter matches =
-        new SparkDeleteFilter(task.file().location(), task.deletes(), counter(), true);
+        new SparkDeleteFilter(
+            task.file().location(), task.deletes(), counter(), true, cacheDeleteFilesOnExecutors());
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
