@@ -960,6 +960,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadMissingTableWithMetadataName() {
+    testLoadMissingTableWithMetadataName(supportsEmptyNamespace());
+  }
+
+  protected void testLoadMissingTableWithMetadataName(boolean loadsTablesWithEmptyNamespaces) {
+    C catalog = catalog();
+
+    TableIdentifier table = TableIdentifier.of("ns", "entries");
+
+    assertThat(catalog.tableExists(table)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadTable(table))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith(
+            loadsTablesWithEmptyNamespaces
+                ? "Tables do not exist: ns.entries, ns"
+                : "Table does not exist: ns.entries");
+  }
+
+  @Test
   public void testRenameTable() {
     C catalog = catalog();
 

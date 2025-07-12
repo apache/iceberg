@@ -303,6 +303,11 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }
 
+  @Override
+  protected boolean isValidIdentifier(TableIdentifier identifier) {
+    return identifier.namespace().levels().length == 1;
+  }
+
   private Namespace toNamespace(Datasets dataset) {
     return Namespace.of(dataset.getDatasetReference().getDatasetId());
   }

@@ -76,6 +76,11 @@ public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsEmptyNamespace() {
+    return true;
+  }
+
   @BeforeEach
   public void setupCatalog() {
     this.catalog = initCatalog("testCatalog", ImmutableMap.of());
