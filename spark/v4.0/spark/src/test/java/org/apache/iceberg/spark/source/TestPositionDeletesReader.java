@@ -183,7 +183,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());
@@ -222,7 +223,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask2)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());
@@ -293,7 +295,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());

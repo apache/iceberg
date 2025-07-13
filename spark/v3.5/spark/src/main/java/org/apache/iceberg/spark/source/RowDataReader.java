@@ -87,8 +87,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(
-            filePath, task.deletes(), counter(), true, cacheDeleteFilesOnExecutors());
+        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
