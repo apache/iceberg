@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.hive.HiveCatalog
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.util.escapeSingleQuotedString
@@ -54,7 +55,8 @@ case class DescribeV2ViewExec(
 
   private def describeExtended: Seq[InternalRow] = {
     val outputColumns = view.queryColumnNames.mkString("[", ", ", "]")
-    val properties: Map[String, String] = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
+    val properties: Map[String, String] = view.properties.asScala.toMap --
+      (ViewCatalog.RESERVED_PROPERTIES.asScala :+ HiveCatalog.HMS_TABLE_OWNER)
     val viewCatalogAndNamespace: Seq[String] = view.name.split("\\.").take(2)
     val viewProperties = properties.toSeq.sortBy(_._1).map {
       case (key, value) =>
@@ -66,7 +68,8 @@ case class DescribeV2ViewExec(
     // part of SHOW CREATE TABLE and can result in weird formatting in the DESCRIBE output
     toCatalystRow("# Detailed View Information", "", "") ::
       toCatalystRow("Comment", view.properties.getOrDefault(ViewCatalog.PROP_COMMENT, ""), "") ::
-      toCatalystRow("Owner", view.properties.getOrDefault(ViewCatalog.PROP_OWNER, ""), "") ::
+      toCatalystRow("Owner", view.properties.getOrDefault(ViewCatalog.PROP_OWNER,
+        view.properties.getOrDefault(HiveCatalog.HMS_TABLE_OWNER, "")), "") ::
       toCatalystRow("View Catalog and Namespace", viewCatalogAndNamespace.quoted, "") ::
       toCatalystRow("View Query Output Columns", outputColumns, "") ::
       toCatalystRow("View Properties", viewProperties, "") ::
