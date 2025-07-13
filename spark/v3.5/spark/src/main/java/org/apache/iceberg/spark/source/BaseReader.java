@@ -198,19 +198,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
-    private final boolean cacheDeleteFilesOnExecutors;
 
     SparkDeleteFilter(
-        String filePath,
-        List<DeleteFile> deletes,
-        DeleteCounter counter,
-        boolean needRowPosCol,
-        boolean cacheDeleteFilesOnExecutors) {
+        String filePath, List<DeleteFile> deletes, DeleteCounter counter, boolean needRowPosCol) {
       super(filePath, deletes, tableSchema, expectedSchema, counter, needRowPosCol);
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
-      this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
     }
 
     @Override

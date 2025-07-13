@@ -114,17 +114,14 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
 
   CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
     String filePath = task.file().location();
-    SparkDeleteFilter deletes =
-        new SparkDeleteFilter(
-            filePath, task.deletes(), counter(), true, cacheDeleteFilesOnExecutors());
+    SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
     String filePath = task.file().location();
     SparkDeleteFilter deletes =
-        new SparkDeleteFilter(
-            filePath, task.existingDeletes(), counter(), true, cacheDeleteFilesOnExecutors());
+        new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 
