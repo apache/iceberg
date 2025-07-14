@@ -24,6 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
@@ -35,11 +40,6 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.base.Function;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
@@ -116,8 +116,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         generateData(writeSchema, numRecords, seed, nullPercentage, transform);
 
     // write a test parquet file using iceberg writer
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("junit").toFile();
 
     try (FileAppender<Record> writer = getParquetWriter(writeSchema, testFile)) {
       writer.addAll(expected);
@@ -273,8 +272,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "decimal_data", Types.DecimalType.of(10, 5)));
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("junit").toFile();
+
     Iterable<Record> data =
         generateData(writeSchema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetWriter(writeSchema, dataFile)) {
@@ -302,8 +301,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(103, "double_data", Types.DoubleType.get()),
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("junit").toFile();
+
     Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
@@ -317,8 +316,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // Longs, ints, string types etc use delta encoding and which are not supported for vectorized
     // reads
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("junit").toFile();
     Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
