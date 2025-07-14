@@ -38,19 +38,19 @@ class ExtractRowLineage implements Function<InternalRow, InternalRow> {
           .add(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$, true);
   private static final InternalRow EMPTY_LINEAGE_ROW = new GenericInternalRow(2);
 
-  private final Schema writeSchema;
+  private final boolean rowLineageRequired;
 
   private ProjectingInternalRow cachedRowLineageProjection;
 
   ExtractRowLineage(Schema writeSchema) {
     Preconditions.checkArgument(writeSchema != null, "Write schema cannot be null");
-    this.writeSchema = writeSchema;
+    this.rowLineageRequired = writeSchema.findField(MetadataColumns.ROW_ID.name()) != null;
   }
 
   @Override
   public InternalRow apply(InternalRow meta) {
     // If row lineage is not required on write return a null row
-    if (writeSchema.findField(MetadataColumns.ROW_ID.name()) == null) {
+    if (!rowLineageRequired) {
       return null;
     }
 
@@ -61,12 +61,10 @@ class ExtractRowLineage implements Function<InternalRow, InternalRow> {
 
     ProjectingInternalRow metaProj = (ProjectingInternalRow) meta;
     // Use cached ordinals if they exist
-    if (cachedRowLineageProjection != null) {
-      cachedRowLineageProjection.project(metaProj);
-      return cachedRowLineageProjection;
+    if (cachedRowLineageProjection == null) {
+      this.cachedRowLineageProjection = rowLineageProjection(metaProj);
     }
 
-    this.cachedRowLineageProjection = rowLineageProjection(metaProj);
     cachedRowLineageProjection.project(metaProj);
     return cachedRowLineageProjection;
   }
