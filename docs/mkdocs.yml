@@ -45,6 +45,7 @@ nav:
     - Go: https://pkg.go.dev/github.com/apache/iceberg-go/
   - Integrations:
     # Iceberg-maintained integrations come first
+    - Apache Hive: hive.md
     - Spark:
       - spark-getting-started.md
       - spark-configuration.md
@@ -70,7 +71,6 @@ nav:
       - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
       - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
       - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
-      - Apache Hive: hive.md
       - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
       - Daft: daft.md
       - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
