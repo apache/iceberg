@@ -540,6 +540,66 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         .exists();
   }
 
+  @TestTemplate
+  public void testNoExpiredMetadataCleanupByDefault() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s', table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+  }
+
+  @TestTemplate
+  public void testCleanExpiredMetadata() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s', "
+                + "clean_expired_metadata => true, "
+                + "table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+
+    assertThat(table.schemas().keySet())
+        .as("Should have only the latest schema")
+        .containsExactly(table.schema().schemaId());
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+  }
+
   private static StatisticsFile writeStatsFile(
       long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
       throws IOException {
