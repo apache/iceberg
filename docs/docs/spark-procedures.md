@@ -522,6 +522,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 |---------------|-----------|------|----------------------------------|
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
+| `where`       | ️   | string | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
