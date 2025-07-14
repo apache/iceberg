@@ -271,6 +271,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
+| `clean_expired_metadata` |   | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
