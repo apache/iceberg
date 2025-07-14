@@ -36,25 +36,27 @@ class ExtractRowLineage implements Function<InternalRow, InternalRow> {
       new StructType()
           .add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$, true)
           .add(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$, true);
+  private static final InternalRow EMPTY_LINEAGE_ROW = new GenericInternalRow(2);
+
   private final Schema writeSchema;
 
   private ProjectingInternalRow cachedRowLineageProjection;
 
   ExtractRowLineage(Schema writeSchema) {
+    Preconditions.checkArgument(writeSchema != null, "Write schema cannot be null");
     this.writeSchema = writeSchema;
   }
 
   @Override
   public InternalRow apply(InternalRow meta) {
-    // If output schema is null, i.e. deletes in MoR, or row lineage is not required on write,
-    // return a null row
-    if (writeSchema == null || writeSchema.findField(MetadataColumns.ROW_ID.name()) == null) {
+    // If row lineage is not required on write return a null row
+    if (writeSchema.findField(MetadataColumns.ROW_ID.name()) == null) {
       return null;
     }
 
-    // If metadata row is null, return a row where both fields are null
+    // If metadata row is null but the write schema requires lineage, return an empty lineage row
     if (meta == null) {
-      return new GenericInternalRow(2);
+      return EMPTY_LINEAGE_ROW;
     }
 
     ProjectingInternalRow metaProj = (ProjectingInternalRow) meta;
@@ -64,11 +66,16 @@ class ExtractRowLineage implements Function<InternalRow, InternalRow> {
       return cachedRowLineageProjection;
     }
 
-    // Otherwise, discover ordinals and set values
+    this.cachedRowLineageProjection = rowLineageProjection(metaProj);
+    cachedRowLineageProjection.project(metaProj);
+    return cachedRowLineageProjection;
+  }
+
+  private ProjectingInternalRow rowLineageProjection(ProjectingInternalRow metadataRow) {
     Integer rowIdOrdinal = null;
     Integer lastUpdatedOrdinal = null;
-    for (int i = 0; i < metaProj.numFields(); i++) {
-      String fieldName = metaProj.schema().fields()[i].name();
+    for (int i = 0; i < metadataRow.numFields(); i++) {
+      String fieldName = metadataRow.schema().fields()[i].name();
       if (fieldName.equals(MetadataColumns.ROW_ID.name())) {
         rowIdOrdinal = i;
       } else if (fieldName.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())) {
@@ -80,13 +87,8 @@ class ExtractRowLineage implements Function<InternalRow, InternalRow> {
     Preconditions.checkArgument(
         lastUpdatedOrdinal != null,
         "Expected to find last updated sequence number in metadata row");
-
     List<Object> rowLineageProjectionOrdinals = ImmutableList.of(rowIdOrdinal, lastUpdatedOrdinal);
-    this.cachedRowLineageProjection =
-        new ProjectingInternalRow(
-            ROW_LINEAGE_SCHEMA,
-            JavaConverters.asScala(rowLineageProjectionOrdinals).toIndexedSeq());
-    cachedRowLineageProjection.project(metaProj);
-    return cachedRowLineageProjection;
+    return new ProjectingInternalRow(
+        ROW_LINEAGE_SCHEMA, JavaConverters.asScala(rowLineageProjectionOrdinals).toIndexedSeq());
   }
 }
