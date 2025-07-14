@@ -22,6 +22,7 @@ import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.TestHelpers.V3_AND_ABOVE;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +41,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -119,9 +119,10 @@ public class TestScansAndSchemaEvolution {
 
   @TestTemplate
   public void testAddColumnWithDefaultValueAndQuery() throws IOException {
-    Assumptions.assumeTrue(
-        V3_AND_ABOVE.contains(formatVersion),
-        "Only enable the test for versions above V3 since default values require V3+.");
+    assumeThat(V3_AND_ABOVE.contains(formatVersion))
+        .withFailMessage(
+            "Only enable the test for versions above V3 since default values require V3+.")
+        .isTrue();
     File location = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(location.delete()).isTrue(); // should be created by table create
 
