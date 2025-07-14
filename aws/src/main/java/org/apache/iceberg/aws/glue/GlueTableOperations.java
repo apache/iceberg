@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.glue;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -77,6 +78,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final Object hadoopConf;
   private final LockManager lockManager;
   private FileIO fileIO;
+  private final int metadataRefreshMaxRetries;
+  private static final String GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
+      "iceberg.glue.metadata-refresh-max-retries";
+  private static final int GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -107,6 +112,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     this.tableCatalogProperties = tableCatalogProperties;
     this.hadoopConf = hadoopConf;
     this.lockManager = lockManager;
+    this.metadataRefreshMaxRetries =
+        ((Configuration) hadoopConf)
+            .getInt(
+                GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
+                GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
   }
 
   @Override
@@ -138,7 +148,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    refreshFromMetadataLocation(metadataLocation);
+    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
   @Override

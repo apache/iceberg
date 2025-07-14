@@ -172,6 +172,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
       LockManager lock,
       Map<String, String> catalogProps) {
     this.catalogProperties = catalogProps;
+    if (hadoopConf == null) {
+      LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
+      this.hadoopConf = new Configuration();
+    }
     initialize(name, path, properties, s3Properties, client, lock);
   }
 
