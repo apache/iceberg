@@ -65,6 +65,7 @@ nav:
     - Kafka Connect: kafka-connect.md
     - Third-party:
     # Now all the 3rd party integrations
+      - Apache Amoro: amoro.md
       - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
       - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
       - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
@@ -94,7 +95,6 @@ nav:
     - nessie.md
     - custom-catalog.md
   - Storage:
-    - Apache Amoro: amoro.md
     - AWS S3: aws/#s3-fileio
     - Dell ECS: dell.md
 
