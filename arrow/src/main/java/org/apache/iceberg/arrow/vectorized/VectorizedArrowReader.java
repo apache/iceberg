@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Map;
+import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -33,6 +34,8 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -120,7 +123,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
-    DICTIONARY
+    DICTIONARY,
+    TIMESTAMP_NANOS
   }
 
   protected Types.NestedField icebergField() {
@@ -180,6 +184,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case TIMESTAMP_MILLIS:
+          case TIMESTAMP_NANOS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
@@ -213,8 +218,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       allocateDictEncodedVector();
     } else {
       Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
-      if (columnDescriptor.getPrimitiveType().getOriginalType() != null) {
-        allocateVectorBasedOnOriginalType(columnDescriptor.getPrimitiveType(), arrowField);
+      if (columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation() != null
+          && !(columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation()
+              instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation)) {
+        allocateVectorBasedOnLogicalTypeAnnotation(columnDescriptor.getPrimitiveType(), arrowField);
       } else {
         allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
       }
@@ -258,89 +265,149 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.readType = ReadType.DICTIONARY;
   }
 
-  private void allocateVectorBasedOnOriginalType(PrimitiveType primitive, Field arrowField) {
-    switch (primitive.getOriginalType()) {
-      case ENUM:
-      case JSON:
-      case UTF8:
-      case BSON:
-        this.vec = arrowField.createVector(rootAlloc);
-        // TODO: Possibly use the uncompressed page size info to set the initial capacity
-        vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
-        vec.allocateNewSafe();
-        this.readType = ReadType.VARCHAR;
-        this.typeWidth = UNKNOWN_WIDTH;
-        break;
-      case INT_8:
-      case INT_16:
-      case INT_32:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((IntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.INT;
-        this.typeWidth = (int) IntVector.TYPE_WIDTH;
-        break;
-      case DATE:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((DateDayVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.INT;
-        this.typeWidth = (int) IntVector.TYPE_WIDTH;
-        break;
-      case INT_64:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((BigIntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIMESTAMP_MILLIS:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((BigIntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.TIMESTAMP_MILLIS;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIMESTAMP_MICROS:
-        this.vec = arrowField.createVector(rootAlloc);
-        if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
-          ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
-        } else {
-          ((TimeStampMicroVector) vec).allocateNew(batchSize);
-        }
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIME_MICROS:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((TimeMicroVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
-        break;
-      case DECIMAL:
-        this.vec = arrowField.createVector(rootAlloc);
-        switch (primitive.getPrimitiveTypeName()) {
-          case BINARY:
-          case FIXED_LEN_BYTE_ARRAY:
-            ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.FIXED_LENGTH_DECIMAL;
-            this.typeWidth = primitive.getTypeLength();
-            break;
-          case INT64:
-            ((BigIntVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.LONG_BACKED_DECIMAL;
-            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-            break;
-          case INT32:
-            ((IntVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.INT_BACKED_DECIMAL;
-            this.typeWidth = (int) IntVector.TYPE_WIDTH;
-            break;
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-        }
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported logical type: " + primitive.getOriginalType());
-    }
+  private void allocateVectorBasedOnLogicalTypeAnnotation(
+      PrimitiveType primitive, Field arrowField) {
+    primitive
+        .getLogicalTypeAnnotation()
+        .accept(
+            new LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<>() {
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
+                return visitEnumJsonBsonString();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
+                return visitEnumJsonBsonString();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
+                vec = arrowField.createVector(rootAlloc);
+                switch (primitive.getPrimitiveTypeName()) {
+                  case BINARY:
+                  case FIXED_LEN_BYTE_ARRAY:
+                    ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
+                    readType = ReadType.FIXED_LENGTH_DECIMAL;
+                    typeWidth = primitive.getTypeLength();
+                    break;
+                  case INT64:
+                    ((BigIntVector) vec).allocateNew(batchSize);
+                    readType = ReadType.LONG_BACKED_DECIMAL;
+                    typeWidth = (int) BigIntVector.TYPE_WIDTH;
+                    break;
+                  case INT32:
+                    ((IntVector) vec).allocateNew(batchSize);
+                    readType = ReadType.INT_BACKED_DECIMAL;
+                    typeWidth = (int) IntVector.TYPE_WIDTH;
+                    break;
+                  default:
+                    throw new UnsupportedOperationException(
+                        "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+                }
+                return Optional.empty();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
+                vec = arrowField.createVector(rootAlloc);
+                ((DateDayVector) vec).allocateNew(batchSize);
+                readType = ReadType.INT;
+                typeWidth = (int) IntVector.TYPE_WIDTH;
+                return Optional.empty();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
+                vec = arrowField.createVector(rootAlloc);
+                ((TimeMicroVector) vec).allocateNew(batchSize);
+                readType = ReadType.LONG;
+                typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
+                return Optional.empty();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
+                switch (timestampLogicalType.getUnit()) {
+                  case MILLIS:
+                    vec = arrowField.createVector(rootAlloc);
+                    ((BigIntVector) vec).allocateNew(batchSize);
+                    readType = ReadType.TIMESTAMP_MILLIS;
+                    typeWidth = (int) BigIntVector.TYPE_WIDTH;
+                    break;
+                  case MICROS:
+                    vec = arrowField.createVector(rootAlloc);
+                    if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
+                      ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
+                    } else {
+                      ((TimeStampMicroVector) vec).allocateNew(batchSize);
+                    }
+                    readType = ReadType.LONG;
+                    typeWidth = (int) BigIntVector.TYPE_WIDTH;
+                    break;
+                  case NANOS:
+                    vec = arrowField.createVector(rootAlloc);
+                    if (((Types.TimestampNanoType) icebergField.type()).shouldAdjustToUTC()) {
+                      ((TimeStampNanoTZVector) vec).allocateNew(batchSize);
+                    } else {
+                      ((TimeStampNanoVector) vec).allocateNew(batchSize);
+                    }
+                    readType = ReadType.LONG;
+                    typeWidth = (int) BigIntVector.TYPE_WIDTH;
+                    break;
+                }
+                return Optional.empty();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
+                vec = arrowField.createVector(rootAlloc);
+
+                if (intLogicalType.getBitWidth() == 8
+                    || intLogicalType.getBitWidth() == 16
+                    || intLogicalType.getBitWidth() == 32) {
+                  ((IntVector) vec).allocateNew(batchSize);
+                  readType = ReadType.INT;
+                  typeWidth = (int) IntVector.TYPE_WIDTH;
+                }
+                if (intLogicalType.getBitWidth() == 64) {
+                  ((BigIntVector) vec).allocateNew(batchSize);
+                  readType = ReadType.LONG;
+                  typeWidth = (int) BigIntVector.TYPE_WIDTH;
+                }
+
+                return Optional.empty();
+              }
+
+              private Optional<Object> visitEnumJsonBsonString() {
+                vec = arrowField.createVector(rootAlloc);
+                // TODO: Possibly use the uncompressed page size info to set the initial capacity
+                vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+                vec.allocateNewSafe();
+                readType = ReadType.VARCHAR;
+                typeWidth = UNKNOWN_WIDTH;
+                return Optional.empty();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+                return visitEnumJsonBsonString();
+              }
+
+              @Override
+              public Optional<Object> visit(
+                  LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
+                return visitEnumJsonBsonString();
+              }
+            });
   }
 
   private void allocateVectorBasedOnTypeName(PrimitiveType primitive, Field arrowField) {
