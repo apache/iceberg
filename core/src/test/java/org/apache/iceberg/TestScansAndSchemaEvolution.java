@@ -119,10 +119,7 @@ public class TestScansAndSchemaEvolution {
 
   @TestTemplate
   public void testAddColumnWithDefaultValueAndQuery() throws IOException {
-    assumeThat(V3_AND_ABOVE.contains(formatVersion))
-        .withFailMessage(
-            "Only enable the test for versions above V3 since default values require V3+.")
-        .isTrue();
+    assumeThat(V3_AND_ABOVE).as("Default values require v3+").contains(formatVersion);
     File location = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(location.delete()).isTrue(); // should be created by table create
 
@@ -148,8 +145,7 @@ public class TestScansAndSchemaEvolution {
     assertThat(categoryField.writeDefault()).isEqualTo(defaultValue);
 
     // Verify scan planning works with the new column that has default value
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    assertThat(tasks).hasSize(2);
+    assertThat(table.newScan().planFiles()).hasSize(2);
 
     // Test that scan with projection includes the new column with default value
     Schema projectionSchema = table.schema().select("id", "data", "category");
@@ -184,12 +180,15 @@ public class TestScansAndSchemaEvolution {
     assertThat(allTasks).hasSize(3);
 
     // Test that all tasks have access to the column with default value
-    for (FileScanTask task : allTasks) {
-      Schema taskSchema = task.schema();
-      Types.NestedField categoryFieldInTask = taskSchema.findField("category");
-      assertThat(categoryFieldInTask).isNotNull();
-      assertThat(categoryFieldInTask.initialDefault()).isEqualTo(defaultValue);
-      assertThat(categoryFieldInTask.writeDefault()).isEqualTo(defaultValue);
-    }
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .allSatisfy(
+            task -> {
+              Schema taskSchema = task.schema();
+              Types.NestedField categoryFieldInTask = taskSchema.findField("category");
+              assertThat(categoryFieldInTask).isNotNull();
+              assertThat(categoryFieldInTask.initialDefault()).isEqualTo(defaultValue);
+              assertThat(categoryFieldInTask.writeDefault()).isEqualTo(defaultValue);
+            });
   }
 }
