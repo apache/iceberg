@@ -950,6 +950,33 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadTableWithMetadataName() {
+    C catalog = catalog();
+
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "files");
+    TableIdentifier metaIdent = TableIdentifier.of("ns", "files", "files");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdent.namespace());
+    }
+
+    catalog.buildTable(tableIdent, SCHEMA).create();
+
+    Table tbl = catalog.loadTable(tableIdent);
+    assertThat(tbl).isNotNull();
+    assertThat(tbl).isInstanceOf(BaseTable.class);
+
+    Table table = catalog.loadTable(metaIdent);
+    assertThat(table).isNotNull();
+    assertThat(table).isInstanceOf(FilesTable.class);
+
+    // check that the table metadata can be refreshed
+    table.refresh();
+
+    assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
+  }
+
+  @Test
   public void testLoadMissingTable() {
     C catalog = catalog();
 
