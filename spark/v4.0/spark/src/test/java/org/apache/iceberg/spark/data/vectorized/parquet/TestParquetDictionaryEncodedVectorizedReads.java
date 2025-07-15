@@ -185,4 +185,46 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
       assertThat(numRowsRead).isEqualTo(expectedSize);
     }
   }
+
+  /**
+   * int96_dict_and_packed_encoding.parquet contains one column chunk of int96 data in two
+   * pages, one RLE dictionary with packed indexes encoded and one plain encoded, each with 5 rows.
+   */
+  @Test
+  public void testInt96NotAllPagesDictionaryEncoded() throws Exception {
+    Schema schema = new Schema(Types.NestedField.optional(1, "a", Types.TimestampType.withZone()));
+    Path path =
+            Paths.get(
+                    getClass()
+                            .getClassLoader()
+                            .getResource("int96_dict_and_plain_encoding.parquet")
+                            .toURI());
+
+    // The file contains a column of INT96 timestamps, which Spark reads as LONG timestamps.
+    Dataset<Row> df = spark.read().parquet(path.toString()).
+            withColumn("a2", org.apache.spark.sql.functions.col("a").cast("long").multiply(1000000L))
+            .drop("a");
+    List<Row> expected = df.collectAsList();
+    long expectedSize = df.count();
+
+    Parquet.ReadBuilder readBuilder =
+            Parquet.read(Files.localInput(path.toFile()))
+                    .project(schema)
+                    .createBatchedReaderFunc(
+                            type ->
+                                    VectorizedSparkParquetReaders.buildReader(
+                                            schema, type, ImmutableMap.of(), null));
+
+    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+      Iterator<Row> expectedIter = expected.iterator();
+      Iterator<ColumnarBatch> batches = batchReader.iterator();
+      int numRowsRead = 0;
+      while (batches.hasNext()) {
+        ColumnarBatch batch = batches.next();
+        numRowsRead += batch.numRows();
+        TestHelpers.assertEqualsBatchWithRows(schema.asStruct(), expectedIter, batch);
+      }
+      assertThat(numRowsRead).isEqualTo(expectedSize);
+    }
+  }
 }
