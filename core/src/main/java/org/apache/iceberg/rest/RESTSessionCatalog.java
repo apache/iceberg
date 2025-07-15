@@ -367,6 +367,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    if (!identifier.hasNamespace()) {
+      throw new NoSuchTableException(
+          "Unable to load table %s: Server does not support empty namespaces", identifier);
+    }
+
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     return client
         .withAuthSession(contextualSession)
