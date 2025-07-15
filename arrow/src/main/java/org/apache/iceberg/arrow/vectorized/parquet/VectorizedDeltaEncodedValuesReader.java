@@ -44,7 +44,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   // header data
   private int blockSizeInValues;
-  private int miniBlockNumInABlock;
+  private int miniBlocksPerBlock;
   private int totalValueCount;
   private long firstValue;
 
@@ -78,14 +78,14 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     this.inputStream = in;
     // Read the header
     this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.inputStream);
-    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(this.inputStream);
-    double miniSize = (double) blockSizeInValues / miniBlockNumInABlock;
+    this.miniBlocksPerBlock = BytesUtils.readUnsignedVarInt(this.inputStream);
+    double miniSize = (double) blockSizeInValues / miniBlocksPerBlock;
     Preconditions.checkArgument(
         miniSize % 8 == 0, "miniBlockSize must be multiple of 8, but it's " + miniSize);
     this.miniBlockSizeInValues = (int) miniSize;
     // True value count. May be less than valueCount because of nulls
     this.totalValueCount = BytesUtils.readUnsignedVarInt(this.inputStream);
-    this.bitWidths = new int[miniBlockNumInABlock];
+    this.bitWidths = new int[miniBlocksPerBlock];
     this.unpackedValuesBuffer = new long[miniBlockSizeInValues];
     // read the first value
     firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
@@ -164,6 +164,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       currentRowId++;
       remaining--;
     }
+
     while (remaining > 0) {
       int loadedRows;
       try {
@@ -249,7 +250,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   // From org.apache.parquet.column.values.delta.DeltaBinaryPackingValuesReader
   private void readBitWidthsForMiniBlocks() {
-    for (int i = 0; i < miniBlockNumInABlock; i++) {
+    for (int i = 0; i < miniBlocksPerBlock; i++) {
       try {
         bitWidths[i] = BytesUtils.readIntLittleEndianOnOneByte(inputStream);
       } catch (IOException e) {
