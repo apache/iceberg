@@ -64,9 +64,14 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   configurations {
     hive {
       extendsFrom runtimeClasspath
+      // force upgrades for dependencies with known vulnerabilities...
+      resolutionStrategy {
+        force 'commons-beanutils:commons-beanutils:1.11.0'
+      }
     }
     all {
       exclude group: 'javax.activation', module: 'activation'
+      exclude group: 'commons-beanutils'
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.4'
