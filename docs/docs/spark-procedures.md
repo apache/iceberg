@@ -978,21 +978,21 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 
 ### `compute_partition_stats`
 
-This procedure computes the stats incrementally from the last snapshot that has `PartitionStatisticsFile` until the given 
-snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`
-after merging the partition stats. It performs a full compute if previous statistics file does not exist. It also registers the 
-`PartitionStatisticsFile` to table metadata.
+This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile` 
+until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`. 
+It performs a full compute if the previous partition statistics file does not exist. It also registers the 
+`PartitionStatisticsFile` to the table metadata.
 
-| Argument Name | Required? | Type          | Description                                                                           |
-|---------------|-----------|---------------|---------------------------------------------------------------------------------------|
-| `table`       | ✔️        | string        | Name of the table                                                                     |
-| `snapshot_id` |           | string        | Id of the snapshot to collect partition stats. By default current snapshot id is used |
+| Argument Name | Required? | Type          | Description                                                                    |
+|---------------|-----------|---------------|--------------------------------------------------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                                                              |
+| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
 
 #### Output
 
-| Output Name       | Type   | Description                                               |
-|-------------------|--------|-----------------------------------------------------------|
-| `partition_statistics_file` | string | Path to partition stats file created from by this command |
+| Output Name       | Type   | Description                                              |
+|-------------------|--------|----------------------------------------------------------|
+| `partition_statistics_file` | string | Path to the partition stats file created from by command |
 
 #### Examples
 
