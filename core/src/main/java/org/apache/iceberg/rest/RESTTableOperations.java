@@ -32,6 +32,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.TableNotModifiedException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,6 +61,7 @@ class RESTTableOperations implements TableOperations {
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private String etag;
 
   RESTTableOperations(
       RESTClient client,
@@ -68,7 +70,36 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        null /* etag */);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO io,
+      TableMetadata current,
+      Set<Endpoint> endpoints,
+      String etag) {
+    this(
+        client,
+        path,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        etag);
   }
 
   RESTTableOperations(
@@ -79,7 +110,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      String etag) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -93,6 +125,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.etag = etag;
   }
 
   @Override
@@ -103,8 +136,42 @@ class RESTTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
-    return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    LoadTableResponse response;
+    try {
+      response =
+          client.get(
+              path,
+              LoadTableResponse.class,
+              customRequestHeaders(),
+              ErrorHandlers.tableErrorHandler(),
+              this::consumeResponseHeaders);
+    } catch (TableNotModifiedException e) {
+      Preconditions.checkState(
+          current != null, "Invalid base metadata: null when server returned TableNotModified");
+      return current;
+    }
+    return updateCurrentMetadata(response);
+  }
+
+  public String etag() {
+    return etag;
+  }
+
+  void consumeResponseHeaders(Map<String, String> responseHeaders) {
+    if (responseHeaders.containsKey("ETag")) {
+      etag = responseHeaders.get("ETag");
+    }
+  }
+
+  private Supplier<Map<String, String>> customRequestHeaders() {
+    if (etag == null) {
+      return headers;
+    }
+    return () -> {
+      Map<String, String> result = headers.get();
+      result.put("If-None-Match", etag);
+      return result;
+    };
   }
 
   @Override
@@ -156,7 +223,13 @@ class RESTTableOperations implements TableOperations {
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+        client.post(
+            path,
+            request,
+            LoadTableResponse.class,
+            headers,
+            errorHandler,
+            this::consumeResponseHeaders);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;

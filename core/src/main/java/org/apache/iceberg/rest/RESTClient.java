@@ -83,6 +83,15 @@ public interface RESTClient extends Closeable {
   default <T extends RESTResponse> T get(
       String path,
       Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return get(path, ImmutableMap.of(), responseType, headers, errorHandler, responseHeaders);
+  }
+
+  default <T extends RESTResponse> T get(
+      String path,
+      Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
@@ -101,11 +110,34 @@ public interface RESTClient extends Closeable {
       String path,
       Map<String, String> queryParams,
       Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return get(path, queryParams, responseType, headers.get(), errorHandler, responseHeaders);
+  }
+
+  default <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       ParserContext parserContext) {
     if (parserContext != null) {
       throw new UnsupportedOperationException("Parser context is not supported");
+    }
+    return get(path, queryParams, responseType, headers, errorHandler);
+  }
+
+  default <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    if (responseHeaders != null) {
+      throw new UnsupportedOperationException("Response headers are not not supported");
     }
     return get(path, queryParams, responseType, headers, errorHandler);
   }
