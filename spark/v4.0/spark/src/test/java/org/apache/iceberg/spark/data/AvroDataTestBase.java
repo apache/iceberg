@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -34,9 +34,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.EdgeAlgorithm;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -46,14 +47,14 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assumptions;
+import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class DataTest {
+public abstract class AvroDataTestBase {
 
   private static final long FIRST_ROW_ID = 2_000L;
   protected static final Map<Integer, Object> ID_TO_CONSTANT =
@@ -65,21 +66,26 @@ public abstract class DataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
-  protected void writeAndValidate(Schema schema, List<Record> data) throws IOException {
-    throw new UnsupportedEncodingException(
-        "Cannot run test, writeAndValidate(Schema, List<Record>) is not implemented");
-  }
-
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     throw new UnsupportedEncodingException(
         "Cannot run test, writeAndValidate(Schema, Schema) is not implemented");
+  }
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> records)
+      throws IOException {
+    throw new UnsupportedEncodingException(
+        "Cannot run test, writeAndValidate(Schema, Schema, List<Record>) is not implemented");
   }
 
   protected boolean supportsDefaultValues() {
     return false;
   }
 
-  protected boolean allowsWritingNullValuesForRequiredFields() {
+  protected boolean supportsNestedTypes() {
+    return true;
+  }
+
+  protected boolean supportsRowLineage() {
     return false;
   }
 
@@ -93,107 +99,53 @@ public abstract class DataTest {
           optional(105, "f", Types.FloatType.get()),
           required(106, "d", Types.DoubleType.get()),
           optional(107, "date", Types.DateType.get()),
-          required(108, "ts_tz", Types.TimestampType.withZone()),
-          required(109, "ts", Types.TimestampType.withoutZone()),
+          required(108, "ts", Types.TimestampType.withZone()),
+          required(109, "ts_without_zone", Types.TimestampType.withoutZone()),
           required(110, "s", Types.StringType.get()),
+          required(111, "uuid", Types.UUIDType.get()),
           required(112, "fixed", Types.FixedType.ofLength(7)),
           optional(113, "bytes", Types.BinaryType.get()),
-          required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-          required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-          required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
-          required(117, "time", Types.TimeType.get()));
+          required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
+          required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
+          required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
+          );
 
   @TempDir protected Path temp;
 
-  private static final Type[] SIMPLE_TYPES =
-      new Type[] {
-        Types.UnknownType.get(),
-        Types.BooleanType.get(),
-        Types.IntegerType.get(),
-        LongType.get(),
-        Types.FloatType.get(),
-        Types.DoubleType.get(),
-        Types.DateType.get(),
-        Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
-        Types.TimestampNanoType.withZone(),
-        Types.TimestampNanoType.withoutZone(),
-        Types.StringType.get(),
-        Types.FixedType.ofLength(7),
-        Types.BinaryType.get(),
-        Types.DecimalType.of(9, 0),
-        Types.DecimalType.of(11, 2),
-        Types.DecimalType.of(38, 10),
-        Types.VariantType.get(),
-        Types.GeometryType.crs84(),
-        Types.GeometryType.of("srid:3857"),
-        Types.GeographyType.crs84(),
-        Types.GeographyType.of("srid:4269"),
-        Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
-      };
-
-  protected boolean supportsUnknown() {
-    return false;
-  }
-
-  protected boolean supportsTimestampNanos() {
-    return false;
-  }
-
-  protected boolean supportsVariant() {
-    return false;
-  }
-
-  protected boolean supportsGeospatial() {
-    return false;
-  }
-
-  protected boolean supportsRowLineage() {
-    return false;
-  }
-
-  @ParameterizedTest
-  @FieldSource("SIMPLE_TYPES")
-  public void testTypeSchema(Type type) throws IOException {
-    Assumptions.assumeThat(
-            supportsUnknown()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
-        .as("unknown is not yet implemented")
-        .isTrue();
-    Assumptions.assumeThat(
-            supportsTimestampNanos()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
-        .as("timestamp_ns is not yet implemented")
-        .isTrue();
-    Assumptions.assumeThat(
-            supportsVariant()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
-        .as("variant is not yet implemented")
-        .isTrue();
-    if (!supportsGeospatial()) {
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
-          .as("geometry is not yet implemented")
-          .isTrue();
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
-          .as("geography is not yet implemented")
-          .isTrue();
-    }
-
-    writeAndValidate(
-        new Schema(
-            required(1, "id", LongType.get()),
-            optional(2, "test_type", type),
-            required(3, "trailing_data", Types.StringType.get())));
+  @Test
+  public void testSimpleStruct() throws IOException {
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(SUPPORTED_PRIMITIVES.fields())));
   }
 
   @Test
-  public void testSimpleStruct() throws IOException {
-    writeAndValidate(new Schema(SUPPORTED_PRIMITIVES.fields()));
+  public void testStructWithRequiredFields() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
+  }
+
+  @Test
+  public void testStructWithOptionalFields() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asOptional))));
+  }
+
+  @Test
+  public void testNestedStruct() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
   }
 
   @Test
   public void testArray() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -204,16 +156,21 @@ public abstract class DataTest {
 
   @Test
   public void testArrayOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
-        new Schema(
-            required(0, "id", LongType.get()),
-            optional(1, "data", ListType.ofOptional(2, SUPPORTED_PRIMITIVES)));
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", ListType.ofOptional(2, SUPPORTED_PRIMITIVES))));
 
     writeAndValidate(schema);
   }
 
   @Test
   public void testMap() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -227,16 +184,21 @@ public abstract class DataTest {
 
   @Test
   public void testNumericMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
-            optional(1, "data", MapType.ofOptional(2, 3, LongType.get(), Types.StringType.get())));
+            optional(
+                1, "data", MapType.ofOptional(2, 3, Types.LongType.get(), Types.StringType.get())));
 
     writeAndValidate(schema);
   }
 
   @Test
   public void testComplexMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -246,7 +208,7 @@ public abstract class DataTest {
                 MapType.ofOptional(
                     2,
                     3,
-                    StructType.of(
+                    Types.StructType.of(
                         required(4, "i", Types.IntegerType.get()),
                         optional(5, "s", Types.StringType.get())),
                     Types.StringType.get())));
@@ -256,17 +218,24 @@ public abstract class DataTest {
 
   @Test
   public void testMapOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
-        new Schema(
-            required(0, "id", LongType.get()),
-            optional(
-                1, "data", MapType.ofOptional(2, 3, Types.StringType.get(), SUPPORTED_PRIMITIVES)));
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                required(0, "id", LongType.get()),
+                optional(
+                    1,
+                    "data",
+                    MapType.ofOptional(2, 3, Types.StringType.get(), SUPPORTED_PRIMITIVES))));
 
     writeAndValidate(schema);
   }
 
   @Test
   public void testMixedTypes() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     StructType structType =
         StructType.of(
             required(0, "id", LongType.get()),
@@ -338,8 +307,13 @@ public abstract class DataTest {
                 .build());
 
     assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required field: missing_str");
+        .has(
+            new Condition<>(
+                t ->
+                    IllegalArgumentException.class.isInstance(t)
+                        || IllegalArgumentException.class.isInstance(t.getCause()),
+                "Expecting a throwable or cause that is an instance of IllegalArgumentException"))
+        .hasMessageContaining("Missing required field: missing_str");
   }
 
   @Test
@@ -411,6 +385,7 @@ public abstract class DataTest {
   @Test
   public void testNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -454,6 +429,7 @@ public abstract class DataTest {
   @Test
   public void testMapNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -506,6 +482,7 @@ public abstract class DataTest {
   @Test
   public void testListNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -595,29 +572,9 @@ public abstract class DataTest {
   }
 
   @Test
-  public void testWriteNullValueForRequiredType() throws Exception {
-    Schema schema =
-        new Schema(
-            required(0, "id", LongType.get()), required(1, "string", Types.StringType.get()));
-
-    GenericRecord genericRecord = GenericRecord.create(schema);
-    genericRecord.set(0, 42L);
-    genericRecord.set(1, null);
-
-    if (allowsWritingNullValuesForRequiredFields()) {
-      writeAndValidate(schema, ImmutableList.of(genericRecord));
-    } else {
-      assertThatThrownBy(
-          // The actual exception depends on the implementation, e.g.
-          // NullPointerException or IllegalArgumentException.
-          () -> writeAndValidate(schema, ImmutableList.of(genericRecord)));
-    }
-  }
-
-  @Test
   public void testRowLineage() throws Exception {
     Assumptions.assumeThat(supportsRowLineage())
-        .as("Row Lineage support is not implemented")
+        .as("Row lineage support is not implemented")
         .isTrue();
 
     Schema schema =
@@ -630,6 +587,7 @@ public abstract class DataTest {
     GenericRecord record = GenericRecord.create(schema);
 
     writeAndValidate(
+        schema,
         schema,
         List.of(
             record.copy(Map.of("id", 1L, "data", "a")),

@@ -26,6 +26,10 @@ This page contains some of the vendors who are shipping and supporting Apache Ic
 
 AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg) to support Apache Iceberg as part of its modern data architecture. [Amazon Athena](https://aws.amazon.com/athena/) offers a serverless, interactive query engine with native support for Iceberg, enabling fast and cost-efficient querying of large-scale datasets. [Amazon EMR](https://aws.amazon.com/emr/) integrates Iceberg with Apache Spark, Apache Flink, Apache Hive, Presto and Trino, making it easy to process and analyze data at scale. [AWS Glue](https://aws.amazon.com/glue/) provides fully managed data integration capabilities, including schema evolution, maintenance, optimizations and partition management for Iceberg tables. With [Amazon S3](https://aws.amazon.com/s3/) as the underlying storage layer, AWS enables a high-performance and cost-effective data lakehouse solution powered by Iceberg.
 
+### [BladePipe](https://bladepipe.com)
+
+BladePipe is a real-time end-to-end data integration tool, offering 40+ out-of-the-box connectors. It provides a one-stop data movement solution, including schema evolution, data migration and sync, verification and correction, monitoring and alerting. With sub-second latency, BladePipe captures change data from MySQL, Oracle, PostgreSQL and other sources and streams it to Iceberg and more, all without writing a single line of code. It offers [on-premise and BYOC deployment options](https://www.bladepipe.com/pricing). Learn more about how to build a pipeline with BladePipe [here](https://doc.bladepipe.com/quick/quick_start_byoc).
+
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
@@ -107,6 +111,11 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 ### [RisingWave](https://risingwave.com/)
 
 [RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
+
+### [Ryft](https://ryft.io/)
+
+[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
+
 
 ### [SingleStore](https://singlestore.com/)
 

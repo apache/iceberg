@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 public class TestClientPoolImpl {
@@ -40,7 +42,28 @@ public class TestClientPoolImpl {
           .as("There should be exactly one successful action invocation")
           .isEqualTo(1);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(succeedAfterAttempts - 1);
-      assertThat(mockClientPool.clients().peekFirst().equals(firstClient)).isFalse();
+      assertThat(mockClientPool.clients()).first().isNotEqualTo(firstClient);
+    }
+  }
+
+  @Test
+  public void customExceptionIsRetried() throws Exception {
+    int maxRetries = 5;
+    int succeedAfterAttempts = 3;
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, maxRetries)) {
+      // initialize the client pool with a client, so that we can verify the client is replaced
+      MockClient firstClient = mockClientPool.newClient();
+      mockClientPool.clients().add(firstClient);
+
+      int actions =
+          mockClientPool.run(
+              client -> client.succeedAfter(succeedAfterAttempts, () -> new CustomException(true)));
+      assertThat(actions)
+          .as("There should be exactly one successful action invocation")
+          .isEqualTo(1);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(succeedAfterAttempts - 1);
+      assertThat(mockClientPool.clients()).first().isNotEqualTo(firstClient);
     }
   }
 
@@ -59,10 +82,41 @@ public class TestClientPoolImpl {
   }
 
   @Test
+  public void nonRetryableExceptionAfterRetryableException() {
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
+      assertThatThrownBy(
+              () ->
+                  mockClientPool.run(
+                      client ->
+                          client.succeedAfter(
+                              List.of(
+                                  new CustomException(true),
+                                  new CustomException(true),
+                                  new CustomException(false)))))
+          .isInstanceOf(CustomException.class)
+          .hasMessage(null);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(2);
+    }
+  }
+
+  @Test
   public void testNoRetryingNonRetryableException() {
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
-      assertThatThrownBy(() -> mockClientPool.run(MockClient::failWithNonRetryable, true))
+      assertThatThrownBy(() -> mockClientPool.run(MockClient::throwNonRetryableException, true))
+          .isInstanceOf(NonRetryableException.class)
+          .hasMessage(null);
+      assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
+    }
+  }
+
+  @Test
+  public void customNonRetryableExceptionIsNotRetried() {
+    try (MockClientPoolImpl mockClientPool =
+        new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
+      assertThatThrownBy(
+              () -> mockClientPool.run(MockClient::throwCustomNonRetryableException, true))
           .isInstanceOf(NonRetryableException.class)
           .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
@@ -84,6 +138,18 @@ public class TestClientPoolImpl {
 
   static class NonRetryableException extends RuntimeException {}
 
+  static class CustomException extends NonRetryableException {
+    private final boolean retryable;
+
+    CustomException(boolean retryable) {
+      this.retryable = retryable;
+    }
+
+    public boolean isRetryable() {
+      return retryable;
+    }
+  }
+
   static class MockClient {
     boolean closed = false;
     int actions = 0;
@@ -104,17 +170,36 @@ public class TestClientPoolImpl {
       return actions;
     }
 
-    int succeedAfter(int succeedAfterAttempts) {
+    int succeedAfter(List<RuntimeException> exceptions) {
+      int succeedAfterAttempts = exceptions.size();
+      if (retryableFailures == succeedAfterAttempts) {
+        return successfulAction();
+      }
+
+      RuntimeException runtimeException = exceptions.get(retryableFailures);
+      retryableFailures++;
+      throw runtimeException;
+    }
+
+    int succeedAfter(int succeedAfterAttempts, Supplier<RuntimeException> exceptionSupplier) {
       if (retryableFailures == succeedAfterAttempts - 1) {
         return successfulAction();
       }
 
       retryableFailures++;
-      throw new RetryableException();
+      throw exceptionSupplier.get();
     }
 
-    int failWithNonRetryable() {
+    int succeedAfter(int succeedAfterAttempts) {
+      return succeedAfter(succeedAfterAttempts, RetryableException::new);
+    }
+
+    int throwNonRetryableException() {
       throw new NonRetryableException();
+    }
+
+    int throwCustomNonRetryableException() {
+      throw new CustomException(false);
     }
   }
 
@@ -144,6 +229,12 @@ public class TestClientPoolImpl {
     @Override
     protected void close(MockClient client) {
       client.close();
+    }
+
+    @Override
+    protected boolean isConnectionException(Exception exc) {
+      return super.isConnectionException(exc)
+          || (exc instanceof CustomException && ((CustomException) exc).isRetryable());
     }
 
     int reconnectionAttempts() {
