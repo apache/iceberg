@@ -149,35 +149,26 @@ public class TestScansAndSchemaEvolution {
 
     // Test that scan with projection includes the new column with default value
     Schema projectionSchema = table.schema().select("id", "data", "category");
-    List<FileScanTask> projectionTasks =
-        Lists.newArrayList(table.newScan().project(projectionSchema).planFiles());
-    assertThat(projectionTasks).hasSize(2);
-
-    // Verify that each task has the correct schema with the default column
-    for (FileScanTask task : projectionTasks) {
-      assertThat(task.schema().findField("category")).isNotNull();
-      assertThat(task.schema().findField("category").initialDefault()).isEqualTo(defaultValue);
-    }
+    assertThat(table.newScan().project(projectionSchema).planFiles())
+        .hasSize(2)
+        .allSatisfy(
+            task -> {
+              assertThat(task.schema().findField("category")).isNotNull();
+              assertThat(task.schema().findField("category").initialDefault())
+                  .isEqualTo(defaultValue);
+            });
 
     // Test scan with filter on the new default column
-    List<FileScanTask> filteredTasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("category", defaultValue)).planFiles());
-    assertThat(filteredTasks).hasSize(2); // All files should match since default applies to all
+    assertThat(table.newScan().filter(Expressions.equal("category", defaultValue)).planFiles())
+        .hasSize(2); // All files should match since default applies to all
 
     // Test scan with filter on a value that is different than default.
-    List<FileScanTask> nonDefaultTasks =
-        Lists.newArrayList(
-            table.newScan().filter(Expressions.equal("category", "non_default")).planFiles());
-    assertThat(nonDefaultTasks).hasSize(2); // Files are returned, filtering happens during read
+    assertThat(table.newScan().filter(Expressions.equal("category", "non_default")).planFiles())
+        .hasSize(2); // Files are returned, filtering happens during read
 
     // Write new data after schema evolution
     DataFile fileThree = createDataFile("three");
     table.newAppend().appendFile(fileThree).commit();
-
-    // Verify scan planning works with all files (old and new)
-    List<FileScanTask> allTasks = Lists.newArrayList(table.newScan().planFiles());
-    assertThat(allTasks).hasSize(3);
 
     // Test that all tasks have access to the column with default value
     assertThat(table.newScan().planFiles())
