@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
+public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
   private static final int NUM_RECORDS = 200;
 
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
