@@ -17,7 +17,8 @@
 # under the License.
 #
 
-FROM apache/iceberg-engine-storage-fixture-base
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 COPY open-api/build/libs/iceberg-open-api-test-fixtures-runtime-*.jar /usr/lib/iceberg-rest/iceberg-rest-adapter.jar
 

@@ -17,7 +17,7 @@
   - under the License.
   -->
 
-# Iceberg Spark Fixtures
+# Iceberg Test Fixtures
 
 For a standalone iceberg environment with bundled engine runtimes, Iceberg libraries, storage and catalogs services for 
 testing and demo purposes.
@@ -31,15 +31,15 @@ When making changes to the local files and test them out, you can build the imag
 ./gradlew build -x test -x integrationTest
 
 # Build the docker image
-# ENGINE=[engine name] STORAGE=[storage name] CATALOG=[catalog name]
-make -f docker/iceberg-spark-fixtures/Makefile ENGINE=spark STORAGE=minio CATALOG=rest iceberg-engine-storage-catalog
+# ENGINE=[engine]-[version] STORAGE=[storage] CATALOG=[catalog]
+make -f docker/iceberg-test-fixtures/Makefile ENGINE=spark-4.0.0 STORAGE=minio CATALOG=rest iceberg-engine-storage-catalog
 ```
 
 ## Interactive Session
 ```bash
 docker run -d \
-  --name iceberg-spark-minio-rest \
-  apache/iceberg-spark-minio-rest
+  --name apache/iceberg:latest-spark-4.0.0-minio-rest \
+  iceberg-spark-minio-rest
 
 docker exec -it iceberg-spark-minio-rest bash
 

@@ -30,15 +30,15 @@ on:
 env:
   DOCKER_REPOSITORY: apache
   DOCKER_IMAGE_TAG: iceberg
-  ICEBERG_VERSION: latest
+  ICEBERG: latest
 
 jobs:
   build:
-    if: github.repository_owner == 'apache'
+    if: github.repository_owner == 'lliangyu-lin'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        engine: [ spark ]
+        engine: [ spark40, spark35 ]
         storage: [ minio ]
         catalog: [ rest ]
 
@@ -48,21 +48,24 @@ jobs:
         with:
           distribution: zulu
           java-version: 21
-      - name: Build Iceberg project
-        run: |
-          ./gradlew build -x test -x integrationTest
       - name: Login to Docker Hub
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set the iceberg version
         if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
         run: |
-          echo "DOCKER_IMAGE_VERSION=`echo ${{ github.ref }} | tr -d -c 0-9.`" >> "$GITHUB_ENV"
-      - name: Set engine version
+          echo "ICEBERG=`echo ${{ github.ref }} | tr -d -c 0-9.`" >> "$GITHUB_ENV"
+      - name: Setup for images with Spark engine
+        if: startsWith(matrix.engine, 'spark')
         run: |
-          if [[ "${{ matrix.engine }}" == "spark" ]]; then
-            echo "ENGINE_VERSION=4.0.0" >> "$GITHUB_ENV"
-          fi
+          ENGINE_VERSION=$(grep "^${{ matrix.engine }}" gradle/libs.versions.toml | sed 's/.*= *"\(.*\)"/\1/')
+          echo "ENGINE_VERSION=$ENGINE_VERSION" >> "$GITHUB_ENV"
+          
+          CONNECTOR_VERSION=$(echo "$ENGINE_VERSION" | cut -d. -f1,2)
+          echo "CONNECTOR_VERSION=$CONNECTOR_VERSION" >> "$GITHUB_ENV"
+          echo "ENGINE=spark-${ENGINE_VERSION}" >> "$GITHUB_ENV"
+          
+          ./gradlew build -x test -x integrationTest -DsparkVersions=$CONNECTOR_VERSION -DflinkVersions= -DkafkaVersions=
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -70,13 +73,12 @@ jobs:
           image: tonistiigi/binfmt:qemu-v7.0.0-28
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build image using Makefile
+      - name: Build and Push
         run: |
-          make -f docker/iceberg-test-fixtures/Makefile ENGINE=${{ matrix.engine }} STORAGE=${{ matrix.storage }} CATALOG=${{ matrix.catalog }} iceberg-engine-storage-catalog
-      - name: Tag and Push Image
-        run: |
-          TAG="iceberg_${{ env.ICEBERG_VERSION }}_${{ matrix.engine }}_${{ env.ENGINE_VERSION }}_${{ matrix.storage }}_${{ matrix.catalog }}"
-          IMAGE="${{ env.DOCKER_REPOSITORY }}/iceberg-${{ matrix.engine }}-${{ matrix.storage }}-${{ matrix.catalog }}"
-
-          docker tag $IMAGE ${{ env.DOCKER_REPOSITORY }}/iceberg:$TAG
-          docker push ${{ env.DOCKER_REPOSITORY }}/iceberg:$TAG
+          make -f docker/iceberg-test-fixtures/Makefile \
+          PUSH=true \
+          ICEBERG=${{ env.ICEBERG }} \
+          ENGINE=${{ env.ENGINE }} \
+          STORAGE=${{ matrix.storage }} \
+          CATALOG=${{ matrix.catalog }} \
+          iceberg-engine-storage-catalog \

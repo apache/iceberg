@@ -24,18 +24,19 @@ RUN set -xeu && \
     apt-get install -y --no-install-recommends curl wget bash python3 && \
     rm -rf /var/lib/apt/lists/*
 
+ARG ENGINE_VERSION=4.0.0
+ARG CONNECTOR_VERSION=v4.0
+
 ENV BASE_PATH=docker/iceberg-test-fixtures
 ENV SPARK_HOME=${SPARK_HOME:-"/opt/spark"}
-ENV SPARK_VERSION=4.0.0
-ENV ICEBERG_SPARK_VERSION=v4.0
 
 RUN mkdir -p ${SPARK_HOME} && mkdir -p /home/iceberg/spark-events
 
-RUN curl --retry 5 -s -C - https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
- && tar xzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
- && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz \
+RUN curl --retry 5 -s -C - https://archive.apache.org/dist/spark/spark-${ENGINE_VERSION}/spark-${ENGINE_VERSION}-bin-hadoop3.tgz -o spark-${ENGINE_VERSION}-bin-hadoop3.tgz \
+ && tar xzf spark-${ENGINE_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
+ && rm -rf spark-${ENGINE_VERSION}-bin-hadoop3.tgz
 
-COPY spark/${ICEBERG_SPARK_VERSION}/spark-runtime/build/libs/iceberg-spark-runtime-*.jar /opt/spark/jars/iceberg-spark-runtime.jar
+COPY spark/${CONNECTOR_VERSION}/spark-runtime/build/libs/iceberg-spark-runtime-*.jar /opt/spark/jars/iceberg-spark-runtime.jar
 COPY ${BASE_PATH}/spark-base/spark-defaults.conf /opt/spark/conf
 
 ENV PATH="${SPARK_HOME}/sbin:${SPARK_HOME}/bin:${PATH}"

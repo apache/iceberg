@@ -19,28 +19,53 @@
 
 BASE_PATH := docker/iceberg-test-fixtures
 
-ENGINE ?= spark
+ICEBERG ?= latest
+ENGINE ?= spark-4.0.0
 STORAGE ?= minio
 CATALOG ?= rest
+PUSH ?= false
 
-ENGINE_BASE_IMAGE := apache/iceberg-engine-fixture-base
-STORAGE_ENGINE_IMAGE := apache/iceberg-engine-storage-fixture-base
-FULL_FIXTURE_IMAGE := apache/iceberg-$(ENGINE)-${STORAGE}-$(CATALOG)
+ENGINE_NAME := $(word 1,$(subst -, ,$(ENGINE)))
+ENGINE_VERSION := $(word 2,$(subst -, ,$(ENGINE)))
+CONNECTOR_VERSION := v$(shell echo $(ENGINE_VERSION) | cut -d. -f1,2)
+
+DOCKER_REPO := apache/iceberg
+PLATFORMS := linux/amd64,linux/arm64
+PUSH_FLAG :=
+ifeq ($(PUSH),true)
+  PUSH_FLAG := --push
+endif
 
 # Build the iceberg engine base image
 .PHONY: iceberg-engine
 iceberg-engine:
-	docker build -t $(ENGINE_BASE_IMAGE) -f ${BASE_PATH}/${ENGINE}-base/Dockerfile .
+	docker buildx build \
+	--platform $(PLATFORMS) \
+	--build-arg ENGINE_VERSION=$(ENGINE_VERSION) \
+	--build-arg CONNECTOR_VERSION=$(CONNECTOR_VERSION) \
+	--tag $(DOCKER_REPO):$(ICEBERG)-$(ENGINE) \
+	--file ${BASE_PATH}/${ENGINE_NAME}-base/Dockerfile . \
+	$(PUSH_FLAG)
 
 # Build the iceberg engine image with storage
 .PHONY: iceberg-engine-storage
 iceberg-engine-storage: iceberg-engine
-	docker build -t $(STORAGE_ENGINE_IMAGE) -f ${BASE_PATH}/${STORAGE}/Dockerfile .
+	docker buildx build \
+		  --platform $(PLATFORMS) \
+		  --build-arg BASE_IMAGE=$(DOCKER_REPO):$(ICEBERG)-$(ENGINE) \
+		  --tag $(DOCKER_REPO):$(ICEBERG)-$(ENGINE)-$(STORAGE) \
+		  --file ${BASE_PATH}/${STORAGE}/Dockerfile . \
+		  $(PUSH_FLAG)
 
 # Build the iceberg engine image with storage and catalog
 .PHONY: iceberg-engine-storage-catalog
 iceberg-engine-storage-catalog: iceberg-engine-storage
-	docker build -t $(FULL_FIXTURE_IMAGE) -f ${BASE_PATH}/${CATALOG}/Dockerfile .
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(DOCKER_REPO):$(ICEBERG)-$(ENGINE)-$(STORAGE) \
+		--tag $(DOCKER_REPO):$(ICEBERG)-$(ENGINE)-$(STORAGE)-$(CATALOG) \
+		--file ${BASE_PATH}/${CATALOG}/Dockerfile . \
+		$(PUSH_FLAG)
 
 .PHONY: clean
 clean:

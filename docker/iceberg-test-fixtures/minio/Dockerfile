@@ -17,7 +17,8 @@
 # under the License.
 #
 
-FROM apache/iceberg-engine-fixture-base
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 ENV MINIO_HOME=${MINIO_HOME:-"/opt/minio"}
 
