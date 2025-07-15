@@ -18,16 +18,20 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.WapUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Cherry-picks or fast-forwards the current state to a snapshot.
@@ -42,6 +46,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
+
+  private static final Logger LOG = LoggerFactory.getLogger(CherryPickOperation.class);
 
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -214,13 +220,17 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
           parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s",
           parentId);
-      List<DataFile> newFiles =
-          SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io);
-      for (DataFile newFile : newFiles) {
-        ValidationException.check(
-            !replacedPartitions.contains(newFile.specId(), newFile.partition()),
-            "Cannot cherry-pick replace partitions with changed partition: %s",
-            newFile.partition());
+      try (CloseableIterable<DataFile> newFiles =
+          SnapshotUtil.newFilesBetween(
+              parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io)) {
+        for (DataFile newFile : newFiles) {
+          ValidationException.check(
+              !replacedPartitions.contains(newFile.specId(), newFile.partition()),
+              "Cannot cherry-pick replace partitions with changed partition: %s",
+              newFile.partition());
+        }
+      } catch (IOException ioe) {
+        LOG.warn("Failed to close task iterable", ioe);
       }
     }
   }
