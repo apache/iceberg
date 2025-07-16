@@ -78,7 +78,7 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.9.1'
+  icebergVersion: '1.9.2'
   nessieVersion: '0.103.3'
   flinkVersion: '1.20.0'
   flinkVersionMajor: '1.20'
