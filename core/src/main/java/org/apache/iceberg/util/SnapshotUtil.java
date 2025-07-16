@@ -283,7 +283,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * @deprecated please use `newFilesBetween`
+   * @deprecated will be removed in 2.0.0, use {@link #newFilesBetween(Long, long, Function,
+   *     FileIO)} instead.
    */
   @Deprecated
   public static List<DataFile> newFiles(
