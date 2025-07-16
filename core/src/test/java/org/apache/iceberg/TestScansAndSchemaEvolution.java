@@ -19,8 +19,10 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
+import static org.apache.iceberg.TestHelpers.V3_AND_ABOVE;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +34,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.RandomAvroData;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -112,5 +115,71 @@ public class TestScansAndSchemaEvolution {
     tasks = Lists.newArrayList(table.newScan().filter(Expressions.equal("p", "one")).planFiles());
 
     assertThat(tasks).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testAddColumnWithDefaultValueAndQuery() throws IOException {
+    assumeThat(V3_AND_ABOVE).as("Default values require v3+").contains(formatVersion);
+    File location = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(location.delete()).isTrue(); // should be created by table create
+
+    Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
+
+    // Write initial data
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+
+    // Add a new column with an initial default value
+    String defaultValue = "default_category";
+    table
+        .updateSchema()
+        .addColumn("category", Types.StringType.get(), "Product category", Literal.of(defaultValue))
+        .commit();
+
+    // Verify the schema includes the new column with default value
+    Schema updatedSchema = table.schema();
+    Types.NestedField categoryField = updatedSchema.findField("category");
+    assertThat(categoryField).isNotNull();
+    assertThat(categoryField.initialDefault()).isEqualTo(defaultValue);
+    assertThat(categoryField.writeDefault()).isEqualTo(defaultValue);
+
+    // Verify scan planning works with the new column that has default value
+    assertThat(table.newScan().planFiles()).hasSize(2);
+
+    // Test that scan with projection includes the new column with default value
+    Schema projectionSchema = table.schema().select("id", "data", "category");
+    assertThat(table.newScan().project(projectionSchema).planFiles())
+        .hasSize(2)
+        .allSatisfy(
+            task -> {
+              assertThat(task.schema().findField("category")).isNotNull();
+              assertThat(task.schema().findField("category").initialDefault())
+                  .isEqualTo(defaultValue);
+            });
+
+    // Test scan with filter on the new default column
+    assertThat(table.newScan().filter(Expressions.equal("category", defaultValue)).planFiles())
+        .hasSize(2); // All files should match since default applies to all
+
+    // Test scan with filter on a value that is different than default.
+    assertThat(table.newScan().filter(Expressions.equal("category", "non_default")).planFiles())
+        .hasSize(2); // Files are returned, filtering happens during read
+
+    // Write new data after schema evolution
+    DataFile fileThree = createDataFile("three");
+    table.newAppend().appendFile(fileThree).commit();
+
+    // Test that all tasks have access to the column with default value
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .allSatisfy(
+            task -> {
+              Schema taskSchema = task.schema();
+              Types.NestedField categoryFieldInTask = taskSchema.findField("category");
+              assertThat(categoryFieldInTask).isNotNull();
+              assertThat(categoryFieldInTask.initialDefault()).isEqualTo(defaultValue);
+              assertThat(categoryFieldInTask.writeDefault()).isEqualTo(defaultValue);
+            });
   }
 }
