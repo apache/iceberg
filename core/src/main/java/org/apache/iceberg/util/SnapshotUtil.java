@@ -311,28 +311,29 @@ public class SnapshotUtil {
 
   public static CloseableIterable<DataFile> newFilesBetween(
       Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
-    List<Snapshot> snapshots = Lists.newArrayList();
-    ParallelIterable<DataFile> newFiles =
-        new ParallelIterable<>(
-            Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
-            ThreadPools.getWorkerPool());
 
+    List<Snapshot> snapshots = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
       lastSnapshot = currentSnapshot;
       if (Objects.equals(currentSnapshot.snapshotId(), baseSnapshotId)) {
-        return newFiles;
+        break;
       }
       snapshots.add(currentSnapshot);
     }
 
-    ValidationException.check(
-        Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
-        "Cannot determine history between read snapshot %s and the last known ancestor %s",
-        baseSnapshotId,
-        lastSnapshot.snapshotId());
+    if (lastSnapshot != null) {
+      ValidationException.check(
+          Objects.equals(lastSnapshot.snapshotId(), baseSnapshotId)
+              || Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
+          "Cannot determine history between read snapshot %s and the last known ancestor %s",
+          baseSnapshotId,
+          lastSnapshot.snapshotId());
+    }
 
-    return newFiles;
+    return new ParallelIterable<>(
+        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
+        ThreadPools.getWorkerPool());
   }
 
   /**
