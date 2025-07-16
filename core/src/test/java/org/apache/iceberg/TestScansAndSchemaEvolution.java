@@ -26,8 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
@@ -64,7 +62,7 @@ public class TestScansAndSchemaEvolution {
 
   @Parameter private int formatVersion;
 
-  @TempDir private Path temp;
+  @TempDir private File temp;
 
   private DataFile createDataFile(String partValue) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
@@ -95,10 +93,7 @@ public class TestScansAndSchemaEvolution {
 
   @TestTemplate
   public void testPartitionSourceRename() throws IOException {
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue(); // should be created by table create
-
-    Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
     DataFile fileOne = createDataFile("one");
     DataFile fileTwo = createDataFile("two");
@@ -121,10 +116,7 @@ public class TestScansAndSchemaEvolution {
   @TestTemplate
   public void testAddColumnWithDefaultValueAndQuery() throws IOException {
     assumeThat(V3_AND_ABOVE).as("Default values require v3+").contains(formatVersion);
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue(); // should be created by table create
-
-    Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
     // Write initial data
     DataFile fileOne = createDataFile("one");
@@ -187,10 +179,7 @@ public class TestScansAndSchemaEvolution {
   @TestTemplate
   public void testAddColumnWithDefaultValueAndPartitionTransform() throws IOException {
     assumeThat(V3_AND_ABOVE).as("Default values require v3+").contains(formatVersion);
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue(); // should be created by table create
-
-    Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
     // Write initial data
     DataFile fileOne = createDataFile("one");
