@@ -19,7 +19,7 @@
 
 # Iceberg Test Fixtures
 
-For a standalone iceberg environment with bundled engine runtimes, Iceberg libraries, storage and catalogs services for 
+For a standalone iceberg environment with bundled engine runtimes, Iceberg libraries, storage and catalogs services for
 testing and demo purposes.
 
 ## Build the Docker Images
@@ -38,13 +38,20 @@ make -f docker/iceberg-test-fixtures/Makefile ENGINE=spark-4.0.0 STORAGE=minio C
 ## Interactive Session
 ```bash
 docker run -d \
-  --name apache/iceberg:latest-spark-4.0.0-minio-rest \
-  iceberg-spark-minio-rest
+  --name iceberg-spark-minio-rest \
+  apache/iceberg:latest-spark-4.0.0-minio-rest
 
 docker exec -it iceberg-spark-minio-rest bash
 
 # Run spark session
-spark-sql --version
+spark-sql \
+--conf spark.sql.catalog.rest=org.apache.iceberg.spark.SparkCatalog \
+--conf spark.sql.catalog.rest.type=rest \
+--conf spark.sql.catalog.rest.uri=http://localhost:8181 \
+--conf spark.sql.catalog.rest.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+--conf spark.sql.catalog.rest.warehouse=s3://warehouse/rest/ \
+--conf spark.sql.catalog.rest.s3.endpoint=http://localhost:9000 \
+--conf spark.sql.defaultCatalog=rest
 ```
 
 ## Submit PySpark Script
