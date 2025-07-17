@@ -20,10 +20,11 @@ nav:
   - Quickstart:
     - Spark: spark-quickstart.md
     - Hive: hive-quickstart.md
-  - Docs: 
+  - Docs:
     - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-    - Latest (1.9.1): '!include docs/docs/latest/mkdocs.yml'
+    - Latest (1.9.2): '!include docs/docs/latest/mkdocs.yml'
     - Previous:
+      - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
       - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
       - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
       - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
@@ -33,7 +34,7 @@ nav:
       - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
       - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
       - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
-      - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'   
+      - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'
       - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
       - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
       - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
@@ -44,7 +45,7 @@ nav:
   - Blogs: blogs.md
   - Talks: talks.md
   - Vendors: vendors.md
-  - Project: 
+  - Project:
     - Community: community.md
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
