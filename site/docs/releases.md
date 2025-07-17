@@ -74,7 +74,7 @@ Apache Iceberg 1.9.2 was released on Jul 16, 2025.
 The 1.9.2 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.9.2)
 
 * Core
-  - Core: Stop retrying on 502 / 504 to avoid table corruption due to self conflicts [\#12818](https://github.com/apache/iceberg/pull/12818), [\#13352](https://github.com/apache/iceberg/pull/13352)
+    - Stop retrying on 502 / 504 to avoid table corruption due to self conflicts [\#12818](https://github.com/apache/iceberg/pull/12818), [\#13352](https://github.com/apache/iceberg/pull/13352)
 
 ## Past releases
 
