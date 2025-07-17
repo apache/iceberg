@@ -99,7 +99,8 @@ public class GenericAppenderHelper {
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = temp.resolve("generic-appender-partition-test-" + UUID.randomUUID().toString()).toFile();
+    File file =
+        temp.resolve("generic-appender-partition-test-" + UUID.randomUUID().toString()).toFile();
     return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }
 
