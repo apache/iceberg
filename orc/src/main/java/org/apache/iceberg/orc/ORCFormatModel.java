@@ -29,18 +29,18 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.TypeDescription;
 
-public class ORCFormatModel<E, D> implements FormatModel<E, D> {
+public class ORCFormatModel<D> implements FormatModel<D> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
-  private final WriterFunction<E> writerFunction;
+  private final WriterFunction writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
   private ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction<E> writerFunction,
+      WriterFunction writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
@@ -52,7 +52,7 @@ public class ORCFormatModel<E, D> implements FormatModel<E, D> {
   public ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      WriterFunction<E> writerFunction,
+      WriterFunction writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
   }
@@ -72,25 +72,24 @@ public class ORCFormatModel<E, D> implements FormatModel<E, D> {
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataBuilder(
-      OutputFile outputFile) {
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B dataBuilder(OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.DATA).writerFunction(writerFunction);
+        new ORC.WriteBuilderImpl<D>(outputFile, FileContent.DATA).writerFunction(writerFunction);
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteBuilder(
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B equalityDeleteBuilder(
       OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.EQUALITY_DELETES)
+        new ORC.WriteBuilderImpl<D>(outputFile, FileContent.EQUALITY_DELETES)
             .writerFunction(writerFunction);
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, PositionDelete<D>>>
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, PositionDelete<D>>>
       B positionDeleteBuilder(OutputFile outputFile) {
     return (B)
-        new ORC.WriteBuilderImpl<E, D>(outputFile, FileContent.POSITION_DELETES)
+        new ORC.WriteBuilderImpl<D>(outputFile, FileContent.POSITION_DELETES)
             .writerFunction(writerFunction)
             .pathTransformFunc(pathTransformFunc);
   }
@@ -104,8 +103,8 @@ public class ORCFormatModel<E, D> implements FormatModel<E, D> {
     }
   }
 
-  public interface WriterFunction<E> {
-    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
+  public interface WriterFunction {
+    OrcRowWriter<?> write(Schema schema, TypeDescription messageType);
   }
 
   public interface ReaderFunction<D> {

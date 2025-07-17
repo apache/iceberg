@@ -687,7 +687,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    PositionDeleteWriteBuilder<?, ?, Record> builder =
+    PositionDeleteWriteBuilder<?, Record> builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
             format,
             GenericFormatModels.MODEL_NAME,

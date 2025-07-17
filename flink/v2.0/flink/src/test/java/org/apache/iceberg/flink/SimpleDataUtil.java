@@ -240,7 +240,7 @@ public class SimpleDataUtil {
     return posWriter.toDeleteFile();
   }
 
-  private static List<Record> convertToRecords(List<RowData> rows) {
+  public static List<Record> convertToRecords(List<RowData> rows) {
     List<Record> records = Lists.newArrayList();
     for (RowData row : rows) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);

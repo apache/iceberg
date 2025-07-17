@@ -20,11 +20,13 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -34,7 +36,6 @@ import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -44,36 +45,42 @@ public class SparkFormatModels {
 
   public static void register() {
     FormatModelRegistry.registerFormatModel(
-        new AvroFormatModel<StructType, InternalRow>(
+        new AvroFormatModel<>(
             MODEL_NAME,
             SparkPlannedAvroReader::create,
-            (schema, engineSchema) -> new SparkAvroWriter(engineSchema),
-            (schema, engineSchema) ->
+            (schema, avroSchema) -> new SparkAvroWriter(SparkSchemaUtil.convert(schema)),
+            (schema, avroSchema) ->
                 new SparkAvroWriter(
-                    (StructType) engineSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
+                    SparkSchemaUtil.convert(
+                        new Schema(
+                            schema
+                                .findField(DELETE_FILE_ROW_FIELD_NAME)
+                                .type()
+                                .asStructType()
+                                .fields())))));
 
     FormatModelRegistry.registerFormatModel(
-        new ParquetFormatModel<InternalRow, DeleteFilter<InternalRow>, StructType>(
+        new ParquetFormatModel<InternalRow, DeleteFilter<InternalRow>>(
             MODEL_NAME,
             SparkParquetReaders::buildReader,
-            (engineSchema, icebergSchema, messageType) ->
-                SparkParquetWriters.buildWriter(engineSchema, messageType),
+            (icebergSchema, messageType) ->
+                SparkParquetWriters.buildWriter(
+                    SparkSchemaUtil.convert(icebergSchema), messageType),
             path -> UTF8String.fromString(path.toString())));
 
     FormatModelRegistry.registerFormatModel(
-        new ParquetFormatModel<ColumnarBatch, DeleteFilter<InternalRow>, StructType>(
+        new ParquetFormatModel<ColumnarBatch, DeleteFilter<InternalRow>>(
             VECTORIZED_MODEL_NAME, VectorizedSparkParquetReaders::buildReader));
 
     FormatModelRegistry.registerFormatModel(
-        new ORCFormatModel<StructType, InternalRow>(
+        new ORCFormatModel<>(
             MODEL_NAME,
             SparkOrcReader::new,
-            (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType),
+            SparkOrcWriter::new,
             path -> UTF8String.fromString(path.toString())));
 
     FormatModelRegistry.registerFormatModel(
-        new ORCFormatModel<StructType, ColumnarBatch>(
-            VECTORIZED_MODEL_NAME, VectorizedSparkOrcReaders::buildReader));
+        new ORCFormatModel<>(VECTORIZED_MODEL_NAME, VectorizedSparkOrcReaders::buildReader));
   }
 
   private SparkFormatModels() {}

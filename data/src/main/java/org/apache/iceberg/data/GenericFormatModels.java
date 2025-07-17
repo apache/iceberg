@@ -51,8 +51,7 @@ public class GenericFormatModels {
                 new ParquetFormatModel<>(
                     MODEL_NAME,
                     GenericParquetReaders::buildReader,
-                    (nativeSchema, icebergSchema, messageType) ->
-                        GenericParquetWriter.create(icebergSchema, messageType),
+                    GenericParquetWriter::create,
                     Function.identity())));
   }
 
@@ -63,7 +62,7 @@ public class GenericFormatModels {
                 new AvroFormatModel<>(
                     MODEL_NAME,
                     PlannedDataReader::create,
-                    (avroSchema, unused) -> DataWriter.create(avroSchema))));
+                    (schema, avroSchema) -> DataWriter.create(avroSchema))));
   }
 
   private static void registerOrc() {
@@ -73,8 +72,7 @@ public class GenericFormatModels {
                 new ORCFormatModel<>(
                     MODEL_NAME,
                     GenericOrcReader::buildReader,
-                    (schema, messageType, nativeSchema) ->
-                        GenericOrcWriter.buildWriter(schema, messageType),
+                    GenericOrcWriter::buildWriter,
                     Function.identity())));
   }
 

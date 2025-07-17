@@ -28,27 +28,21 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
-import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructType;
 
-class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
+class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow> {
 
   SparkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
       Schema dataSchema,
-      StructType dataSparkType,
       SortOrder dataSortOrder,
       FileFormat deleteFileFormat,
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
-      StructType equalityDeleteSparkType,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
-      StructType positionDeleteSparkType,
       Map<String, String> writeProperties) {
 
     super(
@@ -62,11 +56,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
         positionDeleteRowSchema,
-        writeProperties,
-        calculateSparkType(dataSparkType, dataSchema),
-        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema),
-        calculateSparkType(
-            positionDeleteSparkType, DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema)));
+        writeProperties);
   }
 
   static Builder builderFor(Table table) {
@@ -77,15 +67,12 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     private final Table table;
     private FileFormat dataFileFormat;
     private Schema dataSchema;
-    private StructType dataSparkType;
     private SortOrder dataSortOrder;
     private FileFormat deleteFileFormat;
     private int[] equalityFieldIds;
     private Schema equalityDeleteRowSchema;
-    private StructType equalityDeleteSparkType;
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
-    private StructType positionDeleteSparkType;
     private Map<String, String> writeProperties;
 
     Builder(Table table) {
@@ -112,11 +99,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       return this;
     }
 
-    Builder dataSparkType(StructType newDataSparkType) {
-      this.dataSparkType = newDataSparkType;
-      return this;
-    }
-
     Builder dataSortOrder(SortOrder newDataSortOrder) {
       this.dataSortOrder = newDataSortOrder;
       return this;
@@ -137,11 +119,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       return this;
     }
 
-    Builder equalityDeleteSparkType(StructType newEqualityDeleteSparkType) {
-      this.equalityDeleteSparkType = newEqualityDeleteSparkType;
-      return this;
-    }
-
     Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
       this.equalityDeleteSortOrder = newEqualityDeleteSortOrder;
       return this;
@@ -149,11 +126,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
 
     Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
       this.positionDeleteRowSchema = newPositionDeleteRowSchema;
-      return this;
-    }
-
-    Builder positionDeleteSparkType(StructType newPositionDeleteSparkType) {
-      this.positionDeleteSparkType = newPositionDeleteSparkType;
       return this;
     }
 
@@ -173,26 +145,13 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
           table,
           dataFileFormat,
           dataSchema,
-          dataSparkType,
           dataSortOrder,
           deleteFileFormat,
           equalityFieldIds,
           equalityDeleteRowSchema,
-          equalityDeleteSparkType,
           equalityDeleteSortOrder,
           positionDeleteRowSchema,
-          positionDeleteSparkType,
           writeProperties);
-    }
-  }
-
-  private static StructType calculateSparkType(StructType sparkType, Schema schema) {
-    if (sparkType != null) {
-      return sparkType;
-    } else if (schema != null) {
-      return SparkSchemaUtil.convert(schema);
-    } else {
-      return null;
     }
   }
 }

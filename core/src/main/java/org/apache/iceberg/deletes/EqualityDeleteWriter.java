@@ -52,12 +52,44 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder,
       int... equalityFieldIds) {
+    this(
+        appender,
+        format,
+        location,
+        spec,
+        partition,
+        keyMetadata != null ? keyMetadata.buffer() : null,
+        sortOrder,
+        equalityFieldIds);
+  }
+
+  public EqualityDeleteWriter(EqualityDeleteWriter<T> wrapped) {
+    this(
+        wrapped.appender,
+        wrapped.format,
+        wrapped.location,
+        wrapped.spec,
+        wrapped.partition,
+        wrapped.keyMetadata,
+        wrapped.sortOrder,
+        wrapped.equalityFieldIds);
+  }
+
+  private EqualityDeleteWriter(
+      FileAppender<T> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      ByteBuffer keyMetadata,
+      SortOrder sortOrder,
+      int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
     this.location = location;
     this.spec = spec;
     this.partition = partition;
-    this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
+    this.keyMetadata = keyMetadata;
     this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
   }

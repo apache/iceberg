@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
@@ -29,9 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-abstract class FlinkSchemaVisitor<T> {
+@Internal
+public abstract class FlinkSchemaVisitor<T> {
 
-  static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
+  public static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);
   }
 
@@ -94,6 +96,8 @@ abstract class FlinkSchemaVisitor<T> {
     List<LogicalType> fieldTypes = Lists.newArrayListWithExpectedSize(fieldSize);
     List<Types.NestedField> nestedFields = struct.fields();
 
+    visitor.beforeStructElement(struct.asStructType());
+
     for (int i = 0; i < fieldSize; i++) {
       Types.NestedField iField = nestedFields.get(i);
       int fieldIndex = rowType.getFieldIndex(iField.name());
@@ -111,6 +115,8 @@ abstract class FlinkSchemaVisitor<T> {
         visitor.afterField(iField);
       }
     }
+
+    visitor.afterStructElement(struct.asStructType());
 
     return visitor.record(struct, results, fieldTypes);
   }
@@ -134,6 +140,10 @@ abstract class FlinkSchemaVisitor<T> {
   public void beforeField(Types.NestedField field) {}
 
   public void afterField(Types.NestedField field) {}
+
+  public void beforeStructElement(Types.StructType type) {}
+
+  public void afterStructElement(Types.StructType type) {}
 
   public void beforeListElement(Types.NestedField elementField) {
     beforeField(elementField);

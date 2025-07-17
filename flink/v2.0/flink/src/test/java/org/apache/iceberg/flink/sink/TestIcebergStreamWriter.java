@@ -34,6 +34,7 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -319,11 +320,14 @@ public class TestIcebergStreamWriter {
   public void testPromotedFlinkDataType() throws Exception {
     Schema iSchema =
         new Schema(
+            Types.NestedField.required(
+                4, "array", Types.ListType.ofOptional(5, Types.IntegerType.get())),
             Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
             Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
             Types.NestedField.optional(3, "int", Types.IntegerType.get()));
     ResolvedSchema flinkSchema =
         ResolvedSchema.of(
+            Column.physical("array", DataTypes.ARRAY(DataTypes.TINYINT()).notNull()),
             Column.physical("tinyint", DataTypes.TINYINT().notNull()),
             Column.physical("smallint", DataTypes.SMALLINT().notNull()),
             Column.physical("int", DataTypes.INT().nullable()));
@@ -347,16 +351,48 @@ public class TestIcebergStreamWriter {
 
     List<RowData> rows =
         Lists.newArrayList(
-            GenericRowData.of((byte) 0x01, (short) -32768, 101),
-            GenericRowData.of((byte) 0x02, (short) 0, 102),
-            GenericRowData.of((byte) 0x03, (short) 32767, 103));
+            GenericRowData.of(
+                new GenericArrayData(new byte[] {(byte) 0x04, (byte) 0x05}),
+                (byte) 0x01,
+                (short) -32768,
+                101),
+            GenericRowData.of(
+                new GenericArrayData(new byte[] {(byte) 0x06, (byte) 0x07}),
+                (byte) 0x02,
+                (short) 0,
+                102),
+            GenericRowData.of(
+                new GenericArrayData(new byte[] {(byte) 0x08, (byte) 0x09}),
+                (byte) 0x03,
+                (short) 32767,
+                103));
 
     Record record = GenericRecord.create(iSchema);
     List<Record> expected =
         Lists.newArrayList(
-            record.copy(ImmutableMap.of("tinyint", 1, "smallint", -32768, "int", 101)),
-            record.copy(ImmutableMap.of("tinyint", 2, "smallint", 0, "int", 102)),
-            record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103)));
+            record.copy(
+                ImmutableMap.of(
+                    "array",
+                    Lists.newArrayList(4, 5),
+                    "tinyint",
+                    1,
+                    "smallint",
+                    -32768,
+                    "int",
+                    101)),
+            record.copy(
+                ImmutableMap.of(
+                    "array", Lists.newArrayList(6, 7), "tinyint", 2, "smallint", 0, "int", 102)),
+            record.copy(
+                ImmutableMap.of(
+                    "array",
+                    Lists.newArrayList(8, 9),
+                    "tinyint",
+                    3,
+                    "smallint",
+                    32767,
+                    "int",
+                    103)));
 
     try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter(icebergTable, flinkSchema)) {

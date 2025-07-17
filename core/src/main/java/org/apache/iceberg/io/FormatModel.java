@@ -35,10 +35,9 @@ import org.apache.iceberg.deletes.PositionDelete;
  * <p>Iceberg provides some built-in object models and processing engines can implement custom
  * object models to integrate with Iceberg's file reading and writing capabilities.
  *
- * @param <E> input schema type used when converting input data to the file format
  * @param <D> output type used for reading data, and input type for writing data and deletes
  */
-public interface FormatModel<E, D> {
+public interface FormatModel<D> {
   /** The file format which is read/written by the object model. */
   FileFormat format();
 
@@ -67,7 +66,7 @@ public interface FormatModel<E, D> {
    * @return configured writer builder for standard data files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, D>> B dataBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, D>> B dataBuilder(OutputFile outputFile);
 
   /**
    * Creates a writer builder for equality delete files.
@@ -85,7 +84,7 @@ public interface FormatModel<E, D> {
    * @return configured writer builder for equality delete files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, D>> B equalityDeleteBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, D>> B equalityDeleteBuilder(OutputFile outputFile);
 
   /**
    * Creates a writer builder for position delete files.
@@ -104,7 +103,7 @@ public interface FormatModel<E, D> {
    * @return configured writer builder for position delete files
    * @param <B> the concrete builder type for method chaining
    */
-  <B extends WriteBuilder<B, E, PositionDelete<D>>> B positionDeleteBuilder(OutputFile outputFile);
+  <B extends WriteBuilder<B, PositionDelete<D>>> B positionDeleteBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.

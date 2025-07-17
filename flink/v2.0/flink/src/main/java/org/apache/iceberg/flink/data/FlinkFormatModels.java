@@ -20,11 +20,11 @@ package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.FormatModelRegistry;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
 
@@ -33,28 +33,34 @@ public class FlinkFormatModels {
 
   public static void register() {
     FormatModelRegistry.registerFormatModel(
-        new ParquetFormatModel<RowData, Object, RowType>(
+        new ParquetFormatModel<>(
             MODEL_NAME,
             FlinkParquetReaders::buildReader,
-            (engineType, unused, messageType) ->
-                FlinkParquetWriters.buildWriter(engineType, messageType),
+            (schema, messageType) ->
+                FlinkParquetWriters.buildWriter(FlinkSchemaUtil.convert(schema), messageType),
             path -> StringData.fromString(path.toString())));
 
     FormatModelRegistry.registerFormatModel(
-        new AvroFormatModel<RowType, RowData>(
+        new AvroFormatModel<>(
             MODEL_NAME,
             FlinkPlannedAvroReader::create,
-            (unused, rowType) -> new FlinkAvroWriter(rowType),
-            (unused, rowType) ->
+            (schema, avroSchema) -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)),
+            (schema, avroSchema) ->
                 new FlinkAvroWriter(
-                    (RowType)
-                        rowType.getTypeAt(rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
+                    FlinkSchemaUtil.convert(
+                        new Schema(
+                            schema
+                                .findField(DELETE_FILE_ROW_FIELD_NAME)
+                                .type()
+                                .asStructType()
+                                .fields())))));
 
     FormatModelRegistry.registerFormatModel(
-        new ORCFormatModel<RowType, RowData>(
+        new ORCFormatModel<>(
             MODEL_NAME,
             FlinkOrcReader::new,
-            (schema, messageType, nativeSchema) -> FlinkOrcWriter.buildWriter(nativeSchema, schema),
+            (schema, messageType) ->
+                FlinkOrcWriter.buildWriter(FlinkSchemaUtil.convert(schema), schema),
             path -> StringData.fromString(path.toString())));
   }
 
