@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
@@ -113,6 +114,8 @@ public class ErrorHandlers {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
+          } else if (NotFoundException.class.getSimpleName().equals(error.type())) {
+            throw new NotFoundException("%s", error.message());
           } else {
             throw new NoSuchTableException("%s", error.message());
           }
