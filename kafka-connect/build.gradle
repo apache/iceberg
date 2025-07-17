@@ -264,3 +264,4 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
     useJUnitPlatform()
   }
 }
+
