@@ -33,7 +33,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
+class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record> {
 
   GenericFileWriterFactory(
       Table table,
@@ -56,10 +56,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
         positionDeleteRowSchema,
-        ImmutableMap.of(),
-        dataSchema,
-        equalityDeleteRowSchema,
-        positionDeleteRowSchema);
+        ImmutableMap.of());
   }
 
   static Builder builderFor(Table table) {
