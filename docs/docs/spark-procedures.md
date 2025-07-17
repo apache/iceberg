@@ -488,7 +488,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Argument Name | Required? | Type | Description                                                   |
 |---------------|-----------|------|---------------------------------------------------------------|
 | `table`       | ✔️  | string | Name of the table to update                                   |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
@@ -505,9 +505,9 @@ Rewrite the manifests in table `db.sample` and align manifest files with table p
 CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
-Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
+Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false);
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
 
 ### `rewrite_position_delete_files`
@@ -523,6 +523,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 |---------------|-----------|------|----------------------------------|
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
+| `where`       | ️   | string | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
