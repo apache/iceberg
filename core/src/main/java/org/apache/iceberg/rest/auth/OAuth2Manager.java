@@ -61,7 +61,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
-  private AuthSessionCache sessionCache;
+  private SessionCache<String, OAuth2Util.AuthSession> sessionCache;
 
   public OAuth2Manager(String managerName) {
     super(managerName + "-token-refresh");
@@ -105,7 +105,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
       RESTClient sharedClient, Map<String, String> properties) {
     // This client will be used for token refreshes; it should not have an auth session.
     this.refreshClient = sharedClient.withAuthSession(AuthSession.EMPTY);
-    this.sessionCache = newSessionCache(name, properties);
+    this.sessionCache = newAuthSessionCache(name, properties);
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
@@ -188,19 +188,25 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public void close() {
-    try {
+    SessionCache<String, OAuth2Util.AuthSession> cache = sessionCache;
+    this.sessionCache = null;
+    try (cache) {
       super.close();
-    } finally {
-      AuthSessionCache cache = sessionCache;
-      this.sessionCache = null;
-      if (cache != null) {
-        cache.close();
-      }
     }
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link #newAuthSessionCache(String,
+   *     Map)}
+   */
+  @Deprecated
   protected AuthSessionCache newSessionCache(String managerName, Map<String, String> properties) {
     return new AuthSessionCache(managerName, sessionTimeout(properties));
+  }
+
+  protected SessionCache<String, OAuth2Util.AuthSession> newAuthSessionCache(
+      String managerName, Map<String, String> properties) {
+    return new DefaultSessionCache<>(managerName, sessionTimeout(properties));
   }
 
   protected OAuth2Util.AuthSession maybeCreateChildSession(
