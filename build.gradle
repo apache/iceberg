@@ -756,6 +756,7 @@ project(':iceberg-hive-metastore') {
       exclude group: 'com.tdunning', module: 'json'
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -772,6 +773,7 @@ project(':iceberg-hive-metastore') {
       exclude group: 'org.apache.calcite'
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
     }
 
     testImplementation(libs.hive2.metastore) {
@@ -788,6 +790,10 @@ project(':iceberg-hive-metastore') {
       exclude group: 'com.tdunning', module: 'json'
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-common'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-applicationhistoryservice'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-web-proxy'
     }
 
     compileOnly(libs.hadoop3.client) {
