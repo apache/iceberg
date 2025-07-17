@@ -1003,7 +1003,7 @@ CALL catalog_name.system.compute_partition_stats('my_table');
 
 Collect partition statistics of the snapshot with id `snap1` of table `my_table`
 ```sql
-CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1' );
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
 ```
 
 ## Table Replication
