@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -92,13 +93,13 @@ public class GenericAppenderHelper {
 
   public DataFile writeFile(List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = temp.resolve("generic-appender-test").toFile();
+    File file = temp.resolve("generic-appender-test-" + UUID.randomUUID().toString()).toFile();
     return appendToLocalFile(table, file, fileFormat, null, records, conf);
   }
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = temp.resolve("generic-appender-partition-test").toFile();
+    File file = temp.resolve("generic-appender-partition-test-" + UUID.randomUUID().toString()).toFile();
     return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }
 
