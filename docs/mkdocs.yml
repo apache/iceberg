@@ -45,8 +45,7 @@ nav:
     - Go: https://pkg.go.dev/github.com/apache/iceberg-go/
   - Integrations:
     # Iceberg-maintained integrations come first
-    - Apache Hive: hive.md
-    - Spark:
+    - Apache Spark:
       - spark-getting-started.md
       - spark-configuration.md
       - spark-ddl.md
@@ -54,7 +53,7 @@ nav:
       - spark-queries.md
       - spark-structured-streaming.md
       - spark-writes.md
-    - Flink:
+    - Apache Flink:
       - flink.md
       - flink-connector.md
       - flink-ddl.md
@@ -63,6 +62,7 @@ nav:
       - flink-actions.md
       - flink-configuration.md
     - Kafka Connect: kafka-connect.md
+    - Apache Hive: hive.md
     - Third-party:
     # Now all the 3rd party integrations
       - Apache Amoro: amoro.md
@@ -92,10 +92,9 @@ nav:
   - Catalogs:
     - AWS Glue: aws/#glue-catalog
     - AWS DynamoDB: aws/#dynamodb-catalog
+    - custom-catalog.md
     - jdbc.md
     - nessie.md
-    - custom-catalog.md
   - Storage:
     - AWS S3: aws/#s3-fileio
     - Dell ECS: dell.md
-
