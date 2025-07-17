@@ -125,7 +125,7 @@ public class Avro {
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
-    private final WriteBuilderImpl<?, Object> impl;
+    private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file, null);
@@ -213,8 +213,8 @@ public class Avro {
     }
   }
 
-  static class WriteBuilderImpl<E, D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<E, D>, E, D> {
+  static class WriteBuilderImpl<D>
+      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
     private final OutputFile file;
     private final FileContent content;
     private final Map<String, String> config = Maps.newHashMap();
@@ -222,27 +222,28 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, E, DatumWriter<D>> writerFunction = null;
-    private BiFunction<Schema, E, DatumWriter<D>> deleteRowWriterFunction = null;
+    private BiFunction<org.apache.iceberg.Schema, Schema, DatumWriter<D>> writerFunction = null;
+    private BiFunction<org.apache.iceberg.Schema, Schema, DatumWriter<D>> deleteRowWriterFunction =
+        null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
-    private E engineSchema;
 
     WriteBuilderImpl(OutputFile file, FileContent content) {
       this.file = file;
       this.content = content;
     }
 
-    WriteBuilderImpl<E, D> writerFunction(BiFunction<Schema, E, DatumWriter<D>> newWriterFunction) {
+    WriteBuilderImpl<D> writerFunction(
+        BiFunction<org.apache.iceberg.Schema, Schema, DatumWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
       return this;
     }
 
-    WriteBuilderImpl<E, D> deleteRowWriterFunction(
-        BiFunction<Schema, E, DatumWriter<D>> newWriterFunction) {
+    WriteBuilderImpl<D> deleteRowWriterFunction(
+        BiFunction<org.apache.iceberg.Schema, Schema, DatumWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.deleteRowWriterFunction = newWriterFunction;
@@ -250,48 +251,42 @@ public class Avro {
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileSchema(org.apache.iceberg.Schema newSchema) {
+    public WriteBuilderImpl<D> fileSchema(org.apache.iceberg.Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> set(String property, String value) {
+    public WriteBuilderImpl<D> set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> meta(String property, String value) {
+    public WriteBuilderImpl<D> meta(String property, String value) {
       metadata.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
+    public WriteBuilderImpl<D> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> overwrite() {
+    public WriteBuilderImpl<D> overwrite() {
       this.overwrite = true;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
-      this.engineSchema = newModelSchema;
-      return this;
-    }
-
-    @Override
-    public WriteBuilderImpl<E, D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public WriteBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
       throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
       throw new UnsupportedOperationException("Not supported");
     }
 
@@ -299,12 +294,12 @@ public class Avro {
       switch (content) {
         case DATA:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createWriterFunc = avroSchema -> writerFunction.apply(schema, avroSchema);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETES:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createWriterFunc = avroSchema -> writerFunction.apply(schema, avroSchema);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETES:
@@ -321,10 +316,9 @@ public class Avro {
                 deleteRowWriterFunction != null
                     ? avroSchema ->
                         new PositionAndRowDatumWriter<>(
-                            deleteRowWriterFunction.apply(avroSchema, engineSchema))
+                            deleteRowWriterFunction.apply(schema, avroSchema))
                     : avroSchema ->
-                        new PositionAndRowDatumWriter<>(
-                            writerFunction.apply(avroSchema, engineSchema));
+                        new PositionAndRowDatumWriter<>(writerFunction.apply(schema, avroSchema));
           }
           break;
         default:

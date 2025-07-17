@@ -29,18 +29,18 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 
-public class ParquetFormatModel<D, F, E> implements FormatModel<E, D> {
+public class ParquetFormatModel<D, F> implements FormatModel<D> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D, F> batchReaderFunction;
-  private final WriterFunction<D, E> writerFunction;
+  private final WriterFunction<D> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
   private ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
-      WriterFunction<D, E> writerFunction,
+      WriterFunction<D> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
@@ -52,7 +52,7 @@ public class ParquetFormatModel<D, F, E> implements FormatModel<E, D> {
   public ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      WriterFunction<D, E> writerFunction,
+      WriterFunction<D> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
   }
@@ -72,26 +72,25 @@ public class ParquetFormatModel<D, F, E> implements FormatModel<E, D> {
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataBuilder(
-      OutputFile outputFile) {
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B dataBuilder(OutputFile outputFile) {
     return (B)
-        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.DATA)
+        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.DATA)
             .writerFunction(writerFunction);
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteBuilder(
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B equalityDeleteBuilder(
       OutputFile outputFile) {
     return (B)
-        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.EQUALITY_DELETES)
+        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.EQUALITY_DELETES)
             .writerFunction(writerFunction);
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, E, PositionDelete<D>>>
+  public <B extends org.apache.iceberg.io.WriteBuilder<B, PositionDelete<D>>>
       B positionDeleteBuilder(OutputFile outputFile) {
     return (B)
-        new Parquet.WriteBuilderImpl<E, D>(outputFile, FileContent.POSITION_DELETES)
+        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.POSITION_DELETES)
             .writerFunction(writerFunction)
             .pathTransformFunc(pathTransformFunc);
   }
@@ -124,7 +123,7 @@ public class ParquetFormatModel<D, F, E> implements FormatModel<E, D> {
         Map<String, String> config);
   }
 
-  public interface WriterFunction<D, E> {
-    ParquetValueWriter<D> write(E engineSchema, Schema icebergSchema, MessageType messageType);
+  public interface WriterFunction<D> {
+    ParquetValueWriter<D> write(Schema icebergSchema, MessageType messageType);
   }
 }

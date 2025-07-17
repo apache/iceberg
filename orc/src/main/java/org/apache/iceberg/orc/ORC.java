@@ -134,7 +134,7 @@ public class ORC {
    */
   @Deprecated
   public static class WriteBuilder {
-    private final WriteBuilderImpl<?, ?> impl;
+    private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file, null);
@@ -198,20 +198,19 @@ public class ORC {
     }
   }
 
-  static class WriteBuilderImpl<E, D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<E, D>, E, D> {
+  static class WriteBuilderImpl<D>
+      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
     private final OutputFile file;
     private final FileContent content;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private ORCFormatModel.WriterFunction<E> writerFunction;
+    private ORCFormatModel.WriterFunction writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
-    private E engineSchema;
     private Function<CharSequence, ?> pathTransformFunc;
 
     WriteBuilderImpl(OutputFile file, FileContent content) {
@@ -224,61 +223,55 @@ public class ORC {
       }
     }
 
-    WriteBuilderImpl<E, D> writerFunction(ORCFormatModel.WriterFunction<E> newWriterFunction) {
+    WriteBuilderImpl<D> writerFunction(ORCFormatModel.WriterFunction newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
       return this;
     }
 
-    WriteBuilderImpl<E, D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
+    WriteBuilderImpl<D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
       this.pathTransformFunc = newPathTransformFunc;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> set(String property, String value) {
+    public WriteBuilderImpl<D> set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> meta(String property, String value) {
+    public WriteBuilderImpl<D> meta(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileSchema(Schema newSchema) {
+    public WriteBuilderImpl<D> fileSchema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
-      this.engineSchema = newModelSchema;
-      return this;
-    }
-
-    @Override
-    public WriteBuilderImpl<E, D> overwrite() {
+    public WriteBuilderImpl<D> overwrite() {
       this.overwrite = true;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
+    public WriteBuilderImpl<D> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public WriteBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
       throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
       throw new UnsupportedOperationException("Not supported");
     }
 
@@ -286,15 +279,11 @@ public class ORC {
       Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
       switch (content) {
         case DATA:
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+          this.createWriterFunc = writerFunction::write;
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETES:
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+          this.createWriterFunc = writerFunction::write;
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETES:
@@ -313,8 +302,7 @@ public class ORC {
             this.createWriterFunc =
                 (icebergSchema, typeDescription) ->
                     GenericOrcWriters.positionDelete(
-                        writerFunction.write(icebergSchema, typeDescription, engineSchema),
-                        pathTransformFunc);
+                        writerFunction.write(icebergSchema, typeDescription), pathTransformFunc);
           }
           break;
         default:

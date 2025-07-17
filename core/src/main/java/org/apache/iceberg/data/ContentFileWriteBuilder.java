@@ -29,7 +29,6 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.WriteBuilder;
 
 /**
  * A generic builder interface for creating specialized file writers in the Iceberg ecosystem.
@@ -47,18 +46,11 @@ import org.apache.iceberg.io.WriteBuilder;
  * content-specific metadata and behaviors.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> output schema type required by the writer for data conversion
  */
-interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, E>, E> {
+interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
 
   /** Set the file schema. */
   B fileSchema(Schema newSchema);
-
-  /**
-   * Sets the object model schema for the input. Used by the {@link WriteBuilder#build()} to
-   * configure the converters.
-   */
-  B modelSchema(E modelSchema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.

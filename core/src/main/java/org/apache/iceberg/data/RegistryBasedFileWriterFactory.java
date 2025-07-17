@@ -109,14 +109,15 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      DataWriteBuilder<?, S, T> builder =
+      DataWriteBuilder<?, T> builder =
           FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
           .fileSchema(dataSchema)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .modelSchema(modelSchema())
+          // We will need mapping from model schema to row schema
+          // .modelSchema(modelSchema())
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)
@@ -136,13 +137,14 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      EqualityDeleteWriteBuilder<?, S, T> builder =
+      EqualityDeleteWriteBuilder<?, T> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .modelSchema(equalityDeleteModelSchema())
+          // We will need mapping from model schema to row schema
+          // .modelSchema(equalityDeleteModelSchema())
           .rowSchema(equalityDeleteRowSchema)
           .equalityFieldIds(equalityFieldIds)
           .spec(spec)
@@ -164,13 +166,14 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      PositionDeleteWriteBuilder<?, S, T> builder =
+      PositionDeleteWriteBuilder<?, T> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .modelSchema(positionDeleteModelSchema())
+          // We will need mapping from model schema to row schema
+          // .modelSchema(positionDeleteModelSchema())
           .rowSchema(positionDeleteRowSchema)
           .spec(spec)
           .partition(partition)

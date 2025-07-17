@@ -177,7 +177,7 @@ public class Parquet {
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
-    private final WriteBuilderImpl<?, ?> impl;
+    private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file, null);
@@ -311,20 +311,19 @@ public class Parquet {
   }
 
   @SuppressWarnings("unchecked")
-  static class WriteBuilderImpl<E, D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<E, D>, E, D> {
+  static class WriteBuilderImpl<D>
+      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
     private final OutputFile file;
     private final FileContent content;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
-    private E engineSchema = null;
     private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private ParquetFormatModel.WriterFunction<D, E> writerFunction = null;
+    private ParquetFormatModel.WriterFunction<D> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -342,21 +341,20 @@ public class Parquet {
       }
     }
 
-    WriteBuilderImpl<E, D> writerFunction(
-        ParquetFormatModel.WriterFunction<D, E> newWriterFunction) {
+    WriteBuilderImpl<D> writerFunction(ParquetFormatModel.WriterFunction<D> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
       return this;
     }
 
-    WriteBuilderImpl<E, D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
+    WriteBuilderImpl<D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
       this.pathTransformFunc = newPathTransformFunc;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileSchema(Schema newSchema) {
+    public WriteBuilderImpl<D> fileSchema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
@@ -369,49 +367,43 @@ public class Parquet {
      * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
      * @return this for method chaining
      */
-    public WriteBuilderImpl<E, D> variantShreddingFunc(VariantShreddingFunction func) {
+    public WriteBuilderImpl<D> variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> modelSchema(E newModelSchema) {
-      this.engineSchema = newModelSchema;
-      return this;
-    }
-
-    @Override
-    public WriteBuilderImpl<E, D> set(String property, String value) {
+    public WriteBuilderImpl<D> set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> meta(String property, String value) {
+    public WriteBuilderImpl<D> meta(String property, String value) {
       metadata.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
+    public WriteBuilderImpl<D> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> overwrite() {
+    public WriteBuilderImpl<D> overwrite() {
       this.writeMode = ParquetFileWriter.Mode.OVERWRITE;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public WriteBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<E, D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
       return this;
     }
@@ -475,14 +467,12 @@ public class Parquet {
       switch (content) {
         case DATA:
           this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  writerFunction.write(engineSchema, icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.write(icebergSchema, messageType);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETES:
           this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  writerFunction.write(engineSchema, icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.write(icebergSchema, messageType);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETES:
@@ -502,8 +492,7 @@ public class Parquet {
             this.createWriterFunc =
                 (icebergSchema, messageType) ->
                     new PositionDeleteStructWriter<D>(
-                        (StructWriter<?>)
-                            writerFunction.write(engineSchema, icebergSchema, messageType),
+                        (StructWriter<?>) writerFunction.write(icebergSchema, messageType),
                         pathTransformFunc);
           }
           break;
