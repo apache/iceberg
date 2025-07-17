@@ -1118,10 +1118,17 @@ class DropTableOperation(BaseModel):
 
 
 class RenameTableOperation(RenameTableRequest):
-    operation_type: Literal['rename-table', 'rename-view'] = Field(
+    operation_type: Literal['rename-table'] = Field(
         ..., alias='operation-type', const=True
     )
     table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RenameViewOperation(RenameTableRequest):
+    operation_type: Literal['rename-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class CreateViewOperation(BaseModel):
@@ -1622,6 +1629,7 @@ class Event(BaseModel):
         CreateViewOperation,
         DropViewOperation,
         UpdateViewOperation,
+        RenameViewOperation,
         CreateNamespaceOperation,
         UpdateNamespacePropertiesOperation,
         DropNamespaceOperation,

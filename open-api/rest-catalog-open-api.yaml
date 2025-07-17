@@ -4220,7 +4220,7 @@ components:
               create-view: "#/components/schemas/CreateViewOperation"
               drop-view: "#/components/schemas/DropViewOperation"
               update-view: "#/components/schemas/UpdateViewOperation"
-              rename-view: "#/components/schemas/RenameTableOperation"
+              rename-view: "#/components/schemas/RenameViewOperation"
               create-namespace: "#/components/schemas/CreateNamespaceOperation"
               update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"
               drop-namespace: "#/components/schemas/DropNamespaceOperation"
@@ -4234,7 +4234,7 @@ components:
             - $ref: "#/components/schemas/CreateViewOperation"
             - $ref: "#/components/schemas/DropViewOperation"
             - $ref: "#/components/schemas/UpdateViewOperation"
-            - $ref: "#/components/schemas/RenameTableOperation"
+            - $ref: "#/components/schemas/RenameViewOperation"
             - $ref: "#/components/schemas/CreateNamespaceOperation"
             - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"
             - $ref: "#/components/schemas/DropNamespaceOperation"
@@ -4326,6 +4326,20 @@ components:
           $ref: "#/components/schemas/OperationType"
           const: "rename-table"
         table-uuid:
+          type: string
+          format: uuid
+
+    RenameViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/RenameTableRequest"
+      required:
+        - operation-type
+        - view-uuid
+      properties:
+        operation-type:
+          $ref: "#/components/schemas/OperationType"
+          const: "rename-view"
+        view-uuid:
           type: string
           format: uuid
 
