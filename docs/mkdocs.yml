@@ -42,6 +42,7 @@ nav:
     - spark-queries.md
     - spark-structured-streaming.md
     - spark-writes.md
+    - spark-system.md
   - Flink:
     - flink.md
     - flink-connector.md
