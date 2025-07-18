@@ -94,6 +94,12 @@ sudo setenforce Enforcing
 
 ---
 
+### REST API Specification
+Iceberg defines a REST-based catalog API for managing table metadata and performing catalog operations. You can find the OpenAPI specification here:
+[REST Catalog OpenAPI YAML][iceberg-rest-spec]
+
+[iceberg-rest-spec]: https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml
+
 ### Engine Compatibility
 
 See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to know about Iceberg compatibility with different Spark, Flink and Hive versions.
