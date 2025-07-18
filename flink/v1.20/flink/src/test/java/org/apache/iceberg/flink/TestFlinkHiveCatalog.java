@@ -27,7 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -56,8 +55,7 @@ public class TestFlinkHiveCatalog extends TestBase {
     try (FileOutputStream fos = new FileOutputStream(hiveSiteXML)) {
       Configuration newConf = new Configuration(hiveConf);
       // Set another new directory which is different with the hive metastore's warehouse path.
-      newConf.set(
-          HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
+      newConf.set("hive.metastore.warehouse.dir", "file://" + warehouseDir.getAbsolutePath());
       newConf.writeXml(fos);
     }
     assertThat(hiveSiteXML.toPath()).exists();
