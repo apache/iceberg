@@ -129,6 +129,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
+  private static final Pattern REWRITE_JOB = Pattern.compile("rewrite_(.*)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -894,6 +895,11 @@ public class SparkCatalog extends BaseCatalog {
         }
       }
 
+      Matcher rewriteJob = REWRITE_JOB.matcher(ident.name());
+      if (rewriteJob.matches()) {
+        return new SparkTable(table, null, !cacheEnabled, true);
+      }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -921,10 +927,17 @@ public class SparkCatalog extends BaseCatalog {
     String branch = null;
     String tag = null;
     boolean isChangelog = false;
+    boolean isRewrite = false;
 
     for (String meta : parsed.second()) {
       if (meta.equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
         isChangelog = true;
+        continue;
+      }
+
+      Matcher rewrite = REWRITE_JOB.matcher(meta);
+      if (rewrite.matches()) {
+        isRewrite = true;
         continue;
       }
 
@@ -988,6 +1001,8 @@ public class SparkCatalog extends BaseCatalog {
           tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
       return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
 
+    } else if (isRewrite) {
+      return new SparkTable(table, null, !cacheEnabled, true);
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);
     }
