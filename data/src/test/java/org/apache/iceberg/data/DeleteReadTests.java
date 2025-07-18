@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -125,7 +124,7 @@ public abstract class DeleteReadTests {
     this.dataFile =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             records);
 
@@ -156,31 +155,31 @@ public abstract class DeleteReadTests {
     DataFile dataFile1 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dateRecords.subList(0, 1));
     DataFile dataFile2 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dateRecords.subList(1, 2));
     DataFile dataFile3 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dateRecords.subList(2, 3));
     DataFile dataFile4 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))),
             dateRecords.subList(3, 4));
     DataFile dataFile5 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))),
             dateRecords.subList(4, 5));
 
@@ -241,7 +240,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             deleteRowSchema);
@@ -270,21 +269,21 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes1 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dataDeletes.subList(0, 1),
             deleteRowSchema);
     DeleteFile eqDeletes2 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dataDeletes.subList(1, 2),
             deleteRowSchema);
     DeleteFile eqDeletes3 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dataDeletes.subList(2, 3),
             deleteRowSchema);
@@ -318,7 +317,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             deleteRowSchema);
@@ -350,7 +349,7 @@ public abstract class DeleteReadTests {
     this.dataFile =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             records);
 
@@ -370,7 +369,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             deleteRowSchema);
@@ -397,7 +396,7 @@ public abstract class DeleteReadTests {
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             deletes,
             formatVersion);
@@ -430,7 +429,7 @@ public abstract class DeleteReadTests {
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             deletes,
             formatVersion);
@@ -446,7 +445,7 @@ public abstract class DeleteReadTests {
     posDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             deletes,
             formatVersion);
@@ -478,7 +477,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             dataSchema);
@@ -492,7 +491,7 @@ public abstract class DeleteReadTests {
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             deletes,
             formatVersion);
@@ -525,7 +524,7 @@ public abstract class DeleteReadTests {
     DeleteFile dataEqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             dataSchema);
@@ -541,7 +540,7 @@ public abstract class DeleteReadTests {
     DeleteFile idEqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             idDeletes,
             idSchema);
@@ -565,7 +564,7 @@ public abstract class DeleteReadTests {
     DataFile dataFileWithNull =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             Lists.newArrayList(record.copy("id", 131, "data", null)));
 
@@ -582,7 +581,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             dataDeletes,
             dataSchema);
@@ -640,7 +639,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             equalityDeletes,
             equalityDeletes.get(0).struct().asSchema());
@@ -673,7 +672,7 @@ public abstract class DeleteReadTests {
     DataFile binaryDataFile =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
             Row.of(0),
             recordsWithOptionalColumns);
 

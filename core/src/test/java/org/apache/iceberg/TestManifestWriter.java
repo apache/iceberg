@@ -391,12 +391,8 @@ public class TestManifestWriter extends TestBase {
   }
 
   private OutputFile newManifestFile() {
-    try {
-      return Files.localOutput(
-          FileFormat.AVRO.addExtension(
-              File.createTempFile("manifest", null, temp.toFile()).toString()));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return Files.localOutput(
+        FileFormat.AVRO.addExtension(
+            temp.resolve("manifest" + System.nanoTime()).toFile().toString()));
   }
 }

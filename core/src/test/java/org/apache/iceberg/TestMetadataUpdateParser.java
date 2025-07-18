@@ -1370,7 +1370,7 @@ public class TestMetadataUpdateParser {
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
+    File manifestList = temp.resolve("manifests").toFile();
 
     List<ManifestFile> manifests =
         ImmutableList.of(
