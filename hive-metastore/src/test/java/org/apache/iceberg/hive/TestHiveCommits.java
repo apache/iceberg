@@ -303,10 +303,10 @@ public class TestHiveCommits extends HiveTableTestBase {
 
   @Test
   public void testInvalidObjectException() {
-    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`tbl`");
+    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "tábl");
     assertThatThrownBy(() -> catalog.createTable(badTi, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`tbl`"));
+        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "tábl"));
   }
 
   @Test
