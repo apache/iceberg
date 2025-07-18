@@ -40,9 +40,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * A base writer factory to be extended by query engine integrations.
  *
  * @param <T> type of the engine specific records
- * @param <S> type of the engine specific schema
  */
-public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
+public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final String inputType;
@@ -54,9 +53,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
   private final Map<String, String> writeProperties;
-  private final S modelSchema;
-  private final S equalityDeleteModelSchema;
-  private final S positionalDeleteModelSchema;
 
   protected RegistryBasedFileWriterFactory(
       Table table,
@@ -69,10 +65,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
-      Map<String, String> writeProperties,
-      S modelSchema,
-      S equalityDeleteModelSchema,
-      S positionalDeleteModelSchema) {
+      Map<String, String> writeProperties) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.inputType = inputType;
@@ -84,21 +77,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
-    this.modelSchema = modelSchema;
-    this.equalityDeleteModelSchema = equalityDeleteModelSchema;
-    this.positionalDeleteModelSchema = positionalDeleteModelSchema;
-  }
-
-  protected S modelSchema() {
-    return modelSchema;
-  }
-
-  protected S equalityDeleteModelSchema() {
-    return equalityDeleteModelSchema;
-  }
-
-  protected S positionDeleteModelSchema() {
-    return positionalDeleteModelSchema;
   }
 
   @Override
@@ -116,8 +94,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          // We will need mapping from model schema to row schema
-          // .modelSchema(modelSchema())
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)
@@ -143,8 +119,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          // We will need mapping from model schema to row schema
-          // .modelSchema(equalityDeleteModelSchema())
           .rowSchema(equalityDeleteRowSchema)
           .equalityFieldIds(equalityFieldIds)
           .spec(spec)
@@ -172,8 +146,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          // We will need mapping from model schema to row schema
-          // .modelSchema(positionDeleteModelSchema())
           .rowSchema(positionDeleteRowSchema)
           .spec(spec)
           .partition(partition)

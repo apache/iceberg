@@ -420,9 +420,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(context.dataFileFormat())
               .dataSchema(context.dataSchema())
-              .dataSparkType(context.dataSparkType())
               .deleteFileFormat(context.deleteFileFormat())
-              .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
               .build();
 

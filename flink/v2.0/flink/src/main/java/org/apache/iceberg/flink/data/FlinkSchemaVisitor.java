@@ -96,6 +96,8 @@ public abstract class FlinkSchemaVisitor<T> {
     List<LogicalType> fieldTypes = Lists.newArrayListWithExpectedSize(fieldSize);
     List<Types.NestedField> nestedFields = struct.fields();
 
+    visitor.beforeStructElement(struct.asStructType());
+
     for (int i = 0; i < fieldSize; i++) {
       Types.NestedField iField = nestedFields.get(i);
       int fieldIndex = rowType.getFieldIndex(iField.name());
@@ -113,6 +115,8 @@ public abstract class FlinkSchemaVisitor<T> {
         visitor.afterField(iField);
       }
     }
+
+    visitor.afterStructElement(struct.asStructType());
 
     return visitor.record(struct, results, fieldTypes);
   }
@@ -136,6 +140,10 @@ public abstract class FlinkSchemaVisitor<T> {
   public void beforeField(Types.NestedField field) {}
 
   public void afterField(Types.NestedField field) {}
+
+  public void beforeStructElement(Types.StructType type) {}
+
+  public void afterStructElement(Types.StructType type) {}
 
   public void beforeListElement(Types.NestedField elementField) {
     beforeField(elementField);
