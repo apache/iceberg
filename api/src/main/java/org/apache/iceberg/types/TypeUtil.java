@@ -399,7 +399,16 @@ public class TypeUtil {
     return visit(type, new FindTypeVisitor(predicate));
   }
 
+  /**
+   * @deprecated Use {@link #isPromotionAllowed(Type, Type.PrimitiveType, boolean)} instead.
+   */
+  @Deprecated
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
+    return isPromotionAllowed(from, to, false);
+  }
+
+  public static boolean isPromotionAllowed(
+      Type from, Type.PrimitiveType to, boolean referenceBySourceId) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
     if (from.equals(to)) {
@@ -422,6 +431,20 @@ public class TypeUtil {
         Types.DecimalType toDecimal = (Types.DecimalType) to;
         return fromDecimal.scale() == toDecimal.scale()
             && fromDecimal.precision() <= toDecimal.precision();
+
+      case DATE:
+        if (referenceBySourceId) {
+          return false;
+        }
+        if (to.typeId() == Type.TypeID.TIMESTAMP) {
+          Types.TimestampType toTimestamp = (Types.TimestampType) to;
+          return Types.TimestampType.withoutZone().equals(toTimestamp);
+        }
+        if (to.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+          Types.TimestampNanoType toTimestampNano = (Types.TimestampNanoType) to;
+          return Types.TimestampNanoType.withoutZone().equals(toTimestampNano);
+        }
+        return false;
     }
 
     return false;
