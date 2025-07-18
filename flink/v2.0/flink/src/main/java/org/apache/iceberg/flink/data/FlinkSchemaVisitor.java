@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
@@ -29,9 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-abstract class FlinkSchemaVisitor<T> {
+@Internal
+public abstract class FlinkSchemaVisitor<T> {
 
-  static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
+  public static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);
   }
 

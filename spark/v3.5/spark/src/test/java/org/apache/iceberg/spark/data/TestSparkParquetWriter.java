@@ -29,18 +29,23 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -49,7 +54,7 @@ public class TestSparkParquetWriter {
 
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(1, "id", Types.DecimalType.of(5, 3)),
           Types.NestedField.required(2, "id_long", Types.LongType.get()));
 
   private static final Schema COMPLEX_SCHEMA =
@@ -124,6 +129,47 @@ public class TestSparkParquetWriter {
       for (int i = 0; i < numRows; i += 1) {
         assertThat(rows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
+      }
+      assertThat(rows).as("Should not have extra rows").isExhausted();
+    }
+  }
+
+  @Test
+  public void testCorrectness2() throws IOException {
+    int numRows = 5;
+//    Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, numRows, 19981);
+    List<InternalRow> records = Lists.newArrayListWithExpectedSize(5);
+    for (int i = 0; i < numRows; i++) {
+        GenericInternalRow genericInternalRow = new GenericInternalRow(SCHEMA.columns().size());
+        genericInternalRow.setDecimal(0, Decimal.fromString(UTF8String.fromString("1.4")), 6);
+        genericInternalRow.setLong(1, i);
+      records.add(genericInternalRow);
+      }
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+
+    try (FileAppender<InternalRow> writer =
+                 Parquet.write(Files.localOutput(testFile))
+                         .schema(SCHEMA)
+                         .createWriterFunc(
+                                 msgType ->
+                                         SparkParquetWriters.buildWriter(
+                                                 SparkSchemaUtil.convert(SCHEMA), msgType))
+                         .build()) {
+      writer.addAll(records);
+    }
+
+    try (CloseableIterable<InternalRow> reader =
+                 Parquet.read(Files.localInput(testFile))
+                         .project(SCHEMA)
+                         .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
+                         .build()) {
+      Iterator<InternalRow> expected = records.iterator();
+      Iterator<InternalRow> rows = reader.iterator();
+      for (int i = 0; i < numRows; i += 1) {
+        assertThat(rows).as("Should have expected number of rows").hasNext();
+        TestHelpers.assertEquals(SCHEMA, expected.next(), rows.next());
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
     }

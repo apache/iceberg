@@ -39,6 +39,10 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final SortOrder sortOrder;
   private DataFile dataFile = null;
 
+  public DataWriter(DataWriter wrapped) {
+    this(wrapped.appender, wrapped.format, wrapped.location, wrapped.spec, wrapped.partition, wrapped.keyMetadata, wrapped.sortOrder);
+  }
+
   public DataWriter(
       FileAppender<T> appender,
       FileFormat format,
@@ -57,12 +61,23 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
       StructLike partition,
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder) {
+    this(appender, format, location, spec, partition, keyMetadata != null ? keyMetadata.buffer() : null, sortOrder);
+  }
+
+  private DataWriter(
+          FileAppender<T> appender,
+          FileFormat format,
+          String location,
+          PartitionSpec spec,
+          StructLike partition,
+          ByteBuffer keyMetadata,
+          SortOrder sortOrder) {
     this.appender = appender;
     this.format = format;
     this.location = location;
     this.spec = spec;
     this.partition = partition;
-    this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
+    this.keyMetadata = keyMetadata;
     this.sortOrder = sortOrder;
   }
 
