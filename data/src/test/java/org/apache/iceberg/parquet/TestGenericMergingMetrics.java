@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Files;
@@ -34,7 +33,8 @@ public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
     FileAppender<Record> appender =
         new GenericAppenderFactory(SCHEMA)
             .newAppender(
-                Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);
+                Files.localOutput(tempDir.toPath().resolve("junit" + System.nanoTime()).toFile()),
+                fileFormat);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);
     }
