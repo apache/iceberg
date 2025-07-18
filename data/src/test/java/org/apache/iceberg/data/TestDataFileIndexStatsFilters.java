@@ -641,6 +641,6 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private File createTempFile() throws IOException {
-    return File.createTempFile("junit", null, tempDir);
+    return tempDir.toPath().resolve("junit" + System.nanoTime()).toFile();
   }
 }

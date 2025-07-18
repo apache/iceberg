@@ -174,8 +174,7 @@ public class TestMetricsRowGroupFilter {
   }
 
   public void createOrcInputFile() throws IOException {
-    this.orcFile = File.createTempFile("junit", null, tempDir);
-    assertThat(orcFile.delete()).isTrue();
+    this.orcFile = tempDir.toPath().resolve("junit" + System.nanoTime()).toFile();
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender =
@@ -221,8 +220,7 @@ public class TestMetricsRowGroupFilter {
   }
 
   private void createParquetInputFile() throws IOException {
-    File parquetFile = File.createTempFile("junit", null, tempDir);
-    assertThat(parquetFile.delete()).isTrue();
+    File parquetFile = tempDir.toPath().resolve("junit" + System.nanoTime()).toFile();
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);

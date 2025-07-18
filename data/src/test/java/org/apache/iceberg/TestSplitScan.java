@@ -98,8 +98,7 @@ public class TestSplitScan {
   }
 
   private File writeToFile(List<Record> records, FileFormat fileFormat) throws IOException {
-    File file = File.createTempFile("junit", null, tableLocation);
-    assertThat(file.delete()).isTrue();
+    File file = tableLocation.toPath().resolve("junit" + System.nanoTime()).toFile();
 
     GenericAppenderFactory factory =
         new GenericAppenderFactory(SCHEMA)
