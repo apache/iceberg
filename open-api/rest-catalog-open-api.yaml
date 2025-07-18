@@ -1064,7 +1064,19 @@ paths:
                   }
                 }
         503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
+          description:
+            Service Unavailable; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Service Unavailable",
+                  "type": "CommitStateUnknownException",
+                  "code": 503
+                }
+              }
         502:
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
