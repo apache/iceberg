@@ -123,13 +123,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           .build();
 
   /** Constructs a client of the Google BigQuery service. */
-  public BigQueryMetastoreClientImpl(BigQueryOptions options)
+  public BigQueryMetastoreClientImpl(GoogleCredentials credentials, BigQueryOptions options)
       throws IOException, GeneralSecurityException {
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
     HttpCredentialsAdapter httpCredentialsAdapter =
-        new HttpCredentialsAdapter(
-            GoogleCredentials.getApplicationDefault().createScoped(BigqueryScopes.all()));
+        new HttpCredentialsAdapter(credentials.createScoped(BigqueryScopes.all()));
     this.client =
         new Bigquery.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
