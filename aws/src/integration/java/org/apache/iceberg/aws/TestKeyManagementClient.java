@@ -68,51 +68,6 @@ public class TestKeyManagementClient {
     keyId = response.keyMetadata().keyId();
   }
 
-  @Test
-  public void testKeyWrapping() {
-    AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient();
-    try {
-      keyManagementClient.initialize(ImmutableMap.of());
-
-      ByteBuffer key = ByteBuffer.wrap(new String("super-secret-table-master-key").getBytes());
-      ByteBuffer encryptedKey = keyManagementClient.wrapKey(key, keyId);
-
-      assertThat(keyManagementClient.unwrapKey(encryptedKey, keyId)).isEqualTo(key);
-    } finally {
-      keyManagementClient.close();
-    }
-  }
-
-  @ParameterizedTest
-  @NullSource
-  @EnumSource(
-      value = DataKeySpec.class,
-      names = {"AES_128", "AES_256"})
-  public void testKeyGeneration(DataKeySpec dataKeySpec) {
-    AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient();
-    try {
-      Map<String, String> properties =
-          dataKeySpec == null
-              ? ImmutableMap.of()
-              : ImmutableMap.of(AwsProperties.KMS_DATA_KEY_SPEC, dataKeySpec.name());
-      keyManagementClient.initialize(properties);
-      KeyManagementClient.KeyGenerationResult result = keyManagementClient.generateKey(keyId);
-
-      assertThat(keyManagementClient.unwrapKey(result.wrappedKey(), keyId)).isEqualTo(result.key());
-      assertThat(result.key().limit()).isEqualTo(expectedLength(dataKeySpec));
-    } finally {
-      keyManagementClient.close();
-    }
-  }
-
-  private static int expectedLength(DataKeySpec spec) {
-    if (DataKeySpec.AES_128.equals(spec)) {
-      return 128 / 8;
-    } else {
-      return 256 / 8;
-    }
-  }
-
   @AfterAll
   public static void afterClass() {
     // AWS KMS doesn't allow instant deletion. Keys can be put to pendingDeletion state instead,
@@ -128,6 +83,45 @@ public class TestKeyManagementClient {
       kmsClient.close();
     } catch (Exception e) {
       LOG.error("Error closing KMS client", e);
+    }
+  }
+
+  @Test
+  public void testKeyWrapping() {
+    try (AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient()) {
+      keyManagementClient.initialize(ImmutableMap.of());
+
+      ByteBuffer key = ByteBuffer.wrap(new String("super-secret-table-master-key").getBytes());
+      ByteBuffer encryptedKey = keyManagementClient.wrapKey(key, keyId);
+
+      assertThat(keyManagementClient.unwrapKey(encryptedKey, keyId)).isEqualTo(key);
+    }
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @EnumSource(
+      value = DataKeySpec.class,
+      names = {"AES_128", "AES_256"})
+  public void testKeyGeneration(DataKeySpec dataKeySpec) {
+    try (AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient()) {
+      Map<String, String> properties =
+          dataKeySpec == null
+              ? ImmutableMap.of()
+              : ImmutableMap.of(AwsProperties.KMS_DATA_KEY_SPEC, dataKeySpec.name());
+      keyManagementClient.initialize(properties);
+      KeyManagementClient.KeyGenerationResult result = keyManagementClient.generateKey(keyId);
+
+      assertThat(keyManagementClient.unwrapKey(result.wrappedKey(), keyId)).isEqualTo(result.key());
+      assertThat(result.key().limit()).isEqualTo(expectedLength(dataKeySpec));
+    }
+  }
+
+  private static int expectedLength(DataKeySpec spec) {
+    if (DataKeySpec.AES_128.equals(spec)) {
+      return 128 / 8;
+    } else {
+      return 256 / 8;
     }
   }
 }

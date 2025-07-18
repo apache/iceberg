@@ -43,7 +43,15 @@ public class AwsKeyManagementClient implements KeyManagementClient {
   private EncryptionAlgorithmSpec encryptionAlgorithmSpec;
   private DataKeySpec dataKeySpec;
 
-  public AwsKeyManagementClient() {}
+  @Override
+  public void initialize(Map<String, String> properties) {
+    AwsClientFactory clientFactory = AwsClientFactories.from(properties);
+    this.kmsClient = clientFactory.kms();
+
+    AwsProperties awsProperties = new AwsProperties(properties);
+    this.encryptionAlgorithmSpec = awsProperties.kmsEncryptionAlgorithmSpec();
+    this.dataKeySpec = awsProperties.kmsDataKeySpec();
+  }
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
@@ -86,16 +94,6 @@ public class AwsKeyManagementClient implements KeyManagementClient {
 
     DecryptResponse result = kmsClient.decrypt(request);
     return result.plaintext().asByteBuffer();
-  }
-
-  @Override
-  public void initialize(Map<String, String> properties) {
-    AwsClientFactory clientFactory = AwsClientFactories.from(properties);
-    this.kmsClient = clientFactory.kms();
-
-    AwsProperties awsProperties = new AwsProperties(properties);
-    this.encryptionAlgorithmSpec = awsProperties.kmsEncryptionAlgorithmSpec();
-    this.dataKeySpec = awsProperties.kmsDataKeySpec();
   }
 
   @Override
