@@ -408,7 +408,7 @@
         </module>
         <module name="RegexpSinglelineJava">
             <property name="format" value="\bCharset.defaultCharset\("/>
-            <property name="message" value="Use explicit charset (e.g. StandardCharsets.UTF-8) instead of default."/>
+            <property name="message" value="Use explicit charset (e.g. StandardCharsets.UTF_8) instead of default."/>
         </module>
         <module name="RegexpSinglelineJava">
             <property name="format" value="\bIOUtils\.toString\("/>
