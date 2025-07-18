@@ -29,7 +29,7 @@ import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -44,7 +44,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestFlinkParquetWriter extends DataTest {
+public class TestFlinkParquetWriter extends DataTestBase {
   private static final int NUM_RECORDS = 100;
 
   @TempDir private Path temp;

@@ -62,7 +62,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkParquetReader extends AvroDataTest {
+public class TestSparkParquetReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);

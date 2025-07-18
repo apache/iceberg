@@ -74,6 +74,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'org.apache.commons:commons-compress:1.27.1'
         force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.4.0'
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
+        force 'commons-beanutils:commons-beanutils:1.11.0'
       }
     }
   }
