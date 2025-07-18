@@ -25,15 +25,23 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -107,6 +115,81 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
+  static Iterable<Integer> breadthFirstFieldPriority(Schema schema) {
+    return TypeUtil.visit(
+        schema,
+        new TypeUtil.CustomOrderSchemaVisitor<>() {
+
+          @Override
+          public Iterable<Integer> schema(Schema schema, Supplier<Iterable<Integer>> structResult) {
+            return structResult.get();
+          }
+
+          @Override
+          public Iterable<Integer> struct(
+              Types.StructType struct, Iterable<Iterable<Integer>> fieldResults) {
+
+            List<Integer> orderedFieldIds =
+                Lists.newArrayListWithExpectedSize(struct.fields().size());
+            for (Types.NestedField field : struct.fields()) {
+              if (field.type().isPrimitiveType()) {
+                orderedFieldIds.add(field.fieldId());
+              }
+            }
+            return Iterables.concat(orderedFieldIds, Iterables.concat(fieldResults));
+          }
+
+          @Override
+          public Iterable<Integer> field(
+              Types.NestedField field, Supplier<Iterable<Integer>> future) {
+            return future.get();
+          }
+
+          @Override
+          public Iterable<Integer> list(Types.ListType list, Supplier<Iterable<Integer>> future) {
+            List<Integer> returnValue = Lists.newArrayListWithCapacity(1);
+            if (list.elementType().isPrimitiveType()) {
+              returnValue.add(list.elementId());
+            }
+            return Iterables.concat(returnValue, future.get());
+          }
+
+          @Override
+          public Iterable<Integer> map(
+              Types.MapType map,
+              Supplier<Iterable<Integer>> keyFuture,
+              Supplier<Iterable<Integer>> valueFuture) {
+            List<Integer> returnValue = Lists.newArrayListWithCapacity(2);
+            if (map.keyType().isPrimitiveType()) {
+              returnValue.add(map.keyId());
+            }
+            if (map.valueType().isPrimitiveType()) {
+              returnValue.add(map.valueId());
+            }
+
+            return Iterables.concat(returnValue, keyFuture.get(), valueFuture.get());
+          }
+
+          @Override
+          public Iterable<Integer> variant(Types.VariantType variant) {
+            return Collections.emptyList();
+          }
+
+          @Override
+          public Iterable<Integer> primitive(Type.PrimitiveType primitive) {
+            return Collections.emptyList();
+          }
+        });
+  }
+
+  static Schema boundedBreadthFirstSubSchema(Schema schema, int maxInferredDefaultColumns) {
+    Set<Integer> boundedFieldIds =
+        Sets.newHashSet(
+            Iterables.limit(breadthFirstFieldPriority(schema), maxInferredDefaultColumns));
+
+    return TypeUtil.project(schema, boundedFieldIds);
+  }
+
   /**
    * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
    *
@@ -123,23 +206,26 @@ public final class MetricsConfig implements Serializable {
     // Handle user override of default mode
     MetricsMode defaultMode;
     String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+
     if (configuredDefault != null) {
       // a user-configured default mode is applied for all columns
       defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
-
-    } else if (schema == null || schema.columns().size() <= maxInferredDefaultColumns) {
-      // there are less than the inferred limit, so the default is used everywhere
+    } else if (schema == null) {
       defaultMode = DEFAULT_MODE;
-
     } else {
-      // an inferred default mode is applied to the first few columns, up to the limit
-      Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
-      for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
-        columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
-      }
+      if (TypeUtil.getProjectedIds(schema).size() <= maxInferredDefaultColumns) {
+        // there are less than the inferred limit (including structs), so the default is used
+        // everywhere
+        defaultMode = DEFAULT_MODE;
+      } else {
+        Schema subSchema = boundedBreadthFirstSubSchema(schema, maxInferredDefaultColumns);
+        for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
+          columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
+        }
 
-      // all other columns don't use metrics
-      defaultMode = MetricsModes.None.get();
+        // all other columns don't use metrics
+        defaultMode = MetricsModes.None.get();
+      }
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
