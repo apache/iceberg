@@ -32,10 +32,12 @@ import java.time.temporal.ChronoUnit;
 import javax.net.ssl.SSLException;
 import org.apache.hc.client5.http.HttpRequestRetryStrategy;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.utils.DateUtils;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -209,5 +211,14 @@ public class TestExponentialHttpRequestRetryStrategy {
   public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503, 500, 502, 504, 408})
+  public void testRetryHappensWithIdempotentMethods(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("GET", "/"));
+    assertThat(retryStrategy.retryRequest(response, 3, context)).isTrue();
   }
 }
