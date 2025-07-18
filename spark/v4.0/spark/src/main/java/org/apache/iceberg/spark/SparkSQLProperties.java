@@ -19,10 +19,17 @@
 package org.apache.iceberg.spark;
 
 import java.time.Duration;
+import org.apache.iceberg.spark.source.BaseSparkPartitionReaderFactoryProvider;
 
 public class SparkSQLProperties {
 
   private SparkSQLProperties() {}
+
+  // Specifies an implementation class of SparkPartitionReaderFactoryProvider
+  public static final String PARTITION_READER_FACTORY_PROVIDER =
+      "spark.sql.iceberg.partition-reader-factory.provider";
+  public static final String PARTITION_READER_FACTORY_PROVIDER_DEFAULT =
+      BaseSparkPartitionReaderFactoryProvider.class.getName();
 
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
