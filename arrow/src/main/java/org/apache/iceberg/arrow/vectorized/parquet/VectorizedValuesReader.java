@@ -31,6 +31,11 @@ import org.apache.parquet.io.api.Binary;
  */
 interface VectorizedValuesReader {
 
+  int INT_SIZE = 4;
+  int LONG_SIZE = 8;
+  int FLOAT_SIZE = 4;
+  int DOUBLE_SIZE = 8;
+
   /** Read a single boolean */
   boolean readBoolean();
 

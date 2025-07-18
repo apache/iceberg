@@ -223,7 +223,7 @@ public final class VectorizedParquetDefinitionLevelReader
         int idx,
         int numValues,
         byte[] byteArray) {
-      setNextNValuesInVector(typeWidth, nullabilityHolder, valuesReader, idx, vector, numValues);
+      setNextNValuesInVector(nullabilityHolder, valuesReader, idx, vector, numValues, this);
     }
 
     @Override
@@ -252,6 +252,9 @@ public final class VectorizedParquetDefinitionLevelReader
 
     protected abstract void nextVal(
         FieldVector vector, int idx, VectorizedValuesReader valuesReader, Mode mode);
+
+    public abstract void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total);
   }
 
   class LongReader extends NumericBaseReader {
@@ -278,6 +281,12 @@ public final class VectorizedParquetDefinitionLevelReader
             .getDataBuffer()
             .setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()));
       }
+    }
+
+    @Override
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+      valuesReader.readLongs(total, vector, rowId);
     }
   }
 
@@ -306,6 +315,12 @@ public final class VectorizedParquetDefinitionLevelReader
             .setDouble((long) idx * typeWidth, dict.decodeToDouble(reader.readInteger()));
       }
     }
+
+    @Override
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+      valuesReader.readDoubles(total, vector, rowId);
+    }
   }
 
   class FloatReader extends NumericBaseReader {
@@ -332,6 +347,12 @@ public final class VectorizedParquetDefinitionLevelReader
             .getDataBuffer()
             .setFloat((long) idx * typeWidth, dict.decodeToFloat(reader.readInteger()));
       }
+    }
+
+    @Override
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+      valuesReader.readFloats(total, vector, rowId);
     }
   }
 
@@ -361,6 +382,12 @@ public final class VectorizedParquetDefinitionLevelReader
             .getDataBuffer()
             .setInt((long) idx * typeWidth, dict.decodeToInt(reader.readInteger()));
       }
+    }
+
+    @Override
+    public void nextVals(
+        FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total) {
+      valuesReader.readIntegers(total, vector, rowId);
     }
   }
 
@@ -648,16 +675,15 @@ public final class VectorizedParquetDefinitionLevelReader
   }
 
   private void setNextNValuesInVector(
-      int typeWidth,
       NullabilityHolder nullabilityHolder,
       VectorizedValuesReader valuesReader,
       int bufferIdx,
       FieldVector vector,
-      int numValues) {
+      int numValues,
+      NumericBaseReader reader) {
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     if (currentValue == maxDefLevel) {
-      ByteBuffer buffer = valuesReader.readBinary(numValues * typeWidth).toByteBuffer();
-      vector.getDataBuffer().setBytes((long) bufferIdx * typeWidth, buffer);
+      reader.nextVals(vector, bufferIdx, valuesReader, numValues);
       nullabilityHolder.setNotNulls(bufferIdx, numValues);
       if (setArrowValidityVector) {
         for (int i = 0; i < numValues; i++) {
