@@ -485,7 +485,7 @@ public final class VectorizedParquetDefinitionLevelReader
                   .toByteBuffer()
                   .order(ByteOrder.LITTLE_ENDIAN);
           long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
-          vector.getDataBuffer().setLong(idx, timestampInt96);
+          vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
           break;
         default:
           throw new UnsupportedOperationException(
