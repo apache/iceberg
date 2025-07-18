@@ -589,8 +589,7 @@ The Analytics Accelerator Library can work with either the [S3 CRT client](https
 
 | Property               | Default | Description                                                  |
 |------------------------|---------|--------------------------------------------------------------|
-| s3.crt.enabled         | `true`  | Controls if the S3 Async clients should be created using CRT |
-| s3.crt.max-concurrency | `500`   | Max concurrency for S3 CRT clients                           |
+| s3.crt.enabled         | `false` | Controls if the S3 Async clients should be created using CRT |
 
 Additional library specific configurations are organized into the following sections:
 
