@@ -268,6 +268,8 @@ Next, add a release tag to the git repository based on the passing candidate tag
 git tag -am 'Release Apache Iceberg <VERSION>' apache-iceberg-<VERSION> apache-iceberg-<VERSION>-rcN
 ```
 
+Create a new release in the iceberg repository on GitHub, using the tag created above [Steps](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+
 Then release the candidate repository in [Nexus](https://repository.apache.org/#stagingRepositories).
 
 #### Announcing the release
