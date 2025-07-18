@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;															
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+mport org.apache.iceberg.util.PropertyUtil;											
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -80,6 +83,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
+  public static final String DELETE_TABLE_ROOTDIR = "delete-table-rootdir";
+  public static final String DELETE_TABLE_ROOTDIR_DEFAULT = "true";																		   
   // MetastoreConf is not available with current Hive version
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
@@ -90,6 +95,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
+  private boolean deleteTableRootDir = true;
   private Map<String, String> catalogProperties;
 
   public HiveCatalog() {}
@@ -116,6 +122,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     this.listAllTables =
         Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));
 
+    this.deleteTableRootDir =
+        Boolean.parseBoolean(
+            properties.getOrDefault(DELETE_TABLE_ROOTDIR, DELETE_TABLE_ROOTDIR_DEFAULT));
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO =
         fileIOImpl == null
@@ -221,9 +230,20 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     TableOperations ops = newTableOps(identifier);
     TableMetadata lastMetadata = null;
-    if (purge) {
+
+    LOG.info("deleteTableRootDir: {}", this.deleteTableRootDir);
+    boolean externalTablePurge = false;
+    boolean gcEnabled = false;
+
+    if (purge || this.deleteTableRootDir) {
       try {
         lastMetadata = ops.current();
+        externalTablePurge =
+            PropertyUtil.propertyAsBoolean(
+                lastMetadata.properties(), "external.table.purge", false);
+        gcEnabled =
+            PropertyUtil.propertyAsBoolean(
+                lastMetadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
       } catch (NotFoundException e) {
         LOG.warn(
             "Failed to load table metadata for table: {}, continuing drop without purge",
@@ -232,13 +252,19 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       }
     }
 
+    LOG.info("externalTablePurge: {}", externalTablePurge);
+    LOG.info("gcEnabled: {}", gcEnabled);
+    final boolean deleteData = (externalTablePurge || gcEnabled) && this.deleteTableRootDir;
+    LOG.info("deleteData: {}", deleteData);
+
     try {
       clients.run(
           client -> {
             client.dropTable(
                 database,
                 identifier.name(),
-                false /* do not delete data */,
+                // false /* do not delete data */,
+                deleteData,
                 false /* throw NoSuchObjectException if the table doesn't exist */);
             return null;
           });
