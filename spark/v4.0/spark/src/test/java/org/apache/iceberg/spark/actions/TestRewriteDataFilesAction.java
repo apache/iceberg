@@ -1427,7 +1427,11 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
-    shouldHaveSnapshots(table, 11);
+    table.refresh();
+    assertThat(table.snapshots())
+        .as("Table did not have the expected number of snapshots")
+        // To tolerate 1 random commit failure
+        .hasSizeGreaterThanOrEqualTo(10);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
   }
