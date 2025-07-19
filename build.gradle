@@ -231,7 +231,7 @@ subprojects {
     jvmArgs += project.property('extraJvmArgs')
 
     testLogging {
-      events "failed"
+      events "started", "passed", "skipped", "failed"
       exceptionFormat "full"
     }
 
