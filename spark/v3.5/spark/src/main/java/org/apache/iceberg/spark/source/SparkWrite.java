@@ -693,7 +693,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(format)
               .dataSchema(writeSchema)
-              .dataSparkType(dsSchema)
               .writeProperties(writeProperties)
               .build();
 
