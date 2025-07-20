@@ -375,7 +375,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     if (incrementalCleanup == null) {
-      incrementalCleanup = current.refs().size() == 1;
+      incrementalCleanup = base.refs().size() == 1 && current.refs().size() == 1;
     }
 
     LOG.info(

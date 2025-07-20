@@ -50,7 +50,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    if (afterExpiration.refs().size() > 1) {
+    if (beforeExpiration.refs().size() > 1 || afterExpiration.refs().size() > 1) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files for tables with more than 1 ref");
     }
@@ -81,7 +81,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       return;
     }
 
-    SnapshotRef branchToCleanup = Iterables.getFirst(beforeExpiration.refs().values(), null);
+    SnapshotRef branchToCleanup = Iterables.getOnlyElement(beforeExpiration.refs().values(), null);
     if (branchToCleanup == null) {
       return;
     }

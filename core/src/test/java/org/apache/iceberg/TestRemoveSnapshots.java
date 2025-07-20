@@ -1829,6 +1829,61 @@ public class TestRemoveSnapshots extends TestBase {
         .isSameAs(current);
   }
 
+  @TestTemplate
+  public void testFileCleanupOnAllRefsAgedOff() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Set<String> expectedDeleteFiles =
+        ImmutableSet.of(table.currentSnapshot().manifestListLocation());
+    String tag = "tag";
+    long tagAgeMs = 50;
+    table
+        .manageSnapshots()
+        .createTag(tag, table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs(tag, tagAgeMs)
+        .commit();
+    long currentTime = System.currentTimeMillis();
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    waitUntilAfter(currentTime + tagAgeMs + 10);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    table
+        .expireSnapshots()
+        .cleanExpiredFiles(true)
+        .expireOlderThan(System.currentTimeMillis())
+        .deleteWith(deletedFiles::add)
+        .commit();
+    assertThat(deletedFiles).isEqualTo(expectedDeleteFiles);
+  }
+
+  @TestTemplate
+  public void testCannotIncrementallyCleanupWithMultipleRefsBeforeExpiration() {
+    table.newAppend().appendFile(FILE_A).commit();
+    String tag = "tag";
+    long tagAgeMs = 50;
+    table
+        .manageSnapshots()
+        .createTag(tag, table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs(tag, tagAgeMs)
+        .commit();
+    long currentTime = System.currentTimeMillis();
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    waitUntilAfter(currentTime + tagAgeMs + 10);
+
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+
+    assertThatThrownBy(
+            () ->
+                removeSnapshots
+                    .withIncrementalCleanup(true)
+                    .cleanExpiredFiles(true)
+                    .expireOlderThan(System.currentTimeMillis())
+                    .commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot incrementally clean files for tables with more than 1 ref");
+  }
+
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
     return snapshot.allManifests(io).stream().map(ManifestFile::path).collect(Collectors.toSet());
   }
