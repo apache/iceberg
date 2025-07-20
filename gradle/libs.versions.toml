@@ -147,6 +147,7 @@ hive3-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive3" }
 hive3-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive3" }
 hive4-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive4" }
 hive4-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive4" }
+hive4-parser = { module = "org.apache.hive:hive-parser", version.ref = "hive4" }
 hive4-standalone-metastore-server = { module = "org.apache.hive:hive-standalone-metastore-server", version.ref = "hive4" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
