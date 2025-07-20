@@ -128,57 +128,14 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
     return name;
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private SparkTable load(Identifier ident) throws NoSuchTableException {
     Preconditions.checkArgument(
         ident.namespace().length == 0, CLASS_NAME + " does not support namespaces");
 
     Pair<String, List<String>> parsedIdent = parseIdent(ident);
     String key = parsedIdent.first();
-    List<String> metadata = parsedIdent.second();
-
-    Long asOfTimestamp = null;
-    Long snapshotId = null;
-    String branch = null;
-    String tag = null;
-    boolean isTableRewrite = false;
-    for (String meta : metadata) {
-      Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
-      if (timeBasedMatcher.matches()) {
-        asOfTimestamp = Long.parseLong(timeBasedMatcher.group(1));
-        continue;
-      }
-
-      Matcher snapshotBasedMatcher = SNAPSHOT_ID.matcher(meta);
-      if (snapshotBasedMatcher.matches()) {
-        snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
-        continue;
-      }
-
-      Matcher branchBasedMatcher = BRANCH.matcher(meta);
-      if (branchBasedMatcher.matches()) {
-        branch = branchBasedMatcher.group(1);
-        continue;
-      }
-
-      Matcher tagBasedMatcher = TAG.matcher(meta);
-      if (tagBasedMatcher.matches()) {
-        tag = tagBasedMatcher.group(1);
-      }
-
-      Matcher rewriteMatcher = REWRITE_JOB.matcher(meta);
-      if (rewriteMatcher.matches()) {
-        isTableRewrite = rewriteMatcher.matches();
-      }
-    }
-
-    Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
-        snapshotId,
-        asOfTimestamp,
-        branch,
-        tag);
+    TableLoadOptions options = parseLoadOptions(parsedIdent.second());
+    validateTableOptions(options);
 
     Table table = TABLE_CACHE.get(key);
 
@@ -186,27 +143,109 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
       throw new NoSuchTableException(ident);
     }
 
-    if (isTableRewrite) {
+    if (options.isTableRewrite()) {
       return new SparkTable(table, null, false, true);
     }
 
-    if (snapshotId != null) {
-      return new SparkTable(table, snapshotId, false);
-    } else if (asOfTimestamp != null) {
-      return new SparkTable(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp), false);
-    } else if (branch != null) {
-      Snapshot branchSnapshot = table.snapshot(branch);
+    if (options.snapshotId() != null) {
+      return new SparkTable(table, options.snapshotId(), false);
+    } else if (options.asOfTimestamp() != null) {
+      return new SparkTable(
+          table, SnapshotUtil.snapshotIdAsOfTime(table, options.asOfTimestamp()), false);
+    } else if (options.branch() != null) {
+      Snapshot branchSnapshot = table.snapshot(options.branch());
       Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
+          branchSnapshot != null,
+          "Cannot find snapshot associated with branch name: %s",
+          options.branch());
       return new SparkTable(table, branchSnapshot.snapshotId(), false);
-    } else if (tag != null) {
-      Snapshot tagSnapshot = table.snapshot(tag);
+    } else if (options.tag() != null) {
+      Snapshot tagSnapshot = table.snapshot(options.tag());
       Preconditions.checkArgument(
-          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", options.tag());
       return new SparkTable(table, tagSnapshot.snapshotId(), false);
     } else {
       return new SparkTable(table, false);
     }
+  }
+
+  private static class TableLoadOptions {
+    private Long asOfTimestamp;
+    private Long snapshotId;
+    private String branch;
+    private String tag;
+    private Boolean isTableRewrite;
+
+    Long asOfTimestamp() {
+      return asOfTimestamp;
+    }
+
+    Long snapshotId() {
+      return snapshotId;
+    }
+
+    String branch() {
+      return branch;
+    }
+
+    String tag() {
+      return tag;
+    }
+
+    boolean isTableRewrite() {
+      return Boolean.TRUE.equals(isTableRewrite);
+    }
+  }
+
+  /** Extracts table load options from metadata. */
+  private TableLoadOptions parseLoadOptions(List<String> metadata) {
+    TableLoadOptions opts = new TableLoadOptions();
+    for (String meta : metadata) {
+      Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
+      if (timeBasedMatcher.matches()) {
+        opts.asOfTimestamp = Long.parseLong(timeBasedMatcher.group(1));
+        continue;
+      }
+
+      Matcher snapshotBasedMatcher = SNAPSHOT_ID.matcher(meta);
+      if (snapshotBasedMatcher.matches()) {
+        opts.snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
+        continue;
+      }
+
+      Matcher branchBasedMatcher = BRANCH.matcher(meta);
+      if (branchBasedMatcher.matches()) {
+        opts.branch = branchBasedMatcher.group(1);
+        continue;
+      }
+
+      Matcher tagBasedMatcher = TAG.matcher(meta);
+      if (tagBasedMatcher.matches()) {
+        opts.tag = tagBasedMatcher.group(1);
+      }
+
+      Matcher rewriteMatcher = REWRITE_JOB.matcher(meta);
+      if (rewriteMatcher.matches()) {
+        opts.isTableRewrite = rewriteMatcher.matches();
+      }
+    }
+
+    return opts;
+  }
+
+  private void validateTableOptions(TableLoadOptions opts) {
+    long count =
+        Stream.of(opts.snapshotId, opts.asOfTimestamp, opts.branch, opts.tag, opts.isTableRewrite)
+            .filter(Objects::nonNull)
+            .count();
+    Preconditions.checkArgument(
+        count <= 1,
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s), is-table-rewrite (%s)",
+        opts.snapshotId,
+        opts.asOfTimestamp,
+        opts.branch,
+        opts.tag,
+        opts.isTableRewrite);
   }
 
   private Pair<String, List<String>> parseIdent(Identifier ident) {
