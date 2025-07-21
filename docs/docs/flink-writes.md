@@ -440,7 +440,7 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
 | `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
 | `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
-| `immediateTableUpdate(boolean enabled)`              |      Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
+| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
 
 
 ### Notes
@@ -506,5 +506,5 @@ We need the following information (DynamicRecord) for every record:
 | `Schema`           | The schema of the record.                                                                                                                                                 |
 | `Spec`             | The expected partitioning specification for the record.                                                                                                                                                |
 | `RowData`          | The actual row data to be written.                                                                                                                                               |
-| `DistributionMode` |   The distribution mode for writing the record (currently supports NONE or HASH).                                                                                                                                                                                                                              |
+| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).                                                                                                                                                                                                                              |
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget).                                                                                                                                      |
