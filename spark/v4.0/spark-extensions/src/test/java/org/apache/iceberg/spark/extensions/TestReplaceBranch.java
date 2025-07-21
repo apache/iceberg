@@ -46,9 +46,9 @@ public class TestReplaceBranch extends ExtensionsTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties()
       }
     };
   }

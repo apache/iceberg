@@ -509,7 +509,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
     createBucketPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -636,7 +636,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithPossibleV2Filters() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
 
     SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
     sql(
