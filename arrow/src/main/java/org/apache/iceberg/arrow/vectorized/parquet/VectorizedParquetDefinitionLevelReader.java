@@ -257,11 +257,11 @@ public final class VectorizedParquetDefinitionLevelReader
         FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total);
 
     private void setNextNValuesInVector(
-            NullabilityHolder nullabilityHolder,
-            VectorizedValuesReader valuesReader,
-            int bufferIdx,
-            FieldVector vector,
-            int numValues) {
+        NullabilityHolder nullabilityHolder,
+        VectorizedValuesReader valuesReader,
+        int bufferIdx,
+        FieldVector vector,
+        int numValues) {
       ArrowBuf validityBuffer = vector.getValidityBuffer();
       if (currentValue == maxDefLevel) {
         nextVals(vector, bufferIdx, valuesReader, numValues);
