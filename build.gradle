@@ -561,6 +561,12 @@ project(':iceberg-azure') {
     testImplementation libs.testcontainers
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation(libs.hadoop3.common) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
   }
 
   sourceSets {
