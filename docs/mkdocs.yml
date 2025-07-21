@@ -65,11 +65,11 @@ nav:
     - Apache Hive: hive.md
     - Third-party:
     # Now all the 3rd party integrations
-      - Apache Amoro: amoro.md
       - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
       - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
       - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
       - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
+      - Apache Amoro: amoro.md
       - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
       - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
       - BladePipe: bladepipe.md
@@ -90,10 +90,18 @@ nav:
       - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
       - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Catalogs:
+    - Apache Gravitino: https://gravitino.apache.org/
+    - Apache Hadoop: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
+    - Apache Hive: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hive/HiveCatalog.html
+    - Apache Polaris: https://polaris.apache.org/
     - AWS Glue: aws/#glue-catalog
     - AWS DynamoDB: aws/#dynamodb-catalog
+    - Boring Catalog: https://github.com/boringdata/boring-catalog
     - custom-catalog.md
+    - DataHub: https://docs.datahub.com/docs/iceberg-catalog
+    - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
     - jdbc.md
+    - Lakekeeper: https://github.com/lakekeeper/lakekeeper
     - nessie.md
   - Storage:
     - AWS S3: aws/#s3-fileio
