@@ -35,29 +35,25 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.data.RowTransformer;
 import org.apache.iceberg.flink.data.FlinkSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class RowDataTransformer {
+class RowDataTransformer implements RowTransformer<RowData> {
   private static final int ROOT_POSITION = -1;
   private final PositionalGetter<RowData, RowData> getter;
-  private final PositionDelete<RowData> positionDelete = PositionDelete.create();
 
-  public RowDataTransformer(RowType rowType, Types.StructType struct) {
+  RowDataTransformer(RowType rowType, Types.StructType struct) {
     this.getter =
         (PositionalGetter<RowData, RowData>)
             RowDataVisitor.visit(rowType, new Schema(struct.fields()), new RowDataVisitor());
   }
 
-  public RowData wrap(RowData data) {
+  @Override
+  public RowData transform(RowData data) {
     return getter.get(data, ROOT_POSITION);
-  }
-
-  public PositionDelete<RowData> wrap(PositionDelete<RowData> data) {
-    return positionDelete.set(data.path(), data.pos(), getter.get(data.row(), ROOT_POSITION));
   }
 
   private interface PositionalGetter<T, I> {
@@ -70,11 +66,6 @@ public class RowDataTransformer {
 
     private RowDataAccessor(PositionalGetter<?, RowData>[] getters) {
       this.getters = getters;
-    }
-
-    private RowData wrap(RowData data) {
-      this.rowData = data;
-      return this;
     }
 
     @Override
@@ -176,21 +167,14 @@ public class RowDataTransformer {
   private static class ArrayDataAccessor implements ArrayData {
     private final PositionalGetter<?, ArrayData> getter;
     private ArrayData arrayData = null;
-    private int size;
 
     private ArrayDataAccessor(PositionalGetter<?, ArrayData> getter) {
       this.getter = getter;
     }
 
-    private ArrayData wrap(ArrayData data) {
-      this.arrayData = data;
-      this.size = data.size();
-      return this;
-    }
-
     @Override
     public int size() {
-      return size;
+      return arrayData.size();
     }
 
     @Override
@@ -309,6 +293,31 @@ public class RowDataTransformer {
     }
   }
 
+  private static class MapDataAccessor implements MapData {
+    private final ArrayDataAccessor key;
+    private final ArrayDataAccessor value;
+
+    private MapDataAccessor(ArrayDataAccessor key, ArrayDataAccessor value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    @Override
+    public int size() {
+      return key.size();
+    }
+
+    @Override
+    public ArrayData keyArray() {
+      return key;
+    }
+
+    @Override
+    public ArrayData valueArray() {
+      return value;
+    }
+  }
+
   private static class RowDataVisitor extends FlinkSchemaVisitor<PositionalGetter<?, ?>> {
     private final Deque<Boolean> isInList = Queues.newArrayDeque();
 
@@ -317,15 +326,15 @@ public class RowDataTransformer {
     }
 
     @Override
-    public void beforeStructElement(Types.StructType type) {
+    public void beforeStruct(Types.StructType type) {
       isInList.push(false);
-      super.beforeStructElement(type);
+      super.beforeStruct(type);
     }
 
     @Override
-    public void afterStructElement(Types.StructType type) {
+    public void afterStruct(Types.StructType type) {
       isInList.pop();
-      super.afterStructElement(type);
+      super.afterStruct(type);
     }
 
     @Override
@@ -365,7 +374,7 @@ public class RowDataTransformer {
     }
 
     @Override
-    public PositionalGetter<?, ?> record(
+    public PositionalGetter<RowData, ?> record(
         Types.StructType iStruct,
         List<PositionalGetter<?, ?>> results,
         List<LogicalType> fieldTypes) {
@@ -373,37 +382,54 @@ public class RowDataTransformer {
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
       return ((data, pos) -> {
         if (isInListFlag) {
-          return accessor.wrap(((ArrayData) data).getRow(pos, iStruct.fields().size()));
+          accessor.rowData = ((ArrayData) data).getRow(pos, iStruct.fields().size());
         } else {
           if (pos == ROOT_POSITION) {
-            return accessor.wrap((RowData) data);
+            accessor.rowData = (RowData) data;
           } else {
-            return accessor.wrap(((RowData) data).getRow(pos, iStruct.fields().size()));
+            accessor.rowData = ((RowData) data).getRow(pos, iStruct.fields().size());
           }
         }
+
+        return accessor;
       });
     }
 
     @Override
-    public PositionalGetter<?, ?> list(
+    public PositionalGetter<ArrayData, ?> list(
         Types.ListType iList, PositionalGetter<?, ?> getter, LogicalType elementType) {
       ArrayDataAccessor accessor = new ArrayDataAccessor((PositionalGetter<?, ArrayData>) getter);
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
-      return (data, pos) ->
-          accessor.wrap(
-              isInListFlag ? ((ArrayData) data).getArray(pos) : ((RowData) data).getArray(pos));
+      return (data, pos) -> {
+        accessor.arrayData =
+            isInListFlag ? ((ArrayData) data).getArray(pos) : ((RowData) data).getArray(pos);
+        return accessor;
+      };
     }
 
     @Override
-    public PositionalGetter<?, ?> map(
+    public PositionalGetter<MapData, ?> map(
         Types.MapType iMap,
         PositionalGetter<?, ?> keyGetter,
         PositionalGetter<?, ?> valueGetter,
         LogicalType keyType,
         LogicalType valueType) {
+      MapDataAccessor mapDataAccessor =
+          new MapDataAccessor(
+              new ArrayDataAccessor((PositionalGetter<?, ArrayData>) keyGetter),
+              new ArrayDataAccessor((PositionalGetter<?, ArrayData>) valueGetter));
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
-      return (data, pos) ->
-          isInListFlag ? ((ArrayData) data).getMap(pos) : ((RowData) data).getMap(pos);
+      return (data, pos) -> {
+        if (isInListFlag) {
+          mapDataAccessor.key.arrayData = ((ArrayData) data).getMap(pos).keyArray();
+          mapDataAccessor.value.arrayData = ((ArrayData) data).getMap(pos).valueArray();
+        } else {
+          mapDataAccessor.key.arrayData = ((RowData) data).getMap(pos).keyArray();
+          mapDataAccessor.value.arrayData = ((RowData) data).getMap(pos).valueArray();
+        }
+
+        return mapDataAccessor;
+      };
     }
 
     @Override
@@ -425,6 +451,7 @@ public class RowDataTransformer {
           } else if (logicalType.getTypeRoot() == LogicalTypeRoot.SMALLINT) {
             return (row, pos) -> (int) row.getShort(pos);
           }
+
           return RowData::getInt;
         case LONG:
           return RowData::getLong;
@@ -474,6 +501,7 @@ public class RowDataTransformer {
           } else if (logicalType.getTypeRoot() == LogicalTypeRoot.SMALLINT) {
             return (row, pos) -> (int) row.getShort(pos);
           }
+
           return ArrayData::getInt;
         case LONG:
           return ArrayData::getLong;

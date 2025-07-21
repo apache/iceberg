@@ -55,6 +55,7 @@ import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -230,16 +231,20 @@ public class SparkPositionDeletesRewrite implements Write {
         return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition);
       } else {
         Schema positionDeleteRowSchema = positionDeleteRowSchema();
+        StructType deleteSparkType = deleteSparkType();
+        StructType deleteSparkTypeWithoutRow = deleteSparkTypeWithoutRow();
 
         SparkFileWriterFactory writerFactoryWithRow =
             SparkFileWriterFactory.builderFor(table)
                 .deleteFileFormat(format)
                 .positionDeleteRowSchema(positionDeleteRowSchema)
+                .positionDeleteSparkType(deleteSparkType)
                 .writeProperties(writeProperties)
                 .build();
         SparkFileWriterFactory writerFactoryWithoutRow =
             SparkFileWriterFactory.builderFor(table)
                 .deleteFileFormat(format)
+                .positionDeleteSparkType(deleteSparkTypeWithoutRow)
                 .writeProperties(writeProperties)
                 .build();
 
@@ -263,6 +268,23 @@ public class SparkPositionDeletesRewrite implements Write {
               .type()
               .asStructType()
               .fields());
+    }
+
+    private StructType deleteSparkType() {
+      return new StructType(
+          new StructField[] {
+            dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
+          });
+    }
+
+    private StructType deleteSparkTypeWithoutRow() {
+      return new StructType(
+          new StructField[] {
+            dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
+          });
     }
   }
 

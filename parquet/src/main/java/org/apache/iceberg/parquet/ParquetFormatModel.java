@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -33,14 +34,14 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D, F> batchReaderFunction;
-  private final WriterFunction<D> writerFunction;
+  private final BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
   private ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
-      WriterFunction<D> writerFunction,
+      BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
@@ -52,7 +53,7 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
   public ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      WriterFunction<D> writerFunction,
+      BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
   }
@@ -121,9 +122,5 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
         Map<Integer, ?> constantFieldAccessors,
         F deleteFilter,
         Map<String, String> config);
-  }
-
-  public interface WriterFunction<D> {
-    ParquetValueWriter<D> write(Schema icebergSchema, MessageType messageType);
   }
 }

@@ -35,6 +35,7 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -322,12 +323,30 @@ public class TestIcebergStreamWriter {
         new Schema(
             Types.NestedField.required(
                 4, "array", Types.ListType.ofOptional(5, Types.IntegerType.get())),
+            Types.NestedField.required(
+                6,
+                "map",
+                Types.MapType.ofOptional(7, 8, Types.IntegerType.get(), Types.IntegerType.get())),
+            Types.NestedField.required(
+                9,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(10, "struct_1", Types.IntegerType.get()),
+                    Types.NestedField.optional(11, "struct_2", Types.IntegerType.get()))),
             Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
             Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
             Types.NestedField.optional(3, "int", Types.IntegerType.get()));
     ResolvedSchema flinkSchema =
         ResolvedSchema.of(
             Column.physical("array", DataTypes.ARRAY(DataTypes.TINYINT()).notNull()),
+            Column.physical(
+                "map", DataTypes.MAP(DataTypes.TINYINT(), DataTypes.TINYINT()).notNull()),
+            Column.physical(
+                "struct",
+                DataTypes.ROW(
+                        DataTypes.FIELD("struct_1", DataTypes.TINYINT()),
+                        DataTypes.FIELD("struct_2", DataTypes.TINYINT()))
+                    .notNull()),
             Column.physical("tinyint", DataTypes.TINYINT().notNull()),
             Column.physical("smallint", DataTypes.SMALLINT().notNull()),
             Column.physical("int", DataTypes.INT().nullable()));
@@ -353,27 +372,38 @@ public class TestIcebergStreamWriter {
         Lists.newArrayList(
             GenericRowData.of(
                 new GenericArrayData(new byte[] {(byte) 0x04, (byte) 0x05}),
+                new GenericMapData(ImmutableMap.of((byte) 0x06, (byte) 0x07)),
+                GenericRowData.of((byte) 0x08, (byte) 0x09),
                 (byte) 0x01,
                 (short) -32768,
                 101),
             GenericRowData.of(
-                new GenericArrayData(new byte[] {(byte) 0x06, (byte) 0x07}),
+                new GenericArrayData(new byte[] {(byte) 0x0a, (byte) 0x0b}),
+                new GenericMapData(ImmutableMap.of((byte) 0x0c, (byte) 0x0d)),
+                GenericRowData.of((byte) 0x0e, (byte) 0x0f),
                 (byte) 0x02,
                 (short) 0,
                 102),
             GenericRowData.of(
-                new GenericArrayData(new byte[] {(byte) 0x08, (byte) 0x09}),
+                new GenericArrayData(new byte[] {(byte) 0x10, (byte) 0x11}),
+                new GenericMapData(ImmutableMap.of((byte) 0x12, (byte) 0x13)),
+                GenericRowData.of((byte) 0x14, (byte) 0x15),
                 (byte) 0x03,
                 (short) 32767,
                 103));
 
     Record record = GenericRecord.create(iSchema);
+    Record struct = GenericRecord.create(iSchema.findField("struct").type().asStructType());
     List<Record> expected =
         Lists.newArrayList(
             record.copy(
                 ImmutableMap.of(
                     "array",
                     Lists.newArrayList(4, 5),
+                    "map",
+                    ImmutableMap.of(6, 7),
+                    "struct",
+                    struct.copy(ImmutableMap.of("struct_1", 8, "struct_2", 9)),
                     "tinyint",
                     1,
                     "smallint",
@@ -382,11 +412,26 @@ public class TestIcebergStreamWriter {
                     101)),
             record.copy(
                 ImmutableMap.of(
-                    "array", Lists.newArrayList(6, 7), "tinyint", 2, "smallint", 0, "int", 102)),
+                    "array",
+                    Lists.newArrayList(10, 11),
+                    "map",
+                    ImmutableMap.of(12, 13),
+                    "struct",
+                    struct.copy(ImmutableMap.of("struct_1", 14, "struct_2", 15)),
+                    "tinyint",
+                    2,
+                    "smallint",
+                    0,
+                    "int",
+                    102)),
             record.copy(
                 ImmutableMap.of(
                     "array",
-                    Lists.newArrayList(8, 9),
+                    Lists.newArrayList(16, 17),
+                    "map",
+                    ImmutableMap.of(18, 19),
+                    "struct",
+                    struct.copy(ImmutableMap.of("struct_1", 20, "struct_2", 21)),
                     "tinyint",
                     3,
                     "smallint",

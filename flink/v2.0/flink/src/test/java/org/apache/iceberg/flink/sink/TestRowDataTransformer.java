@@ -96,7 +96,7 @@ class TestRowDataTransformer {
         new RowDataTransformer(
             dataGenerator.flinkRowType(), dataGenerator.icebergSchema().asStruct());
     RowData expected = dataGenerator.generateFlinkRowData();
-    RowData actual = transformer.wrap(expected);
+    RowData actual = transformer.transform(expected);
 
     // Run the serializer copy to ensure that the wrapped row data is at least accessible
     new RowDataSerializer(dataGenerator.flinkRowType()).copy(actual);

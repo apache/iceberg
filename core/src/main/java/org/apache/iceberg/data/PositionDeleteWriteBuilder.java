@@ -31,7 +31,7 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
  * specific to creating {@link PositionDeleteWriter} instances.
  *
  * <p>The builder provides methods to configure the schema for the row data that might be included
- * with the position deletes through {@link #rowSchema(Schema)} enabling optional preservation of
+ * with the position deletes through {@link #rowSchema(Schema)}, enabling optional preservation of
  * deleted record content.
  *
  * @param <B> the concrete builder type for method chaining

@@ -323,7 +323,7 @@ public class Parquet {
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private ParquetFormatModel.WriterFunction<D> writerFunction = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -341,7 +341,8 @@ public class Parquet {
       }
     }
 
-    WriteBuilderImpl<D> writerFunction(ParquetFormatModel.WriterFunction<D> newWriterFunction) {
+    WriteBuilderImpl<D> writerFunction(
+        BiFunction<Schema, MessageType, ParquetValueWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -467,12 +468,12 @@ public class Parquet {
       switch (content) {
         case DATA:
           this.createWriterFunc =
-              (icebergSchema, messageType) -> writerFunction.write(icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETES:
           this.createWriterFunc =
-              (icebergSchema, messageType) -> writerFunction.write(icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETES:
@@ -492,7 +493,7 @@ public class Parquet {
             this.createWriterFunc =
                 (icebergSchema, messageType) ->
                     new PositionDeleteStructWriter<D>(
-                        (StructWriter<?>) writerFunction.write(icebergSchema, messageType),
+                        (StructWriter<?>) writerFunction.apply(icebergSchema, messageType),
                         pathTransformFunc);
           }
           break;

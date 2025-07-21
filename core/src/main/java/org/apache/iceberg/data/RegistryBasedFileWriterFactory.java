@@ -156,16 +156,4 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
       throw new UncheckedIOException("Failed to create new position delete writer", e);
     }
   }
-
-  protected Schema dataSchema() {
-    return dataSchema;
-  }
-
-  protected Schema equalityDeleteRowSchema() {
-    return equalityDeleteRowSchema;
-  }
-
-  protected Schema positionDeleteRowSchema() {
-    return positionDeleteRowSchema;
-  }
 }

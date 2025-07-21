@@ -205,7 +205,7 @@ public class ORC {
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private ORCFormatModel.WriterFunction writerFunction;
+    private BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -223,7 +223,8 @@ public class ORC {
       }
     }
 
-    WriteBuilderImpl<D> writerFunction(ORCFormatModel.WriterFunction newWriterFunction) {
+    WriteBuilderImpl<D> writerFunction(
+        BiFunction<Schema, TypeDescription, OrcRowWriter<D>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -279,11 +280,15 @@ public class ORC {
       Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
       switch (content) {
         case DATA:
-          this.createWriterFunc = writerFunction::write;
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  writerFunction.apply(icebergSchema, typeDescription);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETES:
-          this.createWriterFunc = writerFunction::write;
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  writerFunction.apply(icebergSchema, typeDescription);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETES:
@@ -302,7 +307,7 @@ public class ORC {
             this.createWriterFunc =
                 (icebergSchema, typeDescription) ->
                     GenericOrcWriters.positionDelete(
-                        writerFunction.write(icebergSchema, typeDescription), pathTransformFunc);
+                        writerFunction.apply(icebergSchema, typeDescription), pathTransformFunc);
           }
           break;
         default:

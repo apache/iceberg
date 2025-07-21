@@ -49,7 +49,7 @@ public class TestSparkParquetWriter {
 
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "id", Types.DecimalType.of(5, 3)),
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.required(2, "id_long", Types.LongType.get()));
 
   private static final Schema COMPLEX_SCHEMA =

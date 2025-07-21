@@ -18,31 +18,51 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
+import org.apache.iceberg.data.RowTransformer;
+import org.apache.iceberg.data.TransformingWriters;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.InternalRowTransformer;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 
 class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow> {
+  private final StructType dataSparkType;
+  private final StructType equalityDeleteSparkType;
+  private final StructType positionDeleteSparkType;
+  private RowTransformer<InternalRow> rowTransformer;
+  private RowTransformer<InternalRow> equalityDeleteTransformer;
+  private RowTransformer<InternalRow> positionDeleteTransformer;
 
   SparkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
       Schema dataSchema,
+      StructType dataSparkType,
       SortOrder dataSortOrder,
       FileFormat deleteFileFormat,
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
+      StructType equalityDeleteSparkType,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
+      StructType positionDeleteSparkType,
       Map<String, String> writeProperties) {
 
     super(
@@ -57,6 +77,30 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
         equalityDeleteSortOrder,
         positionDeleteRowSchema,
         writeProperties);
+
+    this.dataSparkType = dataSparkType;
+    this.equalityDeleteSparkType = equalityDeleteSparkType;
+    this.positionDeleteSparkType = positionDeleteSparkType;
+  }
+
+  @Override
+  public DataWriter<InternalRow> newDataWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    return TransformingWriters.of(super.newDataWriter(file, spec, partition), lazyRowTransformer());
+  }
+
+  @Override
+  public EqualityDeleteWriter<InternalRow> newEqualityDeleteWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    return TransformingWriters.of(
+        super.newEqualityDeleteWriter(file, spec, partition), lazyEqualityDeleteTransformer());
+  }
+
+  @Override
+  public PositionDeleteWriter<InternalRow> newPositionDeleteWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    return TransformingWriters.of(
+        super.newPositionDeleteWriter(file, spec, partition), lazyPositionDeleteTransformer());
   }
 
   static Builder builderFor(Table table) {
@@ -67,12 +111,15 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
     private final Table table;
     private FileFormat dataFileFormat;
     private Schema dataSchema;
+    private StructType dataSparkType;
     private SortOrder dataSortOrder;
     private FileFormat deleteFileFormat;
     private int[] equalityFieldIds;
     private Schema equalityDeleteRowSchema;
+    private StructType equalityDeleteSparkType;
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
+    private StructType positionDeleteSparkType;
     private Map<String, String> writeProperties;
 
     Builder(Table table) {
@@ -99,6 +146,11 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
       return this;
     }
 
+    Builder dataSparkType(StructType newDataSparkType) {
+      this.dataSparkType = newDataSparkType;
+      return this;
+    }
+
     Builder dataSortOrder(SortOrder newDataSortOrder) {
       this.dataSortOrder = newDataSortOrder;
       return this;
@@ -119,6 +171,11 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
       return this;
     }
 
+    Builder equalityDeleteSparkType(StructType newEqualityDeleteSparkType) {
+      this.equalityDeleteSparkType = newEqualityDeleteSparkType;
+      return this;
+    }
+
     Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
       this.equalityDeleteSortOrder = newEqualityDeleteSortOrder;
       return this;
@@ -126,6 +183,11 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
 
     Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
       this.positionDeleteRowSchema = newPositionDeleteRowSchema;
+      return this;
+    }
+
+    Builder positionDeleteSparkType(StructType newPositionDeleteSparkType) {
+      this.positionDeleteSparkType = newPositionDeleteSparkType;
       return this;
     }
 
@@ -145,13 +207,51 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
           table,
           dataFileFormat,
           dataSchema,
+          dataSparkType,
           dataSortOrder,
           deleteFileFormat,
           equalityFieldIds,
           equalityDeleteRowSchema,
+          equalityDeleteSparkType,
           equalityDeleteSortOrder,
           positionDeleteRowSchema,
+          positionDeleteSparkType,
           writeProperties);
     }
+  }
+
+  private RowTransformer<InternalRow> lazyRowTransformer() {
+    if (rowTransformer == null) {
+      rowTransformer = createTransformer(dataSparkType);
+    }
+
+    return rowTransformer;
+  }
+
+  private RowTransformer<InternalRow> lazyEqualityDeleteTransformer() {
+    if (equalityDeleteTransformer == null) {
+      equalityDeleteTransformer = createTransformer(equalityDeleteSparkType);
+    }
+
+    return equalityDeleteTransformer;
+  }
+
+  private RowTransformer<InternalRow> lazyPositionDeleteTransformer() {
+    if (positionDeleteTransformer == null) {
+      StructType rowType = null;
+      if (positionDeleteSparkType != null
+          && positionDeleteSparkType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined()) {
+        int rowIndex = positionDeleteSparkType.fieldIndex(DELETE_FILE_ROW_FIELD_NAME);
+        rowType = (StructType) positionDeleteSparkType.fields()[rowIndex].dataType();
+      }
+
+      positionDeleteTransformer = createTransformer(rowType);
+    }
+
+    return positionDeleteTransformer;
+  }
+
+  private static RowTransformer<InternalRow> createTransformer(StructType sparkType) {
+    return sparkType != null ? new InternalRowTransformer(sparkType) : row -> row;
   }
 }

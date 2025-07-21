@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -33,14 +34,14 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
-  private final WriterFunction writerFunction;
+  private final BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction;
   private final Function<CharSequence, ?> pathTransformFunc;
 
   private ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction writerFunction,
+      BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
@@ -52,7 +53,7 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   public ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      WriterFunction writerFunction,
+      BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
     this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
   }
@@ -101,10 +102,6 @@ public class ORCFormatModel<D> implements FormatModel<D> {
     } else {
       return (B) new ORC.ReadBuilderImpl<D>(inputFile).readerFunction(readerFunction);
     }
-  }
-
-  public interface WriterFunction {
-    OrcRowWriter<?> write(Schema schema, TypeDescription messageType);
   }
 
   public interface ReaderFunction<D> {

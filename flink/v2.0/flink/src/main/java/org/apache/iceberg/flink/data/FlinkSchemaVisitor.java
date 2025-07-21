@@ -96,27 +96,29 @@ public abstract class FlinkSchemaVisitor<T> {
     List<LogicalType> fieldTypes = Lists.newArrayListWithExpectedSize(fieldSize);
     List<Types.NestedField> nestedFields = struct.fields();
 
-    visitor.beforeStructElement(struct.asStructType());
+    visitor.beforeStruct(struct.asStructType());
 
-    for (int i = 0; i < fieldSize; i++) {
-      Types.NestedField iField = nestedFields.get(i);
-      int fieldIndex = rowType.getFieldIndex(iField.name());
-      Preconditions.checkArgument(
-          fieldIndex >= 0, "NestedField: %s is not found in flink RowType: %s", iField, rowType);
+    try {
+      for (int i = 0; i < fieldSize; i++) {
+        Types.NestedField iField = nestedFields.get(i);
+        int fieldIndex = rowType.getFieldIndex(iField.name());
+        Preconditions.checkArgument(
+            fieldIndex >= 0, "NestedField: %s is not found in flink RowType: %s", iField, rowType);
 
-      LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
+        LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
 
-      fieldTypes.add(fieldFlinkType);
+        fieldTypes.add(fieldFlinkType);
 
-      visitor.beforeField(iField);
-      try {
-        results.add(visit(fieldFlinkType, iField.type(), visitor));
-      } finally {
-        visitor.afterField(iField);
+        visitor.beforeField(iField);
+        try {
+          results.add(visit(fieldFlinkType, iField.type(), visitor));
+        } finally {
+          visitor.afterField(iField);
+        }
       }
+    } finally {
+      visitor.afterStruct(struct.asStructType());
     }
-
-    visitor.afterStructElement(struct.asStructType());
 
     return visitor.record(struct, results, fieldTypes);
   }
@@ -141,9 +143,9 @@ public abstract class FlinkSchemaVisitor<T> {
 
   public void afterField(Types.NestedField field) {}
 
-  public void beforeStructElement(Types.StructType type) {}
+  public void beforeStruct(Types.StructType type) {}
 
-  public void afterStructElement(Types.StructType type) {}
+  public void afterStruct(Types.StructType type) {}
 
   public void beforeListElement(Types.NestedField elementField) {
     beforeField(elementField);
