@@ -155,6 +155,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
               + total
               + " more.");
     }
+
     int remaining = total;
     int currentRowId = rowId;
     // First value
