@@ -424,30 +424,6 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
         
 ```
 
-### Dynamic Sink Configuration
-
-The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
-
-| Method                                               | Description                                                                                                                                                             |
-|------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
-| `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
-| `overwrite(boolean enabled)`                         | Enable overwrite mode                                                                                                                                                   |
-| `writeParallelism(int parallelism)`                  | Set writer parallelism                                                                                                                                                  |
-| `uidPrefix(String prefix)`                           | Set operator UID prefix                                                                                                                                                 |
-| `snapshotProperties(Map<String, String> properties)` | Set snapshot metadata properties                                                                                                                                        |
-| `toBranch(String branch)`                            | Write to a specific branch                                                                                                                                              |
-| `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
-| `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
-| `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
-| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
-
-
-### Notes
-
-- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode.
-- **Property Precedence Note**: When conflicts occur between table properties and sink properties, the table properties will override the sink properties configuration.
-
 #### Configuration Example
 
 ```java
@@ -455,9 +431,7 @@ DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputS
 
 // Set common properties
 builder
-    .set("write.format", "parquet")
-    .set("write.upsert.enabled", "true")
-    .set("write.distribution-mode", "hash");
+    .set("write-format", "parquet");
 
 // Set specific options
 builder
@@ -499,12 +473,38 @@ builder.append();
 The user should provide a converter which converts the input record to a DynamicRecord.
 We need the following information (DynamicRecord) for every record:
 
-| Property           | Description                                                                                                                                                             |
-|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `TableIdentifier`  | The target table to which the record will be written. |
-| `Branch`           | The target branch for writing the record (optional).                                                                                                                                      |
-| `Schema`           | The schema of the record.                                                                                                                                                 |
-| `Spec`             | The expected partitioning specification for the record.                                                                                                                                                |
-| `RowData`          | The actual row data to be written.                                                                                                                                               |
-| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).                                                                                                                                                                                                                              |
-| `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget).                                                                                                                                      |
+| Property            | Description                                                                               |
+|---------------------|-------------------------------------------------------------------------------------------|
+| `TableIdentifier`   | The target table to which the record will be written.                                     |
+| `Branch`            | The target branch for writing the record (optional).                                      |
+| `Schema`            | The schema of the record.                                                                 |
+| `Spec`              | The expected partitioning specification for the record.                                   |
+| `RowData`           | The actual row data to be written.                                                        |
+| `DistributionMode`  | The distribution mode for writing the record (currently supports NONE or HASH).           |
+| `Parallelism`       | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
+| `upsertMode`        | Overrides this table's write.upsert.enabled (optional).                                   |
+| `equalityFields`    | The equality fields for the table(optional).                                                        |
+
+### Dynamic Sink Configuration
+
+The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
+
+| Method                                               | Description                                                                                                                                                             |
+|------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `overwrite(boolean enabled)`                         | Enable overwrite mode                                                                                                                                                   |
+| `writeParallelism(int parallelism)`                  | Set writer parallelism                                                                                                                                                  |
+| `uidPrefix(String prefix)`                           | Set operator UID prefix                                                                                                                                                 |
+| `snapshotProperties(Map<String, String> properties)` | Set snapshot metadata properties                                                                                                                                        |
+| `toBranch(String branch)`                            | Write to a specific branch                                                                                                                                              |
+| `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
+| `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
+| `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
+| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
+| `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
+| `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
+
+
+### Notes
+
+- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode,if set will fall back to `HASH`.
+- **Property Precedence Note**: When conflicts occur between table properties and sink properties, the table properties will override the sink properties configuration.
