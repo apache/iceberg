@@ -24,9 +24,12 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Files;
@@ -980,9 +983,12 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
-    createTable(ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES('format-version' = '3')",
+        tableName);
     List<ThreeColumnRecord> records = Lists.newArrayList();
-    for (int i = 0; i < 10; i++) {
+    int numRecords = 10;
+    for (int i = 0; i < numRecords; i++) {
       records.add(new ThreeColumnRecord(i, null, null));
     }
 
@@ -992,7 +998,21 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .writeTo(tableName)
         .append();
     List<Object[]> expectedRowsWithLineage =
-        sql("SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY c1", tableName);
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    List<Long> rowIds =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[1])
+            .collect(Collectors.toList());
+    List<Long> sequenceNumbers =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[2])
+            .collect(Collectors.toList());
+    assertThat(rowIds)
+        .isEqualTo(LongStream.range(0, numRecords).boxed().collect(Collectors.toList()));
+    assertThat(sequenceNumbers).isEqualTo(Collections.nCopies(numRecords, 1L));
+
     List<Object[]> output =
         sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
 
@@ -1002,7 +1022,9 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         Arrays.copyOf(output.get(0), 2));
 
     List<Object[]> rowsWithLineageAfterRewrite =
-        sql("SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY c1", tableName);
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
     assertEquals(
         "Rows with lineage before rewrite should equal rows with lineage after rewrite",
         expectedRowsWithLineage,
@@ -1011,15 +1033,6 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
-  }
-
-  private void createTable(Map<String, String> properties) {
-    sql("CREATE TABLE %s (c1 int, c2 string, c3 string) " + "USING iceberg ", tableName);
-    properties.forEach(
-        (prop, value) ->
-            this.sql(
-                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-                new Object[] {this.tableName, prop, value}));
   }
 
   private void createPartitionTable() {

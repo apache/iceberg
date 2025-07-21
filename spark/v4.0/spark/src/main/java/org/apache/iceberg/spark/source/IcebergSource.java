@@ -74,7 +74,7 @@ public class IcebergSource
   private static final String SNAPSHOT_ID = "snapshot_id_";
   private static final String BRANCH_PREFIX = "branch_";
   private static final String TAG_PREFIX = "tag_";
-  private static final String REWRITE_PREFIX = "rewrite_";
+  private static final String REWRITE_SELECTOR = "rewrite";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -170,7 +170,7 @@ public class IcebergSource
             SparkReadOptions.SCAN_TASK_SET_ID,
             options.get(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID));
     if (groupId != null) {
-      selector = REWRITE_PREFIX + groupId.replace("-", "");
+      selector = REWRITE_SELECTOR;
     }
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();

@@ -471,6 +471,50 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testBinPackWithV2PositionDeletes() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    table.refresh();
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
+
+    RowDelta rowDelta = table.newRowDelta();
+    // add 1 delete file for data files 0, 1, 2
+    for (int i = 0; i < 3; i++) {
+      writePosDeletesToFile(table, dataFiles.get(i), 1).forEach(rowDelta::addDeletes);
+    }
+
+    // add 2 delete files for data files 3, 4
+    for (int i = 3; i < 5; i++) {
+      writePosDeletesToFile(table, dataFiles.get(i), 2).forEach(rowDelta::addDeletes);
+    }
+
+    rowDelta.commit();
+    table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore = testDataSize(table);
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            // do not include any file based on bin pack file size configs
+            .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+            .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "2")
+            .execute();
+    assertThat(result.rewrittenDataFilesCount())
+        .as("Action should rewrite 2 data files")
+        .isEqualTo(2);
+    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
+  }
+
+  @TestTemplate
   public void testBinPackWithDVs() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Table table = createTablePartitioned(4, 2);
@@ -535,50 +579,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> actualRecordsWithLineage = currentDataWithLineage();
     assertEquals("Rows must match", recordsWithLineageAfterDelete, actualRecordsWithLineage);
     assertThat(actualRecordsWithLineage).as("7 rows are removed").hasSize(total - 7);
-  }
-
-  @TestTemplate
-  public void testBinPackWithV2PositionDeletes() throws IOException {
-    assumeThat(formatVersion).isEqualTo(2);
-    Table table = createTablePartitioned(4, 2);
-    shouldHaveFiles(table, 8);
-    table.refresh();
-
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // add 1 delete file for data files 0, 1, 2
-    for (int i = 0; i < 3; i++) {
-      writePosDeletesToFile(table, dataFiles.get(i), 1).forEach(rowDelta::addDeletes);
-    }
-
-    // add 2 delete files for data files 3, 4
-    for (int i = 3; i < 5; i++) {
-      writePosDeletesToFile(table, dataFiles.get(i), 2).forEach(rowDelta::addDeletes);
-    }
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    long dataSizeBefore = testDataSize(table);
-    Result result =
-        actions()
-            .rewriteDataFiles(table)
-            // do not include any file based on bin pack file size configs
-            .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-            .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-            .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "2")
-            .execute();
-    assertThat(result.rewrittenDataFilesCount())
-        .as("Action should rewrite 2 data files")
-        .isEqualTo(2);
-    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
   }
 
   @TestTemplate
@@ -2010,6 +2010,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testUnpartitionedRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
+
+    // Verify the initial row IDs and sequence numbers
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
     List<Object[]> expectedRecordsWithLineage = currentDataWithLineage();
@@ -2023,18 +2025,16 @@ public class TestRewriteDataFilesAction extends TestBase {
             LongStream.range(0, expectedRecords.size()).boxed().collect(Collectors.toList()));
     assertThat(lastUpdatedSequenceNumbers).allMatch(sequenceNumber -> sequenceNumber.equals(1L));
 
+    // Perform and validate compaction
     long dataSizeBefore = testDataSize(table);
-
     Result result = basicRewrite(table).execute();
     assertThat(result.rewrittenDataFilesCount())
         .as("Action should rewrite 4 data files")
         .isEqualTo(4);
     assertThat(result.addedDataFilesCount()).as("Action should add 1 data file").isOne();
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-
     shouldHaveFiles(table, 1);
     List<Object[]> actualRecordsWithLineage = currentDataWithLineage();
-
     assertEquals("Rows must match", expectedRecordsWithLineage, actualRecordsWithLineage);
   }
 
@@ -2042,8 +2042,10 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 
-    Table table = createTablePartitioned(4, 2);
+    Table table = createTablePartitioned(4 /* partitions */, 2 /* files per partition */);
     shouldHaveFiles(table, 8);
+
+    // Verify the initial row IDs and sequence numbers
     List<Object[]> expectedRecords = currentDataWithLineage();
     List<Long> rowIds =
         expectedRecords.stream().map(record -> (Long) record[0]).collect(Collectors.toList());
@@ -2054,18 +2056,16 @@ public class TestRewriteDataFilesAction extends TestBase {
             LongStream.range(0, expectedRecords.size()).boxed().collect(Collectors.toList()));
     assertThat(lastUpdatedSequenceNumbers).allMatch(sequenceNumber -> sequenceNumber.equals(1L));
 
+    // Perform and validate compaction
     long dataSizeBefore = testDataSize(table);
-
     Result result = basicRewrite(table).execute();
     assertThat(result.rewrittenDataFilesCount())
         .as("Action should rewrite 8 data files")
         .isEqualTo(8);
     assertThat(result.addedDataFilesCount()).as("Action should add 4 data file").isEqualTo(4);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-
     shouldHaveFiles(table, 4);
     List<Object[]> actualRecordsWithLineage = currentDataWithLineage();
-
     assertEquals("Rows must match", expectedRecords, actualRecordsWithLineage);
   }
 

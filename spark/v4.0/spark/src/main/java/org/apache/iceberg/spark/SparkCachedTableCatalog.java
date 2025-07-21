@@ -51,7 +51,7 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
-  private static final Pattern REWRITE_JOB = Pattern.compile("rewrite_(.*)");
+  private static final String REWRITE = "rewrite";
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
@@ -135,7 +135,6 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
     Pair<String, List<String>> parsedIdent = parseIdent(ident);
     String key = parsedIdent.first();
     TableLoadOptions options = parseLoadOptions(parsedIdent.second());
-    validateTableOptions(options);
 
     Table table = TABLE_CACHE.get(key);
 
@@ -224,28 +223,25 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
         opts.tag = tagBasedMatcher.group(1);
       }
 
-      Matcher rewriteMatcher = REWRITE_JOB.matcher(meta);
-      if (rewriteMatcher.matches()) {
-        opts.isTableRewrite = rewriteMatcher.matches();
+      if (meta.equals(REWRITE)) {
+        opts.isTableRewrite = true;
       }
     }
 
-    return opts;
-  }
-
-  private void validateTableOptions(TableLoadOptions opts) {
-    long count =
+    long numberOptions =
         Stream.of(opts.snapshotId, opts.asOfTimestamp, opts.branch, opts.tag, opts.isTableRewrite)
             .filter(Objects::nonNull)
             .count();
     Preconditions.checkArgument(
-        count <= 1,
+        numberOptions <= 1,
         "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s), is-table-rewrite (%s)",
         opts.snapshotId,
         opts.asOfTimestamp,
         opts.branch,
         opts.tag,
         opts.isTableRewrite);
+
+    return opts;
   }
 
   private Pair<String, List<String>> parseIdent(Identifier ident) {
