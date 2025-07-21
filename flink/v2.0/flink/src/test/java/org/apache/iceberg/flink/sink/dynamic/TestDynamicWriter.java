@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import java.io.File;
 import java.net.URI;
@@ -59,7 +59,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     dynamicWriter.write(record2, null);
     Collection<DynamicWriteResult> writeResults = dynamicWriter.prepareCommit();
 
-    assertThat(writeResults.size()).isEqualTo(2);
+    assertThat(writeResults).hasSize(2);
     assertThat(getNumDataFiles(table1)).isEqualTo(1);
     assertThat(
             dynamicWriter
@@ -85,7 +85,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     dynamicWriter.write(record2, null);
     writeResults = dynamicWriter.prepareCommit();
 
-    assertThat(writeResults.size()).isEqualTo(2);
+    assertThat(writeResults).hasSize(2);
     assertThat(getNumDataFiles(table1)).isEqualTo(2);
     assertThat(
             dynamicWriter

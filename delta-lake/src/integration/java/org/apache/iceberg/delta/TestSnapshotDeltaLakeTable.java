@@ -404,7 +404,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
     List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
 
-    assertThat(icebergSnapshots.size()).isEqualTo(currentVersion - firstConstructableVersion + 1);
+    assertThat(icebergSnapshots).hasSize((int) (currentVersion - firstConstructableVersion + 1));
 
     for (int i = 0; i < icebergSnapshots.size(); i++) {
       long deltaVersion = firstConstructableVersion + i;
