@@ -91,19 +91,21 @@ nav:
       - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
       - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Catalogs:
-    - Apache Gravitino: https://gravitino.apache.org/
     - Apache Hadoop: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
     - Apache Hive: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hive/HiveCatalog.html
-    - Apache Polaris: https://polaris.apache.org/
-    - AWS Glue: aws/#glue-catalog
-    - AWS DynamoDB: aws/#dynamodb-catalog
-    - Boring Catalog: https://github.com/boringdata/boring-catalog
-    - custom-catalog.md
-    - DataHub: https://docs.datahub.com/docs/iceberg-catalog
-    - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
     - jdbc.md
-    - Lakekeeper: https://github.com/lakekeeper/lakekeeper
-    - nessie.md
+    - custom-catalog.md
+    - Third-party:
+      - Apache Gravitino: https://gravitino.apache.org/
+      - Apache Polaris: https://polaris.apache.org/
+      - AWS Glue: aws/#glue-catalog
+      - AWS DynamoDB: aws/#dynamodb-catalog
+      - Boring Catalog: https://github.com/boringdata/boring-catalog
+      - DataHub: https://docs.datahub.com/docs/iceberg-catalog
+      - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
+      - Lakekeeper: https://github.com/lakekeeper/lakekeeper
+      - nessie.md
   - Storage:
     - AWS S3: aws/#s3-fileio
     - Dell ECS: dell.md
+
