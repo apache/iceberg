@@ -91,11 +91,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 & INT64 */
   @Override
   public byte readByte() {
     throw new UnsupportedOperationException("readByte is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 & INT64 */
   @Override
   public short readShort() {
     throw new UnsupportedOperationException("readShort is not supported");
@@ -113,11 +115,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     return longVal;
   }
 
+  /** The Iceberg reader currently does not do skipping */
   @Override
   public void skip() {
     throw new UnsupportedOperationException("skip is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 & INT64 */
   @Override
   public Binary readBinary(int len) {
     throw new UnsupportedOperationException("readBinary is not supported");
@@ -133,11 +137,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 & INT64 */
   @Override
   public void readFloats(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readFloats is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 & INT64 */
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
