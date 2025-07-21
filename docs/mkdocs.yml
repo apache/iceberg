@@ -91,8 +91,8 @@ nav:
       - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
       - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Catalogs:
-    - Apache Hadoop: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
-    - Apache Hive: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hive/HiveCatalog.html
+    - HadoopCatalog: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
+    - HiveCatalog: hive/#global-hive-catalog
     - jdbc.md
     - custom-catalog.md
     - Third-party:
