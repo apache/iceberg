@@ -935,10 +935,10 @@ public class SparkTableUtil {
       ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
     } else {
       Tasks.foreach(manifests)
-              .executeWith(ThreadPools.getWorkerPool())
-              .noRetry()
-              .suppressFailureWhenFinished()
-              .run(item -> io.deleteFile(item.path()));
+          .executeWith(ThreadPools.getWorkerPool())
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .run(item -> io.deleteFile(item.path()));
     }
   }
 
