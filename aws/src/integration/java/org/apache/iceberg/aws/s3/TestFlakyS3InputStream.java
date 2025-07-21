@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLException;
@@ -52,6 +53,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ServiceClientConfiguration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -232,9 +234,20 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
 
   private S3AsyncClientWrapper flakyStreamAsyncClient(AtomicInteger counter, IOException failure) {
     S3AsyncClientWrapper flakyClient = spy(new S3AsyncClientWrapper(s3AsyncClient()));
-    doAnswer(invocation -> new FlakyInputStream(invocation.callRealMethod(), counter, failure))
-        .when(flakyClient)
-        .getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class));
+    doAnswer(invocation -> CompletableFuture.supplyAsync( () -> {
+                try {
+                  CompletableFuture<ResponseInputStream<GetObjectResponse>> invocationFuture =
+                          (CompletableFuture<ResponseInputStream<GetObjectResponse>>)  invocation.callRealMethod();
+                  InputStream flakyInputStream = new FlakyInputStream(invocationFuture.get()
+                          , counter, failure);
+                  return new ResponseInputStream<>(
+                          GetObjectResponse.builder().build(), flakyInputStream);
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }))
+            .when(flakyClient)
+            .getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class));
     return flakyClient;
   }
 
@@ -325,6 +338,11 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     public CompletableFuture<CreateBucketResponse> createBucket(
         CreateBucketRequest createBucketRequest) {
       return delegate.createBucket(createBucketRequest);
+    }
+
+    @Override
+    public S3ServiceClientConfiguration serviceClientConfiguration() {
+      return delegate.serviceClientConfiguration();
     }
   }
 

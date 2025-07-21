@@ -513,7 +513,7 @@ public class S3FileIOProperties implements Serializable {
   private final String endpoint;
   private final boolean isRemoteSigningEnabled;
   private final boolean isS3AnalyticsAcceleratorEnabled;
-  private final Map<String, String> s3AnalyticsacceleratorProperties;
+  private final Map<String, String> s3AnalyticsAcceleratorProperties;
   private final boolean isS3CRTEnabled;
   private String writeStorageClass;
   private int s3RetryNumRetries;
@@ -560,7 +560,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3DirectoryBucketListPrefixAsDirectory =
         S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
     this.isS3AnalyticsAcceleratorEnabled = S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT;
-    this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
+    this.s3AnalyticsAcceleratorProperties = Maps.newHashMap();
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
@@ -677,7 +677,7 @@ public class S3FileIOProperties implements Serializable {
     this.isS3AnalyticsAcceleratorEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_ANALYTICS_ACCELERATOR_ENABLED, S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT);
-    this.s3AnalyticsacceleratorProperties =
+    this.s3AnalyticsAcceleratorProperties =
         PropertyUtil.propertiesWithPrefix(properties, S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX);
     this.isS3CRTEnabled =
         PropertyUtil.propertyAsBoolean(properties, S3_CRT_ENABLED, S3_CRT_ENABLED_DEFAULT);
@@ -799,8 +799,8 @@ public class S3FileIOProperties implements Serializable {
     return isS3AnalyticsAcceleratorEnabled;
   }
 
-  public Map<String, String> s3AnalyticsacceleratorProperties() {
-    return s3AnalyticsacceleratorProperties;
+  public Map<String, String> s3AnalyticsAcceleratorProperties() {
+    return s3AnalyticsAcceleratorProperties;
   }
 
   public boolean isS3CRTEnabled() {

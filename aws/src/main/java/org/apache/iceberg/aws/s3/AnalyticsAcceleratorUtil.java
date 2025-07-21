@@ -85,7 +85,7 @@ class AnalyticsAcceleratorUtil {
   private static S3SeekableInputStreamFactory createNewFactory(
       Pair<S3AsyncClient, S3FileIOProperties> cacheKey) {
     ConnectorConfiguration connectorConfiguration =
-        new ConnectorConfiguration(cacheKey.second().s3AnalyticsacceleratorProperties());
+        new ConnectorConfiguration(cacheKey.second().s3AnalyticsAcceleratorProperties());
     S3SeekableInputStreamConfiguration streamConfiguration =
         S3SeekableInputStreamConfiguration.fromConfiguration(connectorConfiguration);
     ObjectClientConfiguration objectClientConfiguration =
