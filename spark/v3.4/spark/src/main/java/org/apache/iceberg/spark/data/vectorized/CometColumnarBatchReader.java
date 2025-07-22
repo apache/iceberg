@@ -65,9 +65,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         readers.stream().map(CometColumnReader.class::cast).toArray(CometColumnReader[]::new);
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
-
-    AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
-    this.delegate = new BatchReader(abstractColumnReaders);
+    this.delegate = new BatchReader(readers.size());
     delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
   }
 
@@ -87,9 +85,12 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       }
     }
 
+    AbstractColumnReader[] delegateReaders = new AbstractColumnReader[readers.length];
     for (int i = 0; i < readers.length; i++) {
-      delegate.getColumnReaders()[i] = this.readers[i].delegate();
+      delegateReaders[i] = readers[i].delegate();
     }
+
+    delegate.setColumnReaders(delegateReaders);
 
     this.rowStartPosInBatch =
         ((RowGroupReader) pageStore)

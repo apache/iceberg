@@ -41,11 +41,13 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -150,7 +152,6 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         Long length,
         ByteBuffer fileEncryptionKey,
         ByteBuffer fileAADPrefix) {
-      // this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
@@ -208,14 +209,50 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
 
           boolean isRepeated = primitiveType.getRepetition() == Type.Repetition.REPEATED;
 
+          // ToDo: extract this into a Util method
+          String logicalTypeName = null;
+          Map<String, String> logicalTypeParams = Maps.newHashMap();
+          LogicalTypeAnnotation logicalType = primitiveType.getLogicalTypeAnnotation();
+
+          if (logicalType != null) {
+            logicalTypeName = logicalType.getClass().getSimpleName();
+
+            // Handle specific logical types
+            if (logicalType instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
+              LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
+                  (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) logicalType;
+              logicalTypeParams.put("precision", String.valueOf(decimal.getPrecision()));
+              logicalTypeParams.put("scale", String.valueOf(decimal.getScale()));
+            } else if (logicalType
+                instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+              LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestamp =
+                  (LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType;
+              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(timestamp.isAdjustedToUTC()));
+              logicalTypeParams.put("unit", timestamp.getUnit().name());
+            } else if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+              LogicalTypeAnnotation.TimeLogicalTypeAnnotation time =
+                  (LogicalTypeAnnotation.TimeLogicalTypeAnnotation) logicalType;
+              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(time.isAdjustedToUTC()));
+              logicalTypeParams.put("unit", time.getUnit().name());
+            } else if (logicalType instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation) {
+              LogicalTypeAnnotation.IntLogicalTypeAnnotation intType =
+                  (LogicalTypeAnnotation.IntLogicalTypeAnnotation) logicalType;
+              logicalTypeParams.put("isSigned", String.valueOf(intType.isSigned()));
+              logicalTypeParams.put("bitWidth", String.valueOf(intType.getBitWidth()));
+            }
+          }
+
           ParquetColumnSpec spec =
               new ParquetColumnSpec(
+                  1, // ToDo: pass in the correct id
                   path,
                   physicalType,
                   typeLength,
                   isRepeated,
                   descriptor.getMaxDefinitionLevel(),
-                  descriptor.getMaxRepetitionLevel());
+                  descriptor.getMaxRepetitionLevel(),
+                  logicalTypeName,
+                  logicalTypeParams);
           specs.add(spec);
         }
 
