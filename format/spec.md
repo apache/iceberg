@@ -1832,6 +1832,10 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
 | **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
 | **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
+| **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
+| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
+| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             | 
 
 #### Other Fields
 
