@@ -30,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 @Internal
 public class FlinkConfParser {
@@ -243,6 +244,14 @@ public class FlinkConfParser {
     public Duration parseOptional() {
       return parse(TimeUtils::parseDuration, null);
     }
+  }
+
+  public Map<String, String> properties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.putAll(tableProperties);
+    properties.putAll(readableConfig.toMap());
+    properties.putAll(options);
+    return properties;
   }
 
   public abstract class ConfParser<ThisT, T> {

@@ -28,12 +28,14 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.SinkWriter;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.FlinkConfParser;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
@@ -106,9 +108,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                         Table table =
                             catalog.loadTable(TableIdentifier.parse(factoryKey.tableName()));
 
-                        Map<String, String> tableWriteProperties =
-                            Maps.newHashMap(table.properties());
-                        tableWriteProperties.putAll(commonWriteProperties);
+                        FlinkConfParser flinkConfParser =
+                            new FlinkConfParser(table, commonWriteProperties, new Configuration());
+                        Map<String, String> tableWriteProperties = flinkConfParser.properties();
 
                         Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());

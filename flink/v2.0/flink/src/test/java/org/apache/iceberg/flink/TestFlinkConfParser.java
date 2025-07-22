@@ -58,4 +58,24 @@ public class TestFlinkConfParser {
     result = confParser.durationConf().tableProperty("table-prop").defaultValue(defaultVal).parse();
     assertThat(result).isEqualTo(Duration.ofSeconds(333));
   }
+
+  @Test
+  public void testProperties() {
+    Map<String, String> writeOptions = ImmutableMap.of("prop", "write-111");
+
+    ConfigOption<Duration> configOption = ConfigOptions.key("prop").durationType().noDefaultValue();
+    ConfigOption<Duration> configOption2 =
+        ConfigOptions.key("prop_2").durationType().noDefaultValue();
+    Configuration flinkConf = new Configuration();
+    flinkConf.setString(configOption.key(), "conf-111");
+    flinkConf.setString(configOption2.key(), "conf-222");
+
+    Table table = mock(Table.class);
+    when(table.properties())
+        .thenReturn(ImmutableMap.of("prop", "table-111", "prop_2", "table-222"));
+
+    FlinkConfParser confParser = new FlinkConfParser(table, writeOptions, flinkConf);
+    Map<String, String> properties = confParser.properties();
+    assertThat(properties).isEqualTo(ImmutableMap.of("prop", "write-111", "prop_2", "conf-222"));
+  }
 }
