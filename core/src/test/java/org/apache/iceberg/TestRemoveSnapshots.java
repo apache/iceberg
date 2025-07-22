@@ -236,7 +236,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     Set<String> deletedFiles = Sets.newHashSet();
 
-    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+    table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
@@ -281,7 +281,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     Set<String> deletedFiles = Sets.newHashSet();
 
-    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+    table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
@@ -757,7 +757,8 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
 
     // Expire all commits including dangling staged snapshot.
-    removeSnapshots(table)
+    table
+        .expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireOlderThan(snapshotB.timestampMillis() + 1)
         .commit();
@@ -1847,41 +1848,12 @@ public class TestRemoveSnapshots extends TestBase {
     waitUntilAfter(currentTime + tagAgeMs + 10);
 
     Set<String> deletedFiles = Sets.newHashSet();
-    table
-        .expireSnapshots()
+    removeSnapshots(table)
         .cleanExpiredFiles(true)
         .expireOlderThan(System.currentTimeMillis())
         .deleteWith(deletedFiles::add)
         .commit();
     assertThat(deletedFiles).isEqualTo(expectedDeleteFiles);
-  }
-
-  @TestTemplate
-  public void testCannotIncrementallyCleanupWithMultipleRefsBeforeExpiration() {
-    table.newAppend().appendFile(FILE_A).commit();
-    String tag = "tag";
-    long tagAgeMs = 50;
-    table
-        .manageSnapshots()
-        .createTag(tag, table.currentSnapshot().snapshotId())
-        .setMaxRefAgeMs(tag, tagAgeMs)
-        .commit();
-    long currentTime = System.currentTimeMillis();
-    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
-
-    waitUntilAfter(currentTime + tagAgeMs + 10);
-
-    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
-
-    assertThatThrownBy(
-            () ->
-                removeSnapshots
-                    .withIncrementalCleanup(true)
-                    .cleanExpiredFiles(true)
-                    .expireOlderThan(System.currentTimeMillis())
-                    .commit())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot incrementally clean files for tables with more than 1 ref");
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {

@@ -352,7 +352,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles) {
+    if (cleanExpiredFiles && base.currentSnapshot() != null) {
       cleanExpiredSnapshots();
     }
   }
@@ -365,17 +365,13 @@ class RemoveSnapshots implements ExpireSnapshots {
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
 
-    if (specifiedSnapshotId) {
-      if (incrementalCleanup != null && incrementalCleanup) {
-        throw new UnsupportedOperationException(
-            "Cannot clean files incrementally when snapshot IDs are specified");
-      }
-
-      incrementalCleanup = false;
-    }
-
-    if (incrementalCleanup == null) {
-      incrementalCleanup = base.refs().size() == 1 && current.refs().size() == 1;
+    if (Boolean.TRUE.equals(incrementalCleanup)) {
+      validateCleanupCanBeIncremental(current);
+    } else {
+      incrementalCleanup =
+          !specifiedSnapshotId
+              && current.refs().size() == 1
+              && allRemovedSnapshotsAreInMainAncestry(current);
     }
 
     LOG.info(
@@ -389,5 +385,44 @@ class RemoveSnapshots implements ExpireSnapshots {
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
+  }
+
+  private void validateCleanupCanBeIncremental(TableMetadata current) {
+    if (specifiedSnapshotId) {
+      throw new UnsupportedOperationException(
+          "Cannot clean files incrementally when snapshot IDs are specified");
+    }
+
+    if (current.refs().size() > 1) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files for tables with more than 1 ref");
+    }
+
+    if (!allRemovedSnapshotsAreInMainAncestry(current)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");
+    }
+  }
+
+  private boolean allRemovedSnapshotsAreInMainAncestry(TableMetadata current) {
+    Set<Long> snapshotsBeforeExpiration =
+        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+
+    Set<Long> ancestors = Sets.newHashSet();
+    for (Snapshot ancestor :
+        SnapshotUtil.ancestorsOf(base.currentSnapshot().snapshotId(), base::snapshot)) {
+      ancestors.add(ancestor.snapshotId());
+    }
+
+    for (Long snapshot : snapshotsBeforeExpiration) {
+      // Check if removed snapshot is not an ancestor
+      if (current.snapshot(snapshot) == null) {
+        if (!ancestors.contains(snapshot)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 }
