@@ -983,7 +983,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 3);
 
     List<Object[]> expectedRecords = currentData();
+
     int targetSize = averageFileSize(table);
+
     long dataSizeBefore = testDataSize(table);
     Result result =
         basicRewrite(table)
@@ -2015,14 +2017,19 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
     List<Object[]> expectedRecordsWithLineage = currentDataWithLineage();
-    List<Object[]> expectedRecords = currentDataWithLineage();
     List<Long> rowIds =
-        expectedRecords.stream().map(record -> (Long) record[0]).collect(Collectors.toList());
+        expectedRecordsWithLineage.stream()
+            .map(record -> (Long) record[0])
+            .collect(Collectors.toList());
     List<Long> lastUpdatedSequenceNumbers =
-        expectedRecords.stream().map(record -> (Long) record[1]).collect(Collectors.toList());
+        expectedRecordsWithLineage.stream()
+            .map(record -> (Long) record[1])
+            .collect(Collectors.toList());
     assertThat(rowIds)
         .isEqualTo(
-            LongStream.range(0, expectedRecords.size()).boxed().collect(Collectors.toList()));
+            LongStream.range(0, expectedRecordsWithLineage.size())
+                .boxed()
+                .collect(Collectors.toList()));
     assertThat(lastUpdatedSequenceNumbers).allMatch(sequenceNumber -> sequenceNumber.equals(1L));
 
     // Perform and validate compaction

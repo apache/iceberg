@@ -223,7 +223,7 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
         opts.tag = tagBasedMatcher.group(1);
       }
 
-      if (meta.equals(REWRITE)) {
+      if (meta.equalsIgnoreCase(REWRITE)) {
         opts.isTableRewrite = true;
       }
     }

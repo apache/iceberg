@@ -895,7 +895,7 @@ public class SparkCatalog extends BaseCatalog {
         }
       }
 
-      if (ident.name().equals(REWRITE)) {
+      if (ident.name().equalsIgnoreCase(REWRITE)) {
         return new SparkTable(table, null, !cacheEnabled, true);
       }
 
@@ -1001,6 +1001,7 @@ public class SparkCatalog extends BaseCatalog {
 
     } else if (isRewrite) {
       return new SparkTable(table, null, !cacheEnabled, true);
+
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);
     }
