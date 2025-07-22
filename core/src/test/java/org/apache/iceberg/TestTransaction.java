@@ -188,7 +188,7 @@ public class TestTransaction extends TestBase {
 
     assertThatThrownBy(txn::newDelete)
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
+        .hasMessage("Cannot create new StreamingDelete: last operation has not committed");
   }
 
   @TestTemplate
@@ -463,10 +463,8 @@ public class TestTransaction extends TestBase {
     // create a manifest append
     OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID() + ".avro");
     ManifestWriter<DataFile> writer = ManifestFiles.write(table.spec(), manifestLocation);
-    try {
+    try (writer) {
       writer.add(FILE_D);
-    } finally {
-      writer.close();
     }
 
     Transaction txn = table.newTransaction();
@@ -653,7 +651,7 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
+  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() {
     Table table = TestTables.tableWithCommitSucceedButStateUnknown(tableDir, "test");
 
     Transaction transaction = table.newTransaction();
@@ -849,5 +847,59 @@ public class TestTransaction extends TestBase {
         ids(first.snapshotId(), latestOverwrite.snapshotId(), second.snapshotId()),
         files(FILE_A, FILE_A2, FILE_B),
         statuses(Status.EXISTING, Status.DELETED, Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testExtendBaseTransaction() {
+    assertThat(version()).isEqualTo(0);
+    TableMetadata base = readMetadata();
+
+    Transaction txn =
+        new AppendToBranchTransaction(
+            table.name(),
+            table.ops(),
+            BaseTransaction.TransactionType.SIMPLE,
+            table.ops().refresh());
+    AppendFiles appendFiles = txn.newAppend().appendFile(FILE_A);
+    Snapshot branchSnapshot = appendFiles.apply();
+    appendFiles.commit();
+
+    assertThat(readMetadata()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
+
+    // first snapshot write to main
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Snapshot mainSnapshot = readMetadata().currentSnapshot();
+    assertThat(version()).isEqualTo(1);
+    validateSnapshot(base.currentSnapshot(), mainSnapshot, FILE_B);
+
+    // second snapshot write to branch
+    txn.commitTransaction();
+    assertThat(version()).isEqualTo(2);
+
+    assertThat(readMetadata().refs()).hasSize(2).containsKey("main").containsKey("branch");
+    assertThat(readMetadata().ref("main").snapshotId()).isEqualTo(mainSnapshot.snapshotId());
+    assertThat(readMetadata().snapshot(mainSnapshot.snapshotId()).allManifests(table.io()))
+        .hasSize(1);
+    assertThat(readMetadata().ref("branch").snapshotId()).isEqualTo(branchSnapshot.snapshotId());
+    assertThat(readMetadata().snapshot(branchSnapshot.snapshotId()).allManifests(table.io()))
+        .hasSize(2);
+  }
+
+  private static class AppendToBranchTransaction extends BaseTransaction {
+
+    AppendToBranchTransaction(
+        String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
+      super(tableName, ops, type, start);
+    }
+
+    @Override
+    public AppendFiles newAppend() {
+      AppendFiles append =
+          new MergeAppend(tableName(), ((HasTableOperations) this.table()).operations())
+              .toBranch("branch");
+      return appendUpdates(append);
+    }
   }
 }
