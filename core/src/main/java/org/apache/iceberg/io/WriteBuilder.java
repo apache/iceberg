@@ -35,10 +35,9 @@ import org.apache.iceberg.Schema;
  * required.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <E> schema type for the input data records
  * @param <D> the input data type for the writer
  */
-public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
+public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
   /** Set the file schema. */
   B fileSchema(Schema newSchema);
 
@@ -57,6 +56,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * @param properties writer config properties to set
    * @return this for method chaining
    */
+  @SuppressWarnings("unchecked")
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
     return (B) this;
@@ -77,6 +77,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * @param properties file metadata properties to set
    * @return this for method chaining
    */
+  @SuppressWarnings("unchecked")
   default B meta(Map<String, String> properties) {
     properties.forEach(this::meta);
     return (B) this;
@@ -99,21 +100,6 @@ public interface WriteBuilder<B extends WriteBuilder<B, E, D>, E, D> {
    * does not support encryption, then an exception should be thrown.
    */
   B fileAADPrefix(ByteBuffer aadPrefix);
-
-  /**
-   * Sets the schema for the input data records.
-   *
-   * <p>This method is necessary when the mapping between input types and Iceberg types is not
-   * one-to-one. For example, when multiple input types could map to the same Iceberg type, or when
-   * schema metadata beyond the structure is needed to properly interpret the data.
-   *
-   * <p>While the Iceberg schema defines the expected output structure, the input schema provides
-   * the exact input format details needed for proper type conversion.
-   *
-   * @param newModelSchema the native schema representation from the input (Spark, Flink, etc.)
-   * @return this builder for method chaining
-   */
-  B modelSchema(E newModelSchema);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   FileAppender<D> build() throws IOException;

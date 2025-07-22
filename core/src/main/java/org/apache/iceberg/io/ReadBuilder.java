@@ -80,6 +80,7 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    * Sets multiple configuration key/value pairs for the reader. Reader builders should ignore
    * configuration keys not known for them.
    */
+  @SuppressWarnings("unchecked")
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
     return (B) this;
