@@ -24,9 +24,12 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestComparators {
@@ -155,5 +158,36 @@ public class TestComparators {
             Types.StructType.of(Types.NestedField.optional(18, "str19", Types.StringType.get()))),
         TestHelpers.Row.of((String) null),
         TestHelpers.Row.of("a"));
+  }
+
+  @Test
+  public void testMap() {
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        ImmutableMap.of("a", 1, "b", 2),
+        ImmutableMap.of("a", 1, "b", 3));
+
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        ImmutableMap.of("a", 1, "b", 2),
+        ImmutableMap.of("a", 1, "c", 2));
+
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        ImmutableMap.of("a", 1),
+        ImmutableMap.of("a", 1, "b", 2));
+
+    Map<String, Integer> map = Maps.newHashMapWithExpectedSize(1);
+    map.put("a", 1);
+    map.put("b", null);
+    map.put("c", 2);
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        map,
+        ImmutableMap.of("a", 1, "b", 2, "c", 3));
   }
 }
