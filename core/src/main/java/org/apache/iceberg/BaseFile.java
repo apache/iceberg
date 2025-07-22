@@ -66,6 +66,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
+  private int schemaId;
   private Long dataSequenceNumber = null;
   private Long fileSequenceNumber = null;
 
@@ -162,6 +163,54 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       String referencedDataFile,
       Long contentOffset,
       Long contentSizeInBytes) {
+    this(
+        specId,
+        content,
+        filePath,
+        format,
+        partition,
+        fileSizeInBytes,
+        0,
+        recordCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        splitOffsets,
+        equalityFieldIds,
+        sortOrderId,
+        keyMetadata,
+        firstRowId,
+        referencedDataFile,
+        contentOffset,
+        contentSizeInBytes);
+  }
+
+  BaseFile(
+      int specId,
+      FileContent content,
+      String filePath,
+      FileFormat format,
+      PartitionData partition,
+      long fileSizeInBytes,
+      int schemaId,
+      long recordCount,
+      Map<Integer, Long> columnSizes,
+      Map<Integer, Long> valueCounts,
+      Map<Integer, Long> nullValueCounts,
+      Map<Integer, Long> nanValueCounts,
+      Map<Integer, ByteBuffer> lowerBounds,
+      Map<Integer, ByteBuffer> upperBounds,
+      List<Long> splitOffsets,
+      int[] equalityFieldIds,
+      Integer sortOrderId,
+      ByteBuffer keyMetadata,
+      Long firstRowId,
+      String referencedDataFile,
+      Long contentOffset,
+      Long contentSizeInBytes) {
     super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
@@ -180,6 +229,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
+    this.schemaId = schemaId;
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
@@ -216,6 +266,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
+    this.schemaId = toCopy.schemaId;
     if (copyStats) {
       this.columnSizes = copyMap(toCopy.columnSizes, requestedColumnIds);
       this.valueCounts = copyMap(toCopy.valueCounts, requestedColumnIds);
@@ -382,6 +433,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 21:
         this.fileOrdinal = (long) value;
         return;
+      case 22:
+        this.schemaId = (int) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -438,6 +492,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return contentSizeInBytes;
       case 21:
         return fileOrdinal;
+      case 22:
+        return schemaId;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
@@ -491,6 +547,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
+  }
+
+  @Override
+  public int schemaId() {
+    return schemaId;
   }
 
   @Override
@@ -614,6 +675,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
+        .add("schema_id", schemaId)
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
