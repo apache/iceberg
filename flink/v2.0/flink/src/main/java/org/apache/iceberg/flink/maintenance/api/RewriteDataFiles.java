@@ -55,7 +55,6 @@ public class RewriteDataFiles {
     private int partialProgressMaxCommits =
         org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
-    private long maxRewriteBytes = Long.MAX_VALUE;
 
     @Override
     String maintenanceTaskName() {
@@ -91,7 +90,8 @@ public class RewriteDataFiles {
      * @param newMaxRewriteBytes to limit the size of the rewrites
      */
     public Builder maxRewriteBytes(long newMaxRewriteBytes) {
-      this.maxRewriteBytes = newMaxRewriteBytes;
+      this.rewriteOptions.put(
+          BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE, String.valueOf(newMaxRewriteBytes));
       return this;
     }
 
@@ -232,7 +232,6 @@ public class RewriteDataFiles {
                       index(),
                       tableLoader(),
                       partialProgressEnabled ? partialProgressMaxCommits : 1,
-                      maxRewriteBytes,
                       rewriteOptions))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
