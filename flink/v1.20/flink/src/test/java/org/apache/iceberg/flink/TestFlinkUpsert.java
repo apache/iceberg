@@ -37,7 +37,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(60)
 public class TestFlinkUpsert extends CatalogTestBase {
 
   @Parameter(index = 2)
