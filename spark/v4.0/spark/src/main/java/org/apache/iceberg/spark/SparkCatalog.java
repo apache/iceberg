@@ -129,7 +129,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
-  private static final Pattern REWRITE_JOB = Pattern.compile("rewrite_(.*)");
+  private static final String REWRITE = "rewrite";
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -895,8 +895,7 @@ public class SparkCatalog extends BaseCatalog {
         }
       }
 
-      Matcher rewriteJob = REWRITE_JOB.matcher(ident.name());
-      if (rewriteJob.matches()) {
+      if (ident.name().equals(REWRITE)) {
         return new SparkTable(table, null, !cacheEnabled, true);
       }
 
@@ -935,8 +934,7 @@ public class SparkCatalog extends BaseCatalog {
         continue;
       }
 
-      Matcher rewrite = REWRITE_JOB.matcher(meta);
-      if (rewrite.matches()) {
+      if (REWRITE.equals(meta)) {
         isRewrite = true;
         continue;
       }
