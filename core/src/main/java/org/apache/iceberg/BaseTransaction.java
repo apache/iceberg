@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
 public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
-  enum TransactionType {
+  protected enum TransactionType {
     CREATE_TABLE,
     REPLACE_TABLE,
     CREATE_OR_REPLACE_TABLE,
@@ -82,7 +82,7 @@ public class BaseTransaction implements Transaction {
     this(tableName, ops, type, start, LoggingMetricsReporter.instance());
   }
 
-  BaseTransaction(
+  protected BaseTransaction(
       String tableName,
       TableOperations ops,
       TransactionType type,
