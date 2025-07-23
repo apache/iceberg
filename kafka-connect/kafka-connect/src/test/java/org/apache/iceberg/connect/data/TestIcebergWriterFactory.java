@@ -28,6 +28,7 @@ import static org.mockito.Mockito.withSettings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -95,5 +97,50 @@ public class TestIcebergWriterFactory {
     assertThat(capturedArguments.get(0)).isEqualTo(Namespace.of("foo1"));
     assertThat(capturedArguments.get(1)).isEqualTo(Namespace.of("foo1", "foo2"));
     assertThat(capturedArguments.get(2)).isEqualTo(Namespace.of("foo1", "foo2", "foo3"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testAutoCreateTableWithIdentifierFields() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.partitionBy()).thenReturn(ImmutableList.of());
+    // Configure ID columns
+    when(tableConfig.idColumns()).thenReturn(ImmutableList.of("id", "data"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateProps()).thenReturn(ImmutableMap.of("test-prop", "foo1"));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    SinkRecord record = mock(SinkRecord.class);
+    when(record.value()).thenReturn(ImmutableMap.of("id", 123, "data", "foo2"));
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+    factory.autoCreateTable("foo.bar", record);
+
+    ArgumentCaptor<TableIdentifier> identCaptor = ArgumentCaptor.forClass(TableIdentifier.class);
+    ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
+    ArgumentCaptor<PartitionSpec> specCaptor = ArgumentCaptor.forClass(PartitionSpec.class);
+    ArgumentCaptor<Map<String, String>> propsCaptor = ArgumentCaptor.forClass(Map.class);
+
+    verify(catalog)
+        .createTable(
+            identCaptor.capture(),
+            schemaCaptor.capture(),
+            specCaptor.capture(),
+            propsCaptor.capture());
+
+    Schema schema = schemaCaptor.getValue();
+    assertThat(schema.findField("id").type()).isEqualTo(LongType.get());
+    assertThat(schema.findField("data").type()).isEqualTo(StringType.get());
+
+    // This should pass after the fix
+    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    assertThat(identifierFieldIds)
+        .as("Schema should have identifier field IDs set")
+        .containsExactlyInAnyOrder(
+            schema.findField("id").fieldId(), schema.findField("data").fieldId());
   }
 }
