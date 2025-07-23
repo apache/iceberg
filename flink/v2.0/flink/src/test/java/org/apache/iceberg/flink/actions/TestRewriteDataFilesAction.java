@@ -156,7 +156,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     assertThatThrownBy(
             () -> Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute())
         .hasMessageContaining(
-            "Flink compaction does not support row lineage enabled tables: V3 and later")
+            "Flink does not support compaction on row lineage enabled tables (V3+)")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
