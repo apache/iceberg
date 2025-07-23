@@ -24,6 +24,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
 import org.apache.iceberg.io.FileIO;
@@ -38,6 +39,9 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
     super(table);
     this.env = env;
     this.maxParallelism = env.getParallelism();
+    Preconditions.checkArgument(
+        !TableUtil.supportsRowLineage(table),
+        "Flink does not support compaction on row lineage enabled tables (V3+)");
   }
 
   @Override
