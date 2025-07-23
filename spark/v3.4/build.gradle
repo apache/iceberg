@@ -122,7 +122,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   tasks.withType(Test) {
     // Vectorized reads need more memory
-    maxHeapSize '2560m'
+    maxHeapSize '3160m'
   }
 }
 
