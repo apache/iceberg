@@ -150,7 +150,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testFailureOnV3Table() {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     assertThatThrownBy(
@@ -162,7 +162,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesEmptyTable() throws Exception {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
@@ -172,7 +172,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesUnpartitionedTable() throws Exception {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
@@ -205,7 +205,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesPartitionedTable() throws Exception {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -250,7 +250,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteDataFilesWithFilter() throws Exception {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -300,7 +300,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteLargeTableHasResiduals() throws IOException {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     // all records belong to the same partition
@@ -365,7 +365,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
    */
   @TestTemplate
   public void testRewriteAvoidRepeateCompress() throws IOException {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     List<Record> expected = Lists.newArrayList();
@@ -432,7 +432,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   @TestTemplate
   public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
-    // Flink compaction does not support row lineage in V3 and later tables.
+    // Flink does not support compaction on row lineage enabled tables (V3+)
     Assumptions.assumeThat(formatVersion).isLessThan(3);
 
     // Add 2 data files
