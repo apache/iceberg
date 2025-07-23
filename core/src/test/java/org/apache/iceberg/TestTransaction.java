@@ -897,7 +897,7 @@ public class TestTransaction extends TestBase {
     @Override
     public AppendFiles newAppend() {
       AppendFiles append =
-          new MergeAppend(tableName(), ((HasTableOperations) this.table()).operations())
+          new MergeAppend(tableName(), ((HasTableOperations) table()).operations())
               .toBranch("branch");
       return appendUpdates(append);
     }
