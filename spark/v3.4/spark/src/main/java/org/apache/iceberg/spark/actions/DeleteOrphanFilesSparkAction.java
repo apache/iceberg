@@ -110,6 +110,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_DRIVER_LISTING_DIRECT_SUB_DIRS = 10;
   private static final int MAX_EXECUTOR_LISTING_DEPTH = 2000;
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
+  private static final String METADATA_FOLDER_NAME = "metadata";
 
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
@@ -123,6 +124,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private boolean usePrefixListing = false;
+  private boolean onlyMetadata = false;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -210,6 +212,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   public DeleteOrphanFilesSparkAction usePrefixListing(boolean newUsePrefixListing) {
     this.usePrefixListing = newUsePrefixListing;
+    return this;
+  }
+
+  public DeleteOrphanFilesSparkAction setOnlyMetadata(boolean onlyMetadataFlag) {
+    this.onlyMetadata = onlyMetadataFlag;
     return this;
   }
 
@@ -307,6 +314,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private Dataset<String> listedFileDS() {
+    String scanLocation = location;
+    if (onlyMetadata) {
+      scanLocation = table.location() + "/" + METADATA_FOLDER_NAME;
+    }
+
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
@@ -321,7 +333,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<org.apache.iceberg.io.FileInfo> predicate =
           fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
       listDirRecursivelyWithFileIO(
-          (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
+          (SupportsPrefixOperations) table.io(), scanLocation, predicate, pathFilter, matchingFiles);
 
       JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -331,7 +343,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
       // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
       listDirRecursivelyWithHadoop(
-          location,
+          scanLocation,
           predicate,
           hadoopConf.value(),
           MAX_DRIVER_LISTING_DEPTH,

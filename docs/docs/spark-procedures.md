@@ -319,6 +319,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 | `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
+| `only_metadata` |    | boolean   | When set to true, only metadata files will be deleted. (defaults to false) |
 
 #### Output
 

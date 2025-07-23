@@ -70,7 +70,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         optionalInParameter("equal_authorities", STRING_MAP),
         optionalInParameter("prefix_mismatch_mode", DataTypes.StringType),
         // List files with prefix operations. Default is false.
-        optionalInParameter("prefix_listing", DataTypes.BooleanType)
+        optionalInParameter("prefix_listing", DataTypes.BooleanType),
+        // Only delete metadata files. Default is false.
+        optionalInParameter("only_metadata", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -146,6 +148,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     boolean prefixListing = args.isNullAt(9) ? false : args.getBoolean(9);
 
+    boolean onlyMetadata = args.isNullAt(10) ? false : args.getBoolean(10);
+
     return withIcebergTable(
         tableIdent,
         table -> {
@@ -193,6 +197,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           action.usePrefixListing(prefixListing);
+
+          action.setOnlyMetadata(onlyMetadata);
 
           DeleteOrphanFiles.Result result = action.execute();
 

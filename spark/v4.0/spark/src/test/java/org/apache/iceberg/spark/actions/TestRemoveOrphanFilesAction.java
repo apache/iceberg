@@ -98,7 +98,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public abstract class TestRemoveOrphanFilesAction extends TestBase {
+public class TestRemoveOrphanFilesAction extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   protected static final Schema SCHEMA =
@@ -1143,6 +1143,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
   }
 
+  
+
   @TestTemplate
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
@@ -1209,4 +1211,36 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
     assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
   }
+
+  @TestTemplate
+  public void testOnlyMetadataDryRun() throws IOException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(new ThreeColumnRecord(1, "test", "data"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    FileSystem fs = FileSystem.get(URI.create(tableLocation), new Configuration());
+    Path tablePath = new Path(tableLocation);
+
+    Path metadataDir = new Path(tablePath, "metadata");
+    Path orphanMetaFile = new Path(metadataDir, "orphan_metadata.json");
+    fs.createNewFile(orphanMetaFile);
+
+    Path dataDir = new Path(tablePath, "data");
+    Path orphanDataFile = new Path(dataDir, "orphan_data.parquet");
+    fs.createNewFile(orphanDataFile);
+
+    SparkActions actions = SparkActions.get();
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .usePrefixListing(usePrefixListing)
+        .setOnlyMetadata(true)
+        .olderThan(System.currentTimeMillis())
+        .deleteWith(s -> {})
+        .execute();
+
+    assertThat(result.orphanFileLocations())
+        .containsExactly(orphanMetaFile.toString());
+  }
+
 }
