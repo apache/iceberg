@@ -246,6 +246,8 @@ public class TestEvolveSchemaVisitor {
 
   @Test
   public void testAddNestedStruct() {
+    Schema currentSchema =
+        new Schema(optional(1, "struct1", StructType.of(optional(2, "struct2", StructType.of()))));
     Schema targetSchema =
         new Schema(
             optional(
@@ -276,8 +278,8 @@ public class TestEvolveSchemaVisitor {
                                                                 7,
                                                                 "aString",
                                                                 StringType.get()))))))))))))));
-    UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
-    EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema, 2);
+    EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
