@@ -101,7 +101,7 @@ public class TestEvolveSchemaVisitor {
     UpdateSchema updateApi = loadUpdateApi(existingSchema, 0);
     EvolveSchemaVisitor.visit(updateApi, existingSchema, new Schema());
     Schema newSchema = updateApi.apply();
-    assertThat(newSchema.asStruct().fields().size()).isEqualTo(14);
+    assertThat(newSchema.asStruct().fields()).hasSize(14);
     assertThat(newSchema.columns().stream().allMatch(Types.NestedField::isOptional)).isTrue();
   }
 
@@ -369,7 +369,7 @@ public class TestEvolveSchemaVisitor {
     UpdateSchema updateApi = loadUpdateApi(currentSchema, 0);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     Schema applied = updateApi.apply();
-    assertThat(applied.asStruct().fields().size()).isEqualTo(1);
+    assertThat(applied.asStruct().fields()).hasSize(1);
     assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(LongType.get());
   }
 
@@ -382,7 +382,7 @@ public class TestEvolveSchemaVisitor {
     UpdateSchema updateApi = loadUpdateApi(currentSchema, 0);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     Schema applied = updateApi.apply();
-    assertThat(applied.asStruct().fields().size()).isEqualTo(1);
+    assertThat(applied.asStruct().fields()).hasSize(1);
     assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(DoubleType.get());
   }
 

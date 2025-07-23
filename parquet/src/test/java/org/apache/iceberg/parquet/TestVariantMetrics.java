@@ -117,7 +117,7 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -129,7 +129,7 @@ public class TestVariantMetrics {
             })
         .isEqualTo(value);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(2L);
@@ -158,7 +158,7 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -170,7 +170,7 @@ public class TestVariantMetrics {
             })
         .isEqualTo(value);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(3L);
@@ -318,7 +318,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['c']", str);
     expectedBounds.put("$['d']['e']", dec);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -326,7 +326,7 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(4L);
@@ -374,7 +374,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['a']", date);
     expectedBounds.put("$['b']", num);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -382,7 +382,7 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(4L);
@@ -432,7 +432,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['a']", date);
     expectedBounds.put("$['d']['e']", dec);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -440,7 +440,7 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(5L);

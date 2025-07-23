@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,12 +45,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.assertj.core.api.WithAssertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestVectorizedOrcDataReader implements WithAssertions {
+public class TestVectorizedOrcDataReader {
   @TempDir public static Path temp;
 
   private static final Schema SCHEMA =

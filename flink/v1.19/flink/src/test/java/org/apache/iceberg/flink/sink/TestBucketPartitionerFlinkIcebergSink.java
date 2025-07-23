@@ -153,8 +153,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
     assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
-    assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
-    assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.writersPerBucket).hasSize(numBuckets);
+    assertThat(stats.numFilesPerBucket).hasSize(numBuckets);
     // Writer expectation (2 writers per bucket):
     // - Bucket0 -> Writers [0, 4]
     // - Bucket1 -> Writers [1, 5]

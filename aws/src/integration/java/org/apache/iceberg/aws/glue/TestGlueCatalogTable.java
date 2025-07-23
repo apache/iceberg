@@ -439,8 +439,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
       // might have directory markers left
       for (S3Object s3Object : response.contents()) {
         Optional<Long> size = s3Object.getValueForField("Size", Long.class);
-        assertThat(size.isPresent()).isTrue();
-        assertThat(size.get()).isEqualTo(0);
+        assertThat(size).contains(0L);
       }
     }
   }

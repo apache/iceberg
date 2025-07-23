@@ -174,7 +174,7 @@ public class TestGenericData extends DataTestBase {
         assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
       }
 
-      assertThat(Lists.newArrayList(reader).size()).isEqualTo(1);
+      assertThat(Lists.newArrayList(reader)).hasSize(1);
     }
   }
 }

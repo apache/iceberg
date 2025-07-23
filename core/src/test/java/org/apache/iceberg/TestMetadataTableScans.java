@@ -1757,8 +1757,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       List<FileScanTask> taskList = Lists.newArrayList(tasks);
-      assertThat(taskList.size()).isGreaterThan(0);
-      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
+      assertThat(taskList)
+          .isNotEmpty()
+          .allSatisfy(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
     }
   }
 }

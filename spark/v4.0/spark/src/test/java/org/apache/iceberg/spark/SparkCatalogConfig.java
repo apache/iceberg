@@ -38,7 +38,7 @@ public enum SparkCatalogConfig {
       "testrest",
       SparkCatalog.class.getName(),
       ImmutableMap.of("type", "rest", "cache-enabled", "false")),
-  SPARK(
+  SPARK_SESSION(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),
       ImmutableMap.of(

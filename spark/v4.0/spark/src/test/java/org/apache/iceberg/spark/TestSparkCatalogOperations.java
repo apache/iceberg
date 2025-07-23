@@ -68,8 +68,8 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
         ImmutableMap.of(
             "type",
             "hive",

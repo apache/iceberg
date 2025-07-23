@@ -85,9 +85,9 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         2
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         2
       }
     };
@@ -770,7 +770,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
 
     String fullTableName = tableName;
-    if (implementation.equals(SparkCatalogConfig.SPARK.implementation())) {
+    if (implementation.equals(SparkCatalogConfig.SPARK_SESSION.implementation())) {
       fullTableName = String.format("%s.%s", catalogName, tableName);
     }
     assertThatThrownBy(

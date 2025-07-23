@@ -156,7 +156,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG);
+              DEFAULT_RETRY_CONFIG,
+              bigqueryOptions.isOpenTelemetryTracingEnabled(),
+              bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
@@ -249,7 +251,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           bigqueryOptions.getRetrySettings(),
           BIGQUERY_EXCEPTION_HANDLER,
           bigqueryOptions.getClock(),
-          DEFAULT_RETRY_CONFIG);
+          DEFAULT_RETRY_CONFIG,
+          bigqueryOptions.isOpenTelemetryTracingEnabled(),
+          bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
@@ -288,7 +292,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           bigqueryOptions.getRetrySettings(),
           BIGQUERY_EXCEPTION_HANDLER,
           bigqueryOptions.getClock(),
-          DEFAULT_RETRY_CONFIG);
+          DEFAULT_RETRY_CONFIG,
+          bigqueryOptions.isOpenTelemetryTracingEnabled(),
+          bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
@@ -330,7 +336,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG);
+              DEFAULT_RETRY_CONFIG,
+              bigqueryOptions.isOpenTelemetryTracingEnabled(),
+              bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
@@ -401,7 +409,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
-              DEFAULT_RETRY_CONFIG);
+              DEFAULT_RETRY_CONFIG,
+              bigqueryOptions.isOpenTelemetryTracingEnabled(),
+              bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }

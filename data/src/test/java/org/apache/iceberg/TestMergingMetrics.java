@@ -137,14 +137,14 @@ public abstract class TestMergingMetrics<T> {
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
 
-    assertThat(nanValueCount.size()).isEqualTo(2);
+    assertThat(nanValueCount).hasSize(2);
     assertNaNCountMatch(1L, nanValueCount, FLOAT_FIELD);
     assertNaNCountMatch(1L, nanValueCount, DOUBLE_FIELD);
 
-    assertThat(upperBounds.size()).isEqualTo(1);
+    assertThat(upperBounds).hasSize(1);
     assertBoundValueMatch(3, upperBounds, ID_FIELD);
 
-    assertThat(lowerBounds.size()).isEqualTo(1);
+    assertThat(lowerBounds).hasSize(1);
     assertBoundValueMatch(3, lowerBounds, ID_FIELD);
   }
 

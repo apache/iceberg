@@ -51,6 +51,7 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
+  private static final String REWRITE = "rewrite";
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
@@ -63,27 +64,26 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
 
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
-    Pair<Table, Long> table = load(ident);
-    return new SparkTable(table.first(), table.second(), false /* refresh eagerly */);
+    return load(ident);
   }
 
   @Override
   public SparkTable loadTable(Identifier ident, String version) throws NoSuchTableException {
-    Pair<Table, Long> table = load(ident);
+    SparkTable table = load(ident);
     Preconditions.checkArgument(
-        table.second() == null, "Cannot time travel based on both table identifier and AS OF");
-    return new SparkTable(table.first(), Long.parseLong(version), false /* refresh eagerly */);
+        table.snapshotId() == null, "Cannot time travel based on both table identifier and AS OF");
+    return table.copyWithSnapshotId(Long.parseLong(version));
   }
 
   @Override
   public SparkTable loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    Pair<Table, Long> table = load(ident);
+    SparkTable table = load(ident);
     Preconditions.checkArgument(
-        table.second() == null, "Cannot time travel based on both table identifier and AS OF");
+        table.snapshotId() == null, "Cannot time travel based on both table identifier and AS OF");
     // Spark passes microseconds but Iceberg uses milliseconds for snapshots
     long timestampMillis = TimeUnit.MICROSECONDS.toMillis(timestampMicros);
-    long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table.first(), timestampMillis);
-    return new SparkTable(table.first(), snapshotId, false /* refresh eagerly */);
+    long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table.table(), timestampMillis);
+    return table.copyWithSnapshotId(snapshotId);
   }
 
   @Override
@@ -128,50 +128,13 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
     return name;
   }
 
-  private Pair<Table, Long> load(Identifier ident) throws NoSuchTableException {
+  private SparkTable load(Identifier ident) throws NoSuchTableException {
     Preconditions.checkArgument(
         ident.namespace().length == 0, CLASS_NAME + " does not support namespaces");
 
     Pair<String, List<String>> parsedIdent = parseIdent(ident);
     String key = parsedIdent.first();
-    List<String> metadata = parsedIdent.second();
-
-    Long asOfTimestamp = null;
-    Long snapshotId = null;
-    String branch = null;
-    String tag = null;
-    for (String meta : metadata) {
-      Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
-      if (timeBasedMatcher.matches()) {
-        asOfTimestamp = Long.parseLong(timeBasedMatcher.group(1));
-        continue;
-      }
-
-      Matcher snapshotBasedMatcher = SNAPSHOT_ID.matcher(meta);
-      if (snapshotBasedMatcher.matches()) {
-        snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
-        continue;
-      }
-
-      Matcher branchBasedMatcher = BRANCH.matcher(meta);
-      if (branchBasedMatcher.matches()) {
-        branch = branchBasedMatcher.group(1);
-        continue;
-      }
-
-      Matcher tagBasedMatcher = TAG.matcher(meta);
-      if (tagBasedMatcher.matches()) {
-        tag = tagBasedMatcher.group(1);
-      }
-    }
-
-    Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
-        snapshotId,
-        asOfTimestamp,
-        branch,
-        tag);
+    TableLoadOptions options = parseLoadOptions(parsedIdent.second());
 
     Table table = TABLE_CACHE.get(key);
 
@@ -179,23 +142,106 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
       throw new NoSuchTableException(ident);
     }
 
-    if (snapshotId != null) {
-      return Pair.of(table, snapshotId);
-    } else if (asOfTimestamp != null) {
-      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
-    } else if (branch != null) {
-      Snapshot branchSnapshot = table.snapshot(branch);
-      Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
-      return Pair.of(table, branchSnapshot.snapshotId());
-    } else if (tag != null) {
-      Snapshot tagSnapshot = table.snapshot(tag);
-      Preconditions.checkArgument(
-          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
-      return Pair.of(table, tagSnapshot.snapshotId());
-    } else {
-      return Pair.of(table, null);
+    if (options.isTableRewrite()) {
+      return new SparkTable(table, null, false, true);
     }
+
+    if (options.snapshotId() != null) {
+      return new SparkTable(table, options.snapshotId(), false);
+    } else if (options.asOfTimestamp() != null) {
+      return new SparkTable(
+          table, SnapshotUtil.snapshotIdAsOfTime(table, options.asOfTimestamp()), false);
+    } else if (options.branch() != null) {
+      Snapshot branchSnapshot = table.snapshot(options.branch());
+      Preconditions.checkArgument(
+          branchSnapshot != null,
+          "Cannot find snapshot associated with branch name: %s",
+          options.branch());
+      return new SparkTable(table, branchSnapshot.snapshotId(), false);
+    } else if (options.tag() != null) {
+      Snapshot tagSnapshot = table.snapshot(options.tag());
+      Preconditions.checkArgument(
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", options.tag());
+      return new SparkTable(table, tagSnapshot.snapshotId(), false);
+    } else {
+      return new SparkTable(table, false);
+    }
+  }
+
+  private static class TableLoadOptions {
+    private Long asOfTimestamp;
+    private Long snapshotId;
+    private String branch;
+    private String tag;
+    private Boolean isTableRewrite;
+
+    Long asOfTimestamp() {
+      return asOfTimestamp;
+    }
+
+    Long snapshotId() {
+      return snapshotId;
+    }
+
+    String branch() {
+      return branch;
+    }
+
+    String tag() {
+      return tag;
+    }
+
+    boolean isTableRewrite() {
+      return Boolean.TRUE.equals(isTableRewrite);
+    }
+  }
+
+  /** Extracts table load options from metadata. */
+  private TableLoadOptions parseLoadOptions(List<String> metadata) {
+    TableLoadOptions opts = new TableLoadOptions();
+    for (String meta : metadata) {
+      Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
+      if (timeBasedMatcher.matches()) {
+        opts.asOfTimestamp = Long.parseLong(timeBasedMatcher.group(1));
+        continue;
+      }
+
+      Matcher snapshotBasedMatcher = SNAPSHOT_ID.matcher(meta);
+      if (snapshotBasedMatcher.matches()) {
+        opts.snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
+        continue;
+      }
+
+      Matcher branchBasedMatcher = BRANCH.matcher(meta);
+      if (branchBasedMatcher.matches()) {
+        opts.branch = branchBasedMatcher.group(1);
+        continue;
+      }
+
+      Matcher tagBasedMatcher = TAG.matcher(meta);
+      if (tagBasedMatcher.matches()) {
+        opts.tag = tagBasedMatcher.group(1);
+      }
+
+      if (meta.equalsIgnoreCase(REWRITE)) {
+        opts.isTableRewrite = true;
+      }
+    }
+
+    long numberOptions =
+        Stream.of(opts.snapshotId, opts.asOfTimestamp, opts.branch, opts.tag, opts.isTableRewrite)
+            .filter(Objects::nonNull)
+            .count();
+    Preconditions.checkArgument(
+        numberOptions <= 1,
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s), is-table-rewrite (%s)",
+        opts.snapshotId,
+        opts.asOfTimestamp,
+        opts.branch,
+        opts.tag,
+        opts.isTableRewrite);
+
+    return opts;
   }
 
   private Pair<String, List<String>> parseIdent(Identifier ident) {

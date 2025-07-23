@@ -21,7 +21,7 @@ package org.apache.iceberg;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-enum SnapshotRefType {
+public enum SnapshotRefType {
   BRANCH,
   TAG;
 

@@ -80,7 +80,7 @@ public class TestADLSLocation {
     ADLSLocation location = new ADLSLocation(p1);
 
     assertThat(location.storageAccount()).isEqualTo("account");
-    assertThat(location.container().isPresent()).isFalse();
+    assertThat(location.container()).isEmpty();
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
