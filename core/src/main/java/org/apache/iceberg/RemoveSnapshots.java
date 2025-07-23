@@ -352,7 +352,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles && base.currentSnapshot() != null) {
+    if (cleanExpiredFiles) {
       cleanExpiredSnapshots();
     }
   }
@@ -364,14 +364,19 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
+    if (base.snapshots().isEmpty()) {
+      return;
+    }
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
       validateCleanupCanBeIncremental(current);
     } else if (incrementalCleanup == null) {
       incrementalCleanup =
           !specifiedSnapshotId
-              && current.refs().size() == 1
-              && allRemovedSnapshotsAreInMainAncestry(current);
+              && hasOnlyMainBranch(base)
+              && hasOnlyMainBranch(current)
+              && allSnapshotsAreInMain(base)
+              && allSnapshotsAreInMain(current);
     }
 
     LOG.info(
@@ -393,33 +398,31 @@ class RemoveSnapshots implements ExpireSnapshots {
           "Cannot clean files incrementally when snapshot IDs are specified");
     }
 
-    if (current.refs().size() > 1) {
+    if (!hasOnlyMainBranch(base) || !hasOnlyMainBranch(current)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files for tables with more than 1 ref");
     }
 
-    if (!allRemovedSnapshotsAreInMainAncestry(current)) {
+    if (!allSnapshotsAreInMain(base) || !allSnapshotsAreInMain(current)) {
       throw new UnsupportedOperationException(
-          "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");
+          "Cannot incrementally clean files when there are snapshots outside of main");
     }
   }
 
-  private boolean allRemovedSnapshotsAreInMainAncestry(TableMetadata current) {
-    Set<Long> snapshotsBeforeExpiration =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+  private boolean hasOnlyMainBranch(TableMetadata metadata) {
+    return metadata.refs().size() == 1 && metadata.refs().containsKey(SnapshotRef.MAIN_BRANCH);
+  }
 
+  private boolean allSnapshotsAreInMain(TableMetadata metadata) {
     Set<Long> ancestors = Sets.newHashSet();
     for (Snapshot ancestor :
-        SnapshotUtil.ancestorsOf(base.currentSnapshot().snapshotId(), base::snapshot)) {
+        SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
       ancestors.add(ancestor.snapshotId());
     }
 
-    for (Long snapshot : snapshotsBeforeExpiration) {
-      // Check if removed snapshot is not an ancestor
-      if (current.snapshot(snapshot) == null) {
-        if (!ancestors.contains(snapshot)) {
-          return false;
-        }
+    for (Snapshot snapshot : metadata.snapshots()) {
+      if (!ancestors.contains(snapshot.snapshotId())) {
+        return false;
       }
     }
 

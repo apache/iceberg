@@ -278,8 +278,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThatThrownBy(() -> removeSnapshots(table).expireOlderThan(tAfterCommits).commit())
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");
+        .hasMessage("Cannot incrementally clean files when there are snapshots outside of main");
   }
 
   @TestTemplate
@@ -837,8 +836,7 @@ public class TestRemoveSnapshots extends TestBase {
     assertThatThrownBy(
             () -> removeSnapshots(table).expireOlderThan(snapshotB.timestampMillis() + 1).commit())
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");
+        .hasMessage("Cannot incrementally clean files when there are snapshots outside of main");
   }
 
   /**
@@ -1351,6 +1349,7 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainUnreferencedSnapshotsWithinExpirationAge() {
+    assumeThat(incrementalCleanup).isFalse();
     table.newAppend().appendFile(FILE_A).commit();
 
     long expireTimestampSnapshotA = waitUntilAfter(table.currentSnapshot().timestampMillis());
