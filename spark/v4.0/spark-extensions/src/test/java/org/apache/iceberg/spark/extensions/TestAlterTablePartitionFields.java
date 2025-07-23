@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
