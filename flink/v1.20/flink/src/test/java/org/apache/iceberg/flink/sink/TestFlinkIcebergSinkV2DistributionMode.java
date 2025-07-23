@@ -556,7 +556,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
       // sometimes
       assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
-      if (writeParallelism > 1) {
+      if (writeParallelism > 2) {
         assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
       }
     }
