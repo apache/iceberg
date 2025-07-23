@@ -398,7 +398,7 @@ To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in th
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
 
-# Dynamic Iceberg Flink Sink
+## Dynamic Iceberg Flink Sink
 
 Dynamic Flink Iceberg Sink allows:
 
@@ -424,7 +424,7 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
         
 ```
 
-#### Configuration Example
+### Configuration Example
 
 ```java
 DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputStream);
@@ -445,7 +445,7 @@ builder.generator(new CustomRecordGenerator());
 builder.append();
 ```
 
-#### Dynamic Routing Configuration
+### Dynamic Routing Configuration
 
 Dynamic table routing can be customized by implementing the `DynamicRecordGenerator` interface:
 
