@@ -276,13 +276,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     long tAfterCommits = waitUntilAfter(secondSnapshot.timestampMillis());
 
-    Set<String> deletedFiles = Sets.newHashSet();
-    assertThatThrownBy(
-            () ->
-                removeSnapshots(table)
-                    .expireOlderThan(tAfterCommits)
-                    .deleteWith(deletedFiles::add)
-                    .commit())
+    assertThatThrownBy(() -> removeSnapshots(table).expireOlderThan(tAfterCommits).commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");
@@ -840,13 +834,8 @@ public class TestRemoveSnapshots extends TestBase {
     table.newAppend().appendFile(FILE_C).commit();
 
     // Attempt to expire all commits including dangling staged snapshot.
-    Set<String> deletedFiles = Sets.newHashSet();
     assertThatThrownBy(
-            () ->
-                removeSnapshots(table)
-                    .deleteWith(deletedFiles::add)
-                    .expireOlderThan(snapshotB.timestampMillis() + 1)
-                    .commit())
+            () -> removeSnapshots(table).expireOlderThan(snapshotB.timestampMillis() + 1).commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Cannot incrementally clean files when snapshots outside of main ancestry have been removed");

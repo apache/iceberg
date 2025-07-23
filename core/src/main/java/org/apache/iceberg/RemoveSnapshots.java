@@ -367,7 +367,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
       validateCleanupCanBeIncremental(current);
-    } else {
+    } else if (incrementalCleanup == null) {
       incrementalCleanup =
           !specifiedSnapshotId
               && current.refs().size() == 1
