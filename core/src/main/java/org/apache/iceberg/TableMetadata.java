@@ -1429,7 +1429,7 @@ public class TableMetadata implements Serializable {
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+            changes.add(new MetadataUpdate.RemoveSnapshots(snapshotId));
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
