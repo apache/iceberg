@@ -41,6 +41,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -340,11 +341,8 @@ public class BaseTransaction implements Transaction {
     } finally {
       // create table never needs to retry because the table has no previous state. because retries
       // are not a
-      // concern, it is safe to delete all of the deleted files from individual operations
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+      // concern, it is safe to delete all the deleted files from individual operations
+      deleteUncommittedFiles(deletedFiles);
     }
   }
 
@@ -396,11 +394,8 @@ public class BaseTransaction implements Transaction {
     } finally {
       // replace table never needs to retry because the table state is completely replaced. because
       // retries are not
-      // a concern, it is safe to delete all of the deleted files from individual operations
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+      // a concern, it is safe to delete all the deleted files from individual operations
+      deleteUncommittedFiles(deletedFiles);
     }
   }
 
@@ -458,16 +453,12 @@ public class BaseTransaction implements Transaction {
 
       Set<String> committedFiles = committedFiles(ops, newSnapshots);
       if (committedFiles != null) {
-        // delete all of the files that were deleted in the most recent set of operation commits
-        Tasks.foreach(deletedFiles)
-            .suppressFailureWhenFinished()
-            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-            .run(
-                path -> {
-                  if (!committedFiles.contains(path)) {
-                    ops.io().deleteFile(path);
-                  }
-                });
+        // delete all the files that were deleted in the most recent set of operation commits
+        Set<String> uncommittedFiles =
+            deletedFiles.stream()
+                .filter(f -> !committedFiles.contains(f))
+                .collect(Collectors.toSet());
+        deleteUncommittedFiles(uncommittedFiles);
       } else {
         LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
       }
@@ -482,10 +473,7 @@ public class BaseTransaction implements Transaction {
     cleanAllUpdates();
 
     // delete all the uncommitted files
-    Tasks.foreach(deletedFiles)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-        .run(ops.io()::deleteFile);
+    deleteUncommittedFiles(deletedFiles);
   }
 
   private void cleanAllUpdates() {
@@ -497,6 +485,17 @@ public class BaseTransaction implements Transaction {
                 ((SnapshotProducer) update).cleanAll();
               }
             });
+  }
+
+  private void deleteUncommittedFiles(Iterable<String> paths) {
+    if (ops.io() instanceof SupportsBulkOperations) {
+      ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
+    } else {
+      Tasks.foreach(paths)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+    }
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
