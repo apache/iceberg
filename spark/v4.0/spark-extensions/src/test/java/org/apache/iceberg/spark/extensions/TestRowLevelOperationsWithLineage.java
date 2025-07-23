@@ -452,6 +452,84 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         rowsWithLineage());
   }
 
+  @TestTemplate
+  public void testMergeWithManyRecords() throws NoSuchTableException, ParseException, IOException {
+    createAndInitTable("id INT, data STRING", null);
+    createBranchIfNeeded();
+    Table table = loadIcebergTable(spark, tableName);
+
+    int numRecords = 25000;
+    int startingId = 100;
+
+    List<Record> initialRecords = Lists.newArrayList();
+    int rowId = 0;
+    for (int id = 100; id < startingId + numRecords; id++) {
+      initialRecords.add(createRecord(SCHEMA, id, "data_" + id, rowId++, 1L));
+    }
+
+    appendUnpartitionedRecords(table, initialRecords);
+    createOrReplaceView(
+        "source",
+        "id int, data string",
+        "{ \"id\": 101, \"data\": \"updated_data_101\" }\n "
+            + "{ \"id\": 26000, \"data\": \"data_26000\" }\n");
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET t.data = s.data "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    Snapshot updateSnapshot = latestSnapshot(table);
+    long updateSnapshotFirstRowId = updateSnapshot.firstRowId();
+    List<Object[]> allRows = rowsWithLineageAndFilePos();
+    List<Object[]> carriedOverAndUpdatedRows =
+        allRows.stream()
+            .filter(row -> (long) row[3] < updateSnapshotFirstRowId)
+            .collect(Collectors.toList());
+
+    int newlyInsertedId = 26000;
+    int updatedId = 101;
+    List<Object[]> expectedCarriedOverAndUpdatedRows =
+        ImmutableList.<Object[]>builder()
+            .add(row(1L, 100, "data_100", 0L, ANY, ANY))
+            .add(row(updateSnapshot.sequenceNumber(), updatedId, "updated_data_101", 1L, ANY, ANY))
+            .addAll(
+                // Every record with higher ids than the updated excluding the new row should be a
+                // carry over
+                initialRecords.stream()
+                    .filter(
+                        initialRecord -> {
+                          int id = initialRecord.get(0, Integer.class);
+                          return id > updatedId && id != newlyInsertedId;
+                        })
+                    .map(this::recordToExpectedRow)
+                    .collect(Collectors.toList()))
+            .build();
+
+    assertEquals(
+        "Rows which are carried over or updated should have expected lineage",
+        expectedCarriedOverAndUpdatedRows,
+        carriedOverAndUpdatedRows);
+
+    Object[] newRow =
+        Iterables.getOnlyElement(
+            allRows.stream()
+                .filter(row -> (long) row[3] >= updateSnapshotFirstRowId)
+                .collect(Collectors.toList()));
+    assertAddedRowLineage(row(updateSnapshot.sequenceNumber(), 26000, "data_26000"), newRow);
+  }
+
+  private Object[] recordToExpectedRow(Record record) {
+    int id = record.get(0, Integer.class);
+    String data = record.get(1, String.class);
+    long rowId = record.get(2, Long.class);
+    long lastUpdated = record.get(3, Long.class);
+    return row(lastUpdated, id, data, rowId, ANY, ANY);
+  }
+
   private List<Object[]> rowsWithLineageAndFilePos() {
     return sql(
         "SELECT s._last_updated_sequence_number, s.id, s.data, s._row_id, files.first_row_id, s._pos FROM %s"
