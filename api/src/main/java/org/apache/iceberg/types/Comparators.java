@@ -84,6 +84,8 @@ public class Comparators {
       return (Comparator<T>) forType(type.asStructType());
     } else if (type.isListType()) {
       return (Comparator<T>) forType(type.asListType());
+    } else if (type.isMapType()) {
+      return (Comparator<T>) forType(type.asMapType());
     }
 
     throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);

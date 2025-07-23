@@ -189,5 +189,11 @@ public class TestComparators {
             Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.IntegerType.get())),
         map,
         ImmutableMap.of("a", 1, "b", 2, "c", 3));
+
+    assertComparesCorrectly(
+        Comparators.forType(
+            Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+        ImmutableMap.of("a", 1, "c", 3, "b", 2),
+        ImmutableMap.of("a", 1, "b", 2, "c", 4));
   }
 }
