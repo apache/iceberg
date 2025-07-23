@@ -201,7 +201,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         writeSchema,
         dsSchema,
         useFanoutWriter,
-        writeProperties);
+        writeProperties,
+        writeRequirements.icebergOrdering());
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -651,6 +652,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final boolean useFanoutWriter;
     private final String queryId;
     private final Map<String, String> writeProperties;
+    private final org.apache.iceberg.SortOrder sortOrder;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -661,7 +663,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Schema writeSchema,
         StructType dsSchema,
         boolean useFanoutWriter,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        org.apache.iceberg.SortOrder sortOrder) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -671,6 +674,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.useFanoutWriter = useFanoutWriter;
       this.queryId = queryId;
       this.writeProperties = writeProperties;
+      this.sortOrder = sortOrder;
     }
 
     @Override
@@ -695,6 +699,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .writeProperties(writeProperties)
+              .dataSortOrder(sortOrder)
               .build();
 
       if (spec.isUnpartitioned()) {
