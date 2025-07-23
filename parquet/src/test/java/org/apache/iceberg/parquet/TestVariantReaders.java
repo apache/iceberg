@@ -171,7 +171,7 @@ public class TestVariantReaders {
   }
 
   // TO GENERATE TEST CASES, SET THIS TO A LOCATION
-  private static final String CASE_LOCATION = "/tmp/variant_examples";
+  private static final String CASE_LOCATION = null;
   private static final FileIO IO = new TestTables.LocalFileIO();
   private static final StringWriter JSON_STRING_WRITER = new StringWriter();
   private static final AtomicInteger caseAssignment = new AtomicInteger(0);
