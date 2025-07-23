@@ -270,10 +270,10 @@ public class TestVariantReaders {
 
   private String writeVariantFile(int rowId, Variant variant) throws IOException {
     String variantFile =
-        String.format("%s/case-%03d_row-%d.variant.bin", CASE_LOCATION, caseNumber, rowId);
+        String.format("case-%03d_row-%d.variant.bin", caseNumber, rowId);
 
     ByteBuffer buffer = ParquetVariantUtil.toByteBuffer(variant.metadata(), variant.value());
-    try (OutputStream out = IO.newOutputFile(variantFile).createOrOverwrite()) {
+    try (OutputStream out = IO.newOutputFile(CASE_LOCATION + "/" + variantFile).createOrOverwrite()) {
       out.write(buffer.array());
     }
 
@@ -281,7 +281,7 @@ public class TestVariantReaders {
   }
 
   private String parquetFile() {
-    return String.format("%s/case-%03d.parquet", CASE_LOCATION, caseNumber);
+    return String.format("case-%03d.parquet", caseNumber);
   }
 
   private void writeParquetFile(InputFile file) throws IOException {
@@ -289,7 +289,7 @@ public class TestVariantReaders {
       return;
     }
 
-    try (OutputStream out = IO.newOutputFile(parquetFile()).createOrOverwrite();
+    try (OutputStream out = IO.newOutputFile(CASE_LOCATION + "/" + parquetFile()).createOrOverwrite();
         InputStream in = file.newStream()) {
       IOUtils.copyBytes(in, out, 1000);
     }
