@@ -372,7 +372,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private Set<Pair<String, String>> rewriteVersionFile(
       TableMetadata metadata, String versionFilePath) {
     Set<Pair<String, String>> result = Sets.newHashSet();
-    String stagingPath = RewriteTablePathUtil.stagingPath(versionFilePath, stagingDir);
+    String stagingPath =
+        RewriteTablePathUtil.stagingPath(versionFilePath, sourcePrefix, stagingDir);
     TableMetadata newTableMetadata =
         RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
@@ -404,7 +405,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           before.fileSizeInBytes() == after.fileSizeInBytes(),
           "Before and after path rewrite, statistic file size should be same");
       result.add(
-          Pair.of(RewriteTablePathUtil.stagingPath(before.path(), stagingDir), after.path()));
+          Pair.of(
+              RewriteTablePathUtil.stagingPath(before.path(), sourcePrefix, stagingDir),
+              after.path()));
     }
     return result;
   }
@@ -423,7 +426,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
-    String outputPath = RewriteTablePathUtil.stagingPath(path, stagingDir);
+    String outputPath = RewriteTablePathUtil.stagingPath(path, sourcePrefix, stagingDir);
     RewriteResult<ManifestFile> rewriteResult =
         RewriteTablePathUtil.rewriteManifestList(
             snapshot,
@@ -570,7 +573,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String sourcePrefix,
       String targetPrefix) {
     try {
-      String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
+      String stagingPath =
+          RewriteTablePathUtil.stagingPath(manifestFile.path(), sourcePrefix, stagingLocation);
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
@@ -598,7 +602,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String sourcePrefix,
       String targetPrefix) {
     try {
-      String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
+      String stagingPath =
+          RewriteTablePathUtil.stagingPath(manifestFile.path(), sourcePrefix, stagingLocation);
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
@@ -662,7 +667,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       PositionDeleteReaderWriter posDeleteReaderWriter) {
     return deleteFile -> {
       FileIO io = tableArg.getValue().io();
-      String newPath = RewriteTablePathUtil.stagingPath(deleteFile.location(), stagingLocationArg);
+      String newPath =
+          RewriteTablePathUtil.stagingPath(
+              deleteFile.location(), sourcePrefixArg, stagingLocationArg);
       OutputFile outputFile = io.newOutputFile(newPath);
       PartitionSpec spec = tableArg.getValue().specs().get(deleteFile.specId());
       RewriteTablePathUtil.rewritePositionDeleteFile(
