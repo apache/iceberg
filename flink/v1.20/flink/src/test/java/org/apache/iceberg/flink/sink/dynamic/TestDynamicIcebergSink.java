@@ -497,7 +497,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         records.add(record);
       }
 
-      assertThat(records.size()).isEqualTo(1);
+      assertThat(records).hasSize(1);
       Record actual = records.get(0);
       DynamicIcebergDataImpl input = rows.get(0);
       assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));

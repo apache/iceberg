@@ -49,12 +49,12 @@ findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
-google-libraries-bom = "26.62.0"
+google-libraries-bom = "26.64.0"
 guava = "33.4.8-jre"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
-immutables-value = "2.11.0"
+immutables-value = "2.11.1"
 jackson-bom = "2.19.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
@@ -74,7 +74,7 @@ microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
 nessie = "0.104.3"
-netty-buffer = "4.2.2.Final"
+netty-buffer = "4.2.3.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.6"
 parquet = "1.15.2"

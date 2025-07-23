@@ -89,7 +89,7 @@ public class TestSinkWriter {
     Map<String, Object> value = ImmutableMap.of();
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(1);
+    assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
     assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
   }
@@ -102,7 +102,7 @@ public class TestSinkWriter {
     Map<String, Object> value = ImmutableMap.of();
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(0);
+    assertThat(writerResults).isEmpty();
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TestSinkWriter {
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "val");
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(1);
+    assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
     assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
   }
@@ -134,7 +134,7 @@ public class TestSinkWriter {
 
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "foobar");
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(0);
+    assertThat(writerResults).hasSize(0);
   }
 
   @Test
@@ -148,7 +148,7 @@ public class TestSinkWriter {
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString());
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(1);
+    assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
     assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
   }
@@ -164,7 +164,7 @@ public class TestSinkWriter {
     Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, "db.foobar");
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults.size()).isEqualTo(0);
+    assertThat(writerResults).hasSize(0);
   }
 
   private List<IcebergWriterResult> sinkWriterTest(
