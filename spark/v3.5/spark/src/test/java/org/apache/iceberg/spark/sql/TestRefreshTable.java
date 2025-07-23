@@ -50,7 +50,7 @@ public class TestRefreshTable extends CatalogTestBase {
     // We are not allowed to change the session catalog after it has been initialized, so build a
     // new one
     if (Set.of(
-            SparkCatalogConfig.SPARK.catalogName(),
+            SparkCatalogConfig.SPARK_SESSION.catalogName(),
             SparkCatalogConfig.HADOOP.catalogName(),
             SparkCatalogConfig.REST.catalogName())
         .contains(catalogName)) {
