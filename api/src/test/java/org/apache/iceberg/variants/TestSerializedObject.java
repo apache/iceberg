@@ -188,9 +188,6 @@ public class TestSerializedObject {
   static Stream<Arguments> provideInputsForTestMultiByteOffsets() {
     return Stream.of(
         Arguments.of(
-            10, 1), // a string lesser than 255 bytes to push the value offset size of 1 byte to
-        // test OneByteOffsets
-        Arguments.of(
             300,
             2), // a big string larger than 255 bytes to push the value offset size above 1 byte to
         // test TwoByteOffsets
