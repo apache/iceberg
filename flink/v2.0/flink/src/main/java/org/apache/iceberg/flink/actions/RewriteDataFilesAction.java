@@ -41,7 +41,7 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
     this.maxParallelism = env.getParallelism();
     Preconditions.checkArgument(
         !TableUtil.supportsRowLineage(table),
-        "Flink compaction does not support row lineage enabled tables: V3 and later");
+        "Flink does not support compaction on row lineage enabled tables (V3+)");
   }
 
   @Override

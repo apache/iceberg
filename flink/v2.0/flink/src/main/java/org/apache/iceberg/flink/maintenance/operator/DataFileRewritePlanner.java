@@ -91,7 +91,7 @@ public class DataFileRewritePlanner
     Table table = tableLoader.loadTable();
     Preconditions.checkArgument(
         !TableUtil.supportsRowLineage(table),
-        "Flink compaction does not support row lineage enabled tables: V3 and later");
+        "Flink does not support compaction on row lineage enabled tables (V3+)");
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
