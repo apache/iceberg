@@ -73,7 +73,7 @@ public class BaseTableMaintenanceAction<T> {
             tableName,
             builder.maintenanceTaskName(),
             DEFAULT_TASK_INDEX,
-            tableLoader(),
+            tableLoader,
             DEFAULT_UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             ExecutionConfig.PARALLELISM_DEFAULT);
@@ -107,13 +107,9 @@ public class BaseTableMaintenanceAction<T> {
     return (T) this;
   }
 
-  protected DataStream<Trigger> createTriggerStream() {
+  private DataStream<Trigger> createTriggerStream() {
     return env.fromData(Trigger.create(triggerTimestamp, 0))
         .assignTimestampsAndWatermarks(new TableMaintenance.PunctuatedWatermarkStrategy())
         .forceNonParallel();
-  }
-
-  protected TableLoader tableLoader() {
-    return tableLoader;
   }
 }
