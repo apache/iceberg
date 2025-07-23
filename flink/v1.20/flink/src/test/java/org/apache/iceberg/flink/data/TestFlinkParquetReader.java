@@ -166,7 +166,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     ParquetValueReader<RowData> reader =
         FlinkParquetReaders.buildReader(new Schema(SUPPORTED_PRIMITIVES.fields()), fileSchema);
 
-    assertThat(reader.columns().size()).isEqualTo(SUPPORTED_PRIMITIVES.fields().size());
+    assertThat(reader.columns()).hasSameSizeAs(SUPPORTED_PRIMITIVES.fields());
   }
 
   @Test
