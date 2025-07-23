@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
@@ -27,7 +28,6 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
@@ -64,8 +64,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private transient Counter removedDataFileNumCounter;
   private transient Counter removedDataFileSizeCounter;
 
-  private transient Set<DataFile> addedDataFiles;
-  private transient Set<DataFile> removedDataFiles;
+  private transient List<DataFile> addedDataFiles;
+  private transient List<DataFile> removedDataFiles;
 
   public DataFileRewriteCommitter(
       String tableName, String taskName, int taskIndex, TableLoader tableLoader) {
@@ -97,8 +97,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC);
     this.removedDataFileSizeCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC);
-    this.addedDataFiles = Sets.newHashSet();
-    this.removedDataFiles = Sets.newHashSet();
+    this.addedDataFiles = Lists.newArrayList();
+    this.removedDataFiles = Lists.newArrayList();
   }
 
   @Override
@@ -174,9 +174,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     if (commitService != null) {
       commitService.close();
       RewriteDataFilesActionResult actionRes =
-          new RewriteDataFilesActionResult(
-              Lists.newArrayList(addedDataFiles.iterator()),
-              Lists.newArrayList(removedDataFiles.iterator()));
+          new RewriteDataFilesActionResult(addedDataFiles, removedDataFiles);
       output.collect(new StreamRecord<>(Trigger.create(actionRes)));
     }
   }
