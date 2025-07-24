@@ -84,7 +84,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
   public static final String DELETE_TABLE_ROOTDIR = "delete-table-rootdir";
-  public static final String DELETE_TABLE_ROOTDIR_DEFAULT = "true";																		   
+  public static final String DELETE_TABLE_ROOTDIR_DEFAULT = "false";																		   
   // MetastoreConf is not available with current Hive version
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
