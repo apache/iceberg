@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientProperties;
+import org.apache.iceberg.aws.HttpAsyncClientProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -28,11 +29,13 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
   private S3FileIOProperties s3FileIOProperties;
   private HttpClientProperties httpClientProperties;
   private AwsClientProperties awsClientProperties;
+  private HttpAsyncClientProperties httpAsyncClientProperties;
 
   DefaultS3FileIOAwsClientFactory() {
     this.s3FileIOProperties = new S3FileIOProperties();
     this.httpClientProperties = new HttpClientProperties();
     this.awsClientProperties = new AwsClientProperties();
+    this.httpAsyncClientProperties = new HttpAsyncClientProperties();
   }
 
   @Override
@@ -40,6 +43,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.awsClientProperties = new AwsClientProperties(properties);
     this.httpClientProperties = new HttpClientProperties(properties);
+    this.httpAsyncClientProperties = new HttpAsyncClientProperties(properties);
   }
 
   @Override
@@ -66,16 +70,25 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
     if (s3FileIOProperties.isS3CRTEnabled()) {
       return S3AsyncClient.crtBuilder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(httpAsyncClientProperties::applyHttpAsyncClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
-          .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
+          .applyMutation(s3FileIOProperties::applyServiceConfigurations)
+          .applyMutation(
+              b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .build();
     }
     return S3AsyncClient.builder()
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-        .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
         .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+        .applyMutation(httpAsyncClientProperties::applyHttpAsyncClientConfigurations)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+        .applyMutation(s3FileIOProperties::applyServiceConfigurations)
+        .applyMutation(
+            b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
+        .applyMutation(s3FileIOProperties::applySignerConfiguration)
+        .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
+        .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
+        .applyMutation(s3FileIOProperties::applyRetryConfigurations)
         .build();
   }
 }

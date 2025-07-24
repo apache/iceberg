@@ -75,7 +75,7 @@ class AnalyticsAcceleratorUtil {
 
     try {
       S3SeekableInputStream seekableInputStream = factory.createStream(uri, openStreamInfo);
-      return new AnalyticsAcceleratorInputStreamWrapper(seekableInputStream);
+      return new AnalyticsAcceleratorInputStreamWrapper(seekableInputStream, inputFile.metrics());
     } catch (IOException e) {
       throw new RuntimeIOException(
           e, "Failed to create S3 analytics accelerator input stream for: %s", inputFile.uri());
@@ -85,7 +85,7 @@ class AnalyticsAcceleratorUtil {
   private static S3SeekableInputStreamFactory createNewFactory(
       Pair<S3AsyncClient, S3FileIOProperties> cacheKey) {
     ConnectorConfiguration connectorConfiguration =
-        new ConnectorConfiguration(cacheKey.second().s3AnalyticsacceleratorProperties());
+        new ConnectorConfiguration(cacheKey.second().s3AnalyticsAcceleratorProperties());
     S3SeekableInputStreamConfiguration streamConfiguration =
         S3SeekableInputStreamConfiguration.fromConfiguration(connectorConfiguration);
     ObjectClientConfiguration objectClientConfiguration =
