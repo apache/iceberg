@@ -178,7 +178,7 @@ public class TestRoundTrip extends ExtensionsTestBase {
 
   @TestTemplate
   public void testDecimalColumn() {
-    int TOTAL_ROWS = 100;
+    int rows = 100;
     String tableName = tableName("decimal_table1");
     // Create table with a single DECIMAL column
     sql("CREATE TABLE IF NOT EXISTS %s (amount DECIMAL(17, 5)) USING iceberg", tableName);
@@ -188,11 +188,11 @@ public class TestRoundTrip extends ExtensionsTestBase {
     sql(
         "INSERT INTO %s VALUES %s",
         tableName,
-        IntStream.range(0, TOTAL_ROWS).mapToObj(i -> "(" + i + ")").collect(Collectors.joining(",")));
+        IntStream.range(0, rows).mapToObj(i -> "(" + i + ")").collect(Collectors.joining(",")));
 
     // Build expected results
     List<Object[]> expected =
-        IntStream.range(0, TOTAL_ROWS)
+        IntStream.range(0, rows)
             .mapToObj(i -> new Object[] {new BigDecimal(i + ".00000")})
             .collect(Collectors.toList());
 
