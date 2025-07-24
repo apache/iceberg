@@ -424,8 +424,8 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
                         (RowData) inputRecord,
                         PartitionSpec.unpartitioned(), DistributionMode.HASH, 2)))
         .catalogLoader(CatalogLoader.hive("hive", new Configuration(), Map.of()))
-        .writeParallelism(parallelism)
-        .immediateTableUpdate(immediateUpdate)
+        .writeParallelism(10)
+        .immediateTableUpdate(true)
         .append();
 ```
 
@@ -434,8 +434,12 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
 ```java
 DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputStream);
 
+// Set common properties
 builder
     .set("write-format", "parquet");
+
+// Set Dynamic Sink specific options
+builder
     .writeParallelism(4)
     .uidPrefix("dynamic-sink")
     .cacheMaxSize(500)
