@@ -20,9 +20,12 @@ package org.apache.iceberg.flink.actions;
 
 import java.util.List;
 import java.util.UUID;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.flink.TableLoader;
@@ -33,7 +36,7 @@ import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class BaseTableMaintenanceAction<T> {
+public class TableMaintenanceAction {
 
   private final StreamExecutionEnvironment env;
   private final TableLoader tableLoader;
@@ -41,8 +44,9 @@ public class BaseTableMaintenanceAction<T> {
   private static final String DEFAULT_UID_SUFFIX = UUID.randomUUID().toString();
   private static final int DEFAULT_TASK_INDEX = 0;
   private final MaintenanceTaskBuilder<?> builder;
+  private Sink<TaskResult> sink = new DiscardingSink<>();
 
-  public BaseTableMaintenanceAction(
+  public TableMaintenanceAction(
       StreamExecutionEnvironment env,
       TableLoader tableLoader,
       MaintenanceTaskBuilder<?> builder,
@@ -60,51 +64,59 @@ public class BaseTableMaintenanceAction<T> {
     this.builder = builder;
   }
 
-  /**
-   * Executes the maintenance task and returns the first task result.
-   *
-   * @return {@link TaskResult} from the execution, or null if no results were produced
-   */
-  public TaskResult execute() {
-    String tableName = tableLoader.loadTable().name();
-    DataStream<TaskResult> resultDataStream =
-        builder.append(
-            createTriggerStream(),
-            tableName,
-            builder.maintenanceTaskName(),
-            DEFAULT_TASK_INDEX,
-            tableLoader,
-            DEFAULT_UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
-            ExecutionConfig.PARALLELISM_DEFAULT);
-    try (CloseableIterator<TaskResult> iter = resultDataStream.executeAndCollect()) {
+  /** Append stream to sink */
+  public void append() throws Exception {
+    Preconditions.checkNotNull(sink, "Sink should not be null");
+    DataStream<TaskResult> resultDataStream = appendInternal();
+    resultDataStream.sinkTo(sink);
+  }
+
+  @VisibleForTesting
+  TaskResult collect() {
+    DataStream<TaskResult> resultDataStream = appendInternal();
+    try {
+      CloseableIterator<TaskResult> iter = resultDataStream.executeAndCollect();
       List<TaskResult> taskResultList = Lists.newArrayList(iter);
       if (taskResultList.isEmpty()) {
         return null;
       }
-
       return taskResultList.get(0);
     } catch (Exception e) {
       throw new RuntimeException("TableMaintenance error.", e);
     }
   }
 
-  @SuppressWarnings("unchecked")
-  public T uidSuffix(String newUidSuffix) {
+  DataStream<TaskResult> appendInternal() {
+    String tableName = tableLoader.loadTable().name();
+    return builder.append(
+        createTriggerStream(),
+        tableName,
+        builder.maintenanceTaskName(),
+        DEFAULT_TASK_INDEX,
+        tableLoader,
+        DEFAULT_UID_SUFFIX,
+        StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+        ExecutionConfig.PARALLELISM_DEFAULT);
+  }
+
+  public TableMaintenanceAction uidSuffix(String newUidSuffix) {
     builder.uidSuffix(newUidSuffix);
-    return (T) this;
+    return this;
   }
 
-  @SuppressWarnings("unchecked")
-  public T slotSharingGroup(String newSlotSharingGroup) {
+  public TableMaintenanceAction slotSharingGroup(String newSlotSharingGroup) {
     builder.slotSharingGroup(newSlotSharingGroup);
-    return (T) this;
+    return this;
   }
 
-  @SuppressWarnings("unchecked")
-  public T parallelism(int parallelism) {
-    builder.parallelism(parallelism);
-    return (T) this;
+  public TableMaintenanceAction parallelism(int newParallelism) {
+    builder.parallelism(newParallelism);
+    return this;
+  }
+
+  public TableMaintenanceAction sink(Sink<TaskResult> newSink) {
+    this.sink = newSink;
+    return this;
   }
 
   private DataStream<Trigger> createTriggerStream() {
