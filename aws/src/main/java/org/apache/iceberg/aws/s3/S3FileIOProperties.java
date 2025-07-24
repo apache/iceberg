@@ -83,7 +83,7 @@ public class S3FileIOProperties implements Serializable {
    */
   public static final String S3_ANALYTICS_ACCELERATOR_ENABLED = "s3.analytics-accelerator.enabled";
 
-  public static final boolean S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT = false;
+  public static final boolean S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT = true;
 
   /**
    * This prefix allows users to configure the internal properties of the s3 analytics accelerator.
