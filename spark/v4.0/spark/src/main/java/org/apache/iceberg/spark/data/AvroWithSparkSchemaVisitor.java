@@ -28,9 +28,14 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 
 public abstract class AvroWithSparkSchemaVisitor<T>
     extends AvroWithPartnerByStructureVisitor<DataType, T> {
+  @Override
+  protected boolean isVariantType(DataType type) {
+    return type instanceof VariantType;
+  }
 
   @Override
   protected boolean isStringType(DataType dataType) {

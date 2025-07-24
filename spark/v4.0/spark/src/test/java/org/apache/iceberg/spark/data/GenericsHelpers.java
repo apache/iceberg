@@ -67,12 +67,21 @@ public class GenericsHelpers {
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   public static void assertEqualsSafe(Types.StructType struct, Record expected, Row actual) {
+    Types.StructType expectedType = expected.struct();
     List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Type fieldType = fields.get(readPos).type();
+      Types.NestedField field = fields.get(readPos);
+      Types.NestedField expectedField = expectedType.field(field.fieldId());
 
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i);
+      Object actualValue = actual.get(readPos);
+
+      Object expectedValue;
+      if (expectedField != null) {
+        expectedValue = expected.getField(expectedField.name());
+      } else {
+        expectedValue = GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
+      }
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
     }
