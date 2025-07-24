@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.SupportsBulkOperations;
@@ -51,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -489,9 +491,17 @@ public class BaseTransaction implements Transaction {
 
   private void deleteUncommittedFiles(Iterable<String> paths) {
     if (ops.io() instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
+      try {
+        ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
+      } catch (BulkDeletionFailureException e) {
+        LOG.warn(
+            "Failed to delete {} uncommitted files using bulk deletes", e.numberFailedObjects(), e);
+      } catch (RuntimeException e) {
+        LOG.warn("Failed to delete uncommitted files using bulk deletes", e);
+      }
     } else {
       Tasks.foreach(paths)
+          .executeWith(ThreadPools.getWorkerPool())
           .suppressFailureWhenFinished()
           .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
           .run(ops.io()::deleteFile);
