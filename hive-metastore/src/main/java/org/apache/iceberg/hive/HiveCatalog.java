@@ -64,7 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
-mport org.apache.iceberg.util.PropertyUtil;											
+import org.apache.iceberg.util.PropertyUtil;											
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -252,10 +252,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       }
     }
 
-    LOG.info("externalTablePurge: {}", externalTablePurge);
-    LOG.info("gcEnabled: {}", gcEnabled);
     final boolean deleteData = (externalTablePurge || gcEnabled) && this.deleteTableRootDir;
-    LOG.info("deleteData: {}", deleteData);
 
     try {
       clients.run(
@@ -263,7 +260,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             client.dropTable(
                 database,
                 identifier.name(),
-                // false /* do not delete data */,
                 deleteData,
                 false /* throw NoSuchObjectException if the table doesn't exist */);
             return null;
