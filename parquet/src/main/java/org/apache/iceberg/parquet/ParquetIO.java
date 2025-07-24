@@ -21,6 +21,11 @@ package org.apache.iceberg.parquet;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -29,11 +34,14 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
+import org.apache.iceberg.io.ParquetObjectRange;
+import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.hadoop.util.HadoopStreams;
 import org.apache.parquet.io.DelegatingPositionOutputStream;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.ParquetFileRange;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 
@@ -120,6 +128,33 @@ class ParquetIO {
     @Override
     public void seek(long newPos) throws IOException {
       delegate.seek(newPos);
+    }
+
+    @Override
+    public boolean readVectoredAvailable(ByteBufferAllocator allocate) {
+      IntFunction<ByteBuffer> delegateAllocate = (allocate::allocate);
+      return delegate.readVectoredAvailable(delegateAllocate);
+    }
+
+    @Override
+    public void readVectored(List<ParquetFileRange> ranges, ByteBufferAllocator allocate)
+        throws IOException {
+      IntFunction<ByteBuffer> delegateAllocate = (allocate::allocate);
+      List<ParquetObjectRange> delegateRange = convertRanges(ranges);
+
+      delegate.readVectored(delegateRange, delegateAllocate);
+    }
+
+    private static List<ParquetObjectRange> convertRanges(List<ParquetFileRange> ranges) {
+      return ranges.stream()
+          .map(
+              parquetFileRange -> {
+                CompletableFuture<ByteBuffer> result = new CompletableFuture<>();
+                parquetFileRange.setDataReadFuture(result);
+                return new ParquetObjectRange(
+                    result, parquetFileRange.getOffset(), parquetFileRange.getLength());
+              })
+          .collect(Collectors.toList());
     }
   }
 
