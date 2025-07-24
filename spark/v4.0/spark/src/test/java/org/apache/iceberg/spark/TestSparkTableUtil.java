@@ -20,18 +20,49 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.KryoHelpers;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkTableUtil {
+
+  @TempDir private File tableDir;
+
+  @Parameters(name = "formatVersion = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
+  }
+
+  @Parameter private int formatVersion;
+
+  @AfterEach
+  public void after() {
+    TestTables.clearTables();
+  }
+
   @Test
   public void testSparkPartitionOKryoSerialization() throws IOException {
     Map<String, String> values = ImmutableMap.of("id", "2");
@@ -54,7 +85,7 @@ public class TestSparkTableUtil {
     assertThat(sparkPartition).isEqualTo(deserialized);
   }
 
-  @Test
+  @TestTemplate
   public void testMetricsConfigKryoSerialization() throws Exception {
     Map<String, String> metricsConfig =
         ImmutableMap.of(
@@ -64,8 +95,21 @@ public class TestSparkTableUtil {
             "full",
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.StringType.get()),
+            Types.NestedField.required(2, "col2", Types.StringType.get()),
+            Types.NestedField.required(3, "col3", Types.StringType.get()));
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test_table",
+            schema,
+            PartitionSpec.unpartitioned(),
+            formatVersion,
+            metricsConfig);
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    MetricsConfig config = MetricsConfig.forTable(testTable);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))
@@ -79,7 +123,7 @@ public class TestSparkTableUtil {
         .isEqualTo(MetricsModes.Counts.get().toString());
   }
 
-  @Test
+  @TestTemplate
   public void testMetricsConfigJavaSerialization() throws Exception {
     Map<String, String> metricsConfig =
         ImmutableMap.of(
@@ -90,7 +134,21 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.StringType.get()),
+            Types.NestedField.required(2, "col2", Types.StringType.get()),
+            Types.NestedField.required(3, "col3", Types.StringType.get()));
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            "test_table",
+            schema,
+            PartitionSpec.unpartitioned(),
+            formatVersion,
+            metricsConfig);
+
+    MetricsConfig config = MetricsConfig.forTable(testTable);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))
