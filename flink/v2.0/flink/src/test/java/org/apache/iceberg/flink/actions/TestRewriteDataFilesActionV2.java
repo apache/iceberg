@@ -76,12 +76,12 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .rewriteAll(false);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -130,12 +130,12 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .rewriteAll(false);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -172,12 +172,12 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().rewriteAll(true);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -211,12 +211,12 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -290,12 +290,12 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);

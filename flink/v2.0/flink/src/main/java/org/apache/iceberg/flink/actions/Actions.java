@@ -97,13 +97,11 @@ public class Actions {
     return new RewriteDataFilesAction(env, table);
   }
 
-  public BaseTableMaintenanceAction<RewriteDataFiles.Builder> rewriteDataFiles(
-      RewriteDataFiles.Builder builder) {
-    return new BaseTableMaintenanceAction<>(env, tableLoader, builder, System.currentTimeMillis());
+  public TableMaintenanceAction rewriteDataFiles(RewriteDataFiles.Builder builder) {
+    return new TableMaintenanceAction(env, tableLoader, builder, System.currentTimeMillis());
   }
 
-  public BaseTableMaintenanceAction<ExpireSnapshots.Builder> expireSnapshots(
-      ExpireSnapshots.Builder builder) {
-    return new BaseTableMaintenanceAction<>(env, tableLoader, builder, System.currentTimeMillis());
+  public TableMaintenanceAction expireSnapshots(ExpireSnapshots.Builder builder) {
+    return new TableMaintenanceAction(env, tableLoader, builder, System.currentTimeMillis());
   }
 }
