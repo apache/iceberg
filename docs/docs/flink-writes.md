@@ -422,7 +422,9 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
                         "branch",
                         SCHEMA,
                         (RowData) inputRecord,
-                        PartitionSpec.unpartitioned(), DistributionMode.HASH, 2)))
+                        PartitionSpec.unpartitioned(),
+                        DistributionMode.HASH,
+                        2)))
         .catalogLoader(CatalogLoader.hive("hive", new Configuration(), Map.of()))
         .writeParallelism(10)
         .immediateTableUpdate(true)
