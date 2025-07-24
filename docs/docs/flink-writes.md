@@ -494,20 +494,30 @@ We need the following information (DynamicRecord) for every record:
 
 ### Schema Update
 
-When the schema in the DynamicRecord is inconsistent with the schema currently cached for the target table, a schema update will be triggered. This cache is an LRU cache controlled by size and time.
+The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the immediateTableUpdate configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
-If an update is triggered and immediateTableUpdate is set to false, a non-concurrent way of updating the table will be provided.
+Supported schema updates:
 
-We support:
 - Adding new columns
-- Widening the type of existing columsn
-- Reordering columns
+- Widening existing column types (e.g., Integer → Long, Float → Double)
 
-We don't support:
+Unsupported schema updates:
+
 - Dropping columns
 - Renaming columns
 
-The reason is that dropping columns would create issues with late / out of order data. Once we drop fields, we wouldn't be able to easily add them back later without losing the associated data. Renaming columns is not supported because we compare schemas by name, which doesn't allow for renaming without additional hints.
+Dropping columns is avoided to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss. Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
+
+
+#### Cache
+
+There are two caches here: the table metadata cache and the input schema cache. The size of the table metadata cache is controlled by `cacheMaxSize`, while the size of the input schema cache is controlled by `inputSchemasPerTableCacheMaxSize`.
+
+The table metadata cache stores the metadata information of tables (such as schema, partition specifications, etc.) to avoid frequent access to the Catalog.
+
+The input schema cache stores the input schema of each table along with the compatibility resolution results between the input schema and the table schema.
+In the input schema cache, reuse the same DynamicRecord.schema instance if the record schema is the same helps cache hits and improve performance.
+
 
 ### Dynamic Sink Configuration
 
