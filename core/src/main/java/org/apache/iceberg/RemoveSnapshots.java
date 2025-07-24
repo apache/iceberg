@@ -373,8 +373,8 @@ class RemoveSnapshots implements ExpireSnapshots {
     } else if (incrementalCleanup == null) {
       incrementalCleanup =
           !specifiedSnapshotId
-              && onlyMainOrNoRefs(current)
-              && onlyMainBranchOrNoRefs(base)
+              && !hasNonMainRefs(current)
+              && !hasNonMainBranches(base)
               && !hasNonMainSnapshots(base)
               && !hasNonMainSnapshots(current);
     }
@@ -398,12 +398,12 @@ class RemoveSnapshots implements ExpireSnapshots {
           "Cannot clean files incrementally when snapshot IDs are specified");
     }
 
-    if (!onlyMainOrNoRefs(current)) {
+    if (hasNonMainRefs(current)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files for tables with more than 1 ref");
     }
 
-    if (!onlyMainBranchOrNoRefs(base)) {
+    if (hasNonMainBranches(base)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files when metadata before expiration has other branches");
     }
@@ -414,19 +414,24 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
   }
 
-  private boolean onlyMainBranchOrNoRefs(TableMetadata metadata) {
+  private boolean hasNonMainBranches(TableMetadata metadata) {
     for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
       if (ref.getValue().isBranch() && !ref.getKey().equals(SnapshotRef.MAIN_BRANCH)) {
-        return false;
+        return true;
       }
     }
 
-    return true;
+    return false;
   }
 
-  private boolean onlyMainOrNoRefs(TableMetadata metadata) {
-    return metadata.refs().isEmpty()
-        || (metadata.refs().size() == 1 && metadata.refs().containsKey(SnapshotRef.MAIN_BRANCH));
+  private boolean hasNonMainRefs(TableMetadata metadata) {
+    for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
+      if (!ref.getKey().equals(SnapshotRef.MAIN_BRANCH)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private boolean hasNonMainSnapshots(TableMetadata metadata) {
