@@ -35,14 +35,10 @@ nav:
       - schemas.md
     - Views:
       - view-configuration.md
-  - Libraries:
-    - Java:
-      - Quickstart: java-api-quickstart.md
-      - API: api.md
-      - Javadoc: ../../javadoc/latest/
-    - Python: https://py.iceberg.apache.org/
-    - Rust: https://rust.iceberg.apache.org/
-    - Go: https://pkg.go.dev/github.com/apache/iceberg-go/
+  - API:
+    - Quickstart: java-api-quickstart.md
+    - API: api.md
+    - Javadoc: ../../javadoc/latest/
   - Integrations:
     # Iceberg-maintained integrations come first
     - Apache Spark:

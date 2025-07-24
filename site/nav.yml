@@ -21,26 +21,32 @@ nav:
     - Spark: spark-quickstart.md
     - Hive: hive-quickstart.md
   - Docs:
-    - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-    - Latest (1.9.2): '!include docs/docs/latest/mkdocs.yml'
-    - Previous:
-      - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
-      - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
-      - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
-      - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
-      - 1.7.2: '!include docs/docs/1.7.2/mkdocs.yml'
-      - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
-      - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
-      - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
-      - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
-      - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
-      - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'
-      - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
-      - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
-      - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
-      - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
-      - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
-      - archive: archive.md
+    - Java:
+      - Nightly: '!include docs/docs/nightly/mkdocs.yml'
+      - Latest (1.9.2): '!include docs/docs/latest/mkdocs.yml'
+      - Previous:
+        - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
+        - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
+        - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
+        - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
+        - 1.7.2: '!include docs/docs/1.7.2/mkdocs.yml'
+        - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
+        - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
+        - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
+        - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
+        - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
+        - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'
+        - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
+        - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
+        - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
+        - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
+        - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+        - archive: archive.md
+    - Other Implementations:
+      - Python: https://py.iceberg.apache.org/
+      - Rust: https://rust.iceberg.apache.org/
+      - Go: https://go.iceberg.apache.org/
+      - C++: https://github.com/apache/iceberg-cpp/
   - Releases: releases.md
   - Blogs: blogs.md
   - Talks: talks.md

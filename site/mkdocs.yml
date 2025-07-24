@@ -35,6 +35,7 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.path
+    - navigation.sections
     - navigation.top
     - navigation.tracking
     - toc.follow
