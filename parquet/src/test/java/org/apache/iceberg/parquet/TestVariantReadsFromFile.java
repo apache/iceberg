@@ -56,7 +56,7 @@ public class TestVariantReadsFromFile {
 
   private static Stream<JsonNode> cases() throws IOException {
     if (CASE_LOCATION == null) {
-      return Stream.empty();
+      return Stream.of(JsonUtil.mapper().readValue("{\"case_number\": -1}", JsonNode.class));
     }
 
     InputFile caseJsonInput = IO.newInputFile(CASE_LOCATION + "/cases.json");
@@ -69,45 +69,47 @@ public class TestVariantReadsFromFile {
 
   private static Stream<Arguments> errorCases() throws IOException {
     return cases()
-        .filter(caseNode -> caseNode.has("error_message"))
+        .filter(caseNode -> caseNode.has("error_message") || !caseNode.has("parquet_file"))
         .map(
             caseNode -> {
               int caseNumber = JsonUtil.getInt("case_number", caseNode);
-              String testName = JsonUtil.getString("test", caseNode);
+              String testName = JsonUtil.getStringOrNull("test", caseNode);
               String parquetFile = JsonUtil.getStringOrNull("parquet_file", caseNode);
-              String errorMessage = JsonUtil.getString("error_message", caseNode);
+              String errorMessage = JsonUtil.getStringOrNull("error_message", caseNode);
               return Arguments.of(caseNumber, testName, parquetFile, errorMessage);
             });
   }
 
   private static Stream<Arguments> singleVariantCases() throws IOException {
     return cases()
-        .filter(caseNode -> caseNode.has("variant_file"))
+        .filter(caseNode -> caseNode.has("variant_file") || !caseNode.has("parquet_file"))
         .map(
             caseNode -> {
               int caseNumber = JsonUtil.getInt("case_number", caseNode);
-              String testName = JsonUtil.getString("test", caseNode);
-              String variant = JsonUtil.getString("variant", caseNode);
-              String parquetFile = JsonUtil.getString("parquet_file", caseNode);
-              String variantFile = JsonUtil.getString("variant_file", caseNode);
+              String testName = JsonUtil.getStringOrNull("test", caseNode);
+              String variant = JsonUtil.getStringOrNull("variant", caseNode);
+              String parquetFile = JsonUtil.getStringOrNull("parquet_file", caseNode);
+              String variantFile = JsonUtil.getStringOrNull("variant_file", caseNode);
               return Arguments.of(caseNumber, testName, variant, parquetFile, variantFile);
             });
   }
 
   private static Stream<Arguments> multiVariantCases() throws IOException {
     return cases()
-        .filter(caseNode -> caseNode.has("variant_files"))
+        .filter(caseNode -> caseNode.has("variant_files") || !caseNode.has("parquet_file"))
         .map(
             caseNode -> {
               int caseNumber = JsonUtil.getInt("case_number", caseNode);
-              String testName = JsonUtil.getString("test", caseNode);
-              String parquetFile = JsonUtil.getString("parquet_file", caseNode);
+              String testName = JsonUtil.getStringOrNull("test", caseNode);
+              String parquetFile = JsonUtil.getStringOrNull("parquet_file", caseNode);
               List<String> variantFiles =
-                  Lists.newArrayList(
-                      Iterables.transform(
-                          caseNode.get("variant_files"),
-                          node -> node == null || node.isNull() ? null : node.asText()));
-              String variants = JsonUtil.getString("variants", caseNode);
+                  caseNode.has("variant_files")
+                      ? Lists.newArrayList(
+                          Iterables.transform(
+                              caseNode.get("variant_files"),
+                              node -> node == null || node.isNull() ? null : node.asText()))
+                      : null;
+              String variants = JsonUtil.getStringOrNull("variants", caseNode);
               return Arguments.of(caseNumber, testName, variants, parquetFile, variantFiles);
             });
   }
@@ -115,6 +117,10 @@ public class TestVariantReadsFromFile {
   @ParameterizedTest
   @MethodSource("errorCases")
   public void testError(int caseNumber, String testName, String parquetFile, String errorMessage) {
+    if (parquetFile == null) {
+      return;
+    }
+
     Assertions.assertThatThrownBy(() -> readParquet(parquetFile))
         .as("Test case %s: %s", caseNumber, testName)
         .hasMessageContaining(errorMessage);
@@ -125,6 +131,10 @@ public class TestVariantReadsFromFile {
   public void testSingleVariant(
       int caseNumber, String testName, String variant, String parquetFile, String variantFile)
       throws IOException {
+    if (parquetFile == null) {
+      return;
+    }
+
     Variant expected = readVariant(variantFile);
 
     Record record = readParquetRecord(parquetFile);
@@ -143,6 +153,10 @@ public class TestVariantReadsFromFile {
       String parquetFile,
       List<String> variantFiles)
       throws IOException {
+    if (parquetFile == null) {
+      return;
+    }
+
     List<Record> records = readParquet(parquetFile);
 
     for (int i = 0; i < records.size(); i += 1) {
