@@ -414,14 +414,19 @@ Dynamic Flink Iceberg Sink allows:
 All configurations are controlled through the `DynamicRecord` class, eliminating the need for Flink job restarts when requirements change.
 
 ```java
-    
+
     DynamicIcebergSink.forInput(dataStream)
-            .generator(new Generator())
-            .catalogLoader(catalogLoader)
-            .writeParallelism(parallelism)
-            .immediateTableUpdate(immediateUpdate)
-            .append();
-        
+        .generator((inputRecord, out) -> out.collect(
+                new DynamicRecord(
+                        TableIdentifier.of("db", "table"),
+                        "branch",
+                        SCHEMA,
+                        (RowData) inputRecord,
+                        PartitionSpec.unpartitioned(), DistributionMode.HASH, 2)))
+        .catalogLoader(CatalogLoader.hive("hive", new Configuration(), Map.of()))
+        .writeParallelism(parallelism)
+        .immediateTableUpdate(immediateUpdate)
+        .append();
 ```
 
 ### Configuration Example
@@ -429,12 +434,8 @@ All configurations are controlled through the `DynamicRecord` class, eliminating
 ```java
 DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputStream);
 
-// Set common properties
 builder
     .set("write-format", "parquet");
-
-// Set specific options
-builder
     .writeParallelism(4)
     .uidPrefix("dynamic-sink")
     .cacheMaxSize(500)
@@ -485,6 +486,23 @@ We need the following information (DynamicRecord) for every record:
 | `upsertMode`        | Overrides this table's write.upsert.enabled (optional).                                   |
 | `equalityFields`    | The equality fields for the table(optional).                                                        |
 
+### Schema Update
+
+When the schema in the DynamicRecord is inconsistent with the schema currently cached for the target table, a schema update will be triggered. This cache is an LRU cache controlled by size and time.
+
+If an update is triggered and immediateTableUpdate is set to false, a non-concurrent way of updating the table will be provided.
+
+We support:
+- Adding new columns
+- Widening the type of existing columsn
+- Reordering columns
+
+We don't support:
+- Dropping columns
+- Renaming columns
+
+The reason is that dropping columns would create issues with late / out of order data. Once we drop fields, we wouldn't be able to easily add them back later without losing the associated data. Renaming columns is not supported because we compare schemas by name, which doesn't allow for renaming without additional hints.
+
 ### Dynamic Sink Configuration
 
 The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
@@ -506,5 +524,5 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 
 ### Notes
 
-- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode,if set will fall back to `HASH`.
-- **Property Precedence Note**: When conflicts occur between table properties and sink properties, the table properties will override the sink properties configuration.
+- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set will fall back to `HASH`.
+- **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
