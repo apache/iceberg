@@ -105,8 +105,8 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C fileSchema(Schema newSchema) {
-    writeBuilder.fileSchema(newSchema);
+  public C fileSchema(Schema fileSchema) {
+    writeBuilder.fileSchema(fileSchema);
     return (C) this;
   }
 
@@ -135,8 +135,8 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C metricsConfig(MetricsConfig newMetricsConfig) {
-    writeBuilder.metricsConfig(newMetricsConfig);
+  public C metricsConfig(MetricsConfig metricsConfig) {
+    writeBuilder.metricsConfig(metricsConfig);
     return (C) this;
   }
 
@@ -171,8 +171,8 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C keyMetadata(EncryptionKeyMetadata metadata) {
-    this.keyMetadata = metadata;
+  public C keyMetadata(EncryptionKeyMetadata newKeyMetadata) {
+    this.keyMetadata = newKeyMetadata;
     return (C) this;
   }
 
@@ -220,8 +220,8 @@ class ContentFileWriteBuilderImpl<
     }
 
     @Override
-    public C rowSchema(Schema newSchema) {
-      this.rowSchema = newSchema;
+    public C rowSchema(Schema schema) {
+      this.rowSchema = schema;
       return (C) this;
     }
 
@@ -283,8 +283,8 @@ class ContentFileWriteBuilderImpl<
     }
 
     @Override
-    public C rowSchema(Schema newSchema) {
-      this.rowSchema = newSchema;
+    public C rowSchema(Schema schema) {
+      this.rowSchema = schema;
       return (C) this;
     }
 

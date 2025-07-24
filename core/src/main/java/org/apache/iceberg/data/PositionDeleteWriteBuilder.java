@@ -52,10 +52,10 @@ public interface PositionDeleteWriteBuilder<B extends PositionDeleteWriteBuilder
    * <p>If not configured, position delete files will contain only the path and position information
    * without preserving the deleted record content.
    *
-   * @param newRowSchema the Iceberg schema defining the structure for deleted row content
+   * @param rowSchema the Iceberg schema defining the structure for deleted row content
    * @return this builder for method chaining
    */
-  B rowSchema(Schema newRowSchema);
+  B rowSchema(Schema rowSchema);
 
   /**
    * Creates a position-based delete file writer configured with the current builder settings.

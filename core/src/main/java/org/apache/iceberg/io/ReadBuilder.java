@@ -56,9 +56,9 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
    * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
    * must respect this setting.
    *
-   * @param saseSensitive indicates if filtering is case-sensitive
+   * @param caseSensitive indicates if filtering is case-sensitive
    */
-  B caseSensitive(boolean saseSensitive);
+  B caseSensitive(boolean caseSensitive);
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary

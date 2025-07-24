@@ -40,7 +40,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, D>, D>
     extends ContentFileWriteBuilder<B> {
   /** Sets the row schema for the delete writers. */
-  B rowSchema(Schema newSchema);
+  B rowSchema(Schema rowSchema);
 
   /** Sets the equality field ids for the equality delete writer. */
   B equalityFieldIds(List<Integer> fieldIds);
