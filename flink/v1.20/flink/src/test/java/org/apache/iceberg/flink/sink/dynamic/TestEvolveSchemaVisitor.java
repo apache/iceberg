@@ -88,7 +88,7 @@ public class TestEvolveSchemaVisitor {
   @Test
   public void testAddTopLevelPrimitives() {
     Schema targetSchema = new Schema(primitiveFields(0, primitiveTypes()));
-    UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+    UpdateSchema updateApi = loadUpdateApi(new Schema());
     EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
     assertThat(targetSchema.asStruct()).isEqualTo(updateApi.apply().asStruct());
   }
@@ -98,7 +98,7 @@ public class TestEvolveSchemaVisitor {
     Schema existingSchema = new Schema(primitiveFields(0, primitiveTypes(), false));
     assertThat(existingSchema.columns().stream().allMatch(Types.NestedField::isRequired)).isTrue();
 
-    UpdateSchema updateApi = loadUpdateApi(existingSchema, 0);
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(updateApi, existingSchema, new Schema());
     Schema newSchema = updateApi.apply();
     assertThat(newSchema.asStruct().fields()).hasSize(14);
@@ -109,7 +109,7 @@ public class TestEvolveSchemaVisitor {
   public void testIdentifyFieldsByName() {
     Schema existingSchema =
         new Schema(Types.NestedField.optional(42, "myField", Types.LongType.get()));
-    UpdateSchema updateApi = loadUpdateApi(existingSchema, 0);
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
     Schema newSchema =
         new Schema(Arrays.asList(Types.NestedField.optional(-1, "myField", Types.LongType.get())));
     EvolveSchemaVisitor.visit(updateApi, existingSchema, newSchema);
@@ -124,7 +124,7 @@ public class TestEvolveSchemaVisitor {
     Schema targetSchema =
         new Schema(
             Arrays.asList(optional(2, "b", StringType.get()), optional(1, "a", StringType.get())));
-    UpdateSchema updateApi = loadUpdateApi(existingSchema, 0);
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(updateApi, existingSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -133,7 +133,7 @@ public class TestEvolveSchemaVisitor {
   public void testAddTopLevelListOfPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
       Schema targetSchema = new Schema(optional(1, "aList", ListType.ofOptional(2, primitiveType)));
-      UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+      UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
@@ -145,7 +145,7 @@ public class TestEvolveSchemaVisitor {
       Schema existingSchema =
           new Schema(optional(1, "aList", ListType.ofRequired(2, primitiveType)));
       Schema targetSchema = new Schema();
-      UpdateSchema updateApi = loadUpdateApi(existingSchema, 0);
+      UpdateSchema updateApi = loadUpdateApi(existingSchema);
       EvolveSchemaVisitor.visit(updateApi, existingSchema, targetSchema);
       Schema expectedSchema =
           new Schema(optional(1, "aList", ListType.ofRequired(2, primitiveType)));
@@ -158,7 +158,7 @@ public class TestEvolveSchemaVisitor {
     for (PrimitiveType primitiveType : primitiveTypes()) {
       Schema targetSchema =
           new Schema(optional(1, "aMap", MapType.ofOptional(2, 3, primitiveType, primitiveType)));
-      UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+      UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
@@ -170,7 +170,7 @@ public class TestEvolveSchemaVisitor {
       Schema currentSchema =
           new Schema(
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
-      UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+      UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(updateApi, new Schema(), currentSchema);
       assertThat(updateApi.apply().asStruct()).isEqualTo(currentSchema.asStruct());
     }
@@ -183,7 +183,7 @@ public class TestEvolveSchemaVisitor {
       Schema targetSchema =
           new Schema(
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
-      UpdateSchema updateApi = loadUpdateApi(currentSchema, 1);
+      UpdateSchema updateApi = loadUpdateApi(currentSchema);
       EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
@@ -198,7 +198,7 @@ public class TestEvolveSchemaVisitor {
       Schema targetSchema =
           new Schema(
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
-      UpdateSchema updateApi = loadUpdateApi(currentSchema, 1);
+      UpdateSchema updateApi = loadUpdateApi(currentSchema);
       EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
@@ -209,7 +209,7 @@ public class TestEvolveSchemaVisitor {
     Schema currentSchema = new Schema(optional(1, "aStruct", StructType.of()));
     Schema targetSchema =
         new Schema(optional(1, "aStruct", StructType.of(primitiveFields(1, primitiveTypes()))));
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 1);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -239,7 +239,7 @@ public class TestEvolveSchemaVisitor {
                                                 9,
                                                 ListType.ofOptional(
                                                     10, DecimalType.of(11, 20))))))))))));
-    UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+    UpdateSchema updateApi = loadUpdateApi(new Schema());
     EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -278,7 +278,7 @@ public class TestEvolveSchemaVisitor {
                                                                 7,
                                                                 "aString",
                                                                 StringType.get()))))))))))))));
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 2);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -312,7 +312,8 @@ public class TestEvolveSchemaVisitor {
                                     StringType.get(),
                                     MapType.ofOptional(
                                         12, 13, StringType.get(), StringType.get()))))))));
-    UpdateSchema updateApi = loadUpdateApi(new Schema(), 0);
+
+    UpdateSchema updateApi = loadUpdateApi(new Schema());
     EvolveSchemaVisitor.visit(updateApi, new Schema(), targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -325,7 +326,7 @@ public class TestEvolveSchemaVisitor {
     assertThatThrownBy(
             () ->
                 EvolveSchemaVisitor.visit(
-                    loadUpdateApi(currentSchema, 2), currentSchema, targetSchema))
+                    loadUpdateApi(currentSchema), currentSchema, targetSchema))
         .hasMessage("Cannot change column type: aList.element: string -> long")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -342,7 +343,7 @@ public class TestEvolveSchemaVisitor {
     assertThatThrownBy(
             () ->
                 EvolveSchemaVisitor.visit(
-                    loadUpdateApi(currentSchema, 3), currentSchema, targetSchema))
+                    loadUpdateApi(currentSchema), currentSchema, targetSchema))
         .hasMessage("Cannot change column type: aMap.value: string -> long")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -357,7 +358,7 @@ public class TestEvolveSchemaVisitor {
     assertThatThrownBy(
             () ->
                 EvolveSchemaVisitor.visit(
-                    loadUpdateApi(currentSchema, 3), currentSchema, targetSchema))
+                    loadUpdateApi(currentSchema), currentSchema, targetSchema))
         .hasMessage("Cannot change column type: aMap.key: string -> uuid")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -368,7 +369,7 @@ public class TestEvolveSchemaVisitor {
     Schema currentSchema = new Schema(required(1, "aCol", IntegerType.get()));
     Schema targetSchema = new Schema(required(1, "aCol", LongType.get()));
 
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 0);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     Schema applied = updateApi.apply();
     assertThat(applied.asStruct().fields()).hasSize(1);
@@ -381,7 +382,7 @@ public class TestEvolveSchemaVisitor {
     Schema currentSchema = new Schema(required(1, "aCol", FloatType.get()));
     Schema targetSchema = new Schema(required(1, "aCol", DoubleType.get()));
 
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 0);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     Schema applied = updateApi.apply();
     assertThat(applied.asStruct().fields()).hasSize(1);
@@ -395,7 +396,7 @@ public class TestEvolveSchemaVisitor {
     assertThatThrownBy(
             () ->
                 EvolveSchemaVisitor.visit(
-                    loadUpdateApi(currentSchema, 3), currentSchema, targetSchema))
+                    loadUpdateApi(currentSchema), currentSchema, targetSchema))
         .hasMessage("Cannot change column type: aCol: double -> float")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -407,7 +408,7 @@ public class TestEvolveSchemaVisitor {
     Schema currentSchema = new Schema(required(1, "aCol", DecimalType.of(20, 1)));
     Schema targetSchema = new Schema(required(1, "aCol", DecimalType.of(22, 1)));
 
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 1);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -450,7 +451,7 @@ public class TestEvolveSchemaVisitor {
                                         optional(5, "number", LongType.get()),
                                         optional(6, "time", TimeType.get())))))))));
 
-    UpdateSchema updateApi = loadUpdateApi(existingSchema, 5);
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(updateApi, existingSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -463,7 +464,7 @@ public class TestEvolveSchemaVisitor {
     assertThatThrownBy(
             () ->
                 EvolveSchemaVisitor.visit(
-                    loadUpdateApi(currentSchema, 3), currentSchema, targetSchema))
+                    loadUpdateApi(currentSchema), currentSchema, targetSchema))
         .hasMessage("Cannot change column type: aColumn: list<string> -> string")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -499,7 +500,7 @@ public class TestEvolveSchemaVisitor {
                 StructType.of(
                     optional(7, "d1", StructType.of(optional(8, "d2", StringType.get()))))));
 
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 5);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -551,7 +552,7 @@ public class TestEvolveSchemaVisitor {
                                                                 "s4",
                                                                 StringType.get()))))))))))))));
 
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 4);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
@@ -571,7 +572,7 @@ public class TestEvolveSchemaVisitor {
                         StructType.of(
                             optional(
                                 3, "s3", StructType.of(optional(4, "s4", StringType.get()))))))));
-    UpdateSchema updateApi = loadUpdateApi(currentSchema, 9);
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(updateApi, currentSchema, targetSchema);
     assertThat(getNestedSchemaWithOptionalModifier(true).asStruct())
         .isEqualTo(updateApi.apply().asStruct());
@@ -609,7 +610,7 @@ public class TestEvolveSchemaVisitor {
                                                             9, "s4", StringType.get()))))))))))))));
   }
 
-  private static UpdateSchema loadUpdateApi(Schema schema, int lastColumnId) {
+  private static UpdateSchema loadUpdateApi(Schema schema) {
     try {
       Constructor<?> constructor =
           TestEvolveSchemaVisitor.class
@@ -617,7 +618,7 @@ public class TestEvolveSchemaVisitor {
               .loadClass("org.apache.iceberg.SchemaUpdate")
               .getDeclaredConstructor(Schema.class, int.class);
       constructor.setAccessible(true);
-      return (UpdateSchema) constructor.newInstance(schema, lastColumnId);
+      return (UpdateSchema) constructor.newInstance(schema, schema.highestFieldId());
     } catch (Exception e) {
       throw new RuntimeException("Failed to instantiate SchemaUpdate class", e);
     }
