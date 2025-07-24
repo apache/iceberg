@@ -39,7 +39,7 @@ import org.apache.iceberg.Schema;
  */
 public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
   /** Set the file schema. */
-  B fileSchema(Schema newSchema);
+  B fileSchema(Schema schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -84,7 +84,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
   }
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  B metricsConfig(MetricsConfig newMetricsConfig);
+  B metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
   B overwrite();

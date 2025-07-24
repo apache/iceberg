@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.deletes.PositionDelete;
 
 /**
@@ -48,6 +49,11 @@ public interface FormatModel<D> {
    * as a contract specifying the expected data structures for both reading (converting file formats
    * into output objects) and writing (converting input objects into file formats). This ensures
    * proper integration between Iceberg's storage layer and processing engines.
+   *
+   * <p>Processing engines can define their own object models by implementing this interface and
+   * using their own model name. They can register these models with Iceberg by using the {@link
+   * FormatModelRegistry}. This allows custom data representations to be seamlessly integrated with
+   * Iceberg's file format handlers.
    *
    * @return string identifier for this model implementation
    */

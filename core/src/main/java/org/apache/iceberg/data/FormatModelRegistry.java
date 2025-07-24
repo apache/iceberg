@@ -57,9 +57,9 @@ import org.slf4j.LoggerFactory;
  *
  * The appropriate builder is selected based on {@link FileFormat} and object model name.
  *
- * <p>{@link FormatModel} objects are registered through {@link #registerFormatModel(FormatModel)}
- * and used for creating readers and writers. Read builders are returned directly from the factory.
- * Write builders may be wrapped in specialized content file writer implementations depending on the
+ * <p>{@link FormatModel} objects are registered through {@link #register(FormatModel)} and used for
+ * creating readers and writers. Read builders are returned directly from the factory. Write
+ * builders may be wrapped in specialized content file writer implementations depending on the
  * requested builder type.
  */
 public final class FormatModelRegistry {
@@ -87,12 +87,12 @@ public final class FormatModelRegistry {
    *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
    */
   @SuppressWarnings("CatchBlockLogException")
-  public static void registerFormatModel(FormatModel<?> formatModel) {
+  public static void register(FormatModel<?> formatModel) {
     Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
     if (FORMAT_MODELS.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
-              "Object model factory %s clashes with %s. Both serves %s",
+              "Object model factory %s clashes with %s. Both serve %s",
               formatModel.getClass(), FORMAT_MODELS.get(key), key));
     }
 
