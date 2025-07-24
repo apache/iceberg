@@ -373,10 +373,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     } else if (incrementalCleanup == null) {
       incrementalCleanup =
           !specifiedSnapshotId
-              && hasOnlyMainBranch(base)
-              && hasOnlyMainBranch(current)
-              && allSnapshotsAreInMain(base)
-              && allSnapshotsAreInMain(current);
+              && onlyMainOrNoRefs(current)
+              && onlyMainBranchOrNoRefs(base)
+              && !hasNonMainSnapshots(base)
+              && !hasNonMainSnapshots(current);
     }
 
     LOG.info(
@@ -398,22 +398,42 @@ class RemoveSnapshots implements ExpireSnapshots {
           "Cannot clean files incrementally when snapshot IDs are specified");
     }
 
-    if (!hasOnlyMainBranch(base) || !hasOnlyMainBranch(current)) {
+    if (!onlyMainOrNoRefs(current)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files for tables with more than 1 ref");
     }
 
-    if (!allSnapshotsAreInMain(base) || !allSnapshotsAreInMain(current)) {
+    if (!onlyMainBranchOrNoRefs(base)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when metadata before expiration has other branches");
+    }
+
+    if (hasNonMainSnapshots(base) || hasNonMainSnapshots(current)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files when there are snapshots outside of main");
     }
   }
 
-  private boolean hasOnlyMainBranch(TableMetadata metadata) {
-    return metadata.refs().size() == 1 && metadata.refs().containsKey(SnapshotRef.MAIN_BRANCH);
+  private boolean onlyMainBranchOrNoRefs(TableMetadata metadata) {
+    for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
+      if (ref.getValue().isBranch() && !ref.getKey().equals(SnapshotRef.MAIN_BRANCH)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
-  private boolean allSnapshotsAreInMain(TableMetadata metadata) {
+  private boolean onlyMainOrNoRefs(TableMetadata metadata) {
+    return metadata.refs().isEmpty()
+        || (metadata.refs().size() == 1 && metadata.refs().containsKey(SnapshotRef.MAIN_BRANCH));
+  }
+
+  private boolean hasNonMainSnapshots(TableMetadata metadata) {
+    if (metadata.currentSnapshot() == null) {
+      return !metadata.snapshots().isEmpty();
+    }
+
     Set<Long> ancestors = Sets.newHashSet();
     for (Snapshot ancestor :
         SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
@@ -422,10 +442,10 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     for (Snapshot snapshot : metadata.snapshots()) {
       if (!ancestors.contains(snapshot.snapshotId())) {
-        return false;
+        return true;
       }
     }
 
-    return true;
+    return false;
   }
 }

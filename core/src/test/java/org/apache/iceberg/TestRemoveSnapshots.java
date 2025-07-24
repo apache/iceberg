@@ -1905,6 +1905,65 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles).isEqualTo(expectedDeleteFiles);
   }
 
+  @TestTemplate
+  public void testCannotIncrementallyCleanupBranchBeforeExpiration() {
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    String branch = "test";
+    long branchAgeMs = 20;
+    table
+        .manageSnapshots()
+        .createBranch(branch)
+        .setMaxRefAgeMs(branch, branchAgeMs)
+        .setMinSnapshotsToKeep(branch, 1)
+        .commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    assertThatThrownBy(
+            () ->
+                removeSnapshots(table)
+                    .deleteWith(deletedFiles::add)
+                    .expireOlderThan(System.currentTimeMillis())
+                    .commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot incrementally clean files when metadata before expiration has other branches");
+  }
+
+  @TestTemplate
+  public void testReachableCleanupWhenBranchAgedOff() {
+    assumeThat(incrementalCleanup).isFalse();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    String branch = "test";
+    long branchAgeMs = 20;
+    table
+        .manageSnapshots()
+        .createBranch(branch)
+        .setMaxRefAgeMs(branch, branchAgeMs)
+        .setMinSnapshotsToKeep(branch, 1)
+        .commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot latestTestSnapshot = table.snapshot(branch);
+    long currentTime = System.currentTimeMillis();
+    waitUntilAfter(currentTime + branchAgeMs);
+
+    Set<String> expectedDeletedFiles =
+        ImmutableSet.of(
+            latestTestSnapshot.manifestListLocation(),
+            Iterables.getOnlyElement(latestTestSnapshot.allManifests(table.io())).path(),
+            FILE_A.location());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table)
+        .deleteWith(deletedFiles::add)
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+    assertThat(deletedFiles).isEqualTo(expectedDeletedFiles);
+  }
+
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
     return snapshot.allManifests(io).stream().map(ManifestFile::path).collect(Collectors.toSet());
   }
