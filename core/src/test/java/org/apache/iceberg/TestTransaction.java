@@ -242,21 +242,21 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testTransactionFailureBulkDeletionCleanup() {
-    cleanupTables();
+  public void testTransactionFailureBulkDeletionCleanup() throws IOException {
     TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
-
     Mockito.doNothing().when(spyFileIO).deleteFiles(any());
-    String tableName = "test";
+
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnFailureBulkDeleteTest";
     TestTables.TestTable tableWithBulkIO =
         TestTables.create(
-            tableDir,
+            location,
             tableName,
             SCHEMA,
             SPEC,
             SortOrder.unsorted(),
             formatVersion,
-            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
 
     // set retries to 0 to catch the failure
     tableWithBulkIO.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
