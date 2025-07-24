@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.actions;
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -65,7 +66,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -151,7 +151,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testFailureOnV3Table() {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     assertThatThrownBy(
             () -> Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute())
@@ -163,7 +163,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteDataFilesEmptyTable() throws Exception {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
     Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute();
@@ -173,7 +173,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteDataFilesUnpartitionedTable() throws Exception {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
@@ -206,7 +206,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteDataFilesPartitionedTable() throws Exception {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -251,7 +251,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteDataFilesWithFilter() throws Exception {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -301,7 +301,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteLargeTableHasResiduals() throws IOException {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     // all records belong to the same partition
     List<String> records1 = Lists.newArrayList();
@@ -366,7 +366,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteAvoidRepeateCompress() throws IOException {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
@@ -433,7 +433,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @TestTemplate
   public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
     // Flink does not support compaction on row lineage enabled tables (V3+)
-    Assumptions.assumeThat(formatVersion).isLessThan(3);
+    assumeThat(formatVersion).isLessThan(3);
 
     // Add 2 data files
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_WITH_PK);

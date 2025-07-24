@@ -110,6 +110,10 @@
         <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assertions;\E" />
         <property name="message" value="org.assertj.core.api.Assertions should only be used with static imports" />
     </module>
+    <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assumptions;\E" />
+        <property name="message" value="org.assertj.core.api.Assumptions should only be used with static imports" />
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
