@@ -84,36 +84,39 @@ public class BaseDVFileWriter implements DVFileWriter {
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
       List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
-      PuffinWriter writer = newWriter();
+      // Only create PuffinWriter if there are deletes to write.
+      // This prevents creating empty Puffin files when no delete have occurred.
+      if (!deletesByPath.isEmpty()) {
+        PuffinWriter writer = newWriter();
 
-      try (PuffinWriter closeableWriter = writer) {
-        for (Deletes deletes : deletesByPath.values()) {
-          String path = deletes.path();
-          PositionDeleteIndex positions = deletes.positions();
-          PositionDeleteIndex previousPositions = loadPreviousDeletes.apply(path);
-          if (previousPositions != null) {
-            positions.merge(previousPositions);
-            for (DeleteFile previousDeleteFile : previousPositions.deleteFiles()) {
-              // only DVs and file-scoped deletes can be discarded from the table state
-              if (ContentFileUtil.isFileScoped(previousDeleteFile)) {
-                rewrittenDeleteFiles.add(previousDeleteFile);
+        try (PuffinWriter closeableWriter = writer) {
+          for (Deletes deletes : deletesByPath.values()) {
+            String path = deletes.path();
+            PositionDeleteIndex positions = deletes.positions();
+            PositionDeleteIndex previousPositions = loadPreviousDeletes.apply(path);
+            if (previousPositions != null) {
+              positions.merge(previousPositions);
+              for (DeleteFile previousDeleteFile : previousPositions.deleteFiles()) {
+                // only DVs and file-scoped deletes can be discarded from the table state
+                if (ContentFileUtil.isFileScoped(previousDeleteFile)) {
+                  rewrittenDeleteFiles.add(previousDeleteFile);
+                }
               }
             }
+            write(closeableWriter, deletes);
+            referencedDataFiles.add(path);
           }
-          write(closeableWriter, deletes);
-          referencedDataFiles.add(path);
+        }
+
+        // DVs share the Puffin path and file size but have different offsets
+        String puffinPath = writer.location();
+        long puffinFileSize = writer.fileSize();
+
+        for (String path : deletesByPath.keySet()) {
+          DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
+          dvs.add(dv);
         }
       }
-
-      // DVs share the Puffin path and file size but have different offsets
-      String puffinPath = writer.location();
-      long puffinFileSize = writer.fileSize();
-
-      for (String path : deletesByPath.keySet()) {
-        DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
-        dvs.add(dv);
-      }
-
       this.result = new DeleteWriteResult(dvs, referencedDataFiles, rewrittenDeleteFiles);
     }
   }
