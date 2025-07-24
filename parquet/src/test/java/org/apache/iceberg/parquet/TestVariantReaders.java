@@ -229,6 +229,7 @@ public class TestVariantReaders {
     }
 
     CASE_JSON_GENERATOR.writeStringField("test", testName);
+    CASE_JSON_GENERATOR.writeStringField("parquet_file", parquetFile());
     CASE_JSON_GENERATOR.writeStringField("error_message", errorMessage);
   }
 
@@ -269,11 +270,11 @@ public class TestVariantReaders {
   }
 
   private String writeVariantFile(int rowId, Variant variant) throws IOException {
-    String variantFile =
-        String.format("case-%03d_row-%d.variant.bin", caseNumber, rowId);
+    String variantFile = String.format("case-%03d_row-%d.variant.bin", caseNumber, rowId);
 
     ByteBuffer buffer = ParquetVariantUtil.toByteBuffer(variant.metadata(), variant.value());
-    try (OutputStream out = IO.newOutputFile(CASE_LOCATION + "/" + variantFile).createOrOverwrite()) {
+    try (OutputStream out =
+        IO.newOutputFile(CASE_LOCATION + "/" + variantFile).createOrOverwrite()) {
       out.write(buffer.array());
     }
 
@@ -289,7 +290,8 @@ public class TestVariantReaders {
       return;
     }
 
-    try (OutputStream out = IO.newOutputFile(CASE_LOCATION + "/" + parquetFile()).createOrOverwrite();
+    try (OutputStream out =
+            IO.newOutputFile(CASE_LOCATION + "/" + parquetFile()).createOrOverwrite();
         InputStream in = file.newStream()) {
       IOUtils.copyBytes(in, out, 1000);
     }
