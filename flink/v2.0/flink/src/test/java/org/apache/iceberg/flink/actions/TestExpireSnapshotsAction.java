@@ -80,12 +80,12 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .retainLast(1);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
@@ -121,12 +121,12 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .parallelism(1);
 
     TaskResult result =
-        new BaseTableMaintenanceAction<>(
+        new TableMaintenanceAction(
                 StreamExecutionEnvironment.getExecutionEnvironment(),
                 tableLoader(),
                 builder,
                 triggerTime)
-            .execute();
+            .collect();
 
     assertThat(result.success()).isTrue();
     assertThat(result.startEpoch()).isEqualTo(triggerTime);
