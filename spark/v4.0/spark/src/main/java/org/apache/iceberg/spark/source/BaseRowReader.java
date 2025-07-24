@@ -44,8 +44,10 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       ScanTaskGroup<T> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(
+        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   protected CloseableIterable<InternalRow> newIterable(
