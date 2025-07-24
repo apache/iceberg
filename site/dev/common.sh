@@ -177,12 +177,12 @@ update_version () {
   # Update version information within the mkdocs.yml file using sed commands
   if [ "$(uname)" == "Darwin" ]
   then
-    /usr/bin/sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
+    /usr/bin/sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
+    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
   elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]
   then
-    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
-    sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
   fi
 
 }
@@ -201,7 +201,9 @@ search_exclude_versioned_docs () {
 
   # Modify .md files to exclude versioned documentation from search indexing
   python3 -c "import os
-for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:\n', '  exclude: true\n'] + lines[2:]);"
+for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:
+', '  exclude: true
+'] + lines[2:]);"
 
   cd -
 }
@@ -231,6 +233,26 @@ pull_versioned_docs () {
 
   # Create the 'nightly' version of documentation
   create_nightly  
+}
+
+# Sets up local worktrees for the documentation and performs operations related to different versions.
+pull_local_docs () {
+  echo " --> pull local docs"
+
+  mkdir -p docs/docs
+  mkdir -p docs/javadoc
+
+  # Retrieve the latest version of documentation for processing
+  local latest_version=$(get_latest_version)
+
+  # Output the latest version for debugging purposes
+  echo "Latest version is: ${latest_version}"
+
+  # Create the 'latest' version of documentation
+  create_latest "${latest_version}"
+
+  # Create the 'nightly' version of documentation
+  create_nightly
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.
