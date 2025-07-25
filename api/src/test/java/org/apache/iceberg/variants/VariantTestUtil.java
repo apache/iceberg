@@ -94,6 +94,11 @@ public class VariantTestUtil {
     }
   }
 
+  public static void assertVariantString(VariantValue actual, String expected, int offsetSize) {
+    assertVariantString(actual, expected);
+    assertThat(VariantUtil.sizeOf(actual.asPrimitive().sizeInBytes())).isEqualTo(offsetSize);
+  }
+
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
   }
