@@ -137,17 +137,25 @@ public class CommitterImpl implements Committer {
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
     if (closedPartitions == null || closedPartitions.isEmpty()) {
-      LOG.warn("close() called with null or empty partition list for {}-{}. This is unexpected.",
-              config.connectorName(), config.taskId());
+      LOG.warn(
+          "close() called with null or empty partition list for {}-{}. This is unexpected.",
+          config.connectorName(),
+          config.taskId());
       return;
     }
     if (hasLeaderPartition(closedPartitions)) {
-      LOG.info("Committer {}-{} lost leader partition. Stopping Coordinator.", config.connectorName(), config.taskId());
+      LOG.info(
+          "Committer {}-{} lost leader partition. Stopping Coordinator.",
+          config.connectorName(),
+          config.taskId());
       stopCoordinator();
     }
     LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
     stopWorker();
-    LOG.info("Seeking to last committed offsets for worker {}-{}.", config.connectorName(), config.taskId());
+    LOG.info(
+        "Seeking to last committed offsets for worker {}-{}.",
+        config.connectorName(),
+        config.taskId());
     KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
