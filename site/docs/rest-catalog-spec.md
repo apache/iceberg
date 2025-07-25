@@ -21,9 +21,9 @@ title: "REST Catalog Spec"
 ## REST Catalog API Specification
 
 Iceberg defines a REST-based Catalog API for managing table metadata and performing catalog operations. You can find the OpenAPI specification here:
-[REST Catalog OpenAPI YAML](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml)
+[REST Catalog OpenAPI YAML](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
 
-You can also explore the API interactively using the [Swagger UI](https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml)
+You can also explore the API interactively using the [Swagger UI](https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml).
 
 ## REST Catalog Protocol
 
