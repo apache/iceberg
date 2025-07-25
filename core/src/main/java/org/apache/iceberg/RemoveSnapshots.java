@@ -364,18 +364,17 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
-
-    if (specifiedSnapshotId) {
-      if (incrementalCleanup != null && incrementalCleanup) {
-        throw new UnsupportedOperationException(
-            "Cannot clean files incrementally when snapshot IDs are specified");
-      }
-
-      incrementalCleanup = false;
+    if (base.snapshots().isEmpty()) {
+      return;
     }
 
-    if (incrementalCleanup == null) {
-      incrementalCleanup = current.refs().size() == 1;
+    if (Boolean.TRUE.equals(incrementalCleanup)) {
+      validateCleanupCanBeIncremental(current);
+    } else if (incrementalCleanup == null) {
+      incrementalCleanup =
+          !specifiedSnapshotId
+              && !hasRemovedNonMainAncestors(base, current)
+              && !hasNonMainSnapshots(current);
     }
 
     LOG.info(
@@ -389,5 +388,64 @@ class RemoveSnapshots implements ExpireSnapshots {
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
+  }
+
+  private void validateCleanupCanBeIncremental(TableMetadata current) {
+    if (specifiedSnapshotId) {
+      throw new UnsupportedOperationException(
+          "Cannot clean files incrementally when snapshot IDs are specified");
+    }
+
+    if (hasRemovedNonMainAncestors(base, current)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when snapshots outside of main ancestry were removed");
+    }
+
+    if (hasNonMainSnapshots(current)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when there are snapshots outside of main");
+    }
+  }
+
+  private boolean hasRemovedNonMainAncestors(
+      TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+    Set<Long> mainAncestors = Sets.newHashSet();
+    if (beforeExpiration.currentSnapshot() != null) {
+      for (Snapshot ancestor :
+          SnapshotUtil.ancestorsOf(
+              beforeExpiration.currentSnapshot().snapshotId(), beforeExpiration::snapshot)) {
+        mainAncestors.add(ancestor.snapshotId());
+      }
+    }
+
+    for (Snapshot snapshotBeforeExpiration : beforeExpiration.snapshots()) {
+      boolean removedSnapshot =
+          afterExpiration.snapshot(snapshotBeforeExpiration.snapshotId()) == null;
+      if (removedSnapshot && !mainAncestors.contains(snapshotBeforeExpiration.snapshotId())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private boolean hasNonMainSnapshots(TableMetadata metadata) {
+    if (metadata.currentSnapshot() == null) {
+      return !metadata.snapshots().isEmpty();
+    }
+
+    Set<Long> ancestors = Sets.newHashSet();
+    for (Snapshot ancestor :
+        SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
+      ancestors.add(ancestor.snapshotId());
+    }
+
+    for (Snapshot snapshot : metadata.snapshots()) {
+      if (!ancestors.contains(snapshot.snapshotId())) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
