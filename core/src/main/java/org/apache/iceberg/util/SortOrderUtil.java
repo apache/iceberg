@@ -47,6 +47,23 @@ public class SortOrderUtil {
   }
 
   /**
+   * Attempts to match a user-supplied {@link SortOrder} with an equivalent sort order from a {@link
+   * Table}.
+   *
+   * @param table the table to try and match the sort order against
+   * @param userSuppliedSortOrder the user supplied sort order to try and match with a table sort
+   *     order
+   * @return the matching {@link SortOrder} from the table (with the orderId set) or {@link
+   *     SortOrder#unsorted()} if no match is found.
+   */
+  public static SortOrder maybeFindTableSortOrder(Table table, SortOrder userSuppliedSortOrder) {
+    return table.sortOrders().values().stream()
+        .filter(sortOrder -> sortOrder.sameOrder(userSuppliedSortOrder))
+        .findFirst()
+        .orElseGet(SortOrder::unsorted);
+  }
+
+  /**
    * Build a final sort order that satisfies the clustering required by the partition spec.
    *
    * <p>The incoming sort order may or may not satisfy the clustering needed by the partition spec.
