@@ -358,9 +358,43 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  apply plugin: 'java-test-fixtures'
+  apply plugin: 'jvm-test-suite'
+
   test {
     useJUnitPlatform()
   }
+
+  testing {
+    suites {
+      intTest(JvmTestSuite) {
+        useJUnitJupiter()
+        dependencies {
+          implementation project()
+          implementation testFixtures(project())
+        }
+        check.dependsOn intTest
+        targets {
+          all {
+            testTask.configure {
+              shouldRunAfter(test)
+              mustRunAfter(test)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  configurations {
+    docs {
+      description = 'Dependencies for generating configuration documentation'
+      canBeResolved = true
+      canBeConsumed = false
+      visible = false
+    }
+  }
+
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -385,11 +419,16 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    // OAuth2
+    implementation libs.nimbus.oauth2.oidc.sdk
+    implementation libs.nimbus.jose.jwt
+
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.bouncycastle.bcpkix
     testImplementation libs.sqlite.jdbc
     testImplementation libs.derby.core
     testImplementation libs.derby.tools
@@ -399,7 +438,78 @@ project(':iceberg-core') {
       exclude group: 'junit'
     }
     testImplementation libs.awaitility
+
+    testFixturesApi libs.junit.jupiter
+    testFixturesApi libs.junit.pioneer
+    testFixturesApi libs.assertj.core
+    testFixturesApi libs.mockito.core
+
+    testFixturesApi libs.httpcomponents.httpclient5
+    testFixturesApi libs.nimbus.oauth2.oidc.sdk
+    testFixturesApi libs.nimbus.jose.jwt
+
+    testFixturesApi libs.mockserver.netty
+    testFixturesApi libs.mockserver.client.java
+
+    testFixturesApi libs.testcontainers
+    testFixturesApi libs.testcontainers.junit.jupiter
+    testFixturesApi libs.testcontainers.keycloak
+
+    testFixturesApi libs.keycloak.admin.client
+
+    testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+
+    testFixturesAnnotationProcessor libs.immutables.value
+    testFixturesCompileOnly libs.immutables.value
+
+    intTestImplementation project(path: ':iceberg-api', configuration: 'testArtifacts') // for CatalogTests
+    intTestImplementation project(path: ':iceberg-core', configuration: 'testArtifacts') // for CatalogTests
+    intTestImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+
+    intTestImplementation libs.jetty.servlet
+    intTestImplementation libs.jakarta.servlet
+    intTestImplementation libs.jetty.server
+
+    docs 'com.thoughtworks.qdox:qdox:2.2.0'
+    docs project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
+
+  sourceSets {
+    docs {
+      java {
+        srcDir 'src/docs/java'
+      }
+      resources {
+        srcDir 'src/docs/resources'
+      }
+      compileClasspath += configurations.docs
+      runtimeClasspath += configurations.docs
+    }
+  }
+
+  tasks.named('processDocsResources', ProcessResources).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  }
+
+  tasks.register('generateOAuth2Docs', JavaExec) {
+    group = 'documentation'
+    description = 'Generates REST OAuth2 configuration documentation from OAuth2Config'
+    mainClass.set('org.apache.iceberg.rest.auth.oauth2.docs.OAuth2DocumentationGenerator')
+    classpath = sourceSets.docs.runtimeClasspath
+
+    def inputFile = project.file('src/main/java/org/apache/iceberg/rest/auth/oauth2/OAuth2Config.java')
+    def outputFile = rootProject.file('docs/docs/oauth2-configuration.md')
+
+    inputs.files(inputFile)
+    outputs.file(outputFile)
+
+    args(inputFile.absolutePath, outputFile.absolutePath)
+
+    doFirst { outputFile.parentFile.mkdirs() }
+  }
+
+  assemble.dependsOn('generateOAuth2Docs')
+
 }
 
 project(':iceberg-data') {

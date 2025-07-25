@@ -108,7 +108,16 @@ jobs:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
-    - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
+    - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest -x intTest
+    - name: Check all generated files are up to date
+      run: |
+        if ! git diff --exit-code; then
+          echo ""
+          echo "ERROR: Generated files are out of date!"
+          echo "The above diff shows files that need to be regenerated."
+          echo "Please run './gradlew assemble' locally and commit the updated files."
+          exit 1
+        fi
 
   build-javadoc:
     runs-on: ubuntu-24.04

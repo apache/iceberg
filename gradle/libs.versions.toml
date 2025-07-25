@@ -36,6 +36,7 @@ awaitility = "4.3.0"
 awssdk-bom = "2.42.18"
 azuresdk-bom = "1.3.5"
 awssdk-s3accessgrants = "2.4.1"
+bouncycastle = "1.83"
 bson-ver = "4.11.5"
 caffeine = "2.9.3"
 calcite = "1.41.0"
@@ -70,6 +71,7 @@ junit = "5.14.3"
 junit-platform = "1.14.3"
 junit-pioneer = "2.3.0"
 kafka = "3.9.2"
+keycloak-admin-client = "26.0.6"
 kryo-shaded = "4.0.3"
 lz4Java = "1.10.4"
 microprofile-openapi-api = "3.1.2"
@@ -77,6 +79,8 @@ mockito = "4.11.0"
 mockserver = "5.15.0"
 nessie = "0.107.4"
 netty-buffer = "4.2.10.Final"
+nimbus-oauth2 = "11.34"
+nimbus-jose-jwt = "10.8"
 object-client-bundle = "3.3.2"
 orc = "1.9.8"
 parquet = "1.17.0"
@@ -90,6 +94,7 @@ spark40 = "4.0.2"
 spark41 = "4.1.1"
 sqlite-jdbc = "3.51.3.0"
 testcontainers = "2.0.4"
+testcontainers-keycloak = "3.6.0"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -110,6 +115,7 @@ awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom"
 awssdk-s3accessgrants = { module = "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin", version.ref = "awssdk-s3accessgrants" }
 azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
 bson = { module = "org.mongodb:bson", version.ref = "bson-ver"}
+bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
@@ -165,6 +171,8 @@ lz4Java = { module = "at.yawk.lz4:lz4-java", version.ref = "lz4Java" }
 microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
+nimbus-oauth2-oidc-sdk = { module = "com.nimbusds:oauth2-oidc-sdk", version.ref = "nimbus-oauth2" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
@@ -210,6 +218,7 @@ junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "jun
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
+keycloak-admin-client = { module = "org.keycloak:keycloak-admin-client", version.ref = "keycloak-admin-client" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
@@ -223,6 +232,7 @@ orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
+testcontainers-keycloak = { module = "com.github.dasniko:testcontainers-keycloak", version.ref = "testcontainers-keycloak" }
 testcontainers-minio = { module = "org.testcontainers:testcontainers-minio", version.ref = "testcontainers" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
 tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }

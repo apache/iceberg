@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -457,6 +458,22 @@ public class TestHTTPClient {
     assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
         .as("Parent RESTClient should still be operational after child is closed")
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testUnwrap() {
+    assertThat(restClient.unwrap(RESTClient.class))
+        .as("HTTPClient should unwrap to RESTClient")
+        .isPresent();
+    assertThat(restClient.unwrap(HTTPClient.class))
+        .as("HTTPClient should unwrap to itself")
+        .isPresent();
+    assertThat(restClient.unwrap(HttpClient.class))
+        .as("HTTPClient should unwrap to its underlying Apache HttpClient")
+        .isPresent();
+    assertThat(restClient.unwrap(AuthSession.class))
+        .as("HTTPClient should not unwrap to unrelated types")
+        .isNotPresent();
   }
 
   @ParameterizedTest

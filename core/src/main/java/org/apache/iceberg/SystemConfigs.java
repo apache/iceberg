@@ -58,7 +58,7 @@ public class SystemConfigs {
       new ConfigEntry<>(
           "iceberg.rest.auth.refresh.num-threads",
           "ICEBERG_AUTH_REFRESH_NUM_THREADS",
-          1,
+          2,
           Integer::parseUnsignedInt);
 
   /** Whether to use the shared worker pool when planning table scans. */

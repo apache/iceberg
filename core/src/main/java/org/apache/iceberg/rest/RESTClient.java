@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.io.Closeable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -225,5 +226,14 @@ public interface RESTClient extends Closeable {
    */
   default RESTClient withAuthSession(AuthSession session) {
     return this;
+  }
+
+  /**
+   * Unwrap this client to the given class if possible.
+   *
+   * @return The unwrapped client, or empty if this client cannot be unwrapped to the given class.
+   */
+  default <T> Optional<T> unwrap(Class<T> clazz) {
+    return Optional.ofNullable(clazz.isInstance(this) ? clazz.cast(this) : null);
   }
 }

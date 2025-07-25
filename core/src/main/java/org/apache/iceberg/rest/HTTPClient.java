@@ -26,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -161,6 +162,11 @@ public class HTTPClient extends BaseHTTPClient {
   public HTTPClient withAuthSession(AuthSession session) {
     Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
+  }
+
+  @Override
+  public <T> Optional<T> unwrap(Class<T> clazz) {
+    return clazz.isInstance(httpClient) ? Optional.of(clazz.cast(httpClient)) : super.unwrap(clazz);
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {

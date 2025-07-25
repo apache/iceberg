@@ -33,6 +33,10 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+/**
+ * @deprecated will be removed in 1.14.0
+ */
+@Deprecated
 public class TestOAuth2Util {
   @Test
   public void testOAuthScopeTokenValidation() {
