@@ -373,9 +373,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     } else if (incrementalCleanup == null) {
       incrementalCleanup =
           !specifiedSnapshotId
-              && !hasNonMainRefs(current)
-              && !hasNonMainBranches(base)
-              && !hasNonMainSnapshots(base)
+              && !hasRemovedNonMainAncestors(base, current)
               && !hasNonMainSnapshots(current);
     }
 
@@ -398,35 +396,32 @@ class RemoveSnapshots implements ExpireSnapshots {
           "Cannot clean files incrementally when snapshot IDs are specified");
     }
 
-    if (hasNonMainRefs(current)) {
+    if (hasRemovedNonMainAncestors(base, current)) {
       throw new UnsupportedOperationException(
-          "Cannot incrementally clean files for tables with more than 1 ref");
+          "Cannot incrementally clean files when snapshots outside of main ancestry were removed");
     }
 
-    if (hasNonMainBranches(base)) {
-      throw new UnsupportedOperationException(
-          "Cannot incrementally clean files when metadata before expiration has other branches");
-    }
-
-    if (hasNonMainSnapshots(base) || hasNonMainSnapshots(current)) {
+    if (hasNonMainSnapshots(current)) {
       throw new UnsupportedOperationException(
           "Cannot incrementally clean files when there are snapshots outside of main");
     }
   }
 
-  private boolean hasNonMainBranches(TableMetadata metadata) {
-    for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
-      if (ref.getValue().isBranch() && !ref.getKey().equals(SnapshotRef.MAIN_BRANCH)) {
-        return true;
+  private boolean hasRemovedNonMainAncestors(
+      TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+    Set<Long> mainAncestors = Sets.newHashSet();
+    if (beforeExpiration.currentSnapshot() != null) {
+      for (Snapshot ancestor :
+          SnapshotUtil.ancestorsOf(
+              beforeExpiration.currentSnapshot().snapshotId(), beforeExpiration::snapshot)) {
+        mainAncestors.add(ancestor.snapshotId());
       }
     }
 
-    return false;
-  }
-
-  private boolean hasNonMainRefs(TableMetadata metadata) {
-    for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
-      if (!ref.getKey().equals(SnapshotRef.MAIN_BRANCH)) {
+    for (Snapshot snapshotBeforeExpiration : beforeExpiration.snapshots()) {
+      boolean removedSnapshot =
+          afterExpiration.snapshot(snapshotBeforeExpiration.snapshotId()) == null;
+      if (removedSnapshot && !mainAncestors.contains(snapshotBeforeExpiration.snapshotId())) {
         return true;
       }
     }
