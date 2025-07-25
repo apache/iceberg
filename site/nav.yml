@@ -65,7 +65,7 @@ nav:
       - Sponsors: https://www.apache.org/foundation/sponsors.html
   - Specification:
     - Terms: terms.md
-    - REST Catalog Spec: https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml
+    - REST Catalog Spec: rest-catalog-spec.md
     - Table Spec: spec.md
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
