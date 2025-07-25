@@ -19,9 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
@@ -32,8 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.BucketUtil;
-import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.BucketHash;
 import org.apache.iceberg.util.SerializableFunction;
 
 class Bucket<T> implements Transform<T, Integer>, Serializable {
@@ -55,28 +51,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     Preconditions.checkArgument(
         numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
 
-    switch (type.typeId()) {
-      case DATE:
-      case INTEGER:
-        return (B) new BucketInteger(numBuckets);
-      case TIME:
-      case TIMESTAMP:
-      case LONG:
-        return (B) new BucketLong(numBuckets);
-      case DECIMAL:
-        return (B) new BucketDecimal(numBuckets);
-      case STRING:
-        return (B) new BucketString(numBuckets);
-      case FIXED:
-      case BINARY:
-        return (B) new BucketByteBuffer(numBuckets);
-      case TIMESTAMP_NANO:
-        return (B) new BucketTimestampNano(numBuckets);
-      case UUID:
-        return (B) new BucketUUID(numBuckets);
-      default:
-        throw new IllegalArgumentException("Cannot bucket by type: " + type);
-    }
+    return (B) new BucketFunction<>(numBuckets, BucketHash.forType(type));
   }
 
   private final int numBuckets;
@@ -131,6 +106,10 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
       case DECIMAL:
       case UUID:
         return true;
+      case STRUCT:
+        return type.asStructType().fields().stream()
+            .map(Types.NestedField::type)
+            .allMatch(this::canTransform);
     }
     return false;
   }
@@ -206,95 +185,19 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     return Types.IntegerType.get();
   }
 
-  private static class BucketInteger extends Bucket<Integer>
-      implements SerializableFunction<Integer, Integer> {
+  private static class BucketFunction<T> extends Bucket<T>
+      implements SerializableFunction<T, Integer> {
 
-    private BucketInteger(int numBuckets) {
+    private final BucketHash<T> bucketHash;
+
+    private BucketFunction(int numBuckets, BucketHash<T> bucketHash) {
       super(numBuckets);
+      this.bucketHash = bucketHash;
     }
 
     @Override
-    protected int hash(Integer value) {
-      return BucketUtil.hash(value);
-    }
-  }
-
-  private static class BucketLong extends Bucket<Long>
-      implements SerializableFunction<Long, Integer> {
-
-    private BucketLong(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    protected int hash(Long value) {
-      return BucketUtil.hash(value);
-    }
-  }
-
-  // In order to bucket TimestampNano the same as Timestamp, convert to micros before hashing.
-  private static class BucketTimestampNano extends Bucket<Long>
-      implements SerializableFunction<Long, Integer> {
-
-    private BucketTimestampNano(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    protected int hash(Long nanos) {
-      return BucketUtil.hash(DateTimeUtil.nanosToMicros(nanos));
-    }
-  }
-
-  private static class BucketString extends Bucket<CharSequence>
-      implements SerializableFunction<CharSequence, Integer> {
-
-    private BucketString(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    protected int hash(CharSequence value) {
-      return BucketUtil.hash(value);
-    }
-  }
-
-  private static class BucketByteBuffer extends Bucket<ByteBuffer>
-      implements SerializableFunction<ByteBuffer, Integer> {
-
-    private BucketByteBuffer(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    protected int hash(ByteBuffer value) {
-      return BucketUtil.hash(value);
-    }
-  }
-
-  private static class BucketUUID extends Bucket<UUID>
-      implements SerializableFunction<UUID, Integer> {
-
-    private BucketUUID(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    public int hash(UUID value) {
-      return BucketUtil.hash(value);
-    }
-  }
-
-  private static class BucketDecimal extends Bucket<BigDecimal>
-      implements SerializableFunction<BigDecimal, Integer> {
-
-    private BucketDecimal(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    protected int hash(BigDecimal value) {
-      return BucketUtil.hash(value);
+    protected int hash(T value) {
+      return bucketHash.hash(value);
     }
   }
 }
