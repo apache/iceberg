@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -46,6 +48,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.avro.Avro;
@@ -71,6 +75,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
@@ -278,6 +283,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             || endMetadata.partitionStatisticsFiles().isEmpty(),
         "Partition statistics files are not supported yet.");
 
+    Preconditions.checkArgument(
+        TableUtil.formatVersion(table) < 3 || !containsDV(table.newScan()),
+        "Delection vector files are not supported yet.");
+
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
     Set<Snapshot> deltaSnapshots = deltaSnapshots(startMetadata, rewriteVersionResult.toRewrite());
@@ -310,6 +319,19 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     copyPlan.addAll(rewriteManifestResult.copyPlan());
 
     return saveFileList(copyPlan);
+  }
+
+  private boolean containsDV(TableScan scan) {
+    try (CloseableIterable<? extends FileScanTask> taskIterable = scan.planFiles()) {
+      for (FileScanTask task : taskIterable) {
+        if (task.deletes().stream().anyMatch(ContentFileUtil::isDV)) {
+          return true;
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
+    }
+    return false;
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
