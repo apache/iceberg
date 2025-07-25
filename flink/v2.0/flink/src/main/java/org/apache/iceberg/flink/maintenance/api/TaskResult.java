@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.Serializable;
 import java.util.List;
+import org.apache.iceberg.actions.ActionResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** The result of a single Maintenance Task. */
@@ -28,12 +29,23 @@ public class TaskResult implements Serializable {
   private final long startEpoch;
   private final boolean success;
   private final List<Exception> exceptions;
+  private final ActionResult actionResult;
 
   public TaskResult(int taskIndex, long startEpoch, boolean success, List<Exception> exceptions) {
+    this(taskIndex, startEpoch, success, exceptions, null);
+  }
+
+  public TaskResult(
+      int taskIndex,
+      long startEpoch,
+      boolean success,
+      List<Exception> exceptions,
+      ActionResult actionResult) {
     this.taskIndex = taskIndex;
     this.startEpoch = startEpoch;
     this.success = success;
     this.exceptions = exceptions;
+    this.actionResult = actionResult;
   }
 
   public int taskIndex() {
@@ -48,6 +60,10 @@ public class TaskResult implements Serializable {
     return success;
   }
 
+  public ActionResult actionResult() {
+    return actionResult;
+  }
+
   public List<Exception> exceptions() {
     return exceptions;
   }
@@ -59,6 +75,7 @@ public class TaskResult implements Serializable {
         .add("startEpoch", startEpoch)
         .add("success", success)
         .add("exceptions", exceptions)
+        .add("actionResult", actionResult)
         .toString();
   }
 }

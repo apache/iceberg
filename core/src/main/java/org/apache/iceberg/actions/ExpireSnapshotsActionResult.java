@@ -18,33 +18,21 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.List;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+public class ExpireSnapshotsActionResult implements ActionResult {
 
-public class RewriteDataFilesActionResult implements ActionResult {
+  private static final ExpireSnapshotsActionResult EMPTY = new ExpireSnapshotsActionResult(0L);
 
-  private static final RewriteDataFilesActionResult EMPTY =
-      new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());
+  private final long deletedFiles;
 
-  private final List<DataFile> deletedDataFiles;
-  private final List<DataFile> addedDataFiles;
-
-  public RewriteDataFilesActionResult(
-      List<DataFile> deletedDataFiles, List<DataFile> addedDataFiles) {
-    this.deletedDataFiles = deletedDataFiles;
-    this.addedDataFiles = addedDataFiles;
+  public ExpireSnapshotsActionResult(long deletedFiles) {
+    this.deletedFiles = deletedFiles;
   }
 
-  static RewriteDataFilesActionResult empty() {
+  static ExpireSnapshotsActionResult empty() {
     return EMPTY;
   }
 
-  public List<DataFile> deletedDataFiles() {
-    return deletedDataFiles;
-  }
-
-  public List<DataFile> addedDataFiles() {
-    return addedDataFiles;
+  public long deletedFiles() {
+    return deletedFiles;
   }
 }

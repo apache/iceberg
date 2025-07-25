@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
@@ -29,12 +30,14 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +63,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private transient Counter addedDataFileSizeCounter;
   private transient Counter removedDataFileNumCounter;
   private transient Counter removedDataFileSizeCounter;
+
+  private transient List<DataFile> addedDataFiles;
+  private transient List<DataFile> removedDataFiles;
 
   public DataFileRewriteCommitter(
       String tableName, String taskName, int taskIndex, TableLoader tableLoader) {
@@ -91,6 +97,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC);
     this.removedDataFileSizeCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC);
+    this.addedDataFiles = Lists.newArrayList();
+    this.removedDataFiles = Lists.newArrayList();
   }
 
   @Override
@@ -128,6 +136,11 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     try {
       if (commitService != null) {
         commitService.close();
+        RewriteDataFilesActionResult actionRes =
+            new RewriteDataFilesActionResult(
+                Lists.newArrayList(removedDataFiles.iterator()),
+                Lists.newArrayList(addedDataFiles.iterator()));
+        output.collect(new StreamRecord<>(Trigger.create(actionRes)));
       }
 
       LOG.info(
@@ -150,6 +163,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
 
     // Cleanup
     this.commitService = null;
+    this.addedDataFiles.clear();
+    this.removedDataFiles.clear();
 
     super.processWatermark(mark);
   }
@@ -158,6 +173,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   public void close() throws IOException {
     if (commitService != null) {
       commitService.close();
+      RewriteDataFilesActionResult actionRes =
+          new RewriteDataFilesActionResult(addedDataFiles, removedDataFiles);
+      output.collect(new StreamRecord<>(Trigger.create(actionRes)));
     }
   }
 
@@ -187,11 +205,13 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         for (DataFile added : fileGroup.addedFiles()) {
           addedDataFileNumCounter.inc();
           addedDataFileSizeCounter.inc(added.fileSizeInBytes());
+          addedDataFiles.add(added);
         }
 
         for (DataFile rewritten : fileGroup.rewrittenFiles()) {
           removedDataFileNumCounter.inc();
           removedDataFileSizeCounter.inc(rewritten.fileSizeInBytes());
+          removedDataFiles.add(rewritten);
         }
       }
     }
