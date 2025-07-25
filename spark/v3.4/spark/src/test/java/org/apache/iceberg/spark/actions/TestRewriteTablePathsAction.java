@@ -935,6 +935,54 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
+  public void testV3DeletionVectorFiles() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    int formatVersionV3 = 3;
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("format-version", String.valueOf(formatVersionV3));
+    String tableName = "v3tblwithDV";
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+
+    // write data
+    sql("insert into hive.default.%s values (1, 'AAAAAAAAAA', 'AAAA')", tableName);
+    sourceTable.refresh();
+
+    // write dv
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                sourceTable
+                    .currentSnapshot()
+                    .addedDataFiles(sourceTable.io())
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    File file =
+        new File(removePrefix(sourceTable.location() + "/data/deeply/nested/V3deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                sourceTable,
+                sourceTable.io().newOutputFile(file.toURI().toString()),
+                deletes,
+                formatVersionV3)
+            .first();
+
+    sourceTable.newRowDelta().addDeletes(positionDeletes).commit();
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Delection vector files are not supported yet");
+  }
+
+  @Test
   public void testTableWithManyStatisticFiles() throws IOException {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
