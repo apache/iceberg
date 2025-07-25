@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -227,6 +228,27 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
   }
 
   @TestTemplate
+  public void testNoPuffinFileCreatedWhenNoDeletesWritten() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DVFileWriter dvWriter =
+        new BaseDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
+
+    // close without writing any deletes
+    dvWriter.close();
+
+    // verify the writer result has no delete files
+    DeleteWriteResult result = dvWriter.result();
+    assertThat(result.deleteFiles()).isEmpty();
+    assertThat(result.referencedDataFiles()).isEmpty();
+    assertThat(result.referencesDataFiles()).isFalse();
+    assertThat(result.rewrittenDeleteFiles()).isEmpty();
+
+    // verify no puffin files were created in the data directory
+    assertNoPuffinFilesInDataDir();
+  }
+
+  @TestTemplate
   public void testApplyPartitionScopedPositionDeletes() throws IOException {
     assumeThat(formatVersion).isEqualTo(2);
 
@@ -324,6 +346,14 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     }
 
     return writer.toDeleteFile();
+  }
+
+  private void assertNoPuffinFilesInDataDir() {
+    File dir = new File(table.location(), "data");
+    if (dir.exists()) {
+      File[] matches = dir.listFiles((d, name) -> name.endsWith(".puffin"));
+      assertThat(matches).isEmpty();
+    }
   }
 
   private static class PreviousDeleteLoader implements Function<String, PositionDeleteIndex> {
