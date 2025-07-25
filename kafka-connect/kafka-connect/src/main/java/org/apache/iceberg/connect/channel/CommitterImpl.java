@@ -136,11 +136,8 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    if (closedPartitions == null || closedPartitions.isEmpty()) {
-      LOG.warn(
-          "close() called with null or empty partition list for {}-{}. This is unexpected.",
-          config.connectorName(),
-          config.taskId());
+    if (!isInitialized.get()) {
+      LOG.warn("Unexpected close() call without resource initialization");
       return;
     }
     if (hasLeaderPartition(closedPartitions)) {
