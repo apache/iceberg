@@ -71,6 +71,7 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
+import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
@@ -85,7 +86,8 @@ public class SparkScanBuilder
         SupportsPushDownAggregates,
         SupportsPushDownV2Filters,
         SupportsPushDownRequiredColumns,
-        SupportsReportStatistics {
+        SupportsReportStatistics,
+        SupportsPushDownLimit {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Predicate[] NO_PREDICATES = new Predicate[0];
@@ -103,6 +105,7 @@ public class SparkScanBuilder
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
+  private int pushedLimit;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -268,6 +271,20 @@ public class SparkScanBuilder
     return true;
   }
 
+  @Override
+  public boolean pushLimit(int limit) {
+    if (readConf.limitPushDownEnabled()) {
+      pushedLimit = limit;
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public boolean isPartiallyPushed() {
+    return true;
+  }
+
   private boolean canPushDownAggregation(Aggregation aggregation) {
     if (!(table instanceof BaseTable)) {
       return false;
@@ -413,7 +430,8 @@ public class SparkScanBuilder
         readConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        pushedLimit);
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {
@@ -648,7 +666,8 @@ public class SparkScanBuilder
           readConf,
           schemaWithMetadataColumns(),
           filterExpressions,
-          metricsReporter::scanReport);
+          metricsReporter::scanReport,
+          pushedLimit);
     }
 
     // remember the current snapshot ID for commit validation
@@ -678,7 +697,8 @@ public class SparkScanBuilder
         adjustedReadConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        pushedLimit);
   }
 
   public Scan buildCopyOnWriteScan() {
