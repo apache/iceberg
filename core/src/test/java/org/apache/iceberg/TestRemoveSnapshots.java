@@ -1921,15 +1921,21 @@ public class TestRemoveSnapshots extends TestBase {
         .setMinSnapshotsToKeep(branch, 1)
         .commit();
     long currentTime = System.currentTimeMillis();
-    Snapshot latestTestSnapshot = table.currentSnapshot();
+    Snapshot snapshotA = table.currentSnapshot();
     table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snapshotDeleteA = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+
     Set<String> expectedDeletedFiles =
         ImmutableSet.of(
-            latestTestSnapshot.manifestListLocation(),
-            Iterables.getOnlyElement(latestTestSnapshot.allManifests(table.io())).path(),
+            snapshotA.manifestListLocation(),
+            snapshotDeleteA.manifestListLocation(),
+            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
             FILE_A.location());
     Set<String> deletedFiles = Sets.newHashSet();
     waitUntilAfter(currentTime + branchAgeMs);
+
     removeSnapshots(table)
         .deleteWith(deletedFiles::add)
         .expireOlderThan(System.currentTimeMillis())
