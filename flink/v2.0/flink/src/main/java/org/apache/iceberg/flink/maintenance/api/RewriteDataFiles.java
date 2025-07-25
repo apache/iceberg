@@ -26,6 +26,8 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
@@ -56,6 +58,7 @@ public class RewriteDataFiles {
         org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
+    private Expression filter = Expressions.alwaysTrue();
 
     @Override
     String maintenanceTaskName() {
@@ -191,6 +194,18 @@ public class RewriteDataFiles {
     }
 
     /**
+     * A user provided filter for determining which files will be considered by the rewrite
+     * strategy.
+     *
+     * @param newFilter the filter expression to apply
+     * @return this for method chaining
+     */
+    public Builder filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
+    /**
      * Configures the properties for the rewriter.
      *
      * @param rewriteDataFilesConfig properties for the rewriter
@@ -233,7 +248,8 @@ public class RewriteDataFiles {
                       tableLoader(),
                       partialProgressEnabled ? partialProgressMaxCommits : 1,
                       maxRewriteBytes,
-                      rewriteOptions))
+                      rewriteOptions,
+                      filter))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
