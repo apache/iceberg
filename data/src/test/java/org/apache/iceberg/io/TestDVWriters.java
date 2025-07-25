@@ -349,14 +349,6 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     return writer.toDeleteFile();
   }
 
-  private void assertNoPuffinFilesInDataDir() {
-    File dir = new File(table.location(), "data");
-    if (dir.exists()) {
-      File[] matches = dir.listFiles((d, name) -> name.endsWith(".puffin"));
-      assertThat(matches).isEmpty();
-    }
-  }
-
   private static class PreviousDeleteLoader implements Function<String, PositionDeleteIndex> {
     private final Map<String, DeleteFile> deleteFiles;
     private final DeleteLoader deleteLoader;
