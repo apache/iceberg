@@ -264,7 +264,9 @@ public class RewriteTablePathUtil {
 
         if (manifestsToRewrite.contains(file.path())) {
           result.toRewrite().add(file);
-          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+          result
+              .copyPlan()
+              .add(Pair.of(stagingPath(file.path(), sourcePrefix, stagingDir), newFile.path()));
         }
       }
       return result;
@@ -503,7 +505,10 @@ public class RewriteTablePathUtil {
         if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
           result
               .copyPlan()
-              .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+              .add(
+                  Pair.of(
+                      stagingPath(file.location(), sourcePrefix, stagingLocation),
+                      movedFile.location()));
         }
         result.toRewrite().add(file);
         return result;
@@ -693,8 +698,25 @@ public class RewriteTablePathUtil {
    * @param originalPath source path
    * @param stagingDir staging directory
    * @return a staging path under the staging directory, based on the original path
+   * @deprecated since 1.10.0, will be removed in 1.11.0. Use {@link #stagingPath(String, String,
+   *     String)} instead to avoid filename conflicts
    */
+  @Deprecated
   public static String stagingPath(String originalPath, String stagingDir) {
     return stagingDir + fileName(originalPath);
+  }
+
+  /**
+   * Construct a staging path under a given staging directory, preserving relative directory
+   * structure to avoid conflicts when multiple files have the same name but different paths.
+   *
+   * @param originalPath source path
+   * @param sourcePrefix source prefix to be replaced
+   * @param stagingDir staging directory
+   * @return a staging path under the staging directory that preserves the relative path structure
+   */
+  public static String stagingPath(String originalPath, String sourcePrefix, String stagingDir) {
+    String relativePath = relativize(originalPath, sourcePrefix);
+    return combinePaths(stagingDir, relativePath);
   }
 }
