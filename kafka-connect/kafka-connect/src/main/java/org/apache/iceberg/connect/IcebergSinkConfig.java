@@ -92,6 +92,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
+  private static final String TASK_ID = "task.id";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
@@ -282,6 +283,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String connectorName() {
     return originalProps.get(NAME_PROP);
+  }
+
+  public String taskId() {
+    return originalProps.get(TASK_ID);
   }
 
   public String transactionalSuffix() {
