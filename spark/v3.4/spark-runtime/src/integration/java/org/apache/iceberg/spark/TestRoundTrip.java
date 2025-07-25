@@ -21,7 +21,11 @@ package org.apache.iceberg.spark;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -170,6 +174,34 @@ public class TestRoundTrip extends ExtensionsTestBase {
     sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
     assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
     sql("DROP VIEW %s", "test");
+  }
+
+  @TestTemplate
+  public void testDecimalColumn() {
+    int rows = 100;
+    String tableName = tableName("decimal_table1");
+    // Create table with a single DECIMAL column
+    sql("CREATE TABLE IF NOT EXISTS %s (amount DECIMAL(17, 5)) USING iceberg", tableName);
+    sql("TRUNCATE TABLE %s", tableName);
+
+    // Build and execute the INSERT statement
+    sql(
+        "INSERT INTO %s VALUES %s",
+        tableName,
+        IntStream.range(0, rows).mapToObj(i -> "(" + i + ")").collect(Collectors.joining(",")));
+
+    // Build expected results
+    List<Object[]> expected =
+        IntStream.range(0, rows)
+            .mapToObj(i -> new Object[] {new BigDecimal(i + ".00000")})
+            .collect(Collectors.toList());
+
+    // Query and validate
+    List<Object[]> actual = sql("SELECT * FROM %s", tableName);
+    for (int i = 0; i < expected.size(); i++) {
+      System.out.println(actual.get(i)[0]);
+      assertEquals("Mismatch at row " + i, expected, actual);
+    }
   }
 
   private Table getTable(String name) {

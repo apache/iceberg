@@ -45,7 +45,7 @@ class CometPositionColumnReader extends CometColumnReader {
       super(
           DataTypes.LongType,
           descriptor,
-          false /* useDecimal128 = false */,
+          true /* useDecimal128 = true */,
           false /* isConstant */);
     }
 

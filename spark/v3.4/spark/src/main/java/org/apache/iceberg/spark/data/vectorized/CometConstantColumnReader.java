@@ -34,7 +34,7 @@ class CometConstantColumnReader<T> extends CometColumnReader {
     super(field);
     // use delegate to set constant value on the native side to be consumed by native execution.
     setDelegate(
-        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), false));
+        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), true));
   }
 
   @Override
