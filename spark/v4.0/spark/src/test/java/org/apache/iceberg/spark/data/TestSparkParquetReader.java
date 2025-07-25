@@ -122,6 +122,11 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     return true;
   }
 
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   protected List<InternalRow> rowsFromFile(InputFile inputFile, Schema schema) throws IOException {
     try (CloseableIterable<InternalRow> reader =
         Parquet.read(inputFile)

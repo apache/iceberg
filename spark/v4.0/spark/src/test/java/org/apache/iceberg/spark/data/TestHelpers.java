@@ -63,7 +63,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -83,6 +82,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 import scala.collection.Seq;
 
 public class TestHelpers {
@@ -405,9 +405,8 @@ public class TestHelpers {
         break;
       case VARIANT:
         assertThat(expected).as("Should expect a Variant").isInstanceOf(Variant.class);
-        assertThat(actual).as("Should be a Variant").isInstanceOf(Variant.class);
-        VariantTestUtil.assertEqual(((Variant) expected).metadata(), ((Variant) actual).metadata());
-        VariantTestUtil.assertEqual(((Variant) expected).value(), ((Variant) actual).value());
+        assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
+        GenericsHelpers.assertEquals((Variant) expected, (VariantVal) actual);
         break;
       case TIME:
       default:

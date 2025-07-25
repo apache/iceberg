@@ -50,8 +50,7 @@ public class TestSparkParquetWriter {
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "id_long", Types.LongType.get()),
-          Types.NestedField.required(3, "v", Types.VariantType.get()));
+          Types.NestedField.required(2, "id_long", Types.LongType.get()));
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(
@@ -94,8 +93,7 @@ public class TestSparkParquetWriter {
                       optional(22, "jumpy", Types.DoubleType.get()),
                       required(23, "koala", Types.UUIDType.get()),
                       required(24, "couch rope", Types.IntegerType.get())))),
-          optional(2, "slide", Types.StringType.get()),
-          required(25, "flush", Types.VariantType.get()));
+          optional(2, "slide", Types.StringType.get()));
 
   @Test
   public void testCorrectness() throws IOException {

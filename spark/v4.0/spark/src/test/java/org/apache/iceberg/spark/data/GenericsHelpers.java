@@ -307,7 +307,7 @@ public class GenericsHelpers {
     }
   }
 
-  private static void assertEquals(Variant expected, VariantVal actual) {
+  static void assertEquals(Variant expected, VariantVal actual) {
     VariantMetadata actualMetadata =
         VariantMetadata.from(ByteBuffer.wrap(actual.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
     VariantTestUtil.assertEqual(expected.metadata(), actualMetadata);

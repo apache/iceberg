@@ -578,11 +578,10 @@ public class SparkParquetWriters {
   /** Variant writer converts from VariantVal to Variant */
   public static class VariantWriter implements ParquetValueWriter<VariantVal> {
     private final ParquetValueWriter<Variant> writer;
-    private final List<TripleWriter<?>> children;
 
-    protected VariantWriter(ParquetValueWriter<?> writer) {
+    @SuppressWarnings("unchecked")
+    private VariantWriter(ParquetValueWriter<?> writer) {
       this.writer = (ParquetValueWriter<Variant>) writer;
-      this.children = writer.columns();
     }
 
     @Override
@@ -599,7 +598,7 @@ public class SparkParquetWriters {
 
     @Override
     public List<TripleWriter<?>> columns() {
-      return children;
+      return writer.columns();
     }
 
     @Override

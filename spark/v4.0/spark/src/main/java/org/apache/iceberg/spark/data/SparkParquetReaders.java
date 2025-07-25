@@ -37,7 +37,7 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
-import org.apache.iceberg.parquet.ParquetVariantReaders;
+import org.apache.iceberg.parquet.ParquetVariantReaders.DelegatingValueReader;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VariantReaderBuilder;
@@ -514,8 +514,8 @@ public class SparkParquetReaders {
   }
 
   /** Variant reader to convert from Variant to Spark VariantVal */
-  private static class VariantReader
-      extends ParquetVariantReaders.DelegatingValueReader<Variant, VariantVal> {
+  private static class VariantReader extends DelegatingValueReader<Variant, VariantVal> {
+    @SuppressWarnings("unchecked")
     private VariantReader(ParquetValueReader<?> reader) {
       super((ParquetValueReader<Variant>) reader);
     }

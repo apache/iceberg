@@ -89,6 +89,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
     return MapType$.MODULE$.apply(keyResult, valueResult, map.isValueOptional());
   }
 
+  @Override
   public DataType variant(Types.VariantType variant) {
     return VariantType$.MODULE$;
   }

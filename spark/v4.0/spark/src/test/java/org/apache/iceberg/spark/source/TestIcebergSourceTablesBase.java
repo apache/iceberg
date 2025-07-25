@@ -96,7 +96,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -132,10 +131,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
   public abstract String loadLocation(TableIdentifier ident);
 
   public abstract void dropTable(TableIdentifier ident) throws IOException;
-
-  protected boolean supportsVariant() {
-    return false;
-  }
 
   @AfterEach
   public void removeTable() {
@@ -2192,54 +2187,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         dropTable(tableIdentifier);
       }
     }
-  }
-
-  @Test
-  public synchronized void testVariantTableSupport() {
-    Assumptions.assumeThat(supportsVariant()).as("Variant support is not implemented").isTrue();
-
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "variant_table");
-    Schema variantSchema =
-        new Schema(
-            required(1, "id", Types.LongType.get()),
-            required(2, "simple_variant", Types.VariantType.get()),
-            required(3, "complex_variant", Types.VariantType.get()));
-
-    // Create table with format version 3 to support variant types
-    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
-    Table table =
-        createTable(tableIdentifier, variantSchema, PartitionSpec.unpartitioned(), properties);
-
-    // Create expected data using fromJson and casting
-    Dataset<Row> expectedDf =
-        spark
-            .sql(
-                "SELECT "
-                    + "  1L as id, "
-                    + "  parse_json('\"hello world\"') as simple_variant, "
-                    + "  parse_json('{\"name\": \"John\", \"age\": 30, \"active\": true}') as complex_variant "
-                    + "UNION ALL SELECT "
-                    + "  2L as id, "
-                    + "  parse_json('42') as simple_variant, "
-                    + "  parse_json('[1, 2, 3, \"test\"]') as complex_variant "
-                    + "UNION ALL SELECT "
-                    + "  3L as id, "
-                    + "  parse_json('true') as simple_variant, "
-                    + "  parse_json('{\"nested\": {\"value\": 123.45}}') as complex_variant")
-            .orderBy("id");
-
-    expectedDf.write().format("iceberg").mode(SaveMode.Append).save(loadLocation(tableIdentifier));
-
-    Dataset<Row> resultDf =
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier)).orderBy("id");
-
-    // Compare the entire DataFrames
-    List<Row> expectedRows = expectedDf.collectAsList();
-    List<Row> actualRows = resultDf.collectAsList();
-
-    assertThat(actualRows)
-        .as("Variant table rows should match expected")
-        .containsExactlyElementsOf(expectedRows);
   }
 
   @Test

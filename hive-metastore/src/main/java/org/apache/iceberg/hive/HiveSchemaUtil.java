@@ -184,8 +184,6 @@ public final class HiveSchemaUtil {
         final Types.MapType mapType = type.asMapType();
         return String.format(
             "map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
-      case VARIANT:
-        return "variant";
       default:
         throw new UnsupportedOperationException(type + " is not supported");
     }
