@@ -438,7 +438,7 @@ DynamicIcebergSink.Builder<RowData> builder = DynamicIcebergSink.forInput(inputS
 
 // Set common properties
 builder
-    .set("write-format", "parquet");
+    .set("write.parquet.compression-codec", "gzip");
 
 // Set Dynamic Sink specific options
 builder
