@@ -35,6 +35,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DigestUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
@@ -109,7 +110,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         expectedSchema,
-        hashCode());
+        digest());
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
@@ -164,5 +165,15 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public int hashCode() {
     return Objects.hash(
         table.name(), readSchema(), filters.toString(), startSnapshotId, endSnapshotId);
+  }
+
+  protected String digest() {
+    return DigestUtil.computeDigest(
+        getClass().getName(),
+        table.name(),
+        readSchema().toString(),
+        filters.toString(),
+        startSnapshotId,
+        endSnapshotId);
   }
 }

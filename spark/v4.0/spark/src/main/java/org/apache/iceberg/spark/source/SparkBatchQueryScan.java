@@ -53,6 +53,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.DigestUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -270,6 +271,22 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         table().name(),
         branch(),
         readSchema(),
+        filterExpressions().toString(),
+        runtimeFilterExpressions.toString(),
+        snapshotId,
+        startSnapshotId,
+        endSnapshotId,
+        asOfTimestamp,
+        tag);
+  }
+
+  @Override
+  protected String digest() {
+    return DigestUtil.computeDigest(
+        getClass().getName(),
+        table().name(),
+        branch(),
+        readSchema().toString(),
         filterExpressions().toString(),
         runtimeFilterExpressions.toString(),
         snapshotId,
