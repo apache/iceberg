@@ -32,21 +32,15 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A cache for {@link AuthSession} instances.
- *
- * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link SessionCache}.
- */
-@Deprecated
-public class AuthSessionCache implements AutoCloseable {
+public class DefaultSessionCache<K, V extends AuthSession> implements SessionCache<K, V> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultSessionCache.class);
 
   private final Duration sessionTimeout;
   private final Executor executor;
   private final Ticker ticker;
 
-  private volatile Cache<String, AuthSession> sessionCache;
+  private volatile Cache<K, V> sessionCache;
 
   /**
    * Creates a new cache with the given session timeout, and with default executor and default
@@ -56,7 +50,7 @@ public class AuthSessionCache implements AutoCloseable {
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
-  public AuthSessionCache(String name, Duration sessionTimeout) {
+  public DefaultSessionCache(String name, Duration sessionTimeout) {
     this(
         sessionTimeout,
         ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
@@ -73,30 +67,21 @@ public class AuthSessionCache implements AutoCloseable {
    *     default executor. The executor will be closed when this cache is closed.
    * @param ticker the ticker to use for the cache.
    */
-  AuthSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
+  DefaultSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
   }
 
-  /**
-   * Returns a cached session for the given key, loading it with the given loader if it is not
-   * already cached.
-   *
-   * @param key the key to use for the session.
-   * @param loader the loader to use to load the session if it is not already cached.
-   * @param <T> the type of the session.
-   * @return the cached session.
-   */
-  @SuppressWarnings("unchecked")
-  public <T extends AuthSession> T cachedSession(String key, Function<String, T> loader) {
-    return (T) sessionCache().get(key, loader);
+  @Override
+  public V cachedSession(K key, Function<K, V> loader) {
+    return sessionCache().get(key, loader);
   }
 
   @Override
   public void close() {
     try {
-      Cache<String, AuthSession> cache = sessionCache;
+      Cache<K, V> cache = sessionCache;
       this.sessionCache = null;
       if (cache != null) {
         cache.invalidateAll();
@@ -115,7 +100,7 @@ public class AuthSessionCache implements AutoCloseable {
   }
 
   @VisibleForTesting
-  Cache<String, AuthSession> sessionCache() {
+  Cache<K, V> sessionCache() {
     if (sessionCache == null) {
       synchronized (this) {
         if (sessionCache == null) {
@@ -127,8 +112,8 @@ public class AuthSessionCache implements AutoCloseable {
     return sessionCache;
   }
 
-  private Cache<String, AuthSession> newSessionCache() {
-    Caffeine<String, AuthSession> builder =
+  private Cache<K, V> newSessionCache() {
+    Caffeine<K, V> builder =
         Caffeine.newBuilder()
             .executor(executor)
             .expireAfterAccess(sessionTimeout)
