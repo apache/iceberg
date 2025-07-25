@@ -244,8 +244,9 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     assertThat(result.referencesDataFiles()).isFalse();
     assertThat(result.rewrittenDeleteFiles()).isEmpty();
 
-    // verify no puffin files were created in the data directory
-    assertNoPuffinFilesInDataDir();
+    // verify that the data directory doesn't exist, implying no puffin files were created
+    File dir = new File(table.location(), "data");
+    assertThat(dir).doesNotExist();
   }
 
   @TestTemplate
