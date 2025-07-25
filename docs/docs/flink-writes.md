@@ -492,7 +492,12 @@ We need the following information (DynamicRecord) for every record:
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
 | `EqualityFields`   | The equality fields for the table(optional).                                                        |
 
-### Schema Update
+### Schema Evolution
+
+The dynamic sink tries to match the schema provided in `DynamicRecord` with the existing table schemas.
+- If there is a direct match with one of the existing table schemas, that table schema will be used for writing to the table.
+- If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
+- Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
 
 The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the immediateTableUpdate configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
@@ -500,6 +505,7 @@ Supported schema updates:
 
 - Adding new columns
 - Widening existing column types (e.g., Integer → Long, Float → Double)
+- Making required columns optional
 
 Unsupported schema updates:
 
