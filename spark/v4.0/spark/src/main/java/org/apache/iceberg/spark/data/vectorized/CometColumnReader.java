@@ -92,7 +92,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
     }
 
     this.importer = new CometSchemaImporter(new RootAllocator());
-    this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
+    this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, true, false);
     this.initialized = true;
   }
 
