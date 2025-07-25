@@ -60,7 +60,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
  * Most code and behavior is taken from {@link
@@ -76,8 +75,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     Preconditions.checkArgument(
         maximumRetries > 0, "Cannot set retries to %s, the value must be positive", maximumRetries);
     this.maxRetries = maximumRetries;
-    this.retriableCodes =
-        ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
+    this.retriableCodes = ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
