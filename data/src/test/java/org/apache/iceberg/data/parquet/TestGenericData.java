@@ -69,6 +69,11 @@ public class TestGenericData extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
   }
