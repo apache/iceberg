@@ -23,7 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
-import org.apache.comet.parquet.BatchReader;
+import org.apache.comet.parquet.IcebergCometBatchReader;
 import org.apache.comet.parquet.RowGroupReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
@@ -56,7 +56,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   // calling BatchReader.nextBatch, the isDeleted value is not yet available, so
   // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
   // available.
-  private final BatchReader delegate;
+  private final IcebergCometBatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
@@ -65,8 +65,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         readers.stream().map(CometColumnReader.class::cast).toArray(CometColumnReader[]::new);
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
-    this.delegate = new BatchReader(readers.size());
-    delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
+    this.delegate = new IcebergCometBatchReader(readers.size(), SparkSchemaUtil.convert(schema));
   }
 
   @Override
@@ -90,7 +89,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       delegateReaders[i] = readers[i].delegate();
     }
 
-    delegate.setColumnReaders(delegateReaders);
+    delegate.init(delegateReaders);
 
     this.rowStartPosInBatch =
         ((RowGroupReader) pageStore)
