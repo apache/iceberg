@@ -401,6 +401,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
 
+    // There is four files, only id is 1 and 2 will be rewritten. so expect 3 files.
     assertFileNum(table, 3, 0);
 
     SimpleDataUtil.assertTableRecords(

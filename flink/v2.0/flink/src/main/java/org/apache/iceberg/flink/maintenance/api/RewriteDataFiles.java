@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
@@ -57,7 +58,7 @@ public class RewriteDataFiles {
         org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
-    private Expression filter = null;
+    private Expression filter = Expressions.alwaysTrue();
 
     @Override
     String maintenanceTaskName() {

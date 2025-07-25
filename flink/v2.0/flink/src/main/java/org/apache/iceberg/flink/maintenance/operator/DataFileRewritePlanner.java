@@ -34,7 +34,6 @@ import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterator;
@@ -63,25 +62,6 @@ public class DataFileRewritePlanner
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
   private final Expression filter;
-
-  public DataFileRewritePlanner(
-      String tableName,
-      String taskName,
-      int taskIndex,
-      TableLoader tableLoader,
-      int newPartialProgressMaxCommits,
-      long maxRewriteBytes,
-      Map<String, String> rewriterOptions) {
-    this(
-        tableName,
-        taskName,
-        taskIndex,
-        tableLoader,
-        newPartialProgressMaxCommits,
-        maxRewriteBytes,
-        rewriterOptions,
-        Expressions.alwaysTrue());
-  }
 
   public DataFileRewritePlanner(
       String tableName,
@@ -138,8 +118,7 @@ public class DataFileRewritePlanner
         return;
       }
 
-      BinPackRewriteFilePlanner planner =
-          new BinPackRewriteFilePlanner(table, null == filter ? Expressions.alwaysTrue() : filter);
+      BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table, filter);
       planner.init(rewriterOptions);
 
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
