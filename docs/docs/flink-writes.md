@@ -480,17 +480,17 @@ builder.append();
 The user should provide a converter which converts the input record to a DynamicRecord.
 We need the following information (DynamicRecord) for every record:
 
-| Property            | Description                                                                               |
-|---------------------|-------------------------------------------------------------------------------------------|
-| `TableIdentifier`   | The target table to which the record will be written.                                     |
-| `Branch`            | The target branch for writing the record (optional).                                      |
-| `Schema`            | The schema of the record.                                                                 |
-| `Spec`              | The expected partitioning specification for the record.                                   |
-| `RowData`           | The actual row data to be written.                                                        |
-| `DistributionMode`  | The distribution mode for writing the record (currently supports NONE or HASH).           |
-| `Parallelism`       | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
-| `upsertMode`        | Overrides this table's write.upsert.enabled (optional).                                   |
-| `equalityFields`    | The equality fields for the table(optional).                                                        |
+| Property           | Description                                                                               |
+|--------------------|-------------------------------------------------------------------------------------------|
+| `TableIdentifier`  | The target table to which the record will be written.                                     |
+| `Branch`           | The target branch for writing the record (optional).                                      |
+| `Schema`           | The schema of the record.                                                                 |
+| `Spec`             | The expected partitioning specification for the record.                                   |
+| `RowData`          | The actual row data to be written.                                                        |
+| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).           |
+| `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
+| `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
+| `EqualityFields`   | The equality fields for the table(optional).                                                        |
 
 ### Schema Update
 
@@ -511,13 +511,12 @@ Dropping columns is avoided to prevent issues with late or out-of-order data, as
 
 #### Cache
 
-There are two caches here: the table metadata cache and the input schema cache. The size of the table metadata cache is controlled by `cacheMaxSize`, while the size of the input schema cache is controlled by `inputSchemasPerTableCacheMaxSize`.
+There are two distinct caches involved: the table metadata cache and the input schema cache.
 
-The table metadata cache stores the metadata information of tables (such as schema, partition specifications, etc.) to avoid frequent access to the Catalog.
+- The table metadata cache holds metadata such as schema definitions and partition specs to reduce repeated Catalog lookups. Its size is governed by the cacheMaxSize setting.
+- The input schema cache stores incoming schemas per table along with their compatibility resolution results. Its size is controlled by inputSchemasPerTableCacheMaxSize.
 
-The input schema cache stores the input schema of each table along with the compatibility resolution results between the input schema and the table schema.
-In the input schema cache, reuse the same DynamicRecord.schema instance if the record schema is the same helps cache hits and improve performance.
-
+To improve cache hit rates and performance, reuse the same DynamicRecord.schema instance if the record schema is unchanged.
 
 ### Dynamic Sink Configuration
 
