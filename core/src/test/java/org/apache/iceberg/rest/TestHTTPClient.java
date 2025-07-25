@@ -472,10 +472,10 @@ public class TestHTTPClient {
     Item loadTableRequestBody = new Item(0L, "load table");
 
     // First request will respond with a 504 (Gateway Timeout)
-    addRequestTestCaseAndGetPath( path, method, loadTableRequestBody, HttpStatus.SC_GATEWAY_TIMEOUT);
+    addRequestTestCaseAndGetPath(path, method, loadTableRequestBody, HttpStatus.SC_GATEWAY_TIMEOUT);
 
     // Second request will respond with a 200 (OK)
-    addRequestTestCaseAndGetPath( path, method, loadTableRequestBody, HttpStatus.SC_OK);
+    addRequestTestCaseAndGetPath(path, method, loadTableRequestBody, HttpStatus.SC_OK);
 
     // No exception should be thrown, and the second request should succeed
     doExecuteRequest(method, path, loadTableRequestBody, errorHandler, headers -> {});
@@ -534,7 +534,8 @@ public class TestHTTPClient {
    * <p>Note: This will only add one exact request test case, i.e., the response will only be
    * returned for the next matching invocation of the path.
    */
-  private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
+  private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode)
+      throws JsonProcessingException {
 
     // Build the path route, which must be unique per test case.
     boolean isSuccess = statusCode == 200;
@@ -545,7 +546,6 @@ public class TestHTTPClient {
     return addRequestTestCaseAndGetPath(path, method, body, statusCode);
   }
 
-
   /**
    * Adds a request that the mock server can match against, using the provided path, method, body,
    * and status code. This version allows custom control over the path used in the test, e.g., in
@@ -555,7 +555,7 @@ public class TestHTTPClient {
    * returned for the next matching invocation of the path.
    */
   private static String addRequestTestCaseAndGetPath(
-    String path, HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
+      String path, HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
     boolean isSuccess = statusCode == 200;
 
     // Build the expected request
