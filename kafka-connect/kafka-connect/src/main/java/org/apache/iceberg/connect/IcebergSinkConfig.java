@@ -102,6 +102,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
 
+  private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
+      "iceberg.coordinator-executor-keep-alive-timeout-ms";
+
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
   public static final ConfigDef CONFIG_DEF = newConfigDef();
@@ -226,6 +229,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS,
+        ConfigDef.Type.LONG,
+        120000L,
+        Importance.LOW,
+        "config to control coordinator executor keep alive time");
     return configDef;
   }
 
@@ -340,6 +349,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String tablesDefaultPartitionBy() {
     return getString(TABLES_DEFAULT_PARTITION_BY);
+  }
+
+  public long keepAliveTimeoutInMs() {
+    return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
   }
 
   public TableSinkConfig tableConfig(String tableName) {
