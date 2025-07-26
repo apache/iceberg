@@ -164,6 +164,13 @@ subprojects {
     }
   }
 
+  def testParallelism = project.findProperty('testParallelism')
+  if (testParallelism != null) {
+    tasks.withType(Test).configureEach {
+      maxParallelForks = testParallelism as int
+    }
+  }
+
   configurations {
     testImplementation.extendsFrom compileOnly
 
