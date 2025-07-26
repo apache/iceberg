@@ -75,7 +75,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.DoubleType}, Arrow: {@link MinorType#FLOAT8}
  *   <li>Iceberg: {@link Types.StringType}, Arrow: {@link MinorType#VARCHAR}
  *   <li>Iceberg: {@link Types.TimestampType} (both with and without timezone), Arrow: {@link
- *       MinorType#TIMEMICRO}
+ *       MinorType#TIMESTAMPMICRO} and {@link MinorType#TIMESTAMPMICROTZ}
+ *   <li>Iceberg: {@link Types.TimestampNanoType} (both with and without timezone), Arrow: {@link
+ *       MinorType#TIMESTAMPNANO} and {@link MinorType#TIMESTAMPNANOTZ}
  *   <li>Iceberg: {@link Types.BinaryType}, Arrow: {@link MinorType#VARBINARY}
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
  *   <li>Iceberg: {@link Types.TimeType}, Arrow: {@link MinorType#TIMEMICRO}
@@ -114,7 +116,8 @@ public class ArrowReader extends CloseableGroup {
           TypeID.DATE,
           TypeID.UUID,
           TypeID.TIME,
-          TypeID.DECIMAL);
+          TypeID.DECIMAL,
+          TypeID.TIMESTAMP_NANO);
 
   private final Schema schema;
   private final FileIO io;
