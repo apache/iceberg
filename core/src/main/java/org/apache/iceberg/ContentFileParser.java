@@ -134,12 +134,11 @@ class ContentFileParser {
     generator.writeEndObject();
   }
 
-  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+  static ContentFile<?> fromJson(JsonNode jsonNode, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
-    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
-
+    Preconditions.checkArgument(specsById != null, "Invalid partition spec: null");
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
@@ -147,16 +146,19 @@ class ContentFileParser {
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = new PartitionData(spec.partitionType());
+      partitionData = new PartitionData(specsById.get(specId).partitionType());
       StructLike structLike =
-          (StructLike) SingleValueParser.fromJson(spec.partitionType(), jsonNode.get(PARTITION));
+          (StructLike)
+              SingleValueParser.fromJson(
+                  specsById.get(specId).partitionType(), jsonNode.get(PARTITION));
       Preconditions.checkState(
           partitionData.size() == structLike.size(),
           "Invalid partition data size: expected = %s, actual = %s",
           partitionData.size(),
           structLike.size());
       for (int pos = 0; pos < partitionData.size(); ++pos) {
-        Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
+        Class<?> javaClass =
+            specsById.get(specId).partitionType().fields().get(pos).type().typeId().javaClass();
         partitionData.set(pos, structLike.get(pos, javaClass));
       }
     }
