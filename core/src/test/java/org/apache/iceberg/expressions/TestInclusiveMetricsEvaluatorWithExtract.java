@@ -41,8 +41,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -52,11 +56,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestInclusiveMetricsEvaluatorWithExtract {
   private static final Schema SCHEMA =
@@ -67,6 +75,72 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private static final OffsetDateTime TS_COMMON_MIN_VALUE =
+      DateTimeUtil.dateFromDays(30).atStartOfDay().atOffset(ZoneOffset.UTC);
+  private static final OffsetDateTime TS_COMMON_MAX_VALUE =
+      DateTimeUtil.dateFromDays(79).atStartOfDay().atOffset(ZoneOffset.UTC);
+  private static final OffsetDateTime TS_COMMON_MIN_VALUE_MINUS_10 =
+      DateTimeUtil.dateFromDays(20).atStartOfDay().atOffset(ZoneOffset.UTC);
+  private static final OffsetDateTime TS_COMMON_MAX_VALUE_PLUS_10 =
+      DateTimeUtil.dateFromDays(89).atStartOfDay().atOffset(ZoneOffset.UTC);
+  private static final OffsetDateTime TS_COMMON_MAX_VALUE_MINUS_10 =
+      DateTimeUtil.dateFromDays(69).atStartOfDay().atOffset(ZoneOffset.UTC);
+
+  // Timestamp
+  private static final long TS_MIN_VALUE = DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE);
+  private static final long TS_MAX_VALUE = DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE);
+
+  private static final long L_TS_MAX_VALUE_MINUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10);
+  private static final long L_TS_MIN_VALUE_MINUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10);
+  private static final long L_TS_MAX_VALUE_PLUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10);
+
+  // Timestamp Nanos
+  private static final long TS_NANO_MIN_VALUE =
+      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MIN_VALUE);
+  private static final long TS_NANO_MAX_VALUE =
+      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE);
+  private static final long L_TS_NANO_MAX_VALUE_MINUS_10 =
+      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10);
+  private static final long L_TS_NANO_MIN_VALUE_MINUS_10 =
+      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10);
+  private static final long L_TS_NANO_MAX_VALUE_PLUS_10 =
+      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10);
+
+  // Time
+  private static final long TIME_MIN_VALUE =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE) / 1000000;
+  private static final long TIME_MAX_VALUE =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE) / 1000000;
+
+  private static final long L_TIME_MIN_VALUE =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE) / 1000000;
+  private static final String T_TIME_MIN_VALUE = DateTimeUtil.microsToIsoTime(L_TIME_MIN_VALUE);
+
+  private static final long L_TIME_MAX_VALUE =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE) / 1000000;
+  private static final String T_TIME_MAX_VALUE = DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE);
+
+  private static final long L_TIME_MIN_VALUE_MINUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10) / 1000000;
+  private static final String T_TIME_MIN_VALUE_MINUS_10 =
+      DateTimeUtil.microsToIsoTime(L_TIME_MIN_VALUE_MINUS_10);
+
+  private static final long L_TIME_MAX_VALUE_PLUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10) / 1000000;
+  private static final String T_TIME_MAX_VALUE_PLUS_10 =
+      DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE_PLUS_10);
+
+  private static final long L_TIME_MAX_VALUE_MINUS_10 =
+      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10) / 1000000;
+  private static final String T_TIME_MAX_VALUE_MINUS_10 =
+      DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE_MINUS_10);
+
+  // UUID
+  private static final UUID VAR_UUID = UUID.randomUUID();
 
   private static final DataFile FILE =
       new TestDataFile(
@@ -91,7 +165,22 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       "$['event_id']",
                       Variants.of(INT_MIN_VALUE),
                       "$['str']",
-                      Variants.of("abc")))),
+                      Variants.of("abc"),
+                      "$['event_uuid']",
+                      Variants.ofUUID(VAR_UUID),
+                      "$['event_timestamp_long']",
+                      Variants.of(TS_MIN_VALUE),
+                      "$['event_timestamp_ts_type']",
+                      Variants.ofIsoTimestamptz(DateTimeUtil.microsToIsoTimestamptz(TS_MIN_VALUE)),
+                      "$['event_timestamp_nano_long']",
+                      Variants.of(TS_NANO_MIN_VALUE),
+                      "$['event_timestamp_nano_ts_type']",
+                      Variants.ofIsoTimestamptzNanos(
+                          DateTimeUtil.nanosToIsoTimestamptz(TS_NANO_MIN_VALUE)),
+                      "$['event_time_long']",
+                      Variants.of(TIME_MIN_VALUE),
+                      "$['event_time_ts_type']",
+                      Variants.ofIsoTime(DateTimeUtil.microsToIsoTime(TIME_MIN_VALUE))))),
           // upper bounds
           ImmutableMap.of(
               2,
@@ -100,7 +189,22 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       "$['event_id']",
                       Variants.of(INT_MAX_VALUE),
                       "$['str']",
-                      Variants.of("abe")))));
+                      Variants.of("abe"),
+                      "$['event_uuid']",
+                      Variants.ofUUID(VAR_UUID),
+                      "$['event_timestamp_long']",
+                      Variants.of(TS_MAX_VALUE),
+                      "$['event_timestamp_ts_type']",
+                      Variants.ofIsoTimestamptz(DateTimeUtil.microsToIsoTimestamptz(TS_MAX_VALUE)),
+                      "$['event_timestamp_nano_long']",
+                      Variants.of(TS_NANO_MAX_VALUE),
+                      "$['event_timestamp_nano_ts_type']",
+                      Variants.ofIsoTimestamptzNanos(
+                          DateTimeUtil.nanosToIsoTimestamptz(TS_NANO_MAX_VALUE)),
+                      "$['event_time_long']",
+                      Variants.of(TIME_MAX_VALUE),
+                      "$['event_time_ts_type']",
+                      Variants.ofIsoTime(DateTimeUtil.microsToIsoTime(TIME_MAX_VALUE))))));
 
   private boolean shouldRead(Expression expr) {
     return shouldRead(expr, FILE);
@@ -682,5 +786,803 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                     INT_MAX_VALUE + 7)))
         .as("Should read: id above upper bound (85 > 79, 86 > 79)")
         .isTrue();
+  }
+
+  private static Stream<Arguments> timestampLtParameters() {
+    return Stream.of(
+            Arguments.of(
+                    "$.event_timestamp_nano_long",
+                    Types.TimestampNanoType.withZone().toString(),
+                    L_TS_NANO_MIN_VALUE_MINUS_10,
+                    TS_NANO_MIN_VALUE,
+                    TS_NANO_MAX_VALUE,
+                    "$.event_timestamp_nano_ts_type",
+                    TS_COMMON_MIN_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MIN_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE.toString()),
+            Arguments.of(
+                    "$.event_timestamp_long",
+                    Types.TimestampType.withZone().toString(),
+                    L_TS_MIN_VALUE_MINUS_10,
+                    TS_MIN_VALUE,
+                    TS_MAX_VALUE,
+                    "$.event_timestamp_ts_type",
+                    TS_COMMON_MIN_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MIN_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE.toString()),
+            Arguments.of(
+                    "$.event_time_long",
+                    Types.TimeType.get().toString(),
+                    L_TIME_MIN_VALUE_MINUS_10,
+                    TIME_MIN_VALUE,
+                    TIME_MAX_VALUE,
+                    "$.event_time_ts_type",
+                    T_TIME_MIN_VALUE_MINUS_10,
+                    T_TIME_MIN_VALUE,
+                    T_TIME_MAX_VALUE));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampLtParameters")
+  public void testTimestampLt(
+          String columnNameInLong,
+          String timestampType,
+          long minValueMinus10,
+          long minValue,
+          long maxValue,
+          String columnNameInTSType,
+          String minValueMinus10Str,
+          String minValueStr,
+          String maxValueStr) {
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract("variant", columnNameInLong, "long"),
+                        minValueMinus10)))
+        .as("Should not read: timestamp range below lower bound (20 < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract("variant", columnNameInLong, "long"), minValue)))
+        .as("Should not read: timestamp range below lower bound (30 is not < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    minValueMinus10Str)))
+        .as("Should not read: timestamp range below lower bound (20 < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    minValueStr)))
+        .as("Should not read: timestamp range below lower bound (30 is not < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValueStr)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    minValueMinus10Str)))
+        .as("Should not read: timestamp range below lower bound (20 < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                   minValueStr)))
+        .as("Should not read: timestamp range below lower bound (30 is not < 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    maxValueStr)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampLtParameters")
+  public void testTimestampLtEq(
+      String columnNameInLong,
+      String timestampType,
+      long minValueMinus10,
+      long minValue,
+      long maxValue,
+      String columnNameInTSType,
+      String minValueMinus10Str,
+      String minValueStr,
+      String maxValueStr) {
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(extract("variant", columnNameInLong, "long"), minValueMinus10)))
+        .as("Should not read: timestamp range below lower bound (20 > 30)")
+        .isFalse();
+    assertThat(shouldRead(lessThanOrEqual(extract("variant", columnNameInLong, "long"), minValue)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(shouldRead(lessThanOrEqual(extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(
+                    extract("variant", columnNameInLong, timestampType), minValueMinus10Str)))
+        .as("Should not read: timestamp range below lower bound (20 > 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(extract("variant", columnNameInLong, timestampType), minValueStr)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(extract("variant", columnNameInLong, timestampType), maxValueStr)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(
+                    extract("variant", columnNameInTSType, timestampType), minValueMinus10Str)))
+        .as("Should not read: timestamp range below lower bound (20 > 30)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(
+                    extract("variant", columnNameInTSType, timestampType), minValueStr)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                lessThanOrEqual(
+                    extract("variant", columnNameInTSType, timestampType), maxValueStr)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+  }
+
+  private static Stream<Arguments> timestampGtParameters() {
+    return Stream.of(
+            Arguments.of(
+                    "$.event_timestamp_nano_long",
+                    Types.TimestampNanoType.withZone().toString(),
+                    L_TS_NANO_MAX_VALUE_PLUS_10,
+                    TS_NANO_MAX_VALUE,
+                    L_TS_NANO_MAX_VALUE_MINUS_10,
+                    "$.event_timestamp_nano_ts_type",
+                    TS_COMMON_MAX_VALUE_PLUS_10.toString(),
+                    TS_COMMON_MAX_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE_MINUS_10.toString()),
+            Arguments.of(
+                    "$.event_timestamp_long",
+                    Types.TimestampType.withZone().toString(),
+                    L_TS_MAX_VALUE_PLUS_10,
+                    TS_MAX_VALUE,
+                    L_TS_MAX_VALUE_MINUS_10,
+                    "$.event_timestamp_ts_type",
+                    TS_COMMON_MAX_VALUE_PLUS_10.toString(),
+                    TS_COMMON_MAX_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE_MINUS_10.toString()),
+            Arguments.of(
+                    "$.event_time_long",
+                    Types.TimeType.get().toString(),
+                    L_TIME_MAX_VALUE_PLUS_10,
+                    TIME_MAX_VALUE,
+                    L_TIME_MAX_VALUE_MINUS_10,
+                    "$.event_time_ts_type",
+                    T_TIME_MAX_VALUE_PLUS_10,
+                    T_TIME_MAX_VALUE,
+                    T_TIME_MAX_VALUE_MINUS_10));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampGtParameters")
+  public void testTimestampGt(
+          String columnNameInLong,
+          String timestampType,
+          long maxValuePlus10,
+          long maxValue,
+          long maxValueMinus10,
+          String columnNameInTSType,
+          String maxValuePlus10Str,
+          String maxValueStr,
+          String maxValueMinus10Str) {
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract("variant", columnNameInLong, "long"),
+                    maxValuePlus10)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should not read: range above upper bound (79 is not > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract("variant", columnNameInLong, "long"),
+                    maxValueMinus10)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValuePlus10Str)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValueStr)))
+        .as("Should not read: timestamp range above upper bound (79 is not > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValueMinus10Str)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    maxValuePlus10Str)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    maxValueStr)))
+        .as("Should not read: timestamp range above upper bound (79 is not > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThan(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    maxValueMinus10Str)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampGtParameters")
+  public void testTimestampGtEq(
+          String columnNameInLong,
+          String timestampType,
+          long maxValuePlus10,
+          long maxValue,
+          long maxValueMinus10,
+          String columnNameInTSType,
+          String maxValuePlus10Str,
+          String maxValueStr,
+          String maxValueMinus10Str) {
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract("variant", columnNameInLong, "long"),
+                        maxValuePlus10)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract("variant", columnNameInLong, "long"),
+                        maxValueMinus10)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValuePlus10Str)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValueStr)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValueMinus10Str)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValuePlus10Str)))
+        .as("Should not read: timestamp range above upper bound (89 > 79)")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValueStr)))
+        .as("Should read: one possible timestamp")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                greaterThanOrEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValueMinus10Str)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+  }
+
+  private static Stream<Arguments> timestampEqParameters() {
+    return Stream.of(
+            Arguments.of(
+                    "$.event_timestamp_nano_long",
+                    Types.TimestampNanoType.withZone().toString(),
+                    L_TS_NANO_MIN_VALUE_MINUS_10,
+                    TS_NANO_MIN_VALUE,
+                    L_TS_NANO_MAX_VALUE_PLUS_10,
+                    L_TS_NANO_MAX_VALUE_MINUS_10,
+                    TS_NANO_MAX_VALUE,
+                    "$.event_timestamp_nano_ts_type",
+                    TS_COMMON_MIN_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MIN_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE_PLUS_10.toString(),
+                    TS_COMMON_MAX_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MAX_VALUE.toString()),
+            Arguments.of(
+                    "$.event_timestamp_long",
+                    Types.TimestampType.withZone().toString(),
+                    L_TS_MIN_VALUE_MINUS_10,
+                    TS_MIN_VALUE,
+                    L_TS_MAX_VALUE_PLUS_10,
+                    L_TS_MAX_VALUE_MINUS_10,
+                    TS_MAX_VALUE,
+                    "$.event_timestamp_ts_type",
+                    TS_COMMON_MIN_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MIN_VALUE.toString(),
+                    TS_COMMON_MAX_VALUE_PLUS_10.toString(),
+                    TS_COMMON_MAX_VALUE_MINUS_10.toString(),
+                    TS_COMMON_MAX_VALUE.toString()),
+            Arguments.of(
+                    "$.event_time_long",
+                    Types.TimeType.get().toString(),
+                    L_TIME_MIN_VALUE_MINUS_10,
+                    TIME_MIN_VALUE,
+                    L_TIME_MAX_VALUE_PLUS_10,
+                    L_TIME_MAX_VALUE_MINUS_10,
+                    TIME_MAX_VALUE,
+                    "$.event_time_ts_type",
+                    T_TIME_MIN_VALUE_MINUS_10,
+                    T_TIME_MIN_VALUE,
+                    T_TIME_MAX_VALUE_PLUS_10,
+                    T_TIME_MAX_VALUE_MINUS_10,
+                    T_TIME_MAX_VALUE));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampEqParameters")
+  public void testTimestampEq(
+          String columnNameInLong,
+          String timestampType,
+          long minValueMinus10,
+          long minValue,
+          long maxValuePlus10,
+          long maxValueMinus10,
+          long maxValue,
+          String columnNameInTSType,
+          String minValueMinus10Str,
+          String minValueStr,
+          String maxValuePlus10Str,
+          String maxValueMinus10Str,
+          String maxValueStr
+          ) {
+    assertThat(
+            shouldRead(
+                equal(
+                    extract("variant", columnNameInLong, "long"),
+                        minValueMinus10)))
+        .as("Should not read: timestamp below lower bound")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract("variant", columnNameInLong, "long"), minValue)))
+        .as("Should read: timestamp equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract("variant", columnNameInLong, "long"),
+                        maxValuePlus10)))
+        .as("Should not read: timestamp above upper bound")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract("variant", columnNameInLong, "long"),
+                        maxValueMinus10)))
+        .as("Should read: timestamp below lower and upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should read: timestamp equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        minValueMinus10Str)))
+        .as("Should not read: timestamp below lower bound")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        minValueStr)))
+        .as("Should read: timestamp equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValuePlus10Str)))
+        .as("Should not read: timestamp above upper bound")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValueMinus10Str)))
+        .as("Should read: timestamp between lower and upper bounds")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                        maxValueStr)))
+        .as("Should read: timestamp equal to upper bound")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                    minValueMinus10Str)))
+        .as("Should not read: timestamp range above upper bound")
+        .isFalse();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        minValueStr)))
+        .as("Should read: timestamp equal to upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                equal(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValueMinus10Str)))
+        .as("Should read: many possible timestamps")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                    equal(
+                            extract(
+                                    "variant",
+                                    columnNameInTSType,
+                                    timestampType),
+                            maxValuePlus10Str)))
+            .as("Should read: many possible timestamps")
+            .isFalse();
+    assertThat(
+            shouldRead(
+                    equal(
+                            extract(
+                                    "variant",
+                                    columnNameInTSType,
+                                    timestampType),
+                            maxValueStr)))
+            .as("Should read: many possible timestamps")
+            .isTrue();
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampEqParameters")
+  public void testTimestampNotEq(
+          String columnNameInLong,
+          String timestampType,
+          long minValueMinus10,
+          long minValue,
+          long maxValuePlus10,
+          long maxValueMinus10,
+          long maxValue,
+          String columnNameInTSType,
+          String minValueMinus10Str,
+          String minValueStr,
+          String maxValuePlus10Str,
+          String maxValueMinus10Str,
+          String maxValueStr
+  ) {
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract("variant", columnNameInLong, "long"),
+                        minValueMinus10)))
+        .as("Should read: timestamp below lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract("variant", columnNameInLong, "long"), minValue)))
+        .as("Should read: timestamp equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract("variant", columnNameInLong, "long"),
+                    maxValuePlus10)))
+        .as("Should read: timestamp above upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract("variant", columnNameInLong, "long"),
+                    maxValueMinus10)))
+        .as("Should read: timestamp between lower and upper bounds")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract("variant", columnNameInLong, "long"), maxValue)))
+        .as("Should read: timestamp equal to upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    minValueMinus10Str)))
+        .as("Should read: timestamp below lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    minValueStr)))
+        .as("Should read: timestamp equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValuePlus10Str)))
+        .as("Should read: timestamp above upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValueMinus10Str)))
+        .as("Should read: timestamp between lower and upper bounds")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInLong,
+                            timestampType),
+                    maxValueStr)))
+        .as("Should read: timestamp equal to upper bound")
+        .isTrue();
+
+    // Timestamp as timestamp datatype
+    assertThat(
+            shouldRead(
+                    notEqual(
+                            extract(
+                                    "variant",
+                                    columnNameInTSType,
+                                    timestampType),
+                            minValueMinus10Str)))
+            .as("Should read: timestamp range below lower bound")
+            .isTrue();
+    assertThat(
+            shouldRead(
+                    notEqual(
+                            extract(
+                                    "variant",
+                                    columnNameInTSType,
+                                    timestampType),
+                            minValueStr)))
+            .as("Should read: timestamp range below lower bound")
+            .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValueMinus10Str)))
+        .as("Should read: timestamp range below lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                            timestampType),
+                        maxValuePlus10Str)))
+        .as("Should read: timestamp equal to upper bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                notEqual(
+                    extract(
+                        "variant",
+                            columnNameInTSType,
+                        timestampType),
+                        maxValueStr)))
+        .as("Should read: timestamp between lower and upper bounds")
+        .isTrue();
+  }
+
+  @Test
+  public void testUUIDEq() {
+    assertThat(
+            shouldRead(
+                equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID)))
+        .as("Should read: uuid equal to lower bound")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                    equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), UUID.randomUUID())))
+            .as("Should not read: uuid not equal to lower or upper bound")
+            .isFalse();
+  }
+
+  @Test
+  public void testUUIDNotEq() {
+    assertThat(
+            shouldRead(
+                    notEqual(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID)))
+            .as("Should read: uuid equal to lower bound")
+            .isTrue();
+    assertThat(
+            shouldRead(
+                    notEqual(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), UUID.randomUUID())))
+            .as("Should read: uuid not equal to lower or upper bound")
+            .isTrue();
   }
 }
