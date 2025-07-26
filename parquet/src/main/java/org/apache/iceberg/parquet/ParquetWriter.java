@@ -254,7 +254,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public void close() throws IOException {
     if (!closed) {
-      this.closed = true;
       flushRowGroup(true);
       writeStore.close();
       if (writer != null) {
@@ -263,6 +262,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (compressor != null) {
         compressor.release();
       }
+      this.closed = true;
     }
   }
 }
