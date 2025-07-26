@@ -26,6 +26,7 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.UserDefinedType;
+import org.apache.spark.sql.types.VariantType;
 
 class SparkTypeVisitor<T> {
   static <T> T visit(DataType type, SparkTypeVisitor<T> visitor) {
@@ -48,12 +49,19 @@ class SparkTypeVisitor<T> {
     } else if (type instanceof ArrayType) {
       return visitor.array((ArrayType) type, visit(((ArrayType) type).elementType(), visitor));
 
+    } else if (type instanceof VariantType) {
+      return visitor.variant((VariantType) type);
+
     } else if (type instanceof UserDefinedType) {
       throw new UnsupportedOperationException("User-defined types are not supported");
 
     } else {
       return visitor.atomic(type);
     }
+  }
+
+  public T variant(VariantType variant) {
+    throw new UnsupportedOperationException("Not implemented for variant");
   }
 
   public T struct(StructType struct, List<T> fieldResults) {

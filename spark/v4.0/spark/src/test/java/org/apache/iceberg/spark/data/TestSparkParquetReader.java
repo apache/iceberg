@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.data;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -50,7 +49,6 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
@@ -77,13 +75,6 @@ public class TestSparkParquetReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
       throws IOException {
-    assumeThat(
-            TypeUtil.find(
-                writeSchema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
-        .as("Parquet Avro cannot write non-string map keys")
-        .isNull();
-
     OutputFile output = new InMemoryOutputFile();
     try (FileAppender<Record> writer =
         Parquet.write(output)
@@ -119,6 +110,11 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
   @Override
   protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
     return true;
   }
 

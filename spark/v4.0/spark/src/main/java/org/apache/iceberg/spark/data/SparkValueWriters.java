@@ -27,6 +27,7 @@ import java.util.UUID;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -36,6 +37,7 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkValueWriters {
 
@@ -47,6 +49,10 @@ public class SparkValueWriters {
 
   static ValueWriter<UTF8String> uuids() {
     return UUIDWriter.INSTANCE;
+  }
+
+  static ValueWriter<VariantVal> variants() {
+    return VariantWriter.INSTANCE;
   }
 
   static ValueWriter<Decimal> decimal(int precision, int scale) {
@@ -105,6 +111,24 @@ public class SparkValueWriters {
       UUID uuid = UUID.fromString(s.toString());
       // calling array() is safe because the buffer is always allocated by the thread-local
       encoder.writeFixed(UUIDUtil.convertToByteBuffer(uuid, BUFFER.get()).array());
+    }
+  }
+
+  private static class VariantWriter implements ValueWriter<VariantVal> {
+    private static final VariantWriter INSTANCE = new VariantWriter();
+
+    private final ValueWriter<byte[]> metadataWriter;
+    private final ValueWriter<byte[]> valueWriter;
+
+    private VariantWriter() {
+      this.metadataWriter = ValueWriters.bytes();
+      this.valueWriter = ValueWriters.bytes();
+    }
+
+    @Override
+    public void write(VariantVal variant, Encoder encoder) throws IOException {
+      metadataWriter.write(variant.getMetadata(), encoder);
+      valueWriter.write(variant.getValue(), encoder);
     }
   }
 

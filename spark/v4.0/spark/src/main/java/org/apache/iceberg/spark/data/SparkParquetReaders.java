@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,10 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.parquet.ParquetVariantReaders.DelegatingValueReader;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -45,6 +49,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -218,6 +223,17 @@ public class SparkParquetReaders {
           repeatedR,
           ParquetValueReaders.option(keyType, keyD, keyReader),
           ParquetValueReaders.option(valueType, valueD, valueReader));
+    }
+
+    @Override
+    public ParquetVariantVisitor<ParquetValueReader<?>> variantVisitor() {
+      return new VariantReaderBuilder(type, Arrays.asList(currentPath()));
+    }
+
+    @Override
+    public ParquetValueReader<?> variant(
+        Types.VariantType iVariant, GroupType variant, ParquetValueReader<?> variantReader) {
+      return new VariantReader(variantReader);
     }
 
     @Override
@@ -494,6 +510,28 @@ public class SparkParquetReaders {
     protected MapData buildMap(ReusableMapData map) {
       map.setNumElements(writePos);
       return map;
+    }
+  }
+
+  /** Variant reader to convert from Variant to Spark VariantVal */
+  private static class VariantReader extends DelegatingValueReader<Variant, VariantVal> {
+    @SuppressWarnings("unchecked")
+    private VariantReader(ParquetValueReader<?> reader) {
+      super((ParquetValueReader<Variant>) reader);
+    }
+
+    @Override
+    public VariantVal read(VariantVal reuse) {
+      Variant variant = super.readFromDelegate(null);
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.metadata().writeTo(metadataBuffer, 0);
+
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.value().writeTo(valueBuffer, 0);
+
+      return new VariantVal(valueBytes, metadataBytes);
     }
   }
 

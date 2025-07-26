@@ -26,7 +26,6 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
@@ -35,11 +34,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
-import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
@@ -78,8 +78,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
   protected void configureTable(Table table) {}
 
-  protected abstract void writeRecords(Table table, List<GenericData.Record> records)
-      throws IOException;
+  protected abstract void writeRecords(Table table, List<Record> records) throws IOException;
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -93,11 +92,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
     HadoopTables tables = new HadoopTables(CONF);
     // If V3 spec features are used, set the format version to 3
-    Map<String, String> tableProperties =
-        writeSchema.columns().stream()
-                .anyMatch(f -> f.initialDefaultLiteral() != null || f.writeDefaultLiteral() != null)
-            ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
-            : ImmutableMap.of();
+    Map<String, String> tableProperties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
     Table table =
         tables.create(
             writeSchema, PartitionSpec.unpartitioned(), tableProperties, location.toString());
@@ -105,7 +100,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
     // Important: use the table's schema for the rest of the test
     // When tables are created, the column ids are reassigned.
-    List<GenericData.Record> expected = RandomData.generateList(table.schema(), 100, 1L);
+    List<Record> expected = RandomGenericData.generate(table.schema(), 100, 1L);
 
     writeRecords(table, expected);
 
@@ -132,7 +127,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
     assertThat(rows).as("Should contain 100 rows").hasSize(100);
 
     for (int i = 0; i < expected.size(); i += 1) {
-      TestHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));
+      GenericsHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));
     }
   }
 

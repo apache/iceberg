@@ -109,6 +109,11 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
     }
 
     @Override
+    public ValueWriter<?> variant(DataType partner, ValueWriter<?> metadata, ValueWriter<?> value) {
+      return SparkValueWriters.variants();
+    }
+
+    @Override
     public ValueWriter<?> primitive(DataType type, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
