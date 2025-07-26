@@ -768,12 +768,12 @@ public class TestHelpers {
 
     public ExpectedSpecBuilder addField(
         String transformAsString, int sourceId, int partitionId, String name) {
-      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
+      unboundPartitionSpecBuilder.addField(transformAsString, List.of(sourceId), partitionId, name);
       return this;
     }
 
     public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
-      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
+      unboundPartitionSpecBuilder.addField(transformAsString, List.of(sourceId), name);
       return this;
     }
 
