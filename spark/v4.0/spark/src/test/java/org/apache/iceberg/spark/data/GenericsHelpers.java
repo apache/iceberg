@@ -46,11 +46,8 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.spark.sql.Row;
@@ -59,7 +56,6 @@ import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.apache.spark.types.variant.VariantUtil;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 import scala.collection.Seq;
@@ -324,128 +320,10 @@ public class GenericsHelpers {
     VariantMetadata actualMetadata =
         VariantMetadata.from(ByteBuffer.wrap(actual.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
     VariantTestUtil.assertEqual(expected.metadata(), actualMetadata);
-
-    org.apache.spark.types.variant.Variant sparkVariant =
-        new org.apache.spark.types.variant.Variant(actual.getValue(), actual.getMetadata());
-    assertEquals(expected.value(), sparkVariant);
-  }
-
-  static void assertEquals(VariantValue expected, org.apache.spark.types.variant.Variant actual) {
-    assertThat(actual).isNotNull();
-    assertThat(expected).isNotNull();
-
-    if (expected.type() == PhysicalType.OBJECT) {
-      assertThat(actual.getType()).isEqualTo(VariantUtil.Type.OBJECT);
-      VariantObject expectedObject = expected.asObject();
-      assertThat(actual.objectSize())
-          .as("Variant object num fields should match")
-          .isEqualTo(expectedObject.numFields());
-
-      for (String fieldName : expectedObject.fieldNames()) {
-        assertEquals(expectedObject.get(fieldName), actual.getFieldByKey(fieldName));
-      }
-
-    } else if (expected.type() == PhysicalType.ARRAY) {
-      assertThat(actual.getType()).isEqualTo(VariantUtil.Type.ARRAY);
-      VariantArray expectedArray = expected.asArray();
-      assertThat(actual.arraySize())
-          .as("Variant array num element should match")
-          .isEqualTo(expectedArray.numElements());
-
-      for (int i = 0; i < expectedArray.numElements(); i += 1) {
-        assertEquals(expectedArray.get(i), actual.getElementAtIndex(i));
-      }
-
-    } else {
-      // Primitive type and value should match
-      VariantUtil.Type expectedType = null;
-      Object actualValue = null;
-      switch (expected.type()) {
-        case NULL:
-          expectedType = VariantUtil.Type.NULL;
-          actualValue = null;
-          break;
-        case BOOLEAN_TRUE:
-        case BOOLEAN_FALSE:
-          expectedType = VariantUtil.Type.BOOLEAN;
-          actualValue = actual.getBoolean();
-          break;
-        case INT8:
-          expectedType = VariantUtil.Type.LONG;
-          actualValue = (byte) actual.getLong();
-          break;
-        case INT16:
-          expectedType = VariantUtil.Type.LONG;
-          actualValue = (short) actual.getLong();
-          break;
-        case INT32:
-          expectedType = VariantUtil.Type.LONG;
-          actualValue = (int) actual.getLong();
-          break;
-        case INT64:
-          expectedType = VariantUtil.Type.LONG;
-          actualValue = actual.getLong();
-          break;
-        case DOUBLE:
-          expectedType = VariantUtil.Type.DOUBLE;
-          actualValue = actual.getDouble();
-          break;
-        case DECIMAL4:
-        case DECIMAL8:
-        case DECIMAL16:
-          expectedType = VariantUtil.Type.DECIMAL;
-          actualValue = actual.getDecimal();
-          break;
-        case DATE:
-          expectedType = VariantUtil.Type.DATE;
-          actualValue = (int) actual.getLong();
-          break;
-        case TIMESTAMPTZ:
-          expectedType = VariantUtil.Type.TIMESTAMP;
-          actualValue = actual.getLong();
-          break;
-        case TIMESTAMPNTZ:
-          expectedType = VariantUtil.Type.TIMESTAMP_NTZ;
-          actualValue = actual.getLong();
-          break;
-        case FLOAT:
-          expectedType = VariantUtil.Type.FLOAT;
-          actualValue = actual.getFloat();
-          break;
-        case BINARY:
-          expectedType = VariantUtil.Type.BINARY;
-          actualValue = ByteBuffer.wrap(actual.getBinary());
-          break;
-        case STRING:
-          expectedType = VariantUtil.Type.STRING;
-          actualValue = actual.getString();
-          break;
-        case UUID:
-          expectedType = VariantUtil.Type.UUID;
-          actualValue = actual.getUuid();
-          break;
-        case TIME:
-        case TIMESTAMPTZ_NANOS:
-        case TIMESTAMPNTZ_NANOS:
-          // Skip unsupported types in Spark
-          return;
-      }
-
-      assertThat(actual.getType())
-          .as("Variant primitive type should match")
-          .isEqualTo(expectedType);
-
-      if (expectedType == VariantUtil.Type.DECIMAL) {
-        // For decimal, Spark strips trailing zeros
-        assertThat((BigDecimal) actualValue)
-            .as("Variant primitive value should match")
-            .isEqualTo(((BigDecimal) expected.asPrimitive().get()).stripTrailingZeros());
-      } else {
-        assertThat(actualValue)
-            .as("Variant primitive value should match")
-            .isEqualTo(expected.asPrimitive().get());
-      }
-    }
+    VariantTestUtil.assertEqual(
+        expected.value(),
+        VariantValue.from(
+            actualMetadata, ByteBuffer.wrap(actual.getValue()).order(ByteOrder.LITTLE_ENDIAN)));
   }
 
   private static void assertEqualsUnsafe(Type type, Object expected, Object actual) {

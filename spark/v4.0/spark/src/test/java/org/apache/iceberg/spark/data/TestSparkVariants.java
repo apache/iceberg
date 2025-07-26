@@ -28,10 +28,13 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
@@ -39,6 +42,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.spark.SparkRuntimeException;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.VariantType$;
+import org.apache.spark.types.variant.VariantUtil;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -188,14 +192,151 @@ public class TestSparkVariants extends TestBase {
     value.writeTo(valueBuffer, 0);
 
     // Create Spark VariantVal from the same bytes
-    byte[] metadataBytes = metadataBuffer.array();
-    byte[] valueBytes = valueBuffer.array();
+    byte[] metadataBytes = ByteBuffers.toByteArray(metadataBuffer);
+    byte[] valueBytes = ByteBuffers.toByteArray(valueBuffer);
     VariantVal sparkVariant = new VariantVal(valueBytes, metadataBytes);
 
     GenericsHelpers.assertEquals(icebergVariant, sparkVariant);
+    assertEquals(
+        icebergVariant.value(),
+        new org.apache.spark.types.variant.Variant(
+            sparkVariant.getValue(), sparkVariant.getMetadata()));
 
     // TODO: Round-trip: use Spark VariantBuilder to build a Spark variant from Iceberg variant and
     // deserialize back to Iceberg variant currently VariantBuilder doesn't have an easy way to
     // construct array/object.
+  }
+
+  private static void assertEquals(
+      VariantValue expected, org.apache.spark.types.variant.Variant actual) {
+    assertThat(actual).isNotNull();
+    assertThat(expected).isNotNull();
+
+    switch (expected.type()) {
+      case OBJECT:
+        assertThat(actual.getType()).isEqualTo(VariantUtil.Type.OBJECT);
+        VariantObject expectedObject = expected.asObject();
+        assertThat(actual.objectSize())
+            .as("Variant object num fields should match")
+            .isEqualTo(expectedObject.numFields());
+
+        for (String fieldName : expectedObject.fieldNames()) {
+          assertEquals(expectedObject.get(fieldName), actual.getFieldByKey(fieldName));
+        }
+        break;
+      case ARRAY:
+        assertThat(actual.getType()).isEqualTo(VariantUtil.Type.ARRAY);
+        VariantArray expectedArray = expected.asArray();
+        assertThat(actual.arraySize())
+            .as("Variant array num element should match")
+            .isEqualTo(expectedArray.numElements());
+
+        for (int i = 0; i < expectedArray.numElements(); i += 1) {
+          assertEquals(expectedArray.get(i), actual.getElementAtIndex(i));
+        }
+        break;
+      case NULL:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.NULL);
+        break;
+      case BOOLEAN_TRUE:
+      case BOOLEAN_FALSE:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.BOOLEAN);
+        assertThat(actual.getBoolean())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case INT8:
+      case INT16:
+      case INT32:
+      case INT64:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.LONG);
+        assertThat(actual.getLong())
+            .as("Variant primitive value should match")
+            .isEqualTo(((Number) expected.asPrimitive().get()).longValue());
+        break;
+      case DOUBLE:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.DOUBLE);
+        assertThat(actual.getDouble())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case DECIMAL4:
+      case DECIMAL8:
+      case DECIMAL16:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.DECIMAL);
+        // For decimal, Spark strips trailing zeros
+        assertThat(actual.getDecimal())
+            .as("Variant primitive value should match")
+            .isEqualTo(((BigDecimal) expected.asPrimitive().get()).stripTrailingZeros());
+        break;
+      case DATE:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.DATE);
+        assertThat(actual.getLong())
+            .as("Variant primitive value should match")
+            .isEqualTo(((Number) expected.asPrimitive().get()).longValue());
+        break;
+      case TIMESTAMPTZ:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.TIMESTAMP);
+        assertThat(actual.getLong())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case TIMESTAMPNTZ:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.TIMESTAMP_NTZ);
+        assertThat(actual.getLong())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case FLOAT:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.FLOAT);
+        assertThat(actual.getFloat())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case BINARY:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.BINARY);
+        assertThat(ByteBuffer.wrap(actual.getBinary()))
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case STRING:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.STRING);
+        assertThat(actual.getString())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      case UUID:
+        assertThat(actual.getType())
+            .as("Variant primitive type should match")
+            .isEqualTo(VariantUtil.Type.UUID);
+        assertThat(actual.getUuid())
+            .as("Variant primitive value should match")
+            .isEqualTo(expected.asPrimitive().get());
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported variant type: " + expected.type());
+    }
   }
 }
