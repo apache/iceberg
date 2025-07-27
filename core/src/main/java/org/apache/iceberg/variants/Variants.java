@@ -186,16 +186,17 @@ public class Variants {
   }
 
   public static VariantPrimitive<BigDecimal> of(BigDecimal value) {
-    int bitLength = value.unscaledValue().bitLength();
-    if (bitLength < 32) {
+    int precision = value.precision();
+
+    if (precision >= 1 && precision <= 9) {
       return new PrimitiveWrapper<>(PhysicalType.DECIMAL4, value);
-    } else if (bitLength < 64) {
+    } else if (precision >= 10 && precision <= 18) {
       return new PrimitiveWrapper<>(PhysicalType.DECIMAL8, value);
-    } else if (bitLength < 128) {
+    } else if (precision <= 38) {
       return new PrimitiveWrapper<>(PhysicalType.DECIMAL16, value);
     }
 
-    throw new UnsupportedOperationException("Unsupported decimal precision: " + value.precision());
+    throw new UnsupportedOperationException("Unsupported decimal precision: " + precision);
   }
 
   public static VariantPrimitive<ByteBuffer> of(ByteBuffer value) {
