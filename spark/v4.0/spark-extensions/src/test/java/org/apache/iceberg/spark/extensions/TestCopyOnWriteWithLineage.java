@@ -16,29 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.spark.extensions;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-import org.apache.spark.sql.catalyst.expressions.Expression
+public class TestCopyOnWriteWithLineage extends TestRowLevelOperationsWithLineage {
 
-/**
- * A CALL statement, as parsed from SQL.
- */
-case class CallStatement(name: Seq[String], args: Seq[CallArgument]) extends LeafParsedStatement
-
-/**
- * An argument in a CALL statement.
- */
-sealed trait CallArgument {
-  def expr: Expression
+  @Override
+  protected Map<String, String> extraTableProperties() {
+    return ImmutableMap.of(
+        TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
+        TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName(),
+        TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+  }
 }
-
-/**
- * An argument in a CALL statement identified by name.
- */
-case class NamedArgument(name: String, expr: Expression) extends CallArgument
-
-/**
- * An argument in a CALL statement identified by position.
- */
-case class PositionalArgument(expr: Expression) extends CallArgument

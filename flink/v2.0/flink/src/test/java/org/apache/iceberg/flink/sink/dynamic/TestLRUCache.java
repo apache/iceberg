@@ -34,8 +34,7 @@ class TestLRUCache {
     LRUCache<Integer, Integer> cache = new LRUCache<>(1, NO_OP_CALLBACK);
     cache.put(1, 1);
 
-    assertThat(cache.size()).isEqualTo(1);
-    assertThat(cache).containsExactlyEntriesOf(Map.of(1, 1));
+    assertThat(cache).hasSize(1).containsEntry(1, 1);
   }
 
   @Test
@@ -43,7 +42,7 @@ class TestLRUCache {
     LRUCache<Integer, Integer> cache = new LRUCache<>(1, NO_OP_CALLBACK);
     cache.put(1, 123);
 
-    assertThat(cache.size()).isEqualTo(1);
+    assertThat(cache).hasSize(1);
     assertThat(cache.get(1)).isEqualTo(123);
   }
 
@@ -59,8 +58,7 @@ class TestLRUCache {
 
     cache.put(3, 3); // "2" should be evicted
 
-    assertThat(cache.size()).isEqualTo(2);
-    assertThat(cache).containsExactly(Map.entry(1, 1), Map.entry(3, 3));
+    assertThat(cache).hasSize(2).containsEntry(1, 1).containsEntry(3, 3);
   }
 
   @Test

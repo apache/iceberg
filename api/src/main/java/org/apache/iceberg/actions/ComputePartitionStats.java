@@ -16,19 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.actions;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import org.apache.iceberg.PartitionStatisticsFile;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.types.DataTypeUtils
-import org.apache.spark.sql.catalyst.util.truncatedString
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure
+/**
+ * An action that computes and writes the partition statistics of an Iceberg table. Current snapshot
+ * is used by default.
+ */
+public interface ComputePartitionStats
+    extends Action<ComputePartitionStats, ComputePartitionStats.Result> {
+  /**
+   * Choose the table snapshot to compute partition stats.
+   *
+   * @param snapshotId long ID of the snapshot for which stats need to be computed
+   * @return this for method chaining
+   */
+  ComputePartitionStats snapshot(long snapshotId);
 
-case class IcebergCall(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
-  override lazy val output: Seq[Attribute] = DataTypeUtils.toAttributes(procedure.outputType)
+  /** The result of partition statistics collection. */
+  interface Result {
 
-  override def simpleString(maxFields: Int): String = {
-    s"IcebergCall${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"
+    /** Returns statistics file or null if no statistics were collected. */
+    PartitionStatisticsFile statisticsFile();
   }
 }

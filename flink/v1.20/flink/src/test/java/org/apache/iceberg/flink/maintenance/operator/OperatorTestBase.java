@@ -44,6 +44,7 @@ import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -117,6 +118,11 @@ public class OperatorTestBase {
   }
 
   protected static Table createTable() {
+    // only test V2 tables as compaction doesn't support V3 with row lineage
+    return createTable("2");
+  }
+
+  protected static Table createTable(String formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -124,7 +130,11 @@ public class OperatorTestBase {
             SimpleDataUtil.SCHEMA,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of("flink.max-continuous-empty-commits", "100000"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                formatVersion,
+                "flink.max-continuous-empty-commits",
+                "100000"));
   }
 
   protected static Table createTableWithDelete() {
@@ -146,7 +156,7 @@ public class OperatorTestBase {
             SimpleDataUtil.SCHEMA,
             PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build(),
             null,
-            ImmutableMap.of("flink.max-continuous-empty-commits", "100000"));
+            ImmutableMap.of("format-version", "2", "flink.max-continuous-empty-commits", "100000"));
   }
 
   protected void insert(Table table, Integer id, String data) throws IOException {

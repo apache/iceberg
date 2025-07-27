@@ -87,6 +87,15 @@ public class CompareSchemasVisitor
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
+    for (Types.NestedField tableField : tableSchemaType.asStructType().fields()) {
+      if (tableField.isRequired() && struct.field(tableField.name()) == null) {
+        // If a field from the table schema does not exist in the input schema, then we won't visit
+        // it and check for required/optional compatibility. The only choice is to make the table
+        // field optional.
+        return Result.SCHEMA_UPDATE_NEEDED;
+      }
+    }
+
     if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
       return Result.DATA_CONVERSION_NEEDED;
     }

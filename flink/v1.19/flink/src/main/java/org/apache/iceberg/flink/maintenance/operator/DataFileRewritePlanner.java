@@ -29,6 +29,8 @@ import org.apache.flink.util.Collector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -86,6 +88,10 @@ public class DataFileRewritePlanner
   @Override
   public void open(Configuration parameters) throws Exception {
     tableLoader.open();
+    Table table = tableLoader.loadTable();
+    Preconditions.checkArgument(
+        !TableUtil.supportsRowLineage(table),
+        "Flink does not support compaction on row lineage enabled tables (V3+)");
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);

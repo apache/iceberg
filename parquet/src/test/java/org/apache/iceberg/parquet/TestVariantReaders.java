@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -69,7 +70,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -198,9 +198,7 @@ public class TestVariantReaders {
   @ParameterizedTest
   @FieldSource("PRIMITIVES")
   public void testShreddedVariantPrimitives(VariantPrimitive<?> primitive) throws IOException {
-    Assumptions.assumeThat(primitive.type() != PhysicalType.NULL)
-        .as("Null is not a shredded type")
-        .isTrue();
+    assumeThat(primitive.type()).as("Null is not a shredded type").isNotEqualTo(PhysicalType.NULL);
 
     GroupType variantType = variant("var", 2, shreddedType(primitive));
     MessageType parquetSchema = parquetSchema(variantType);

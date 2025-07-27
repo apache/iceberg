@@ -36,7 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -56,7 +56,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 
-public class TestFlinkParquetReader extends DataTest {
+public class TestFlinkParquetReader extends DataTestBase {
   private static final int NUM_RECORDS = 100;
 
   @Override
@@ -166,7 +166,7 @@ public class TestFlinkParquetReader extends DataTest {
     ParquetValueReader<RowData> reader =
         FlinkParquetReaders.buildReader(new Schema(SUPPORTED_PRIMITIVES.fields()), fileSchema);
 
-    assertThat(reader.columns().size()).isEqualTo(SUPPORTED_PRIMITIVES.fields().size());
+    assertThat(reader.columns()).hasSameSizeAs(SUPPORTED_PRIMITIVES.fields());
   }
 
   @Test

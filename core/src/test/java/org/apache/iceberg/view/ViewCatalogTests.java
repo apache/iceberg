@@ -40,7 +40,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -401,9 +400,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createViewThatAlreadyExistsAsTable() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
 
@@ -431,9 +428,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createTableThatAlreadyExistsAsView() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
@@ -459,9 +454,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createTableViaTransactionThatAlreadyExistsAsView() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
@@ -489,9 +482,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void replaceTableViaTransactionThatAlreadyExistsAsView() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
@@ -522,9 +513,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createOrReplaceTableViaTransactionThatAlreadyExistsAsView() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
 
@@ -555,9 +544,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void replaceViewThatAlreadyExistsAsTable() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
 
@@ -585,9 +572,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void createOrReplaceViewThatAlreadyExistsAsTable() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
 
@@ -765,9 +750,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void renameViewTargetAlreadyExistsAsTable() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
@@ -800,9 +783,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void renameTableTargetAlreadyExistsAsView() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     TableIdentifier viewIdentifier = TableIdentifier.of("ns", "view");
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
@@ -928,9 +909,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void listViewsAndTables() {
-    Assumptions.assumeThat(tableCatalog())
-        .as("Only valid for catalogs that support tables")
-        .isNotNull();
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
 
     Namespace ns = Namespace.of("ns");
 

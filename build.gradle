@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.7'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.8'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -34,7 +34,7 @@ buildscript {
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:7.14.0'
   }
@@ -231,7 +231,13 @@ subprojects {
     jvmArgs += project.property('extraJvmArgs')
 
     testLogging {
-      events "failed"
+      // Check if running on CI environment
+      if (System.getenv('CI') != null) {
+        // More verbose logging for CI environments
+        events "started", "passed", "skipped", "failed"
+      } else {
+        events "failed"
+      }
       exceptionFormat "full"
     }
 
@@ -906,6 +912,8 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-nessie') {
+  // Starting from Nessie 0.104.2, JDK 17+ is required for test dependencies
+  test.onlyIf { JavaVersion.current() != JavaVersion.VERSION_11 }
   test {
     useJUnitPlatform()
   }

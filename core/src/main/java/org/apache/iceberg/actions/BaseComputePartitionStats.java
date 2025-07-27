@@ -16,25 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.actions;
 
-package org.apache.spark.sql.execution.datasources.v2
+import javax.annotation.Nullable;
+import org.apache.iceberg.PartitionStatisticsFile;
+import org.immutables.value.Value;
 
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.util.truncatedString
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure
-import scala.collection.compat.immutable.ArraySeq
+@Value.Enclosing
+@SuppressWarnings("ImmutablesStyle")
+@Value.Style(
+    typeImmutableEnclosing = "ImmutableComputePartitionStats",
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
+interface BaseComputePartitionStats extends ComputePartitionStats {
 
-case class CallExec(
-    output: Seq[Attribute],
-    procedure: Procedure,
-    input: InternalRow) extends LeafV2CommandExec {
-
-  override protected def run(): Seq[InternalRow] = {
-    ArraySeq.unsafeWrapArray(procedure.call(input))
-  }
-
-  override def simpleString(maxFields: Int): String = {
-    s"CallExec${truncatedString(output, "[", ", ", "]", maxFields)} ${procedure.description}"
+  @Value.Immutable
+  interface Result extends ComputePartitionStats.Result {
+    @Override
+    @Nullable
+    PartitionStatisticsFile statisticsFile();
   }
 }

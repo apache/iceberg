@@ -1285,6 +1285,12 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.TableProperties.ROW_LINEAGE"
       justification: "Removing deprecations for 1.10.0"
+    - code: "java.method.inheritedMovedToClass"
+      old: "method org.apache.iceberg.rest.auth.AuthSession org.apache.iceberg.rest.auth.AuthManager::tableSession(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>) @ org.apache.iceberg.rest.auth.OAuth2Manager"
+      new: "method org.apache.iceberg.rest.auth.OAuth2Util.AuthSession org.apache.iceberg.rest.auth.OAuth2Manager::tableSession(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>)"
+      justification: "overriding a default method is source- and binary-compatible"
     - code: "java.method.removed"
       old: "method boolean org.apache.iceberg.TableMetadata::rowLineageEnabled()"
       justification: "Removing deprecations for 1.10.0"

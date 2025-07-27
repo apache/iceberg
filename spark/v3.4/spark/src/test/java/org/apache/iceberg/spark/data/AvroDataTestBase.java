@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -46,7 +47,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assumptions;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -54,7 +54,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class AvroDataTest {
+public abstract class AvroDataTestBase {
 
   private static final long FIRST_ROW_ID = 2_000L;
   protected static final Map<Integer, Object> ID_TO_CONSTANT =
@@ -136,7 +136,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNestedStruct() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
@@ -144,7 +144,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testArray() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
@@ -156,7 +156,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testArrayOfStructs() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
@@ -169,7 +169,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMap() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
@@ -183,20 +183,8 @@ public abstract class AvroDataTest {
   }
 
   @Test
-  public void testUnknown() throws IOException {
-    Schema schema =
-        new Schema(
-            required(1, "id", LongType.get()), optional(2, "unknown", Types.UnknownType.get())
-            // ,
-            //            optional(3, "list", ListType.ofOptional(30, Types.UnknownType.get()))
-            );
-
-    writeAndValidate(schema);
-  }
-
-  @Test
   public void testNumericMapKey() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
@@ -209,7 +197,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testComplexMapKey() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
@@ -230,7 +218,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMapOfStructs() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
@@ -246,7 +234,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     StructType structType =
         StructType.of(
@@ -305,7 +293,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMissingRequiredWithoutDefault() {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
 
@@ -330,7 +318,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testDefaultValues() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -366,7 +354,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNullDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -396,8 +384,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -440,8 +428,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMapNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -493,8 +481,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testListNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
-    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -567,7 +555,7 @@ public abstract class AvroDataTest {
   @MethodSource("primitiveTypesAndDefaults")
   public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Literal<?> defaultValue)
       throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
 
@@ -585,9 +573,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testRowLineage() throws Exception {
-    Assumptions.assumeThat(supportsRowLineage())
-        .as("Row lineage support is not implemented")
-        .isTrue();
+    assumeThat(supportsRowLineage()).as("Row lineage support is not implemented").isTrue();
 
     Schema schema =
         new Schema(
