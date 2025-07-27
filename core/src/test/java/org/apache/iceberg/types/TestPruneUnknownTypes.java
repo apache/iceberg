@@ -59,26 +59,6 @@ public class TestPruneUnknownTypes {
   }
 
   @Test
-  public void testPruneListType() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
-            Types.NestedField.required(
-                2, "unk_list", Types.ListType.ofOptional(20, Types.UnknownType.get())),
-            Types.NestedField.required(
-                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
-
-    Schema expectedSchema =
-        new Schema(
-            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
-            Types.NestedField.required(
-                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
-
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
-    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
-  }
-
-  @Test
   public void testPruneComplexNested() {
     Schema schema =
         new Schema(
@@ -115,6 +95,26 @@ public class TestPruneUnknownTypes {
                             Types.StructType.of(
                                 Types.NestedField.required(17, "x", Types.IntegerType.get()),
                                 Types.NestedField.required(18, "y", Types.IntegerType.get())))))));
+
+    Schema actualSchema = PruneUnknownTypes.convert(schema);
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testPruneListType() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2, "unk_list", Types.ListType.ofOptional(20, Types.UnknownType.get())),
+            Types.NestedField.required(
+                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
+
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
+            Types.NestedField.required(
+                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
 
     Schema actualSchema = PruneUnknownTypes.convert(schema);
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());

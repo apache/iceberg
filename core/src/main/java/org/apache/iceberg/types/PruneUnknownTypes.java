@@ -109,6 +109,10 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Type elementResult) {
+    if (elementResult.typeId().equals(Type.TypeID.UNKNOWN)) {
+      return Types.UnknownType.get();
+    }
+
     if (!list.elementType().equals(elementResult)) {
       if (list.isElementOptional()) {
         return Types.ListType.ofOptional(list.elementId(), elementResult);
