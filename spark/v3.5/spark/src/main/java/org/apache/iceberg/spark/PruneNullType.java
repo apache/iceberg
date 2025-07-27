@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.spark;
 
-import com.clearspring.analytics.util.Lists;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
