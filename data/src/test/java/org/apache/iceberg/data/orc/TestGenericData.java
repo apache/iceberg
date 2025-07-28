@@ -122,7 +122,7 @@ public class TestGenericData extends DataTestBase {
       record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
       record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
-      File testFile = temp.resolve("test-file").toFile();
+      File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
       try (FileAppender<Record> writer =
           ORC.write(Files.localOutput(testFile))
@@ -190,7 +190,7 @@ public class TestGenericData extends DataTestBase {
 
   @Test
   public void writeAndValidateExternalData() throws IOException {
-    File testFile = temp.resolve("test-file").toFile();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     Configuration conf = new Configuration();
     TypeDescription writerSchema =
@@ -234,7 +234,7 @@ public class TestGenericData extends DataTestBase {
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
-    File testFile = temp.resolve("test-file").toFile();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

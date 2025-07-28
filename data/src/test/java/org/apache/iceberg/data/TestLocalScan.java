@@ -195,7 +195,7 @@ public class TestLocalScan {
 
   @BeforeEach
   public void createTables() throws IOException {
-    File location = new File(tempDir, "shared");
+    File location = new File(tempDir, "shared" + System.nanoTime());
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(

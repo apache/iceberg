@@ -54,7 +54,7 @@ public class TestGenericData extends DataTestBase {
   private void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
       throws IOException {
 
-    File testFile = temp.resolve("test-file").toFile();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     try (FileAppender<Record> writer =
         Avro.write(Files.localOutput(testFile))
