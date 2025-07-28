@@ -182,7 +182,7 @@ public class TestSerializedPrimitives {
   public void testDecimal4() {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(
-            new byte[] {primitiveHeader(8), 0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
+            new byte[] {primitiveHeader(8), 0x04, (byte) 0x15, (byte) 0xCD, (byte) 0x5B, 0x07});
 
     assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(value.get()).isEqualTo(new BigDecimal("12345.6789"));
@@ -208,13 +208,13 @@ public class TestSerializedPrimitives {
               primitiveHeader(9),
               0x09, // scale=9
               (byte) 0xB1,
-              0x1C,
-              0x6C,
-              (byte) 0xB1,
-              (byte) 0xF4,
-              0x10,
-              0x22,
-              0x11
+              (byte) 0xFA,
+              0x52,
+              (byte) 0xE0,
+              (byte) 0x4B,
+              (byte) 0x9B,
+              (byte) 0xB6,
+              0x01
             });
 
     assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL8);
