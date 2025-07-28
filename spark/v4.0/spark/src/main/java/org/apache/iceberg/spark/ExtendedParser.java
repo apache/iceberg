@@ -52,10 +52,10 @@ public interface ExtendedParser extends ParserInterface {
   }
 
   static List<RawOrderField> parseSortOrder(SparkSession spark, String orderString) {
-    if (spark.sessionState().sqlParser() instanceof ExtendedParser) {
-      ExtendedParser parser = (ExtendedParser) spark.sessionState().sqlParser();
+    ExtendedParser extParser = findParser(spark.sessionState().sqlParser(), ExtendedParser.class);
+    if (extParser != null) {
       try {
-        return parser.parseSortOrder(orderString);
+        return extParser.parseSortOrder(orderString);
       } catch (AnalysisException e) {
         throw new IllegalArgumentException(
             String.format("Unable to parse sortOrder: %s", orderString), e);
@@ -64,6 +64,44 @@ public interface ExtendedParser extends ParserInterface {
       throw new IllegalStateException(
           "Cannot parse order: parser is not an Iceberg ExtendedParser");
     }
+  }
+
+  static <T> T findParser(ParserInterface parser, Class<T> clazz) {
+    ParserInterface current = parser;
+    while (current != null) {
+      if (clazz.isInstance(current)) {
+        return clazz.cast(current);
+      }
+      Object next = getDelegate(current);
+      if (next == null || next == current) {
+        break;
+      }
+      current = (ParserInterface) next;
+    }
+    return null;
+  }
+
+  static Object getDelegate(Object parser) {
+    try {
+      for (String methodName : new String[] {"delegate", "getDelegate"}) {
+        try {
+          java.lang.reflect.Method delegateMethod = parser.getClass().getMethod(methodName);
+          return delegateMethod.invoke(parser);
+        } catch (NoSuchMethodException ignore) {
+          // pass
+        }
+      }
+      try {
+        java.lang.reflect.Field delegateField = parser.getClass().getDeclaredField("delegate");
+        delegateField.setAccessible(true);
+        return delegateField.get(parser);
+      } catch (NoSuchFieldException ignore) {
+        // pass
+      }
+    } catch (Exception e) {
+      // pass
+    }
+    return null;
   }
 
   List<RawOrderField> parseSortOrder(String orderString) throws AnalysisException;
