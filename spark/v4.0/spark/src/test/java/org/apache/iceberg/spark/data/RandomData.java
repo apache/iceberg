@@ -340,6 +340,7 @@ public class RandomData {
       return result;
     }
 
+    @Override
     public VariantVal variant(Types.VariantType type) {
       Variant variant = RandomVariants.randomVariant(random);
 
