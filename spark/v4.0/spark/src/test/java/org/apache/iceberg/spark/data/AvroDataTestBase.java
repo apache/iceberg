@@ -51,7 +51,6 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
-import org.assertj.core.api.Assumptions;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -175,30 +174,29 @@ public abstract class AvroDataTestBase {
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
-    Assumptions.assumeThat(
+    assumeThat(
             supportsUnknown()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
         .as("unknown is not yet implemented")
         .isTrue();
-    Assumptions.assumeThat(
-            supportsTime() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) == null)
+    assumeThat(supportsTime() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) == null)
         .as("Spark does not support time fields")
         .isTrue();
-    Assumptions.assumeThat(
+    assumeThat(
             supportsTimestampNanos()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
         .as("timestamp_ns is not yet implemented")
         .isTrue();
-    Assumptions.assumeThat(
+    assumeThat(
             supportsVariant()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
         .as("variant is not yet implemented")
         .isTrue();
     if (!supportsGeospatial()) {
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
+      assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
           .as("geometry is not yet implemented")
           .isTrue();
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
+      assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
           .as("geography is not yet implemented")
           .isTrue();
     }

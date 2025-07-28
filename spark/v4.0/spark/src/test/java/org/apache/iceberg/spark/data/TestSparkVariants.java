@@ -175,7 +175,8 @@ public class TestSparkVariants extends TestBase {
 
     assertThatThrownBy(sparkVariant::getType)
         .as("Unsupported variant type in Spark")
-        .isInstanceOf(SparkRuntimeException.class);
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("UNKNOWN_PRIMITIVE_TYPE_IN_VARIANT");
   }
 
   private void testVariantRoundTrip(VariantMetadata metadata, VariantValue value) {
