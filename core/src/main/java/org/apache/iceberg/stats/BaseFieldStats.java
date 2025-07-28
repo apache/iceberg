@@ -19,6 +19,7 @@
 package org.apache.iceberg.stats;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -94,14 +95,32 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     return maxValueSize;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public T lowerBound() {
-    return lowerBound;
+    if (null != type
+        && type.typeId().javaClass().equals(ByteBuffer.class)
+        && lowerBound instanceof byte[]) {
+      // for serializability we store binary types as byte[] and must convert back to
+      // ByteBuffer
+      return (T) ByteBuffer.wrap((byte[]) lowerBound);
+    } else {
+      return lowerBound;
+    }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public T upperBound() {
-    return upperBound;
+    if (null != type
+        && type.typeId().javaClass().equals(ByteBuffer.class)
+        && upperBound instanceof byte[]) {
+      // for serializability we store binary types as byte[] and must convert back to
+      // ByteBuffer
+      return (T) ByteBuffer.wrap((byte[]) upperBound);
+    } else {
+      return upperBound;
+    }
   }
 
   @Override
@@ -116,26 +135,17 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   @Override
   public <X> X get(int pos, Class<X> javaClass) {
-    switch (FieldStatistic.fromOffset(pos)) {
-      case VALUE_COUNT:
-        return javaClass.cast(valueCount);
-      case NULL_VALUE_COUNT:
-        return javaClass.cast(nullValueCount);
-      case NAN_VALUE_COUNT:
-        return javaClass.cast(nanValueCount);
-      case AVG_VALUE_SIZE:
-        return javaClass.cast(avgValueSize);
-      case MAX_VALUE_SIZE:
-        return javaClass.cast(maxValueSize);
-      case LOWER_BOUND:
-        return javaClass.cast(lowerBound);
-      case UPPER_BOUND:
-        return javaClass.cast(upperBound);
-      case EXACT_BOUNDS:
-        return javaClass.cast(hasExactBounds);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (FieldStatistic.fromOffset(pos)) {
+      case VALUE_COUNT -> javaClass.cast(valueCount);
+      case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
+      case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
+      case AVG_VALUE_SIZE -> javaClass.cast(avgValueSize);
+      case MAX_VALUE_SIZE -> javaClass.cast(maxValueSize);
+      case LOWER_BOUND -> javaClass.cast(lowerBound());
+      case UPPER_BOUND -> javaClass.cast(upperBound());
+      case EXACT_BOUNDS -> javaClass.cast(hasExactBounds);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
@@ -173,8 +183,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         && Objects.equals(nanValueCount, that.nanValueCount)
         && Objects.equals(avgValueSize, that.avgValueSize)
         && Objects.equals(maxValueSize, that.maxValueSize)
-        && Objects.equals(lowerBound, that.lowerBound)
-        && Objects.equals(upperBound, that.upperBound)
+        && Objects.deepEquals(lowerBound, that.lowerBound)
+        && Objects.deepEquals(upperBound, that.upperBound)
         && hasExactBounds == that.hasExactBounds;
   }
 
@@ -197,7 +207,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     return new Builder<>();
   }
 
-  public static <X> Builder<X> buildFrom(FieldStats<X> value) {
+  public static <X> Builder<X> buildFrom(BaseFieldStats<X> value) {
     Preconditions.checkArgument(null != value, "Invalid column stats: null");
     return BaseFieldStats.<X>builder()
         .type(value.type())
@@ -207,8 +217,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         .nanValueCount(value.nanValueCount())
         .avgValueSize(value.avgValueSize())
         .maxValueSize(value.maxValueSize())
-        .lowerBound(value.lowerBound())
-        .upperBound(value.upperBound())
+        // use original lower/upper bound value
+        .lowerBound(value.lowerBound)
+        .upperBound(value.upperBound)
         .hasExactBounds(value.hasExactBounds());
   }
 
@@ -286,7 +297,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         Preconditions.checkArgument(
             null != type, "Invalid type (required when lower bound is set): null");
         Preconditions.checkArgument(
-            type.typeId().javaClass().isInstance(lowerBound),
+            type.typeId().javaClass().isInstance(lowerBound)
+                || (type.typeId().javaClass().equals(ByteBuffer.class)
+                    && lowerBound instanceof byte[]),
             "Invalid lower bound type, expected a subtype of %s: %s",
             type.typeId().javaClass().getName(),
             lowerBound.getClass().getName());
@@ -296,7 +309,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         Preconditions.checkArgument(
             null != type, "Invalid type (required when lower bound is set): null");
         Preconditions.checkArgument(
-            type.typeId().javaClass().isInstance(upperBound),
+            type.typeId().javaClass().isInstance(upperBound)
+                || (type.typeId().javaClass().equals(ByteBuffer.class)
+                    && upperBound instanceof byte[]),
             "Invalid upper bound type, expected a subtype of %s: %s",
             type.typeId().javaClass().getName(),
             upperBound.getClass().getName());

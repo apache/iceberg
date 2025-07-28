@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -32,10 +33,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class MetricsUtil {
 
@@ -475,5 +480,114 @@ public class MetricsUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
     }
+  }
+
+  public static ContentStats fromMetrics(Schema schema, Metrics metrics) {
+    if (null == metrics) {
+      return null;
+    }
+
+    BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
+    Map<Integer, BaseFieldStats<?>> map = Maps.newHashMap();
+
+    if (null != metrics.valueCounts()) {
+      metrics
+          .valueCounts()
+          .forEach(
+              (id, value) ->
+                  map.merge(
+                      id,
+                      BaseFieldStats.builder().fieldId(id).valueCount(value).build(),
+                      (oldVal, newVal) ->
+                          BaseFieldStats.buildFrom(oldVal).valueCount(value).build()));
+    }
+
+    if (null != metrics.nullValueCounts()) {
+      metrics
+          .nullValueCounts()
+          .forEach(
+              (id, value) ->
+                  map.merge(
+                      id,
+                      BaseFieldStats.builder().fieldId(id).nullValueCount(value).build(),
+                      (oldVal, newVal) ->
+                          BaseFieldStats.buildFrom(oldVal).nullValueCount(value).build()));
+    }
+
+    if (null != metrics.nanValueCounts()) {
+      metrics
+          .nanValueCounts()
+          .forEach(
+              (id, value) ->
+                  map.merge(
+                      id,
+                      BaseFieldStats.builder().fieldId(id).nanValueCount(value).build(),
+                      (oldVal, newVal) ->
+                          BaseFieldStats.buildFrom(oldVal).nanValueCount(value).build()));
+    }
+
+    // only convert lower bound if original type is known
+    if (null != metrics.lowerBounds() && null != metrics.originalTypes()) {
+      metrics.lowerBounds().entrySet().stream()
+          .filter(entry -> null != metrics.originalTypes().get(entry.getKey()))
+          .forEach(
+              entry -> {
+                Integer id = entry.getKey();
+                Type type = metrics.originalTypes().get(id);
+                map.merge(
+                    id,
+                    BaseFieldStats.builder()
+                        .fieldId(id)
+                        .type(type)
+                        .lowerBound(fromByteBufferToStats(type, entry.getValue()))
+                        .build(),
+                    (oldVal, newVal) ->
+                        BaseFieldStats.buildFrom(oldVal)
+                            .type(type)
+                            .lowerBound(fromByteBufferToStats(type, entry.getValue()))
+                            .build());
+              });
+    }
+
+    // only convert upper bound if original type is known
+    if (null != metrics.upperBounds() && null != metrics.originalTypes()) {
+      metrics.upperBounds().entrySet().stream()
+          .filter(entry -> null != metrics.originalTypes().get(entry.getKey()))
+          .forEach(
+              entry -> {
+                Integer id = entry.getKey();
+                Type type = metrics.originalTypes().get(id);
+                map.merge(
+                    id,
+                    BaseFieldStats.builder()
+                        .fieldId(id)
+                        .type(type)
+                        .upperBound(fromByteBufferToStats(type, entry.getValue()))
+                        .build(),
+                    (oldVal, newVal) ->
+                        BaseFieldStats.buildFrom(oldVal)
+                            .type(type)
+                            .upperBound(fromByteBufferToStats(type, entry.getValue()))
+                            .build());
+              });
+    }
+
+    map.values().forEach(builder::withFieldStats);
+
+    return builder.build();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T fromByteBufferToStats(Type type, ByteBuffer buffer) {
+    Object result = Conversions.fromByteBuffer(type, buffer);
+    if (Types.StringType.get().equals(type)) {
+      // CharBuffer is not serializable, use String instead
+      return (T) result.toString();
+    } else if (type.typeId().javaClass().equals(ByteBuffer.class)) {
+      // ByteBuffer is not serializable, use byte[] instead
+      return (T) ByteBuffers.toByteArray(buffer);
+    }
+
+    return (T) result;
   }
 }

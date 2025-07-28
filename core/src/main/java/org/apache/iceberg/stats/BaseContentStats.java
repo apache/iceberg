@@ -120,9 +120,8 @@ public class BaseContentStats implements ContentStats, Serializable {
   @SuppressWarnings({"unchecked", "rawtypes", "CyclomaticComplexity"})
   @Override
   public <T> void set(int pos, T value) {
-    if (value instanceof GenericRecord) {
-      GenericRecord record = (GenericRecord) value;
-      FieldStats<?> stat = fieldStats.get(pos);
+    if (value instanceof GenericRecord record) {
+      BaseFieldStats<?> stat = (BaseFieldStats<?>) fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
       if (null != record.getField(FieldStatistic.VALUE_COUNT.fieldName())) {
