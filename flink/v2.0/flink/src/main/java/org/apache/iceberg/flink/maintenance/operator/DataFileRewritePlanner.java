@@ -37,7 +37,6 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
@@ -59,7 +58,6 @@ public class DataFileRewritePlanner
   private final int taskIndex;
   private final TableLoader tableLoader;
   private final int partialProgressMaxCommits;
-  private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
 
@@ -69,7 +67,6 @@ public class DataFileRewritePlanner
       int taskIndex,
       TableLoader tableLoader,
       int newPartialProgressMaxCommits,
-      long maxRewriteBytes,
       Map<String, String> rewriterOptions) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
@@ -81,7 +78,6 @@ public class DataFileRewritePlanner
     this.taskIndex = taskIndex;
     this.tableLoader = tableLoader;
     this.partialProgressMaxCommits = newPartialProgressMaxCommits;
-    this.maxRewriteBytes = maxRewriteBytes;
     this.rewriterOptions = rewriterOptions;
   }
 
@@ -125,26 +121,7 @@ public class DataFileRewritePlanner
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
           plan = planner.plan();
 
-      long rewriteBytes = 0;
-      List<RewriteFileGroup> groups = Lists.newArrayList();
-      for (CloseableIterator<RewriteFileGroup> groupIterator = plan.groups().iterator();
-          groupIterator.hasNext(); ) {
-        RewriteFileGroup group = groupIterator.next();
-        if (rewriteBytes + group.inputFilesSizeInBytes() > maxRewriteBytes) {
-          // Keep going, maybe some other group might fit in
-          LOG.info(
-              DataFileRewritePlanner.MESSAGE_PREFIX
-                  + "Skipping group as max rewrite size reached {}",
-              tableName,
-              taskName,
-              taskIndex,
-              ctx.timestamp(),
-              group);
-        } else {
-          rewriteBytes += group.inputFilesSizeInBytes();
-          groups.add(group);
-        }
-      }
+      List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
 
       int groupsPerCommit =
           IntMath.divide(groups.size(), partialProgressMaxCommits, RoundingMode.CEILING);

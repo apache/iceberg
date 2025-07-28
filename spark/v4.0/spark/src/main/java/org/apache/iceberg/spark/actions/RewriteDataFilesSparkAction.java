@@ -79,7 +79,8 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
-          BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
+          BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
+          BinPackRewriteFilePlanner.MAX_BYTES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
