@@ -34,6 +34,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.junit.jupiter.api.Test;
@@ -99,6 +100,53 @@ public class TestArrowSchemaUtil {
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
     assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
+  }
+
+  @Test
+  public void convertStruct() {
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(
+                0,
+                STRUCT_FIELD,
+                StructType.of(
+                    Types.NestedField.required(1, "inner_string", StringType.get()),
+                    Types.NestedField.optional(2, "inner_int", IntegerType.get()))));
+
+    org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
+    validate(iceberg, arrow);
+
+    Field structField = arrow.findField(STRUCT_FIELD);
+    assertThat(structField).isNotNull();
+    assertThat(structField.getChildren()).hasSize(2);
+    assertThat(structField.getChildren().get(0).getName()).isEqualTo("inner_string");
+    assertThat(structField.getChildren().get(1).getName()).isEqualTo("inner_int");
+  }
+
+  @Test
+  public void convertNestedStructInList() {
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(
+                0,
+                "lt",
+                ListType.ofOptional(
+                    1,
+                    StructType.of(
+                        Types.NestedField.required(2, "nested_field", StringType.get())))));
+
+    org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
+
+    validate(iceberg, arrow);
+    Field listField = arrow.findField("lt");
+    assertThat(listField).isNotNull();
+    assertThat(listField.getType().getTypeID()).isEqualTo(ArrowType.List.TYPE_TYPE);
+    assertThat(listField.getChildren()).hasSize(1);
+
+    Field structElement = listField.getChildren().get(0);
+    assertThat(structElement.getType().getTypeID()).isEqualTo(ArrowType.Struct.TYPE_TYPE);
+    assertThat(structElement.getChildren()).hasSize(1);
+    assertThat(structElement.getChildren().get(0).getName()).isEqualTo("nested_field");
   }
 
   private void validate(Schema iceberg, org.apache.arrow.vector.types.pojo.Schema arrow) {
