@@ -41,6 +41,7 @@ import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.spark.SparkRuntimeException;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.sql.types.VariantType$;
 import org.apache.spark.types.variant.VariantUtil;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -96,7 +97,7 @@ public class TestSparkVariants extends TestBase {
     Types.VariantType icebergVariantType = Types.VariantType.get();
     DataType sparkVariantType = SparkSchemaUtil.convert(icebergVariantType);
 
-    assertThat(sparkVariantType).isInstanceOf(VariantType$.class);
+    assertThat(sparkVariantType).isInstanceOf(VariantType.class);
   }
 
   @Test
