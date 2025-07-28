@@ -123,8 +123,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
-    DICTIONARY,
-    TIMESTAMP_NANOS
+    DICTIONARY
   }
 
   protected Types.NestedField icebergField() {
@@ -184,7 +183,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case TIMESTAMP_MILLIS:
-          case TIMESTAMP_NANOS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
