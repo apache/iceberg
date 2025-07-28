@@ -92,7 +92,7 @@ public class TestManifestWriter extends TestBase {
   @TestTemplate
   public void testWriteManifestWithSequenceNumber() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    File manifestFile = temp.resolve("manifest.avro").toFile();
+    File manifestFile = temp.resolve("manifest" + System.nanoTime() + ".avro").toFile();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
