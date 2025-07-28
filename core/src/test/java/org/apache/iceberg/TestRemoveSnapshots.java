@@ -208,7 +208,8 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void testExpireOlderThanWithRollback() {
+  public void testExpireOlderThanWithRollbackWithReachableCleanup() {
+    assumeThat(incrementalCleanup).isFalse();
     // merge every commit
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0").commit();
 
@@ -235,7 +236,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     Set<String> deletedFiles = Sets.newHashSet();
 
-    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+    table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
@@ -256,7 +257,33 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testCannotCleanupIncrementallyWithRollback() {
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    assertThat(firstSnapshot.allManifests(table.io())).hasSize(1);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    table.newDelete().deleteFile(FILE_B).commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    table.manageSnapshots().rollbackTo(firstSnapshot.snapshotId()).commit();
+
+    long tAfterCommits = waitUntilAfter(secondSnapshot.timestampMillis());
+
+    assertThatThrownBy(() -> removeSnapshots(table).expireOlderThan(tAfterCommits).commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot incrementally clean files when snapshots outside of main ancestry were removed");
+  }
+
+  @TestTemplate
   public void testExpireOlderThanWithRollbackAndMergedManifests() {
+    assumeThat(incrementalCleanup).isFalse();
     table.newAppend().appendFile(FILE_A).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
@@ -739,7 +766,8 @@ public class TestRemoveSnapshots extends TestBase {
    * C ` B (staged)
    */
   @TestTemplate
-  public void testWithExpiringDanglingStageCommit() {
+  public void testWithExpiringDanglingStageCommitWithReachableCleanup() {
+    assumeThat(incrementalCleanup).isFalse();
     // `A` commit
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -787,6 +815,29 @@ public class TestRemoveSnapshots extends TestBase {
     // Take the diff
     expectedDeletes.removeAll(deletedFiles);
     assertThat(expectedDeletes).isEmpty();
+  }
+
+  @TestTemplate
+  public void testCannotIncrementallyCleanupWithStagedCommit() {
+    assumeThat(incrementalCleanup).isTrue();
+    // `A` commit
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // `B` staged commit
+    table.newAppend().appendFile(FILE_B).stageOnly().commit();
+
+    TableMetadata base = readMetadata();
+    Snapshot snapshotB = base.snapshots().get(1);
+
+    // `C` commit
+    table.newAppend().appendFile(FILE_C).commit();
+
+    // Attempt to expire all commits including dangling staged snapshot.
+    assertThatThrownBy(
+            () -> removeSnapshots(table).expireOlderThan(snapshotB.timestampMillis() + 1).commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot incrementally clean files when snapshots outside of main ancestry were removed");
   }
 
   /**
@@ -1106,21 +1157,23 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testMultipleRefsAndCleanExpiredFilesFailsForIncrementalCleanup() {
+    assumeThat(incrementalCleanup).isTrue();
+
     table.newAppend().appendFile(FILE_A).commit();
     table.newDelete().deleteFile(FILE_A).commit();
-    table.manageSnapshots().createTag("TagA", table.currentSnapshot().snapshotId()).commit();
-    waitUntilAfter(table.currentSnapshot().timestampMillis());
-    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+    String branch = "branchB";
+    table.manageSnapshots().createBranch(branch, table.currentSnapshot().snapshotId()).commit();
+    table.newAppend().appendFile(FILE_B).toBranch(branch).commit();
+    waitUntilAfter(table.snapshot(branch).timestampMillis());
 
     assertThatThrownBy(
             () ->
-                removeSnapshots
-                    .withIncrementalCleanup(true)
-                    .expireOlderThan(table.currentSnapshot().timestampMillis())
+                removeSnapshots(table)
+                    .expireOlderThan(table.snapshot(branch).timestampMillis())
                     .cleanExpiredFiles(true)
                     .commit())
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot incrementally clean files for tables with more than 1 ref");
+        .hasMessage("Cannot incrementally clean files when there are snapshots outside of main");
   }
 
   @TestTemplate
@@ -1299,6 +1352,7 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainUnreferencedSnapshotsWithinExpirationAge() {
+    assumeThat(incrementalCleanup).isFalse();
     table.newAppend().appendFile(FILE_A).commit();
 
     long expireTimestampSnapshotA = waitUntilAfter(table.currentSnapshot().timestampMillis());
@@ -1826,6 +1880,66 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.ops().current())
         .as("No snapshot or metadata to remove, should be a no-op")
         .isSameAs(current);
+  }
+
+  @TestTemplate
+  public void testFileCleanupOnAllRefsAgedOff() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot snapshotA = table.currentSnapshot();
+    String tag = "tag";
+    long tagAgeMs = 20;
+    table
+        .manageSnapshots()
+        .createTag(tag, table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs(tag, tagAgeMs)
+        .commit();
+    long currentTime = System.currentTimeMillis();
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    waitUntilAfter(currentTime + tagAgeMs);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table)
+        .cleanExpiredFiles(true)
+        .expireOlderThan(System.currentTimeMillis())
+        .deleteWith(deletedFiles::add)
+        .commit();
+    assertThat(deletedFiles).isEqualTo(ImmutableSet.of(snapshotA.manifestListLocation()));
+  }
+
+  @TestTemplate
+  public void testCleanupWhenBranchOnMainAgedOff() {
+    table.newAppend().appendFile(FILE_A).commit();
+    String branch = "test";
+    long branchAgeMs = 20;
+    table
+        .manageSnapshots()
+        .createBranch(branch)
+        .setMaxRefAgeMs(branch, branchAgeMs)
+        .setMinSnapshotsToKeep(branch, 1)
+        .commit();
+    long currentTime = System.currentTimeMillis();
+    Snapshot snapshotA = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snapshotDeleteA = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    waitUntilAfter(currentTime + branchAgeMs);
+
+    removeSnapshots(table)
+        .deleteWith(deletedFiles::add)
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+
+    Set<String> expectedDeletedFiles =
+        ImmutableSet.of(
+            snapshotA.manifestListLocation(),
+            snapshotDeleteA.manifestListLocation(),
+            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
+            FILE_A.location());
+    assertThat(deletedFiles).isEqualTo(expectedDeletedFiles);
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
