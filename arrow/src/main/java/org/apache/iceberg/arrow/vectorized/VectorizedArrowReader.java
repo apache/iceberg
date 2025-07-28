@@ -457,33 +457,28 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<Object> visit(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       // Fallback to allocation based on primitive type name
-      VectorizedArrowReader.this.allocateVectorBasedOnTypeName(
-          VectorizedArrowReader.this.columnDescriptor.getPrimitiveType(), arrowField);
+      allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
       return Optional.empty();
     }
 
     @Override
     public Optional<Object> visit(
         LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
-      VectorizedArrowReader.this.vec =
-          arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
+      VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
       switch (primitive.getPrimitiveTypeName()) {
         case BINARY:
         case FIXED_LEN_BYTE_ARRAY:
-          ((FixedSizeBinaryVector) VectorizedArrowReader.this.vec)
-              .allocateNew(VectorizedArrowReader.this.batchSize);
+          ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
           VectorizedArrowReader.this.readType = ReadType.FIXED_LENGTH_DECIMAL;
           VectorizedArrowReader.this.typeWidth = primitive.getTypeLength();
           break;
         case INT64:
-          ((BigIntVector) VectorizedArrowReader.this.vec)
-              .allocateNew(VectorizedArrowReader.this.batchSize);
+          ((BigIntVector) vec).allocateNew(batchSize);
           VectorizedArrowReader.this.readType = ReadType.LONG_BACKED_DECIMAL;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
         case INT32:
-          ((IntVector) VectorizedArrowReader.this.vec)
-              .allocateNew(VectorizedArrowReader.this.batchSize);
+          ((IntVector) vec).allocateNew(batchSize);
           VectorizedArrowReader.this.readType = ReadType.INT_BACKED_DECIMAL;
           VectorizedArrowReader.this.typeWidth = (int) IntVector.TYPE_WIDTH;
           break;
@@ -491,15 +486,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           throw new UnsupportedOperationException(
               "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
       }
+
       return Optional.empty();
     }
 
     @Override
     public Optional<Object> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
-      VectorizedArrowReader.this.vec =
-          arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
-      ((DateDayVector) VectorizedArrowReader.this.vec)
-          .allocateNew(VectorizedArrowReader.this.batchSize);
+      VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
+      ((DateDayVector) vec).allocateNew(batchSize);
       VectorizedArrowReader.this.readType = ReadType.INT;
       VectorizedArrowReader.this.typeWidth = (int) IntVector.TYPE_WIDTH;
       return Optional.empty();
@@ -507,10 +501,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public Optional<Object> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-      VectorizedArrowReader.this.vec =
-          arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
-      ((TimeMicroVector) VectorizedArrowReader.this.vec)
-          .allocateNew(VectorizedArrowReader.this.batchSize);
+      VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
+      ((TimeMicroVector) vec).allocateNew(batchSize);
       VectorizedArrowReader.this.readType = ReadType.LONG;
       VectorizedArrowReader.this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
       return Optional.empty();
@@ -521,61 +513,50 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
       switch (timestampLogicalType.getUnit()) {
         case MILLIS:
-          VectorizedArrowReader.this.vec =
-              arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
-          ((BigIntVector) VectorizedArrowReader.this.vec)
-              .allocateNew(VectorizedArrowReader.this.batchSize);
+          VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
+          ((BigIntVector) vec).allocateNew(batchSize);
           VectorizedArrowReader.this.readType = ReadType.TIMESTAMP_MILLIS;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
         case MICROS:
-          VectorizedArrowReader.this.vec =
-              arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
-          if (((Types.TimestampType) VectorizedArrowReader.this.icebergField.type())
-              .shouldAdjustToUTC()) {
-            ((TimeStampMicroTZVector) VectorizedArrowReader.this.vec)
-                .allocateNew(VectorizedArrowReader.this.batchSize);
+          VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
+          if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
+            ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
           } else {
-            ((TimeStampMicroVector) VectorizedArrowReader.this.vec)
-                .allocateNew(VectorizedArrowReader.this.batchSize);
+            ((TimeStampMicroVector) vec).allocateNew(batchSize);
           }
           VectorizedArrowReader.this.readType = ReadType.LONG;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
         case NANOS:
-          VectorizedArrowReader.this.vec =
-              arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
-          if (((Types.TimestampNanoType) VectorizedArrowReader.this.icebergField.type())
-              .shouldAdjustToUTC()) {
-            ((TimeStampNanoTZVector) VectorizedArrowReader.this.vec)
-                .allocateNew(VectorizedArrowReader.this.batchSize);
+          VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
+          if (((Types.TimestampNanoType) icebergField.type()).shouldAdjustToUTC()) {
+            ((TimeStampNanoTZVector) vec).allocateNew(batchSize);
           } else {
-            ((TimeStampNanoVector) VectorizedArrowReader.this.vec)
-                .allocateNew(VectorizedArrowReader.this.batchSize);
+            ((TimeStampNanoVector) vec).allocateNew(batchSize);
           }
           VectorizedArrowReader.this.readType = ReadType.LONG;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
       }
+
       return Optional.empty();
     }
 
     @Override
     public Optional<Object> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
-      VectorizedArrowReader.this.vec =
-          arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
+      VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
 
       if (intLogicalType.getBitWidth() == 8
           || intLogicalType.getBitWidth() == 16
           || intLogicalType.getBitWidth() == 32) {
-        ((IntVector) VectorizedArrowReader.this.vec)
-            .allocateNew(VectorizedArrowReader.this.batchSize);
+        ((IntVector) vec).allocateNew(batchSize);
         VectorizedArrowReader.this.readType = ReadType.INT;
         VectorizedArrowReader.this.typeWidth = (int) IntVector.TYPE_WIDTH;
       }
+
       if (intLogicalType.getBitWidth() == 64) {
-        ((BigIntVector) VectorizedArrowReader.this.vec)
-            .allocateNew(VectorizedArrowReader.this.batchSize);
+        ((BigIntVector) vec).allocateNew(batchSize);
         VectorizedArrowReader.this.readType = ReadType.LONG;
         VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
       }
@@ -584,12 +565,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     private Optional<Object> visitEnumJsonBsonString() {
-      VectorizedArrowReader.this.vec =
-          arrowField.createVector(VectorizedArrowReader.this.rootAlloc);
+      VectorizedArrowReader.this.vec = arrowField.createVector(rootAlloc);
       // TODO: Possibly use the uncompressed page size info to set the initial capacity
-      VectorizedArrowReader.this.vec.setInitialCapacity(
-          VectorizedArrowReader.this.batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
-      VectorizedArrowReader.this.vec.allocateNewSafe();
+      vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+      vec.allocateNewSafe();
       VectorizedArrowReader.this.readType = ReadType.VARCHAR;
       VectorizedArrowReader.this.typeWidth = UNKNOWN_WIDTH;
       return Optional.empty();
