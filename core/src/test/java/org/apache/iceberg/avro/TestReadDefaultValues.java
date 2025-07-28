@@ -73,7 +73,7 @@ public class TestReadDefaultValues {
       // note that this schema does not have column "defaulted"
       Schema writerSchema = new Schema(required(999, "written", Types.IntegerType.get()));
 
-      File testFile = temp.resolve("test.avro").toFile();
+      File testFile = temp.resolve("test" + System.nanoTime() + ".avro").toFile();
       testFile.delete();
 
       try (FileAppender<Record> writer =
@@ -140,7 +140,7 @@ public class TestReadDefaultValues {
       expectedRecord.put(0, 1);
       expectedRecord.put(1, null);
 
-      File testFile = temp.resolve("test.avro").toFile();
+      File testFile = temp.resolve("test" + System.nanoTime() + ".avro").toFile();
       testFile.delete();
 
       try (FileAppender<Record> writer =

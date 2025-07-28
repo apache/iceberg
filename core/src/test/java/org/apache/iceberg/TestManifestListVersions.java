@@ -335,8 +335,7 @@ public class TestManifestListVersions {
 
   @Test
   public void testManifestsWithoutRowStats() throws IOException {
-    File manifestListFile = File.createTempFile("manifest-list", ".avro", temp.toFile());
-    assertThat(manifestListFile.delete()).isTrue();
+    File manifestListFile = temp.resolve("manifest-list" + System.nanoTime() + ".avro").toFile();
 
     Collection<String> columnNamesWithoutRowStats =
         ImmutableList.of(

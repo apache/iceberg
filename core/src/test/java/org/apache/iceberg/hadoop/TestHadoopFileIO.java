@@ -214,7 +214,7 @@ public class TestHadoopFileIO {
       // make sure deserialized io can create input file
       Files.createTempDirectory(tempDir.toPath(), "junit");
       deserializedHadoopFileIO.newInputFile(
-          File.createTempFile("test", "parquet", tempDir).toString());
+          new File(tempDir, "test" + System.nanoTime() + ".parquet").toString());
     }
   }
 
