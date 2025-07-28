@@ -352,7 +352,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles) {
+    if (cleanExpiredFiles && !base.snapshots().isEmpty()) {
       cleanExpiredSnapshots();
     }
   }
@@ -364,9 +364,6 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
-    if (base.snapshots().isEmpty()) {
-      return;
-    }
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
       validateCleanupCanBeIncremental(current);
@@ -409,19 +406,13 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private boolean hasRemovedNonMainAncestors(
       TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    Set<Long> mainAncestors = Sets.newHashSet();
-    if (beforeExpiration.currentSnapshot() != null) {
-      for (Snapshot ancestor :
-          SnapshotUtil.ancestorsOf(
-              beforeExpiration.currentSnapshot().snapshotId(), beforeExpiration::snapshot)) {
-        mainAncestors.add(ancestor.snapshotId());
-      }
-    }
-
+    Set<Long> mainAncestors = mainAncestors(beforeExpiration);
     for (Snapshot snapshotBeforeExpiration : beforeExpiration.snapshots()) {
       boolean removedSnapshot =
           afterExpiration.snapshot(snapshotBeforeExpiration.snapshotId()) == null;
-      if (removedSnapshot && !mainAncestors.contains(snapshotBeforeExpiration.snapshotId())) {
+      boolean snapshotInMainAncestry =
+          mainAncestors.contains(snapshotBeforeExpiration.snapshotId());
+      if (removedSnapshot && !snapshotInMainAncestry) {
         return true;
       }
     }
@@ -434,18 +425,28 @@ class RemoveSnapshots implements ExpireSnapshots {
       return !metadata.snapshots().isEmpty();
     }
 
-    Set<Long> ancestors = Sets.newHashSet();
-    for (Snapshot ancestor :
-        SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
-      ancestors.add(ancestor.snapshotId());
-    }
+    Set<Long> mainAncestors = mainAncestors(metadata);
 
     for (Snapshot snapshot : metadata.snapshots()) {
-      if (!ancestors.contains(snapshot.snapshotId())) {
+      if (!mainAncestors.contains(snapshot.snapshotId())) {
         return true;
       }
     }
 
     return false;
+  }
+
+  private Set<Long> mainAncestors(TableMetadata metadata) {
+    Set<Long> ancestors = Sets.newHashSet();
+    if (metadata.currentSnapshot() == null) {
+      return ancestors;
+    }
+
+    for (Snapshot ancestor :
+        SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
+      ancestors.add(ancestor.snapshotId());
+    }
+
+    return ancestors;
   }
 }

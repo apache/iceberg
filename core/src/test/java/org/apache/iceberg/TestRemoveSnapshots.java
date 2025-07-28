@@ -1886,8 +1886,7 @@ public class TestRemoveSnapshots extends TestBase {
   @TestTemplate
   public void testFileCleanupOnAllRefsAgedOff() {
     table.newAppend().appendFile(FILE_A).commit();
-    Set<String> expectedDeleteFiles =
-        ImmutableSet.of(table.currentSnapshot().manifestListLocation());
+    Snapshot snapshotA = table.currentSnapshot();
     String tag = "tag";
     long tagAgeMs = 20;
     table
@@ -1906,7 +1905,7 @@ public class TestRemoveSnapshots extends TestBase {
         .expireOlderThan(System.currentTimeMillis())
         .deleteWith(deletedFiles::add)
         .commit();
-    assertThat(deletedFiles).isEqualTo(expectedDeleteFiles);
+    assertThat(deletedFiles).isEqualTo(ImmutableSet.of(snapshotA.manifestListLocation()));
   }
 
   @TestTemplate
@@ -1926,13 +1925,6 @@ public class TestRemoveSnapshots extends TestBase {
     Snapshot snapshotDeleteA = table.currentSnapshot();
     table.newAppend().appendFile(FILE_B).commit();
 
-    Set<String> expectedDeletedFiles =
-        ImmutableSet.of(
-            snapshotA.manifestListLocation(),
-            snapshotDeleteA.manifestListLocation(),
-            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
-            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
-            FILE_A.location());
     Set<String> deletedFiles = Sets.newHashSet();
     waitUntilAfter(currentTime + branchAgeMs);
 
@@ -1941,6 +1933,13 @@ public class TestRemoveSnapshots extends TestBase {
         .expireOlderThan(System.currentTimeMillis())
         .commit();
 
+    Set<String> expectedDeletedFiles =
+        ImmutableSet.of(
+            snapshotA.manifestListLocation(),
+            snapshotDeleteA.manifestListLocation(),
+            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
+            FILE_A.location());
     assertThat(deletedFiles).isEqualTo(expectedDeletedFiles);
   }
 
