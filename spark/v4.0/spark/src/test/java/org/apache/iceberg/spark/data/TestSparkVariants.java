@@ -96,7 +96,7 @@ public class TestSparkVariants extends TestBase {
     Types.VariantType icebergVariantType = Types.VariantType.get();
     DataType sparkVariantType = SparkSchemaUtil.convert(icebergVariantType);
 
-    assertThat(sparkVariantType).isEqualTo(VariantType$.MODULE$);
+    assertThat(sparkVariantType).isInstanceOf(VariantType$.class);
   }
 
   @Test
