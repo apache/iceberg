@@ -63,7 +63,7 @@ public class TestOrcRowIterator {
 
   @BeforeEach
   public void writeFile() throws IOException {
-    testFile = tempDir.toPath().resolve("junit" + System.nanoTime()).toFile();
+    testFile = new File(tempDir, "junit" + System.nanoTime());
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

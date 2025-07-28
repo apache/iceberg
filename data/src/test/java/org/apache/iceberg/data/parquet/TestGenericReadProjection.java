@@ -32,7 +32,7 @@ public class TestGenericReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File file = tempDir.toPath().resolve("junit" + System.nanoTime() + ".parquet").toFile();
+    File file = new File(tempDir, "junit" + System.nanoTime() + ".parquet");
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))

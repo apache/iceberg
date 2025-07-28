@@ -640,7 +640,7 @@ public class TestDataFileIndexStatsFilters {
     return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 
-  private File createTempFile() throws IOException {
-    return tempDir.toPath().resolve("junit" + System.nanoTime()).toFile();
+  private File createTempFile() {
+    return new File(tempDir, "junit" + System.nanoTime());
   }
 }
