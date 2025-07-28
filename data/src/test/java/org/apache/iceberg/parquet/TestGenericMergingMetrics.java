@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Files;
