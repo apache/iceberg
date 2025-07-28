@@ -499,7 +499,7 @@ The dynamic sink tries to match the schema provided in `DynamicRecord` with the 
 - If there is no direct match, DynamicSink tries to adapt the provided schema such that it matches one of table schemas. For example, if there is an additional optional column in the table schema, a null value will be added to the RowData provided via DynamicRecord.
 - Otherwise, we evolve the table schema to match the input schema, within the constraints described below.
 
-The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the immediateTableUpdate configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
+The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the `immediateTableUpdate` configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
 Supported schema updates:
 
@@ -519,8 +519,8 @@ Dropping columns is avoided to prevent issues with late or out-of-order data, as
 
 There are two distinct caches involved: the table metadata cache and the input schema cache.
 
-- The table metadata cache holds metadata such as schema definitions and partition specs to reduce repeated Catalog lookups. Its size is governed by the cacheMaxSize setting.
-- The input schema cache stores incoming schemas per table along with their compatibility resolution results. Its size is controlled by inputSchemasPerTableCacheMaxSize.
+- The table metadata cache holds metadata such as schema definitions and partition specs to reduce repeated Catalog lookups. Its size is governed by the `cacheMaxSize` setting.
+- The input schema cache stores incoming schemas per table along with their compatibility resolution results. Its size is controlled by `inputSchemasPerTableCacheMaxSize`.
 
 To improve cache hit rates and performance, reuse the same DynamicRecord.schema instance if the record schema is unchanged.
 
@@ -545,5 +545,5 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 
 ### Notes
 
-- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set will fall back to `HASH`.
+- **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
 - **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
