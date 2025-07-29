@@ -129,7 +129,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
+    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setInt(i, (int) v));
   }
 
   @Override
