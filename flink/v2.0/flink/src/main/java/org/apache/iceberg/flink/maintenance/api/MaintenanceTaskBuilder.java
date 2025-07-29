@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -41,7 +42,8 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
-  abstract String maintenanceTaskName();
+  @Internal
+  public abstract String maintenanceTaskName();
 
   /**
    * After a given number of Iceberg table commits since the last run, starts the downstream job.
@@ -195,7 +197,8 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return triggerEvaluator.build();
   }
 
-  DataStream<TaskResult> append(
+  @Internal
+  public DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       String newTableName,
       String newTaskName,

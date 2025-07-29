@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.api;
+package org.apache.iceberg.flink.actions;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
-import static org.apache.iceberg.flink.maintenance.api.RewriteDataFiles.COMMIT_TASK_NAME;
-import static org.apache.iceberg.flink.maintenance.api.RewriteDataFiles.PLANNER_TASK_NAME;
-import static org.apache.iceberg.flink.maintenance.api.RewriteDataFiles.REWRITE_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_NUM_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_SIZE_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ERROR_COUNTER;
@@ -31,19 +28,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.stream.StreamSupport;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-class TestRewriteDataFiles extends MaintenanceTaskTestBase {
+class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
+
+  private static final String TASK_NAME = "RewriteDataFiles";
+  private static final String PLANNER_TASK_NAME = "RDF Planner";
+  private static final String REWRITE_TASK_NAME = "Rewrite";
+  private static final String COMMIT_TASK_NAME = "Rewrite commit";
+
   @Test
-  void testRewriteUnpartitioned() throws Exception {
+  void testRewriteUnPartitioned() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -52,7 +59,9 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     assertFileNum(table, 4, 0);
 
-    appendRewriteDataFiles(
+    long triggerTime = System.currentTimeMillis();
+
+    RewriteDataFiles.Builder builder =
         RewriteDataFiles.builder()
             .parallelism(2)
             .deleteFileThreshold(10)
@@ -64,9 +73,23 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false));
+            .rewriteAll(false);
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+    TaskResult result =
+        new TableMaintenanceAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .collect();
+
+    assertThat(result.success()).isTrue();
+    assertThat(result.startEpoch()).isEqualTo(triggerTime);
+    assertThat(result.exceptions()).isEmpty();
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(4);
 
     assertFileNum(table, 1, 0);
 
@@ -80,7 +103,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testRewriteUnpartitionedWithFilter() throws Exception {
+  void testRewriteUnPartitionedWithFilter() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -89,7 +112,9 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     assertFileNum(table, 4, 0);
 
-    appendRewriteDataFiles(
+    long triggerTime = System.currentTimeMillis();
+
+    RewriteDataFiles.Builder builder =
         RewriteDataFiles.builder()
             .parallelism(2)
             .deleteFileThreshold(10)
@@ -102,9 +127,24 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false));
+            .rewriteAll(false);
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+    TaskResult result =
+        new TableMaintenanceAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .collect();
+
+    assertThat(result.success()).isTrue();
+    assertThat(result.startEpoch()).isEqualTo(triggerTime);
+    assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     assertFileNum(table, 3, 0);
 
@@ -127,9 +167,26 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     assertFileNum(table, 4, 0);
 
-    appendRewriteDataFiles();
+    long triggerTime = System.currentTimeMillis();
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().rewriteAll(true);
+
+    TaskResult result =
+        new TableMaintenanceAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .collect();
+
+    assertThat(result.success()).isTrue();
+    assertThat(result.startEpoch()).isEqualTo(triggerTime);
+    assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(2);
+    assertThat(actionResult.deletedDataFiles()).hasSize(4);
 
     assertFileNum(table, 2, 0);
 
@@ -143,123 +200,6 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testPlannerFailure() throws Exception {
-    Table table = createTable();
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-
-    assertFileNum(table, 2, 0);
-
-    appendRewriteDataFiles();
-
-    runAndWaitForFailure(infra.env(), infra.source(), infra.sink());
-
-    // Check the metrics. The first task should be successful, but the second one should fail. This
-    // should be represented in the counters.
-    MetricsReporterFactoryForTests.assertCounters(
-        new ImmutableMap.Builder<List<String>, Long>()
-            .put(
-                ImmutableList.of(
-                    PLANNER_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                1L)
-            .put(
-                ImmutableList.of(
-                    REWRITE_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ADDED_DATA_FILE_NUM_METRIC),
-                1L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ADDED_DATA_FILE_SIZE_METRIC),
-                -1L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    REMOVED_DATA_FILE_NUM_METRIC),
-                2L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    REMOVED_DATA_FILE_SIZE_METRIC),
-                -1L)
-            .build());
-  }
-
-  @Test
-  void testUidAndSlotSharingGroup() {
-    createTable();
-
-    RewriteDataFiles.builder()
-        .slotSharingGroup(SLOT_SHARING_GROUP)
-        .uidSuffix(UID_SUFFIX)
-        .append(
-            infra.triggerStream(),
-            DUMMY_TABLE_NAME,
-            DUMMY_TASK_NAME,
-            0,
-            tableLoader(),
-            "OTHER",
-            "OTHER",
-            1)
-        .sinkTo(infra.sink());
-
-    checkUidsAreSet(infra.env(), UID_SUFFIX);
-    checkSlotSharingGroupsAreSet(infra.env(), SLOT_SHARING_GROUP);
-  }
-
-  @Test
-  void testUidAndSlotSharingGroupUnset() {
-    createTable();
-
-    RewriteDataFiles.builder()
-        .append(
-            infra.triggerStream(),
-            DUMMY_TABLE_NAME,
-            DUMMY_TASK_NAME,
-            0,
-            tableLoader(),
-            UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
-            1)
-        .sinkTo(infra.sink());
-
-    checkUidsAreSet(infra.env(), null);
-    checkSlotSharingGroupsAreSet(infra.env(), null);
-  }
-
-  @Test
   void testMetrics() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -267,66 +207,70 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     assertFileNum(table, 2, 0);
 
-    appendRewriteDataFiles();
+    long triggerTime = System.currentTimeMillis();
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+    TaskResult result =
+        new TableMaintenanceAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .collect();
+
+    assertThat(result.success()).isTrue();
+    assertThat(result.startEpoch()).isEqualTo(triggerTime);
+    assertThat(result.exceptions()).isEmpty();
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<List<String>, Long>()
             .put(
                 ImmutableList.of(
-                    PLANNER_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
+                    PLANNER_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
                 0L)
             .put(
                 ImmutableList.of(
-                    REWRITE_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
+                    REWRITE_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    COMMIT_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
                 0L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     ADDED_DATA_FILE_NUM_METRIC),
                 1L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     ADDED_DATA_FILE_SIZE_METRIC),
                 -1L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     REMOVED_DATA_FILE_NUM_METRIC),
                 2L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     REMOVED_DATA_FILE_SIZE_METRIC),
                 -1L)
@@ -342,92 +286,79 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     assertFileNum(table, 2, 3);
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
 
-    appendRewriteDataFiles();
+    long triggerTime = System.currentTimeMillis();
+    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+    TaskResult result =
+        new TableMaintenanceAction(
+                StreamExecutionEnvironment.getExecutionEnvironment(),
+                tableLoader(),
+                builder,
+                triggerTime)
+            .collect();
 
+    assertThat(result.success()).isTrue();
+    assertThat(result.startEpoch()).isEqualTo(triggerTime);
+    assertThat(result.exceptions()).isEmpty();
+
+    // After #11131 we don't remove the delete files
     assertFileNum(table, 1, 1);
 
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
+
+    RewriteDataFilesActionResult actionResult =
+        (RewriteDataFilesActionResult) result.actionResult();
+    assertThat(actionResult.addedDataFiles()).hasSize(1);
+    assertThat(actionResult.deletedDataFiles()).hasSize(2);
 
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<List<String>, Long>()
             .put(
                 ImmutableList.of(
-                    PLANNER_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
+                    PLANNER_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
                 0L)
             .put(
                 ImmutableList.of(
-                    REWRITE_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
+                    REWRITE_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    COMMIT_TASK_NAME + "[0]", table.name(), TASK_NAME, "0", ERROR_COUNTER),
                 0L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
-                    "0",
-                    ERROR_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     ADDED_DATA_FILE_NUM_METRIC),
                 1L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     ADDED_DATA_FILE_SIZE_METRIC),
                 -1L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     REMOVED_DATA_FILE_NUM_METRIC),
                 2L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
-                    DUMMY_TABLE_NAME,
-                    DUMMY_TASK_NAME,
+                    table.name(),
+                    TASK_NAME,
                     "0",
                     REMOVED_DATA_FILE_SIZE_METRIC),
                 -1L)
             .build());
-  }
-
-  private void appendRewriteDataFiles() {
-    appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true));
-  }
-
-  private void appendRewriteDataFiles(RewriteDataFiles.Builder builder) {
-    builder
-        .append(
-            infra.triggerStream(),
-            DUMMY_TABLE_NAME,
-            DUMMY_TASK_NAME,
-            0,
-            tableLoader(),
-            UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
-            1)
-        .sinkTo(infra.sink());
   }
 
   private static void assertFileNum(
