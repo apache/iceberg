@@ -39,7 +39,12 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       P partner, Schema schema, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     switch (schema.getType()) {
       case RECORD:
-        return visitRecord(partner, schema, visitor);
+        if (schema.getLogicalType() instanceof VariantLogicalType
+            || visitor.isVariantType(partner)) {
+          return visitVariant(partner, schema, visitor);
+        } else {
+          return visitRecord(partner, schema, visitor);
+        }
 
       case UNION:
         return visitUnion(partner, schema, visitor);
@@ -60,6 +65,23 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   }
 
   // ---------------------------------- Static helpers ---------------------------------------------
+
+  private static <P, R> R visitVariant(
+      P partner, Schema variant, AvroWithPartnerByStructureVisitor<P, R> visitor) {
+    // check to make sure this hasn't been visited before
+    String name = variant.getFullName();
+    Preconditions.checkState(
+        !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
+
+    visitor.recordLevels.push(name);
+
+    R metadataResult = visit(null, variant.getField("metadata").schema(), visitor);
+    R valueResult = visit(null, variant.getField("value").schema(), visitor);
+
+    visitor.recordLevels.pop();
+
+    return visitor.variant(partner, metadataResult, valueResult);
+  }
 
   private static <P, T> T visitRecord(
       P struct, Schema record, AvroWithPartnerByStructureVisitor<P, T> visitor) {
@@ -155,6 +177,10 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   // ---------------------------------- Partner type methods
   // ---------------------------------------------
 
+  protected boolean isVariantType(P type) {
+    return false;
+  }
+
   protected abstract boolean isMapType(P type);
 
   protected abstract boolean isStringType(P type);
@@ -189,6 +215,10 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
   public T map(P sMap, Schema map, T value) {
     return null;
+  }
+
+  public T variant(P partner, T metadata, T value) {
+    throw new UnsupportedOperationException("Visitor does not support variant");
   }
 
   public T primitive(P type, Schema primitive) {

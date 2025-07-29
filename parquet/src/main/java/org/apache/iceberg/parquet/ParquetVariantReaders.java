@@ -108,10 +108,10 @@ public class ParquetVariantReaders {
     return new ValueAsVariantReader<>(type, reader);
   }
 
-  private abstract static class DelegatingValueReader<S, T> implements ParquetValueReader<T> {
+  public abstract static class DelegatingValueReader<S, T> implements ParquetValueReader<T> {
     private final ParquetValueReader<S> reader;
 
-    private DelegatingValueReader(ParquetValueReader<S> reader) {
+    protected DelegatingValueReader(ParquetValueReader<S> reader) {
       this.reader = reader;
     }
 
