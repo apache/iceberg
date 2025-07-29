@@ -211,7 +211,7 @@ public class TestCreateTransaction extends TestBase {
 
     assertThatThrownBy(txn::newDelete)
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot create new StreamingDelete: last operation has not committed");
+        .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
   }
 
   @TestTemplate

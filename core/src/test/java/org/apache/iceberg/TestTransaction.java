@@ -188,7 +188,7 @@ public class TestTransaction extends TestBase {
 
     assertThatThrownBy(txn::newDelete)
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot create new StreamingDelete: last operation has not committed");
+        .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
   }
 
   @TestTemplate
@@ -899,7 +899,7 @@ public class TestTransaction extends TestBase {
       AppendFiles append =
           new MergeAppend(tableName(), ((HasTableOperations) table()).operations())
               .toBranch("branch");
-      return appendUpdates(append);
+      return appendUpdate(append);
     }
   }
 }

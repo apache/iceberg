@@ -121,8 +121,8 @@ public class BaseTransaction implements Transaction {
     return ops;
   }
 
-  protected <T extends PendingUpdate> T appendUpdates(T update) {
-    checkLastOperationCommitted(update.getClass().getSimpleName());
+  protected <T extends PendingUpdate> T appendUpdate(T update) {
+    checkLastOperationCommitted(update.getClass());
 
     if (update instanceof SnapshotUpdate) {
       ((SnapshotUpdate) update).deleteWith(enqueueDelete);
@@ -136,133 +136,115 @@ public class BaseTransaction implements Transaction {
     return update;
   }
 
-  protected void checkLastOperationCommitted(String operation) {
+  private void checkLastOperationCommitted(Class<? extends PendingUpdate> clazz) {
+    String operation =
+        clazz.getInterfaces().length > 0
+            ? clazz.getInterfaces()[0].getSimpleName()
+            : clazz.getSimpleName();
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot create new %s: last operation has not committed", operation);
 
     // SnapshotManager handles its own commits internally
-    if (!SnapshotManager.class.getSimpleName().equals(operation)) {
+    if (SnapshotManager.class != clazz) {
       this.hasLastOpCommitted = false;
     }
   }
 
   @Override
   public UpdateSchema updateSchema() {
-    UpdateSchema schemaChange = new SchemaUpdate(transactionOps);
-    return appendUpdates(schemaChange);
+    return appendUpdate(new SchemaUpdate(transactionOps));
   }
 
   @Override
   public UpdatePartitionSpec updateSpec() {
-    UpdatePartitionSpec partitionSpecChange = new BaseUpdatePartitionSpec(transactionOps);
-    return appendUpdates(partitionSpecChange);
+    return appendUpdate(new BaseUpdatePartitionSpec(transactionOps));
   }
 
   @Override
   public UpdateProperties updateProperties() {
-    UpdateProperties props = new PropertiesUpdate(transactionOps);
-    return appendUpdates(props);
+    return appendUpdate(new PropertiesUpdate(transactionOps));
   }
 
   @Override
   public ReplaceSortOrder replaceSortOrder() {
-    ReplaceSortOrder replaceSortOrder = new BaseReplaceSortOrder(transactionOps);
-    return appendUpdates(replaceSortOrder);
+    return appendUpdate(new BaseReplaceSortOrder(transactionOps));
   }
 
   @Override
   public UpdateLocation updateLocation() {
-    UpdateLocation setLocation = new SetLocation(transactionOps);
-    return appendUpdates(setLocation);
+    return appendUpdate(new SetLocation(transactionOps));
   }
 
   @Override
   public AppendFiles newAppend() {
-    AppendFiles append = new MergeAppend(tableName, transactionOps);
-    return appendUpdates(append);
+    return appendUpdate(new MergeAppend(tableName, transactionOps));
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    AppendFiles append = new FastAppend(tableName, transactionOps);
-    return appendUpdates(append);
+    return appendUpdate(new FastAppend(tableName, transactionOps));
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps);
-    return appendUpdates(rewrite);
+    return appendUpdate(new BaseRewriteFiles(tableName, transactionOps));
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    RewriteManifests rewrite = new BaseRewriteManifests(tableName, transactionOps);
-    return appendUpdates(rewrite);
+    return appendUpdate(new BaseRewriteManifests(tableName, transactionOps));
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    OverwriteFiles overwrite = new BaseOverwriteFiles(tableName, transactionOps);
-    return appendUpdates(overwrite);
+    return appendUpdate(new BaseOverwriteFiles(tableName, transactionOps));
   }
 
   @Override
   public RowDelta newRowDelta() {
-    RowDelta delta = new BaseRowDelta(tableName, transactionOps);
-    return appendUpdates(delta);
+    return appendUpdate(new BaseRowDelta(tableName, transactionOps));
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    ReplacePartitions replacePartitions = new BaseReplacePartitions(tableName, transactionOps);
-    return appendUpdates(replacePartitions);
+    return appendUpdate(new BaseReplacePartitions(tableName, transactionOps));
   }
 
   @Override
   public DeleteFiles newDelete() {
-    DeleteFiles delete = new StreamingDelete(tableName, transactionOps);
-    return appendUpdates(delete);
+    return appendUpdate(new StreamingDelete(tableName, transactionOps));
   }
 
   @Override
   public UpdateStatistics updateStatistics() {
-    UpdateStatistics updateStatistics = new SetStatistics(transactionOps);
-    return appendUpdates(updateStatistics);
+    return appendUpdate(new SetStatistics(transactionOps));
   }
 
   @Override
   public UpdatePartitionStatistics updatePartitionStatistics() {
-    UpdatePartitionStatistics updatePartitionStatistics =
-        new SetPartitionStatistics(transactionOps);
-    return appendUpdates(updatePartitionStatistics);
+    return appendUpdate(new SetPartitionStatistics(transactionOps));
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
-    return appendUpdates(expire);
+    return appendUpdate(new RemoveSnapshots(transactionOps));
   }
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    SnapshotManager snapshotManager = new SnapshotManager(this);
-    return appendUpdates(snapshotManager);
+    return appendUpdate(new SnapshotManager(this));
   }
 
   CherryPickOperation cherryPick() {
-    CherryPickOperation cherrypick = new CherryPickOperation(tableName, transactionOps);
-    return appendUpdates(cherrypick);
+    return appendUpdate(new CherryPickOperation(tableName, transactionOps));
   }
 
   SetSnapshotOperation setBranchSnapshot() {
-    SetSnapshotOperation set = new SetSnapshotOperation(transactionOps);
-    return appendUpdates(set);
+    return appendUpdate(new SetSnapshotOperation(transactionOps));
   }
 
   UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation() {
-    UpdateSnapshotReferencesOperation manageSnapshotRefOperation =
-        new UpdateSnapshotReferencesOperation(transactionOps);
-    return appendUpdates(manageSnapshotRefOperation);
+    return appendUpdate(new UpdateSnapshotReferencesOperation(transactionOps));
   }
 
   @Override
