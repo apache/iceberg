@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
 public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
-  protected enum TransactionType {
+  enum TransactionType {
     CREATE_TABLE,
     REPLACE_TABLE,
     CREATE_OR_REPLACE_TABLE,
@@ -82,7 +82,7 @@ public class BaseTransaction implements Transaction {
     this(tableName, ops, type, start, LoggingMetricsReporter.instance());
   }
 
-  protected BaseTransaction(
+  BaseTransaction(
       String tableName,
       TableOperations ops,
       TransactionType type,
@@ -122,23 +122,28 @@ public class BaseTransaction implements Transaction {
   }
 
   protected <T extends PendingUpdate> T appendUpdates(T update) {
-    if (!(update instanceof ManageSnapshots)) {
-      checkLastOperationCommitted(update.getClass().getSimpleName());
-    }
+    checkLastOperationCommitted(update.getClass().getSimpleName());
+
     if (update instanceof SnapshotUpdate) {
       ((SnapshotUpdate) update).deleteWith(enqueueDelete);
     }
+
     if (update instanceof SnapshotProducer) {
       ((SnapshotProducer) update).reportWith(reporter);
     }
+
     this.updates.add(update);
     return update;
   }
 
-  void checkLastOperationCommitted(String operation) {
+  protected void checkLastOperationCommitted(String operation) {
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot create new %s: last operation has not committed", operation);
-    this.hasLastOpCommitted = false;
+
+    // SnapshotManager handles its own commits internally
+    if (!SnapshotManager.class.getSimpleName().equals(operation)) {
+      this.hasLastOpCommitted = false;
+    }
   }
 
   @Override
