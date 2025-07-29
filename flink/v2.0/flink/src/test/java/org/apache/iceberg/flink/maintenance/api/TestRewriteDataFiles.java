@@ -375,7 +375,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testRewriteUnPartitionedWithFilter() throws Exception {
+  void testRewriteWithFilter() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -393,6 +393,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .maxFileSizeBytes(2_000_000L)
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
+            // Only rewrite data files where id is 1 or 2 for testing rewrite
             .filter(Expressions.in("id", 1, 2))
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
