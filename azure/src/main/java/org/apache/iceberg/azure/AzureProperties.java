@@ -19,6 +19,7 @@
 package org.apache.iceberg.azure;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
@@ -42,6 +43,8 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
+  public static final String KEYVAULT_URI = "keyvault.uri";
+  public static final String KEYVAULT_KEY_WRAPPING_ALGORITHM = "keyvault.key-wrapping-algorithm";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
@@ -61,6 +64,8 @@ public class AzureProperties implements Serializable {
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
   private Map<String, String> allProperties;
+  private String keyWrapAlgorithm;
+  private String keyVaultUri;
 
   public AzureProperties() {}
 
@@ -93,6 +98,13 @@ public class AzureProperties implements Serializable {
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
     this.allProperties = SerializableMap.copyOf(properties);
+    if (properties.containsKey(KEYVAULT_URI)) {
+      this.keyVaultUri = properties.get(KEYVAULT_URI);
+    }
+    this.keyWrapAlgorithm =
+        properties.getOrDefault(
+            AzureProperties.KEYVAULT_KEY_WRAPPING_ALGORITHM,
+            KeyWrapAlgorithm.RSA_OAEP_256.getValue());
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -143,5 +155,13 @@ public class AzureProperties implements Serializable {
     } else {
       builder.endpoint("https://" + account);
     }
+  }
+
+  public KeyWrapAlgorithm keyWrapAlgorithm() {
+    return KeyWrapAlgorithm.fromString(this.keyWrapAlgorithm);
+  }
+
+  public String keyVaultUri() {
+    return this.keyVaultUri;
   }
 }

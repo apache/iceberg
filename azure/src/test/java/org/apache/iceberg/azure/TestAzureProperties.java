@@ -26,6 +26,8 @@ import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.KEYVAULT_KEY_WRAPPING_ALGORITHM;
+import static org.apache.iceberg.azure.AzureProperties.KEYVAULT_URI;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.identity.DefaultAzureCredential;
+import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.IOException;
@@ -64,11 +67,15 @@ public class TestAzureProperties {
                 .put(ADLS_WRITE_BLOCK_SIZE, "42")
                 .put(ADLS_SHARED_KEY_ACCOUNT_NAME, "me")
                 .put(ADLS_SHARED_KEY_ACCOUNT_KEY, "secret")
+                .put(KEYVAULT_URI, "https://test-key-vault.vault.azure.net")
+                .put(KEYVAULT_KEY_WRAPPING_ALGORITHM, KeyWrapAlgorithm.RSA1_5.getValue())
                 .build());
 
     AzureProperties serdedProps = roundTripSerializer.apply(props);
     assertThat(serdedProps.adlsReadBlockSize()).isEqualTo(props.adlsReadBlockSize());
     assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
+    assertThat(serdedProps.keyVaultUri()).isEqualTo(props.keyVaultUri());
+    assertThat(serdedProps.keyWrapAlgorithm()).isEqualTo(props.keyWrapAlgorithm());
   }
 
   @Test
