@@ -190,14 +190,12 @@ public class TestBloomRowGroupFilter {
 
   @BeforeEach
   public void createInputFile() throws IOException {
-
-    assertThat(temp.delete()).isTrue();
-
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
     String compatibleFieldName = "_incompatible_x2Dname";
 
-    OutputFile outFile = Files.localOutput(temp);
+    File file = new File(temp, "test" + System.nanoTime() + ".parquet");
+    OutputFile outFile = Files.localOutput(file);
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
@@ -269,7 +267,7 @@ public class TestBloomRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(temp);
+    InputFile inFile = Files.localInput(file);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 

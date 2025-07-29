@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,12 +42,14 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
+import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class RandomData {
 
@@ -217,6 +221,10 @@ public class RandomData {
       return result;
     }
 
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
+    }
+
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = randomValue(primitive, random);
@@ -330,6 +338,21 @@ public class RandomData {
       }
 
       return result;
+    }
+
+    @Override
+    public VariantVal variant(Types.VariantType type) {
+      Variant variant = RandomVariants.randomVariant(random);
+
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.metadata().writeTo(metadataBuffer, 0);
+
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.value().writeTo(valueBuffer, 0);
+
+      return new VariantVal(valueBytes, metadataBytes);
     }
 
     @Override
