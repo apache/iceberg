@@ -525,6 +525,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           } else {
             ((TimeStampMicroVector) vec).allocateNew(batchSize);
           }
+
           VectorizedArrowReader.this.readType = ReadType.LONG;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
@@ -535,6 +536,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           } else {
             ((TimeStampNanoVector) vec).allocateNew(batchSize);
           }
+
           VectorizedArrowReader.this.readType = ReadType.LONG;
           VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
           break;
@@ -553,9 +555,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((IntVector) vec).allocateNew(batchSize);
         VectorizedArrowReader.this.readType = ReadType.INT;
         VectorizedArrowReader.this.typeWidth = (int) IntVector.TYPE_WIDTH;
-      }
-
-      if (intLogicalType.getBitWidth() == 64) {
+      } else if (intLogicalType.getBitWidth() == 64) {
         ((BigIntVector) vec).allocateNew(batchSize);
         VectorizedArrowReader.this.readType = ReadType.LONG;
         VectorizedArrowReader.this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
