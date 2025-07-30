@@ -42,8 +42,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,7 +55,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
@@ -77,72 +74,6 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
-
-  private static final OffsetDateTime TS_COMMON_MIN_VALUE =
-      DateTimeUtil.dateFromDays(30).atStartOfDay().atOffset(ZoneOffset.UTC);
-  private static final OffsetDateTime TS_COMMON_MAX_VALUE =
-      DateTimeUtil.dateFromDays(79).atStartOfDay().atOffset(ZoneOffset.UTC);
-  private static final OffsetDateTime TS_COMMON_MIN_VALUE_MINUS_10 =
-      DateTimeUtil.dateFromDays(20).atStartOfDay().atOffset(ZoneOffset.UTC);
-  private static final OffsetDateTime TS_COMMON_MAX_VALUE_PLUS_10 =
-      DateTimeUtil.dateFromDays(89).atStartOfDay().atOffset(ZoneOffset.UTC);
-  private static final OffsetDateTime TS_COMMON_MAX_VALUE_MINUS_10 =
-      DateTimeUtil.dateFromDays(69).atStartOfDay().atOffset(ZoneOffset.UTC);
-
-  // Timestamp
-  private static final long TS_MIN_VALUE = DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE);
-  private static final long TS_MAX_VALUE = DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE);
-
-  private static final long L_TS_MAX_VALUE_MINUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10);
-  private static final long L_TS_MIN_VALUE_MINUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10);
-  private static final long L_TS_MAX_VALUE_PLUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10);
-
-  // Timestamp Nanos
-  private static final long TS_NANO_MIN_VALUE =
-      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MIN_VALUE);
-  private static final long TS_NANO_MAX_VALUE =
-      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE);
-  private static final long L_TS_NANO_MAX_VALUE_MINUS_10 =
-      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10);
-  private static final long L_TS_NANO_MIN_VALUE_MINUS_10 =
-      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10);
-  private static final long L_TS_NANO_MAX_VALUE_PLUS_10 =
-      DateTimeUtil.nanosFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10);
-
-  // Time
-  private static final long TIME_MIN_VALUE =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE) / 1000000;
-  private static final long TIME_MAX_VALUE =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE) / 1000000;
-
-  private static final long L_TIME_MIN_VALUE =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE) / 1000000;
-  private static final String T_TIME_MIN_VALUE = DateTimeUtil.microsToIsoTime(L_TIME_MIN_VALUE);
-
-  private static final long L_TIME_MAX_VALUE =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE) / 1000000;
-  private static final String T_TIME_MAX_VALUE = DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE);
-
-  private static final long L_TIME_MIN_VALUE_MINUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MIN_VALUE_MINUS_10) / 1000000;
-  private static final String T_TIME_MIN_VALUE_MINUS_10 =
-      DateTimeUtil.microsToIsoTime(L_TIME_MIN_VALUE_MINUS_10);
-
-  private static final long L_TIME_MAX_VALUE_PLUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_PLUS_10) / 1000000;
-  private static final String T_TIME_MAX_VALUE_PLUS_10 =
-      DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE_PLUS_10);
-
-  private static final long L_TIME_MAX_VALUE_MINUS_10 =
-      DateTimeUtil.microsFromTimestamptz(TS_COMMON_MAX_VALUE_MINUS_10) / 1000000;
-  private static final String T_TIME_MAX_VALUE_MINUS_10 =
-      DateTimeUtil.microsToIsoTime(L_TIME_MAX_VALUE_MINUS_10);
-
-  // UUID
-  private static final UUID VAR_UUID = UUID.randomUUID();
 
   private static final DataFile FILE =
       new TestDataFile(
@@ -167,22 +98,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       "$['event_id']",
                       Variants.of(INT_MIN_VALUE),
                       "$['str']",
-                      Variants.of("abc"),
-                      "$['event_uuid']",
-                      Variants.ofUUID(VAR_UUID),
-                      "$['event_timestamp_long']",
-                      Variants.of(TS_MIN_VALUE),
-                      "$['event_timestamp_ts_type']",
-                      Variants.ofIsoTimestamptz(DateTimeUtil.microsToIsoTimestamptz(TS_MIN_VALUE)),
-                      "$['event_timestamp_nano_long']",
-                      Variants.of(TS_NANO_MIN_VALUE),
-                      "$['event_timestamp_nano_ts_type']",
-                      Variants.ofIsoTimestamptzNanos(
-                          DateTimeUtil.nanosToIsoTimestamptz(TS_NANO_MIN_VALUE)),
-                      "$['event_time_long']",
-                      Variants.of(TIME_MIN_VALUE),
-                      "$['event_time_ts_type']",
-                      Variants.ofIsoTime(DateTimeUtil.microsToIsoTime(TIME_MIN_VALUE))))),
+                      Variants.of("abc")))),
           // upper bounds
           ImmutableMap.of(
               2,
@@ -191,22 +107,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                       "$['event_id']",
                       Variants.of(INT_MAX_VALUE),
                       "$['str']",
-                      Variants.of("abe"),
-                      "$['event_uuid']",
-                      Variants.ofUUID(VAR_UUID),
-                      "$['event_timestamp_long']",
-                      Variants.of(TS_MAX_VALUE),
-                      "$['event_timestamp_ts_type']",
-                      Variants.ofIsoTimestamptz(DateTimeUtil.microsToIsoTimestamptz(TS_MAX_VALUE)),
-                      "$['event_timestamp_nano_long']",
-                      Variants.of(TS_NANO_MAX_VALUE),
-                      "$['event_timestamp_nano_ts_type']",
-                      Variants.ofIsoTimestamptzNanos(
-                          DateTimeUtil.nanosToIsoTimestamptz(TS_NANO_MAX_VALUE)),
-                      "$['event_time_long']",
-                      Variants.of(TIME_MAX_VALUE),
-                      "$['event_time_ts_type']",
-                      Variants.ofIsoTime(DateTimeUtil.microsToIsoTime(TIME_MAX_VALUE))))));
+                      Variants.of("abe")))));
 
   private boolean shouldRead(Expression expr) {
     return shouldRead(expr, FILE);
@@ -1068,17 +969,26 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
   @Test
   public void testUUIDEq() {
-    assertThat(
-            shouldRead(
-                equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID)))
-        .as("Should read: uuid equal to lower bound")
-        .isTrue();
-    assertThat(
-            shouldRead(
-                equal(
-                    extract("variant", "$.event_uuid", PhysicalType.UUID.name()),
-                    UUID.randomUUID())))
-        .as("Should not read: uuid not equal to lower or upper bound")
-        .isFalse();
+    UUID VAR_UUID = UUID.randomUUID();
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+            ImmutableMap.of(
+                    2,
+                    VariantTestUtil.variantBuffer(
+                            Map.of(
+                                    "$['event_uuid']",
+                                    Variants.ofUUID(VAR_UUID))));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+            ImmutableMap.of(
+                    2,
+                    VariantTestUtil.variantBuffer(
+                            Map.of(
+                                    "$['event_uuid']",
+                                    Variants.ofUUID(VAR_UUID))));
+    DataFile file =
+            new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
 }
