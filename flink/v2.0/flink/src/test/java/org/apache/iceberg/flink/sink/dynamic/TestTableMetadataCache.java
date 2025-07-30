@@ -20,9 +20,14 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
@@ -47,7 +52,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, Clock.systemUTC(), 10);
 
     Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
@@ -68,7 +74,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, Clock.systemUTC(), 10);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
     Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
@@ -87,8 +94,71 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 0, Long.MAX_VALUE, Clock.systemUTC(), 10);
 
     assertThat(cache.getInternalCache()).isEmpty();
+  }
+
+  @Test
+  void testNoCacheRefreshBeforeRefreshIntervalElapses() {
+    // Create table
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA2);
+
+    // Create test clock
+    long firstEpochMillis = 1L;
+    MutableClock testClock = new MutableClock(ZoneOffset.UTC, firstEpochMillis);
+
+    // Init cache
+    long refreshIntervalMillis = 100L;
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, refreshIntervalMillis, testClock, 10);
+    cache.update(tableIdentifier, table);
+
+    // Cache schema
+    Schema schema = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    assertThat(schema.sameSchema(SCHEMA2)).isTrue();
+
+    // Progress clock to timestamp before refresh interval
+    long secondEpochMilli = 2L;
+    testClock.setEpochMilli(secondEpochMilli);
+
+    // Cache schema with fewer fields
+    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA);
+    assertThat(schemaInfo.resolvedTableSchema().sameSchema(SCHEMA2)).isTrue();
+    assertThat(schemaInfo.compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+
+    // Assert both schemas are in cache
+    assertThat(cache.getResolvedSchemaInfo(tableIdentifier, SCHEMA)).isNotNull();
+    assertThat(cache.getResolvedSchemaInfo(tableIdentifier, SCHEMA2)).isNotNull();
+  }
+
+  private static class MutableClock extends Clock {
+    private final ZoneId zoneId;
+    private long epochMilli;
+
+    MutableClock(ZoneId zoneId, long epochMilli) {
+      this.zoneId = zoneId;
+      this.epochMilli = epochMilli;
+    }
+
+    void setEpochMilli(long epochMilli) {
+      this.epochMilli = epochMilli;
+    }
+
+    public ZoneId getZone() {
+      return this.zoneId;
+    }
+
+    public Clock withZone(ZoneId zone) {
+      return zone.equals(this.zoneId) ? this : new MutableClock(zone, this.epochMilli);
+    }
+
+    public Instant instant() {
+      return Instant.ofEpochMilli(this.epochMilli);
+    }
   }
 }
