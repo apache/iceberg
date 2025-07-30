@@ -35,8 +35,8 @@ import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -201,7 +201,7 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testMetricsVariantSupported() {
-    Assumptions.assumeTrue(formatVersion >= 3);
+    Assumptions.assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Schema schema =
         new Schema(
             required(1, "variant", Types.VariantType.get()),
