@@ -79,7 +79,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY");
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
   private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
