@@ -441,18 +441,18 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   }
 
   private void assertIdenticalFileContents(File actual, File expected, Schema schema)
-          throws IOException {
+      throws IOException {
     try (CloseableIterable<InternalRow> actualReader =
-                 Parquet.read(Files.localInput(actual))
-                         .project(schema)
-                         .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-                         .build()) {
+        Parquet.read(Files.localInput(actual))
+            .project(schema)
+            .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
+            .build()) {
       Iterator<InternalRow> actualIterator = actualReader.iterator();
       try (CloseableIterable<InternalRow> plainReader =
-                   Parquet.read(Files.localInput(expected))
-                           .project(schema)
-                           .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-                           .build()) {
+          Parquet.read(Files.localInput(expected))
+              .project(schema)
+              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
+              .build()) {
         Iterator<InternalRow> expectedIterator = plainReader.iterator();
 
         List<InternalRow> expectedList = Lists.newArrayList();
@@ -469,19 +469,19 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   static Stream<Arguments> goldenFilesAndEncodings() {
     return GOLDEN_FILE_ENCODINGS.stream()
-            .flatMap(
-                    encoding ->
-                            GOLDEN_FILE_TYPES.entrySet().stream()
-                                    .map(
-                                            typeEntry ->
-                                                    Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
+        .flatMap(
+            encoding ->
+                GOLDEN_FILE_TYPES.entrySet().stream()
+                    .map(
+                        typeEntry ->
+                            Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
   }
 
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
   public void testGoldenFiles(
-          String encoding, String typeName, org.apache.iceberg.types.Type.PrimitiveType primitiveType)
-          throws Exception {
+      String encoding, String typeName, org.apache.iceberg.types.Type.PrimitiveType primitiveType)
+      throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
     Assumptions.assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
@@ -494,6 +494,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
-            new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
+        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
   }
 }
