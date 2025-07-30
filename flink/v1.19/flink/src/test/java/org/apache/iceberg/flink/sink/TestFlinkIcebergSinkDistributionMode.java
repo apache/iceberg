@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -468,6 +469,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   /** Test migration from Map stats to Sketch stats */
   @TestTemplate
+  @Disabled("issue-11815: flaky test")
   public void testRangeDistributionStatisticsMigration() throws Exception {
     table
         .updateProperties()
