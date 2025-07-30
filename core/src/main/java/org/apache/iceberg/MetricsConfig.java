@@ -25,8 +25,6 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -35,8 +33,6 @@ import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -115,77 +111,99 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
-  static Iterable<Integer> breadthFirstFieldPriority(Schema schema) {
+  static Set<Integer> limitFieldIds(Schema schema, int limit) {
     return TypeUtil.visit(
         schema,
         new TypeUtil.CustomOrderSchemaVisitor<>() {
+          private final Set<Integer> idSet = Sets.newHashSet();
 
-          @Override
-          public Iterable<Integer> schema(Schema schema, Supplier<Iterable<Integer>> structResult) {
-            return structResult.get();
+          private boolean shouldContinue() {
+            return idSet.size() < limit;
+          }
+
+          private boolean addUntilFull(int fieldId) {
+            if (idSet.size() == limit) return true;
+            idSet.add(fieldId);
+            return idSet.size() == limit;
+          }
+
+          private boolean metricsEligible(Type type) {
+            return type.isPrimitiveType() || type.isVariantType();
           }
 
           @Override
-          public Iterable<Integer> struct(
-              Types.StructType struct, Iterable<Iterable<Integer>> fieldResults) {
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> schema(Schema schema, Supplier<Set<Integer>> structResult) {
+            // We need to call structResult.get() to visit the schema
+            structResult.get();
+            return idSet;
+          }
 
-            List<Integer> orderedFieldIds =
-                Lists.newArrayListWithExpectedSize(struct.fields().size());
+          @Override
+          public Set<Integer> struct(Types.StructType struct, Iterable<Set<Integer>> fieldResults) {
             for (Types.NestedField field : struct.fields()) {
-              if (field.type().isPrimitiveType()) {
-                orderedFieldIds.add(field.fieldId());
+              if (metricsEligible(field.type())) {
+                if (addUntilFull(field.fieldId())) {
+                  return null;
+                }
               }
             }
-            return Iterables.concat(orderedFieldIds, Iterables.concat(fieldResults));
-          }
 
-          @Override
-          public Iterable<Integer> field(
-              Types.NestedField field, Supplier<Iterable<Integer>> future) {
-            return future.get();
-          }
-
-          @Override
-          public Iterable<Integer> list(Types.ListType list, Supplier<Iterable<Integer>> future) {
-            List<Integer> returnValue = Lists.newArrayListWithCapacity(1);
-            if (list.elementType().isPrimitiveType()) {
-              returnValue.add(list.elementId());
+            // visit children to add more ids
+            for (Set<Integer> ignored : fieldResults) {
+              if (!shouldContinue()) {
+                return null;
+              }
             }
-            return Iterables.concat(returnValue, future.get());
+
+            return null;
           }
 
           @Override
-          public Iterable<Integer> map(
+          public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
+            return fieldResult.get();
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> list(Types.ListType list, Supplier<Set<Integer>> elementResult) {
+            if (metricsEligible(list.elementType())) {
+              if (addUntilFull(list.elementId())) {
+                return null;
+              }
+            }
+            elementResult.get();
+            return null;
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> map(
               Types.MapType map,
-              Supplier<Iterable<Integer>> keyFuture,
-              Supplier<Iterable<Integer>> valueFuture) {
-            List<Integer> returnValue = Lists.newArrayListWithCapacity(2);
-            if (map.keyType().isPrimitiveType()) {
-              returnValue.add(map.keyId());
+              Supplier<Set<Integer>> keyResult,
+              Supplier<Set<Integer>> valueResult) {
+
+            if (metricsEligible(map.keyType())) {
+              if (addUntilFull(map.keyId())) {
+                return null;
+              }
             }
-            if (map.valueType().isPrimitiveType()) {
-              returnValue.add(map.valueId());
+
+            if (metricsEligible(map.valueType())) {
+              if (addUntilFull(map.valueId())) {
+                return null;
+              }
             }
 
-            return Iterables.concat(returnValue, keyFuture.get(), valueFuture.get());
-          }
-
-          @Override
-          public Iterable<Integer> variant(Types.VariantType variant) {
-            return Collections.emptyList();
-          }
-
-          @Override
-          public Iterable<Integer> primitive(Type.PrimitiveType primitive) {
-            return Collections.emptyList();
+            keyResult.get();
+            valueResult.get();
+            return null;
           }
         });
   }
 
-  static Schema boundedBreadthFirstSubSchema(Schema schema, int maxInferredDefaultColumns) {
-    Set<Integer> boundedFieldIds =
-        Sets.newHashSet(
-            Iterables.limit(breadthFirstFieldPriority(schema), maxInferredDefaultColumns));
+  static Schema limitSchema(Schema schema, int maxInferredDefaultColumns) {
+    Set<Integer> boundedFieldIds = limitFieldIds(schema, maxInferredDefaultColumns);
 
     return TypeUtil.project(schema, boundedFieldIds);
   }
@@ -218,7 +236,7 @@ public final class MetricsConfig implements Serializable {
         // everywhere
         defaultMode = DEFAULT_MODE;
       } else {
-        Schema subSchema = boundedBreadthFirstSubSchema(schema, maxInferredDefaultColumns);
+        Schema subSchema = limitSchema(schema, maxInferredDefaultColumns);
         for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
           columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
         }

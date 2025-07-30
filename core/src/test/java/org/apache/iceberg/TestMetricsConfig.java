@@ -40,7 +40,7 @@ public class TestMetricsConfig {
                     required(3, "b", Types.IntegerType.get()))),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 1);
+    Schema subSchema = MetricsConfig.limitSchema(schema, 1);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
   }
@@ -55,7 +55,7 @@ public class TestMetricsConfig {
                 Types.MapType.ofRequired(2, 3, Types.IntegerType.get(), Types.IntegerType.get())),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 2);
+    Schema subSchema = MetricsConfig.limitSchema(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
   }
@@ -73,7 +73,7 @@ public class TestMetricsConfig {
                         3, 4, Types.IntegerType.get(), Types.IntegerType.get()))),
             required(5, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.boundedBreadthFirstSubSchema(schema, 2);
+    Schema subSchema = MetricsConfig.limitSchema(schema, 2);
 
     assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
   }

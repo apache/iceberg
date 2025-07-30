@@ -216,7 +216,7 @@ public class TestMetricsModes {
             SortOrder.unsorted(),
             formatVersion);
 
-    // only infer a default for the first two columns
+    // only infer a default for the first column
     table
         .updateProperties()
         .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1")
