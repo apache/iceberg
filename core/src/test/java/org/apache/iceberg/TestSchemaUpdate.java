@@ -792,7 +792,7 @@ public class TestSchemaUpdate {
                     .addRequiredColumn("DATA", Types.StringType.get())
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot add column, name already exists: DATA");
+        .hasMessage("Cannot build lower case index: data and DATA collide");
   }
 
   @Test
