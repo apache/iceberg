@@ -106,11 +106,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                         Table table =
                             catalog.loadTable(TableIdentifier.parse(factoryKey.tableName()));
 
-                        // TODO: Handle precedence correctly for the write properties coming from
-                        // the sink conf and from the table defaults
                         Map<String, String> tableWriteProperties =
-                            Maps.newHashMap(commonWriteProperties);
-                        tableWriteProperties.putAll(table.properties());
+                            Maps.newHashMap(table.properties());
+                        tableWriteProperties.putAll(commonWriteProperties);
 
                         Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());

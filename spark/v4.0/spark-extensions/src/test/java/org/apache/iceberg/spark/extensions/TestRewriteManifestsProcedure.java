@@ -42,6 +42,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -265,7 +266,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         .hasSize(1);
   }
 
-  @TestTemplate
+  @Disabled("Spark SQL does not support case insensitive for named arguments")
   public void testRewriteManifestsCaseInsensitiveArgs() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -298,24 +299,30 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessage(
+            "[DUPLICATE_ROUTINE_PARAMETER_ASSIGNMENT.BOTH_POSITIONAL_AND_NAMED] Call to routine `rewrite_manifests` is invalid because it includes multiple argument assignments to the same parameter name `table`. A positional argument and named argument both referred to the same parameter. Please remove the named argument referring to this parameter. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Catalog %s does not support procedures.", catalogName);
+        .hasMessage(
+            "[FAILED_TO_LOAD_ROUTINE] Failed to load routine `%s`.`custom`.`rewrite_manifests`. SQLSTATE: 38000",
+            catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `rewrite_manifests` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("Wrong arg type for use_caching");
+        .hasMessageStartingWith(
+            "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The second parameter requires the \"BOOLEAN\" type, however \"2.2\" has the type \"DECIMAL(2,1)\". SQLSTATE: 42K09");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Could not build name to arg map: Duplicate procedure argument: table");
+        .hasMessage(
+            "[UNRECOGNIZED_PARAMETER_NAME] Cannot invoke routine `rewrite_manifests` because the routine call included a named argument reference for the argument named `tAbLe`, but this routine does not include any signature containing an argument with this name. Did you mean one of the following? [`table` `spec_id` `use_caching`]. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -413,7 +420,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     }
 
     sql(
-        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, tAbLe => '%s')",
+        "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s')",
         catalogName, tableIdent);
 
     table.refresh();

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestTransaction extends TestBase {
@@ -237,6 +239,43 @@ public class TestTransaction extends TestBase {
     assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
+  }
+
+  @TestTemplate
+  public void testTransactionFailureBulkDeletionCleanup() throws IOException {
+    TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
+    Mockito.doNothing().when(spyFileIO).deleteFiles(any());
+
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnFailureBulkDeleteTest";
+    TestTables.TestTable tableWithBulkIO =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
+
+    // set retries to 0 to catch the failure
+    tableWithBulkIO.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
+
+    // eagerly generate manifest and manifest-list
+    Transaction txn = tableWithBulkIO.newTransaction();
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    ManifestFile appendManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
+    String txnManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    // cause the transaction commit to fail
+    tableWithBulkIO.ops().failCommits(1);
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // ensure both files are deleted on transaction failure
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(appendManifest.path(), txnManifestList));
   }
 
   @TestTemplate

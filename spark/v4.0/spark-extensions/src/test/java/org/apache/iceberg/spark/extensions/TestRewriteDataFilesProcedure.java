@@ -24,9 +24,12 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Files;
@@ -45,6 +48,7 @@ import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -54,6 +58,7 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -509,7 +514,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
     createBucketPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -636,7 +641,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithPossibleV2Filters() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
 
     SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
     sql(
@@ -768,20 +773,25 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Named and positional arguments cannot be mixed");
+        .hasMessage(
+            "[DUPLICATE_ROUTINE_PARAMETER_ASSIGNMENT.BOTH_POSITIONAL_AND_NAMED] Call to routine `rewrite_data_files` is invalid because it includes multiple argument assignments to the same parameter name `table`. A positional argument and named argument both referred to the same parameter. Please remove the named argument referring to this parameter. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Catalog %s does not support procedures.", catalogName);
+        .hasMessage(
+            "[FAILED_TO_LOAD_ROUTINE] Failed to load routine `%s`.`custom`.`rewrite_data_files`. SQLSTATE: 38000",
+            catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `rewrite_data_files` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageEndingWith("Duplicate procedure argument: table");
+        .hasMessageEndingWith(
+            "[DUPLICATE_ROUTINE_PARAMETER_ASSIGNMENT.DOUBLE_NAMED_ARGUMENT_REFERENCE] Call to routine `rewrite_data_files` is invalid because it includes multiple argument assignments to the same parameter name `table`. More than one named argument referred to the same parameter. Please assign a value only once. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -971,19 +981,77 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));
   }
 
+  @TestTemplate
+  public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES('format-version' = '3')",
+        tableName);
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    int numRecords = 10;
+    for (int i = 0; i < numRecords; i++) {
+      records.add(new ThreeColumnRecord(i, null, null));
+    }
+
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(10)
+        .writeTo(tableName)
+        .append();
+    List<Object[]> expectedRowsWithLineage =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    List<Long> rowIds =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[1])
+            .collect(Collectors.toList());
+    List<Long> sequenceNumbers =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[2])
+            .collect(Collectors.toList());
+    assertThat(rowIds)
+        .isEqualTo(LongStream.range(0, numRecords).boxed().collect(Collectors.toList()));
+    assertThat(sequenceNumbers).isEqualTo(Collections.nCopies(numRecords, 1L));
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> rowsWithLineageAfterRewrite =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    assertEquals(
+        "Rows with lineage before rewrite should equal rows with lineage after rewrite",
+        expectedRowsWithLineage,
+        rowsWithLineageAfterRewrite);
+  }
+
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
   }
 
   private void createPartitionTable() {
+    createPartitionTable(
+        ImmutableMap.of(
+            TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE));
+  }
+
+  private void createPartitionTable(Map<String, String> properties) {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
-            + "PARTITIONED BY (c2) "
-            + "TBLPROPERTIES ('%s' '%s')",
-        tableName,
-        TableProperties.WRITE_DISTRIBUTION_MODE,
-        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+            + "PARTITIONED BY (c2)",
+        tableName);
+    properties.forEach(
+        (prop, value) ->
+            this.sql(
+                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+                new Object[] {this.tableName, prop, value}));
   }
 
   private void createBucketPartitionTable() {

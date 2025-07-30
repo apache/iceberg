@@ -16,23 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.spark.sql.catalyst.analysis;
+package org.apache.iceberg.spark.extensions;
 
-import org.apache.spark.QueryContext;
-import org.apache.spark.sql.AnalysisException;
-import org.apache.spark.sql.connector.catalog.Identifier;
-import scala.Option;
-import scala.collection.immutable.Map$;
+import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class NoSuchProcedureException extends AnalysisException {
-  public NoSuchProcedureException(Identifier ident) {
-    super(
-        "Procedure " + ident + " not found",
-        Option.empty(),
-        Option.empty(),
-        Option.empty(),
-        Option.empty(),
-        Map$.MODULE$.empty(),
-        new QueryContext[0]);
+public class TestMergeOnReadWithLineage extends TestRowLevelOperationsWithLineage {
+
+  @Override
+  protected Map<String, String> extraTableProperties() {
+    return ImmutableMap.of(
+        TableProperties.MERGE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
+        TableProperties.UPDATE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName(),
+        TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 }

@@ -91,15 +91,15 @@ public class TestMetadataTables extends ExtensionsTestBase {
         2
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         2
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         3
       },
       {

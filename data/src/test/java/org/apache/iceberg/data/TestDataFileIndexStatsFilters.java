@@ -364,7 +364,7 @@ public class TestDataFileIndexStatsFilters {
 
     ScanMetricsResult scanReport = reporter.scanReport().scanMetrics();
     assertThat(scanReport.totalDeleteManifests().value())
-        .as("Should be 2 delete manfiests, one for odds and one with both odds and evens")
+        .as("Should be 2 delete manifests, one for odds and one with both odds and evens")
         .isEqualTo(2);
     assertThat(scanReport.skippedDeleteManifests().value())
         .as("The manifest with only odd deletes should be skipped")
@@ -640,7 +640,7 @@ public class TestDataFileIndexStatsFilters {
     return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 
-  private File createTempFile() throws IOException {
-    return File.createTempFile("junit", null, tempDir);
+  private File createTempFile() {
+    return new File(tempDir, "junit" + System.nanoTime());
   }
 }

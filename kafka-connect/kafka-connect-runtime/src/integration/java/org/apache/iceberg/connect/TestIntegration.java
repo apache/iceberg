@@ -40,7 +40,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class IntegrationTest extends IntegrationTestBase {
+public class TestIntegration extends IntegrationTestBase {
 
   private static final String TEST_TABLE = "foobar";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(TEST_DB, TEST_TABLE);

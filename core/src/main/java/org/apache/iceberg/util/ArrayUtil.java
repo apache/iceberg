@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.relocated.com.google.common.primitives.Longs;
 
 public class ArrayUtil {
@@ -40,6 +41,14 @@ public class ArrayUtil {
   public static List<Integer> toIntList(int[] ints) {
     if (ints != null) {
       return IntStream.of(ints).boxed().collect(Collectors.toList());
+    } else {
+      return null;
+    }
+  }
+
+  public static List<Integer> toUnmodifiableIntList(int[] ints) {
+    if (ints != null) {
+      return Collections.unmodifiableList(Ints.asList(ints));
     } else {
       return null;
     }

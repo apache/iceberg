@@ -112,7 +112,7 @@ class TestCompareSchemasVisitor {
   }
 
   @Test
-  void testWithRequiredChange() {
+  void testRequiredChangeForMatchingField() {
     Schema dataSchema =
         new Schema(optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
     Schema tableSchema =
@@ -121,6 +121,26 @@ class TestCompareSchemasVisitor {
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
     assertThat(CompareSchemasVisitor.visit(tableSchema, dataSchema))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testRequiredChangeForNonMatchingField() {
+    Schema dataSchema = new Schema(optional(1, "id", IntegerType.get()));
+    Schema tableSchema =
+        new Schema(optional(1, "id", IntegerType.get()), required(2, "extra", StringType.get()));
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+    assertThat(CompareSchemasVisitor.visit(tableSchema, dataSchema))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testNoRequiredChangeForNonMatchingField() {
+    Schema dataSchema = new Schema(required(1, "id", IntegerType.get()));
+    Schema tableSchema =
+        new Schema(required(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema))
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
   @Test
