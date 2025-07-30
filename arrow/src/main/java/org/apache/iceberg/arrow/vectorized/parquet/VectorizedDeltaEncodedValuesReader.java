@@ -91,6 +91,11 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
   }
 
+  // True value count. May be less than valueCount because of nulls
+  int getTotalValueCount() {
+    return totalValueCount;
+  }
+
   /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public byte readByte() {
@@ -147,6 +152,12 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
+  }
+
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
+  @Override
+  public void readBinary(int total, FieldVector vec, int rowId) {
+    throw new UnsupportedOperationException("readBinary is not supported");
   }
 
   private void readValues(
