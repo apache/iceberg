@@ -21,10 +21,10 @@ package org.apache.iceberg.expressions;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantValue;
 
@@ -49,7 +49,7 @@ class VariantExpressionUtil {
 
   private VariantExpressionUtil() {}
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   static <T> T castTo(VariantValue value, Type type) {
     if (value == null) {
       return null;
@@ -114,16 +114,38 @@ class VariantExpressionUtil {
 
         break;
       case TIMESTAMP:
-      case TIMESTAMP_NANO:
-      case TIME:
-        if (value.type() == PhysicalType.INT64) {
-          return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
+        if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
+            || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
+          return (T)
+              (Long) DateTimeUtil.nanosToMicros(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.DATE) {
+          return (T)
+              (Long)
+                  DateTimeUtil.microsFromTimestamp(
+                      DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
+                          .atStartOfDay());
         }
-
         break;
-      case UUID:
-        if (value.type() == PhysicalType.STRING) {
-          return (T) UUID.fromString((String) value.asPrimitive().get());
+      case TIMESTAMP_NANO:
+        if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
+          return (T)
+              (Long) DateTimeUtil.microsToNanos(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.DATE) {
+          return (T)
+              (Long)
+                  DateTimeUtil.nanosFromTimestamp(
+                      DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
+                          .atStartOfDay());
+        }
+        break;
+      case DATE:
+        if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
+          return (T)
+              (Integer) DateTimeUtil.microsToDays(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
+            || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
+          return (T)
+              (Integer) DateTimeUtil.nanosToDays(((Number) value.asPrimitive().get()).longValue());
         }
     }
     return null;
