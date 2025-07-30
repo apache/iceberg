@@ -36,6 +36,7 @@ import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -196,6 +197,38 @@ public class TestMetricsModes {
     assertThat(config.columnMode("col1")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col2")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col3")).isEqualTo(None.get());
+  }
+
+  @TestTemplate
+  public void testMetricsVariantSupported() {
+    Assumptions.assumeTrue(formatVersion >= 3);
+    Schema schema =
+        new Schema(
+            required(1, "variant", Types.VariantType.get()),
+            required(2, "int", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first two columns
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Map<String, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().values().stream().collect(Collectors.toMap(k -> k, config::columnMode));
+
+    assertThat(metricModes)
+        .containsOnly(Map.entry("variant", Truncate.withLength(16)), Map.entry("int", None.get()));
   }
 
   @TestTemplate
