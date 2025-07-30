@@ -117,14 +117,8 @@ public final class MetricsConfig implements Serializable {
         new TypeUtil.CustomOrderSchemaVisitor<>() {
           private final Set<Integer> idSet = Sets.newHashSet();
 
-          private boolean shouldContinue() {
-            return idSet.size() < limit;
-          }
-
-          private boolean addUntilFull(int fieldId) {
-            if (idSet.size() == limit) return true;
-            idSet.add(fieldId);
-            return idSet.size() == limit;
+          private boolean shouldTerminateEarly() {
+            return idSet.size() >= limit;
           }
 
           private boolean metricsEligible(Type type) {
@@ -142,18 +136,16 @@ public final class MetricsConfig implements Serializable {
           @Override
           public Set<Integer> struct(Types.StructType struct, Iterable<Set<Integer>> fieldResults) {
             for (Types.NestedField field : struct.fields()) {
+              if (shouldTerminateEarly()) return null;
+
               if (metricsEligible(field.type())) {
-                if (addUntilFull(field.fieldId())) {
-                  return null;
-                }
+                idSet.add(field.fieldId());
               }
             }
 
             // visit children to add more ids
             for (Set<Integer> ignored : fieldResults) {
-              if (!shouldContinue()) {
-                return null;
-              }
+              if (shouldTerminateEarly()) return null;
             }
 
             return null;
@@ -161,17 +153,22 @@ public final class MetricsConfig implements Serializable {
 
           @Override
           public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
+            if (shouldTerminateEarly()) return null;
+
             return fieldResult.get();
           }
 
           @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> list(Types.ListType list, Supplier<Set<Integer>> elementResult) {
+            if (shouldTerminateEarly()) return null;
+
             if (metricsEligible(list.elementType())) {
-              if (addUntilFull(list.elementId())) {
-                return null;
-              }
+              idSet.add(list.elementId());
             }
+
+            if (shouldTerminateEarly()) return null;
+
             elementResult.get();
             return null;
           }
@@ -183,19 +180,24 @@ public final class MetricsConfig implements Serializable {
               Supplier<Set<Integer>> keyResult,
               Supplier<Set<Integer>> valueResult) {
 
+            if (shouldTerminateEarly()) return null;
+
             if (metricsEligible(map.keyType())) {
-              if (addUntilFull(map.keyId())) {
-                return null;
-              }
+              idSet.add(map.keyId());
             }
+
+            if (shouldTerminateEarly()) return null;
 
             if (metricsEligible(map.valueType())) {
-              if (addUntilFull(map.valueId())) {
-                return null;
-              }
+              idSet.add(map.valueId());
             }
 
+            if (shouldTerminateEarly()) return null;
+
             keyResult.get();
+
+            if (shouldTerminateEarly()) return null;
+
             valueResult.get();
             return null;
           }
