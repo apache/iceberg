@@ -402,6 +402,7 @@ public class TestVariantReaders {
 
     GroupType variantType =
         Types.buildGroup(Type.Repetition.REQUIRED)
+            .as(LogicalTypeAnnotation.variantType((byte)1))
             .id(2)
             .required(PrimitiveTypeName.BINARY)
             .named("metadata")
@@ -535,6 +536,7 @@ public class TestVariantReaders {
     GroupType objectFields = objectFields(fieldA, fieldB);
     GroupType variantType =
         Types.buildGroup(Type.Repetition.REQUIRED)
+            .as(LogicalTypeAnnotation.variantType((byte)1))
             .id(2)
             .required(PrimitiveTypeName.BINARY)
             .named("metadata")
@@ -1491,6 +1493,7 @@ public class TestVariantReaders {
     GroupType elementType = element(shreddedType);
     GroupType variantType =
         Types.buildGroup(Type.Repetition.OPTIONAL)
+            .as(LogicalTypeAnnotation.variantType((byte)1))
             .id(2)
             .required(PrimitiveTypeName.BINARY)
             .named("metadata")
@@ -1695,6 +1698,7 @@ public class TestVariantReaders {
 
   private static GroupType variant(String name, int fieldId) {
     return Types.buildGroup(Type.Repetition.REQUIRED)
+        .as(LogicalTypeAnnotation.variantType((byte)1))
         .id(fieldId)
         .required(PrimitiveTypeName.BINARY)
         .named("metadata")
@@ -1797,6 +1801,7 @@ public class TestVariantReaders {
   private static GroupType variant(String name, int fieldId, Type shreddedType) {
     checkShreddedType(shreddedType);
     return Types.buildGroup(Type.Repetition.OPTIONAL)
+        .as(LogicalTypeAnnotation.variantType((byte)1))
         .id(fieldId)
         .required(PrimitiveTypeName.BINARY)
         .named("metadata")
