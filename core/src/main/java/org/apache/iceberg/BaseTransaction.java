@@ -121,7 +121,7 @@ public class BaseTransaction implements Transaction {
     return ops;
   }
 
-  protected <T extends PendingUpdate> T appendUpdate(T update) {
+  protected final <T extends PendingUpdate> T appendUpdate(T update) {
     checkLastOperationCommitted(update.getClass());
 
     if (update instanceof SnapshotUpdate) {
