@@ -24,6 +24,8 @@ import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +35,9 @@ public class TestExpressionSerialization {
     Schema schema =
         new Schema(
             Types.NestedField.optional(34, "a", Types.IntegerType.get()),
-            Types.NestedField.required(35, "s", Types.StringType.get()));
+            Types.NestedField.required(35, "s", Types.StringType.get()),
+            Types.NestedField.required(36, "point", Types.GeometryType.crs84()),
+            Types.NestedField.required(37, "geography", Types.GeographyType.crs84()));
 
     Expression[] expressions =
         new Expression[] {
@@ -61,7 +65,26 @@ public class TestExpressionSerialization {
           Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
           Expressions.isNull("a").bind(schema.asStruct()),
           Expressions.startsWith("s", "abc").bind(schema.asStruct()),
-          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct())
+          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
+          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
+          Expressions.stIntersects(
+              "point",
+              new BoundingBox(
+                  GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0))),
+          Expressions.stDisjoint(
+              "geography",
+              new BoundingBox(
+                  GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0))),
+          Expressions.stIntersects(
+                  "point",
+                  new BoundingBox(
+                      GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)))
+              .bind(schema.asStruct()),
+          Expressions.stDisjoint(
+                  "geography",
+                  new BoundingBox(
+                      GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0)))
+              .bind(schema.asStruct())
         };
 
     for (Expression expression : expressions) {
@@ -149,11 +172,19 @@ public class TestExpressionSerialization {
     if (left instanceof UnboundPredicate) {
       UnboundPredicate lpred = (UnboundPredicate) left;
       UnboundPredicate rpred = (UnboundPredicate) right;
-      if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
+      if (left.op() == Operation.IN
+          || left.op() == Operation.NOT_IN
+          || left.op() == Operation.ST_INTERSECTS
+          || left.op() == Operation.ST_DISJOINT) {
         return equals(lpred.literals(), rpred.literals());
       }
       return lpred.literal().comparator().compare(lpred.literal().value(), rpred.literal().value())
           == 0;
+
+    } else if (left instanceof BoundGeospatialPredicate) {
+      BoundGeospatialPredicate lpred = (BoundGeospatialPredicate) left;
+      BoundGeospatialPredicate rpred = (BoundGeospatialPredicate) right;
+      return lpred.isEquivalentTo(rpred);
 
     } else if (left instanceof BoundPredicate) {
       BoundPredicate lpred = (BoundPredicate) left;

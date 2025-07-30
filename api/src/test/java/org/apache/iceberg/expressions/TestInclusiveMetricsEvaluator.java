@@ -34,6 +34,8 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.stDisjoint;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -47,6 +49,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -71,7 +75,11 @@ public class TestInclusiveMetricsEvaluator {
           optional(11, "all_nans_v1_stats", Types.FloatType.get()),
           optional(12, "nan_and_null_only", Types.DoubleType.get()),
           optional(13, "no_nan_stats", Types.DoubleType.get()),
-          optional(14, "some_empty", Types.StringType.get()));
+          optional(14, "some_empty", Types.StringType.get()),
+          optional(15, "geom", Types.GeometryType.crs84()),
+          optional(16, "all_nulls_geom", Types.GeometryType.crs84()),
+          optional(17, "geog", Types.GeographyType.crs84()),
+          optional(18, "all_nulls_geog", Types.GeographyType.crs84()));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -186,6 +194,40 @@ public class TestInclusiveMetricsEvaluator {
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
+
+  private static final DataFile FILE_6 =
+      new TestDataFile(
+          "file_6.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.<Integer, Long>builder()
+              .put(15, 20L)
+              .put(16, 20L)
+              .put(17, 20L)
+              .put(18, 20L)
+              .buildOrThrow(),
+          // null value counts
+          ImmutableMap.<Integer, Long>builder()
+              .put(15, 2L)
+              .put(16, 20L)
+              .put(17, 2L)
+              .put(18, 20L)
+              .buildOrThrow(),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              15,
+              GeospatialBound.createXY(1, 2).toByteBuffer(),
+              17,
+              GeospatialBound.createXY(1, 2).toByteBuffer()),
+          // upper bounds
+          ImmutableMap.of(
+              15,
+              GeospatialBound.createXY(10, 20).toByteBuffer(),
+              17,
+              GeospatialBound.createXY(10, 20).toByteBuffer()));
 
   @Test
   public void testAllNulls() {
@@ -862,5 +904,63 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(FILE);
     assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
+  }
+
+  @Test
+  public void testStIntersects() {
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(
+                SCHEMA,
+                stIntersects(
+                    "geom",
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 0), GeospatialBound.createXY(3, 4))))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: query window intersects the boundary").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(
+                SCHEMA,
+                stIntersects(
+                    "geom",
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should skip: query window does not intersect with the boundary")
+        .isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(
+                SCHEMA,
+                stIntersects(
+                    "geom",
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: stats is missing").isTrue();
+  }
+
+  @Test
+  public void testStDisjoint() {
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(
+                SCHEMA,
+                stDisjoint(
+                    "geom",
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 0), GeospatialBound.createXY(3, 4))))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: always read no matter if it's disjoint").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(
+                SCHEMA,
+                stDisjoint(
+                    "geom",
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 0), GeospatialBound.createXY(0.5, 2))))
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: stats is missing").isTrue();
   }
 }
