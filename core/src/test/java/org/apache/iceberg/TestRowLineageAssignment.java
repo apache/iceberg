@@ -303,7 +303,7 @@ public class TestRowLineageAssignment {
         table.io().newInputFile(current.manifestListLocation()), startingNextRowId, 0L);
 
     List<ManifestFile> manifests = current.dataManifests(table.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(table, manifests.get(0), startingNextRowId);
   }
 
@@ -325,7 +325,7 @@ public class TestRowLineageAssignment {
         table.io().newInputFile(staged.manifestListLocation()), startingNextRowId, 0L);
 
     List<ManifestFile> stagedManifests = staged.dataManifests(table.io());
-    assertThat(stagedManifests.size()).isEqualTo(2);
+    assertThat(stagedManifests).hasSize(2);
 
     ManifestFile stagedManifest = stagedManifests.get(0);
     checkDataFileAssignment(table, stagedManifest, startingNextRowId);
@@ -345,7 +345,7 @@ public class TestRowLineageAssignment {
         table.io().newInputFile(committedFirst.manifestListLocation()), startingNextRowId, 0L);
 
     List<ManifestFile> committedManifests = committedFirst.dataManifests(table.io());
-    assertThat(committedManifests.size()).isEqualTo(2);
+    assertThat(committedManifests).hasSize(2);
 
     ManifestFile committedManifest = committedManifests.get(0);
     checkDataFileAssignment(table, committedManifest, startingNextRowId);
@@ -368,7 +368,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(newManifestList, secondNextRowId, startingNextRowId, 0L);
 
     List<ManifestFile> newManifests = committedSecond.dataManifests(table.io());
-    assertThat(newManifests.size()).isEqualTo(3);
+    assertThat(newManifests).hasSize(3);
 
     ManifestFile newManifest = newManifests.get(0);
     checkDataFileAssignment(table, newManifest, secondNextRowId);
@@ -395,7 +395,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, startingNextRowId, nextRowId);
 
     List<ManifestFile> manifests = current.dataManifests(table.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(table, manifests.get(0), startingNextRowId);
     checkDataFileAssignment(table, manifests.get(1), 0L);
   }
@@ -407,7 +407,7 @@ public class TestRowLineageAssignment {
 
     long startingNextRowId = table.operations().current().nextRowId();
 
-    assertThat(table.currentSnapshot().allManifests(table.io()).size()).isEqualTo(1);
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     table.newOverwrite().deleteFile(FILE_A).addFile(FILE_C).commit();
     // the table's nextRowId is incremented by FILE_B.recordCount() because it is in a new manifest
@@ -421,7 +421,7 @@ public class TestRowLineageAssignment {
         manifestList, startingNextRowId, startingNextRowId + FILE_C.recordCount());
 
     List<ManifestFile> manifests = current.dataManifests(table.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(table, manifests.get(0), startingNextRowId);
     // the starting row ID for FILE_B does not change
     checkDataFileAssignment(table, manifests.get(1), FILE_A.recordCount());
@@ -444,7 +444,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, startingNextRowId, 0L);
 
     List<ManifestFile> manifests = current.dataManifests(table.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(table, manifests.get(0), startingNextRowId);
     checkDataFileAssignment(table, manifests.get(1), 0L);
   }
@@ -464,12 +464,12 @@ public class TestRowLineageAssignment {
 
     long preMergeNextRowId = startingFirstRowId + FILE_B.recordCount();
     assertThat(table.operations().current().nextRowId()).isEqualTo(preMergeNextRowId);
-    assertThat(table.currentSnapshot().allManifests(table.io()).size()).isEqualTo(2);
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
     InputFile preMergeManifestList =
         table.io().newInputFile(table.currentSnapshot().manifestListLocation());
     checkManifestListAssignment(preMergeManifestList, startingFirstRowId, 0L);
     List<ManifestFile> preMergeManifests = table.currentSnapshot().dataManifests(table.io());
-    assertThat(preMergeManifests.size()).isEqualTo(2);
+    assertThat(preMergeManifests).hasSize(2);
     checkDataFileAssignment(table, preMergeManifests.get(0), startingFirstRowId);
     checkDataFileAssignment(table, preMergeManifests.get(1), 0L);
 
@@ -480,7 +480,7 @@ public class TestRowLineageAssignment {
         preMergeNextRowId + FILE_C.recordCount() + FILE_B.recordCount() + FILE_A.recordCount();
 
     assertThat(table.operations().current().nextRowId()).isEqualTo(mergedNextRowId);
-    assertThat(table.currentSnapshot().allManifests(table.io()).size()).isEqualTo(1);
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
     InputFile mergedManifestList =
         table.io().newInputFile(table.currentSnapshot().manifestListLocation());
     checkManifestListAssignment(mergedManifestList, preMergeNextRowId);
@@ -523,7 +523,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, null, null);
 
     List<ManifestFile> manifests = current.dataManifests(upgradeTable.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     // manifests without first_row_id will not assign first_row_id
     checkDataFileAssignment(upgradeTable, manifests.get(0), (Long) null);
     checkDataFileAssignment(upgradeTable, manifests.get(1), (Long) null);
@@ -539,7 +539,7 @@ public class TestRowLineageAssignment {
 
     List<ManifestFile> existingManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(existingManifests.size()).isEqualTo(2);
+    assertThat(existingManifests).hasSize(2);
 
     // any commit (even empty) should assign first_row_id to the entire metadata tree
     upgradeTable.newFastAppend().commit();
@@ -557,7 +557,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, 0L, FILE_C.recordCount());
 
     List<ManifestFile> manifests = assigned.dataManifests(upgradeTable.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, manifests.get(0), 0L);
     checkDataFileAssignment(upgradeTable, manifests.get(1), FILE_C.recordCount());
     // the existing manifests were reused without modification
@@ -575,7 +575,7 @@ public class TestRowLineageAssignment {
 
     List<ManifestFile> existingManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(existingManifests.size()).isEqualTo(2);
+    assertThat(existingManifests).hasSize(2);
 
     // any commit (even empty) should assign first_row_id to the entire metadata tree
     upgradeTable.newDelete().deleteFile(FILE_C).commit();
@@ -593,7 +593,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, 0L, 0L);
 
     List<ManifestFile> manifests = assigned.dataManifests(upgradeTable.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, manifests.get(0), 0L);
     checkDataFileAssignment(upgradeTable, manifests.get(1), 0L);
     // the existing manifests were reused without modification
@@ -610,7 +610,7 @@ public class TestRowLineageAssignment {
 
     List<ManifestFile> existingManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(existingManifests.size()).isEqualTo(2);
+    assertThat(existingManifests).hasSize(2);
 
     // any commit (even empty) should assign first_row_id to the branch's tree
     upgradeTable.manageSnapshots().createBranch("branch").commit();
@@ -627,7 +627,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(mainManifestList, null, null);
 
     List<ManifestFile> mainManifests = current.dataManifests(upgradeTable.io());
-    assertThat(mainManifests.size()).isEqualTo(2);
+    assertThat(mainManifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, mainManifests.get(0), (Long) null);
     checkDataFileAssignment(upgradeTable, mainManifests.get(1), (Long) null);
     assertThat(mainManifests.get(0).path()).isEqualTo(existingManifests.get(0).path());
@@ -642,7 +642,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(branchManifestList, 0L, FILE_C.recordCount());
 
     List<ManifestFile> branchManifests = assigned.dataManifests(upgradeTable.io());
-    assertThat(branchManifests.size()).isEqualTo(2);
+    assertThat(branchManifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, branchManifests.get(0), 0L);
     checkDataFileAssignment(upgradeTable, branchManifests.get(1), FILE_C.recordCount());
     // the existing manifests were reused without modification
@@ -660,7 +660,7 @@ public class TestRowLineageAssignment {
 
     List<ManifestFile> existingManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(existingManifests.size()).isEqualTo(2);
+    assertThat(existingManifests).hasSize(2);
 
     // any commit should assign first_row_id to the entire metadata tree
     upgradeTable.newOverwrite().deleteFile(FILE_C).addFile(FILE_B).commit();
@@ -678,7 +678,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, 0L, FILE_B.recordCount(), FILE_B.recordCount());
 
     List<ManifestFile> manifests = assigned.dataManifests(upgradeTable.io());
-    assertThat(manifests.size()).isEqualTo(3);
+    assertThat(manifests).hasSize(3);
     checkDataFileAssignment(upgradeTable, manifests.get(0), 0L);
     checkDataFileAssignment(upgradeTable, manifests.get(1)); // no live files
     checkDataFileAssignment(upgradeTable, manifests.get(2), FILE_B.recordCount());
@@ -696,7 +696,7 @@ public class TestRowLineageAssignment {
 
     List<ManifestFile> existingManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(existingManifests.size()).isEqualTo(2);
+    assertThat(existingManifests).hasSize(2);
 
     // any commit (even empty) should assign first_row_id to the entire metadata tree
     upgradeTable.newRowDelta().addDeletes(FILE_A_DV).commit();
@@ -714,7 +714,7 @@ public class TestRowLineageAssignment {
     checkManifestListAssignment(manifestList, 0L, FILE_C.recordCount());
 
     List<ManifestFile> manifests = assigned.dataManifests(upgradeTable.io());
-    assertThat(manifests.size()).isEqualTo(2);
+    assertThat(manifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, manifests.get(0), 0L);
     checkDataFileAssignment(upgradeTable, manifests.get(1), FILE_C.recordCount());
     // the existing manifests were reused without modification
@@ -750,13 +750,13 @@ public class TestRowLineageAssignment {
           .isNull();
     }
 
-    assertThat(upgradeTable.currentSnapshot().allManifests(upgradeTable.io()).size()).isEqualTo(2);
+    assertThat(upgradeTable.currentSnapshot().allManifests(upgradeTable.io())).hasSize(2);
     InputFile preMergeManifestList =
         upgradeTable.io().newInputFile(upgradeTable.currentSnapshot().manifestListLocation());
     checkManifestListAssignment(preMergeManifestList, null, null);
     List<ManifestFile> preMergeManifests =
         upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
-    assertThat(preMergeManifests.size()).isEqualTo(2);
+    assertThat(preMergeManifests).hasSize(2);
     checkDataFileAssignment(upgradeTable, preMergeManifests.get(0), (Long) null);
     checkDataFileAssignment(upgradeTable, preMergeManifests.get(1), (Long) null);
 
@@ -767,7 +767,7 @@ public class TestRowLineageAssignment {
     long mergedNextRowId = FILE_C.recordCount() + FILE_B.recordCount() + FILE_A.recordCount();
 
     assertThat(upgradeTable.operations().current().nextRowId()).isEqualTo(mergedNextRowId);
-    assertThat(upgradeTable.currentSnapshot().allManifests(upgradeTable.io()).size()).isEqualTo(1);
+    assertThat(upgradeTable.currentSnapshot().allManifests(upgradeTable.io())).hasSize(1);
     InputFile mergedManifestList =
         upgradeTable.io().newInputFile(upgradeTable.currentSnapshot().manifestListLocation());
     checkManifestListAssignment(mergedManifestList, 0L);

@@ -42,9 +42,10 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
@@ -200,8 +201,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
   private static DataFormatConverters.RowConverter converter(Schema schema) {
     RowType rowType = FlinkSchemaUtil.convert(schema);
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(rowType);
-    return new DataFormatConverters.RowConverter(tableSchema.getFieldDataTypes());
+    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(rowType);
+    return new DataFormatConverters.RowConverter(
+        resolvedSchema.getColumnDataTypes().toArray(DataType[]::new));
   }
 
   @Test
@@ -352,19 +354,40 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testSchemaEvolutionNonBackwardsCompatible() throws Exception {
-    Schema backwardsIncompatibleSchema =
+  void testRowEvolutionMakeMissingRequiredFieldOptional() throws Exception {
+    Schema existingSchemaWithRequiredField =
         new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
             Types.NestedField.required(2, "data", Types.StringType.get()));
-    // Required column is missing in this schema
-    Schema erroringSchema =
-        new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(TableIdentifier.of(DATABASE, "t1"), existingSchemaWithRequiredField);
+
+    Schema writeSchemaWithoutRequiredField =
+        new Schema(Types.NestedField.optional(1, "id", Types.IntegerType.get()));
 
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             new DynamicIcebergDataImpl(
-                backwardsIncompatibleSchema, "t1", "main", PartitionSpec.unpartitioned()),
+                writeSchemaWithoutRequiredField,
+                existingSchemaWithRequiredField,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned()));
+
+    runTest(rows, this.env, 1);
+  }
+
+  @Test
+  void testSchemaEvolutionNonBackwardsCompatible() throws Exception {
+    Schema initialSchema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    // Type change is not allowed
+    Schema erroringSchema = new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(initialSchema, "t1", "main", PartitionSpec.unpartitioned()),
             new DynamicIcebergDataImpl(
                 erroringSchema, "t1", "main", PartitionSpec.unpartitioned()));
 
@@ -374,11 +397,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     } catch (JobExecutionException e) {
       assertThat(
               ExceptionUtils.findThrowable(
-                  e,
-                  t ->
-                      t.getMessage()
-                          .contains(
-                              "Field 2 in target schema ROW<`id` INT NOT NULL, `data` STRING NOT NULL> is non-nullable but does not exist in source schema.")))
+                  e, t -> t.getMessage().contains("Cannot change column type: id: int -> string")))
           .isNotEmpty();
     }
   }
@@ -495,7 +514,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         records.add(record);
       }
 
-      assertThat(records.size()).isEqualTo(1);
+      assertThat(records).hasSize(1);
       Record actual = records.get(0);
       DynamicIcebergDataImpl input = rows.get(0);
       assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));

@@ -234,6 +234,13 @@ public class Spark3Util {
         add.isNullable(),
         "Incompatible change: cannot add required column: %s",
         leafName(add.fieldNames()));
+    if (add.defaultValue() != null) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot add column %s since setting default values in Spark is currently unsupported",
+              leafName(add.fieldNames())));
+    }
+
     Type type = SparkSchemaUtil.convert(add.dataType());
     pendingUpdate.addColumn(
         parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());

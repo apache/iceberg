@@ -223,7 +223,7 @@ public final class VectorizedParquetDefinitionLevelReader
         int idx,
         int numValues,
         byte[] byteArray) {
-      setNextNValuesInVector(nullabilityHolder, valuesReader, idx, vector, numValues, this);
+      setNextNValuesInVector(nullabilityHolder, valuesReader, idx, vector, numValues);
     }
 
     @Override
@@ -255,6 +255,26 @@ public final class VectorizedParquetDefinitionLevelReader
 
     public abstract void nextVals(
         FieldVector vector, int rowId, VectorizedValuesReader valuesReader, int total);
+
+    private void setNextNValuesInVector(
+        NullabilityHolder nullabilityHolder,
+        VectorizedValuesReader valuesReader,
+        int bufferIdx,
+        FieldVector vector,
+        int numValues) {
+      ArrowBuf validityBuffer = vector.getValidityBuffer();
+      if (currentValue == maxDefLevel) {
+        nextVals(vector, bufferIdx, valuesReader, numValues);
+        nullabilityHolder.setNotNulls(bufferIdx, numValues);
+        if (setArrowValidityVector) {
+          for (int i = 0; i < numValues; i++) {
+            BitVectorHelper.setBit(validityBuffer, bufferIdx + i);
+          }
+        }
+      } else {
+        setNulls(nullabilityHolder, bufferIdx, numValues, validityBuffer);
+      }
+    }
   }
 
   class LongReader extends NumericBaseReader {
@@ -671,27 +691,6 @@ public final class VectorizedParquetDefinitionLevelReader
       for (int i = 0; i < numValues; i++) {
         BitVectorHelper.setValidityBit(validityBuffer, idx + i, 0);
       }
-    }
-  }
-
-  private void setNextNValuesInVector(
-      NullabilityHolder nullabilityHolder,
-      VectorizedValuesReader valuesReader,
-      int bufferIdx,
-      FieldVector vector,
-      int numValues,
-      NumericBaseReader reader) {
-    ArrowBuf validityBuffer = vector.getValidityBuffer();
-    if (currentValue == maxDefLevel) {
-      reader.nextVals(vector, bufferIdx, valuesReader, numValues);
-      nullabilityHolder.setNotNulls(bufferIdx, numValues);
-      if (setArrowValidityVector) {
-        for (int i = 0; i < numValues; i++) {
-          BitVectorHelper.setBit(validityBuffer, bufferIdx + i);
-        }
-      }
-    } else {
-      setNulls(nullabilityHolder, bufferIdx, numValues, validityBuffer);
     }
   }
 

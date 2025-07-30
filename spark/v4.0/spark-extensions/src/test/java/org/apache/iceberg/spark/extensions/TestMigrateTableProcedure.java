@@ -181,11 +181,13 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   public void testInvalidMigrateCases() {
     assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `migrate` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith("Wrong arg type for table");
+        .hasMessageStartingWith(
+            "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The first parameter requires the \"STRING\" type, however \"map(foo, bar)\" has the type \"MAP<STRING, STRING>\". SQLSTATE: 42K09");
 
     assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)

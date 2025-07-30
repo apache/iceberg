@@ -20,11 +20,10 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
+import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 
 public class SparkProcedures {
 
@@ -38,37 +37,35 @@ public class SparkProcedures {
     return builderSupplier != null ? builderSupplier.get() : null;
   }
 
-  public static Set<String> names() {
-    return BUILDERS.keySet();
-  }
-
   private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
     ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
-    mapBuilder.put("rollback_to_snapshot", RollbackToSnapshotProcedure::builder);
-    mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
-    mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
-    mapBuilder.put("cherrypick_snapshot", CherrypickSnapshotProcedure::builder);
-    mapBuilder.put("rewrite_data_files", RewriteDataFilesProcedure::builder);
-    mapBuilder.put("rewrite_manifests", RewriteManifestsProcedure::builder);
-    mapBuilder.put("remove_orphan_files", RemoveOrphanFilesProcedure::builder);
-    mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
-    mapBuilder.put("migrate", MigrateTableProcedure::builder);
-    mapBuilder.put("snapshot", SnapshotTableProcedure::builder);
-    mapBuilder.put("add_files", AddFilesProcedure::builder);
-    mapBuilder.put("ancestors_of", AncestorsOfProcedure::builder);
-    mapBuilder.put("register_table", RegisterTableProcedure::builder);
-    mapBuilder.put("publish_changes", PublishChangesProcedure::builder);
-    mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
-    mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
-    mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
-    mapBuilder.put("compute_table_stats", ComputeTableStatsProcedure::builder);
-    mapBuilder.put("rewrite_table_path", RewriteTablePathProcedure::builder);
+    mapBuilder.put(RollbackToSnapshotProcedure.NAME, RollbackToSnapshotProcedure::builder);
+    mapBuilder.put(RollbackToTimestampProcedure.NAME, RollbackToTimestampProcedure::builder);
+    mapBuilder.put(SetCurrentSnapshotProcedure.NAME, SetCurrentSnapshotProcedure::builder);
+    mapBuilder.put(CherrypickSnapshotProcedure.NAME, CherrypickSnapshotProcedure::builder);
+    mapBuilder.put(RewriteDataFilesProcedure.NAME, RewriteDataFilesProcedure::builder);
+    mapBuilder.put(RewriteManifestsProcedure.NAME, RewriteManifestsProcedure::builder);
+    mapBuilder.put(RemoveOrphanFilesProcedure.NAME, RemoveOrphanFilesProcedure::builder);
+    mapBuilder.put(ExpireSnapshotsProcedure.NAME, ExpireSnapshotsProcedure::builder);
+    mapBuilder.put(MigrateTableProcedure.NAME, MigrateTableProcedure::builder);
+    mapBuilder.put(SnapshotTableProcedure.NAME, SnapshotTableProcedure::builder);
+    mapBuilder.put(AddFilesProcedure.NAME, AddFilesProcedure::builder);
+    mapBuilder.put(AncestorsOfProcedure.NAME, AncestorsOfProcedure::builder);
+    mapBuilder.put(RegisterTableProcedure.NAME, RegisterTableProcedure::builder);
+    mapBuilder.put(PublishChangesProcedure.NAME, PublishChangesProcedure::builder);
+    mapBuilder.put(CreateChangelogViewProcedure.NAME, CreateChangelogViewProcedure::builder);
+    mapBuilder.put(
+        RewritePositionDeleteFilesProcedure.NAME, RewritePositionDeleteFilesProcedure::builder);
+    mapBuilder.put(FastForwardBranchProcedure.NAME, FastForwardBranchProcedure::builder);
+    mapBuilder.put(ComputeTableStatsProcedure.NAME, ComputeTableStatsProcedure::builder);
+    mapBuilder.put(ComputePartitionStatsProcedure.NAME, ComputePartitionStatsProcedure::builder);
+    mapBuilder.put(RewriteTablePathProcedure.NAME, RewriteTablePathProcedure::builder);
     return mapBuilder.build();
   }
 
   public interface ProcedureBuilder {
     ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
 
-    Procedure build();
+    UnboundProcedure build();
   }
 }

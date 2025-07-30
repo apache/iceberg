@@ -168,19 +168,24 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
   public void testInvalidExpireSnapshotsCases() {
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessage(
+            "[DUPLICATE_ROUTINE_PARAMETER_ASSIGNMENT.BOTH_POSITIONAL_AND_NAMED] Call to routine `expire_snapshots` is invalid because it includes multiple argument assignments to the same parameter name `table`. A positional argument and named argument both referred to the same parameter. Please remove the named argument referring to this parameter. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Catalog %s does not support procedures.", catalogName);
+        .hasMessage(
+            "[FAILED_TO_LOAD_ROUTINE] Failed to load routine `%s`.`custom`.`expire_snapshots`. SQLSTATE: 38000",
+            catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessage(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `expire_snapshots` because the parameter named `table` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Wrong arg type for older_than: cannot cast DecimalType(2,1) to TimestampType");
+        .hasMessageStartingWith(
+            "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The second parameter requires the \"TIMESTAMP\" type, however \"2.2\" has the type \"DECIMAL(2,1)\". SQLSTATE: 42K09");
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -531,6 +536,66 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "partition statistics file should exist for snapshot %s",
             partitionStatisticsFile2.snapshotId())
         .exists();
+  }
+
+  @TestTemplate
+  public void testNoExpiredMetadataCleanupByDefault() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s', table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+  }
+
+  @TestTemplate
+  public void testCleanExpiredMetadata() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s', "
+                + "clean_expired_metadata => true, "
+                + "table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+
+    assertThat(table.schemas().keySet())
+        .as("Should have only the latest schema")
+        .containsExactly(table.schema().schemaId());
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
   }
 
   private static StatisticsFile writeStatsFile(

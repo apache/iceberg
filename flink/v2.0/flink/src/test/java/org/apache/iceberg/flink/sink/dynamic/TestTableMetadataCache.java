@@ -47,17 +47,19 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
-    assertThat(cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).f0)
+    assertThat(
+            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
         .isEqualTo(schema1);
 
     assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableMetadataCache.NOT_FOUND);
 
-    schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
-    assertThat(cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).f0)
+    schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(
+            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
         .isEqualTo(schema1);
   }
 
@@ -66,17 +68,17 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).f0;
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
 
     catalog.dropTable(tableIdentifier);
     catalog.createTable(tableIdentifier, SCHEMA2);
     tableUpdater.update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned());
 
-    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).f0;
+    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
   }
 
@@ -85,10 +87,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10);
 
-    // Cleanup routine doesn't run after every write
-    cache.getInternalCache().cleanUp();
-    assertThat(cache.getInternalCache().estimatedSize()).isEqualTo(0);
+    assertThat(cache.getInternalCache()).isEmpty();
   }
 }

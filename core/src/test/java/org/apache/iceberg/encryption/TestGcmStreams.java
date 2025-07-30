@@ -49,7 +49,7 @@ public class TestGcmStreams {
     random.nextBytes(aadPrefix);
     byte[] readBytes = new byte[1];
 
-    File testFile = File.createTempFile("test", null, temp.toFile());
+    File testFile = temp.resolve("test" + System.nanoTime()).toFile();
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -87,7 +87,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = File.createTempFile("test", null, temp.toFile());
+    File testFile = temp.resolve("test" + System.nanoTime()).toFile();
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -147,7 +147,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = File.createTempFile("test", null, temp.toFile());
+    File testFile = temp.resolve("test" + System.nanoTime()).toFile();
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -193,7 +193,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = File.createTempFile("test", null, temp.toFile());
+    File testFile = temp.resolve("test" + System.nanoTime()).toFile();
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -252,7 +252,7 @@ public class TestGcmStreams {
         byte[] key = new byte[keyLength];
         random.nextBytes(key);
         random.nextBytes(aadPrefix);
-        File testFile = File.createTempFile("test", null, temp.toFile());
+        File testFile = temp.resolve("test" + System.nanoTime()).toFile();
 
         AesGcmOutputFile encryptedFile =
             new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -351,7 +351,7 @@ public class TestGcmStreams {
       byte[] aadPrefix = new byte[16];
       random.nextBytes(aadPrefix);
 
-      File testFile = File.createTempFile("test", null, temp.toFile());
+      File testFile = temp.resolve("test" + System.nanoTime()).toFile();
       AesGcmOutputFile encryptedFile =
           new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
       PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();

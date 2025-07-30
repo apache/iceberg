@@ -111,7 +111,7 @@ public class TestTableSerializerCache {
     RowDataSerializer serializer1 = creator1.get();
     RowDataSerializer serializer2 = creator2.get();
 
-    cache.getCache().cleanUp();
+    cache.getCache().clear();
     assertThat(serializer1).isNotSameAs(creator1.get());
     assertThat(serializer2).isNotSameAs(creator2.get());
   }

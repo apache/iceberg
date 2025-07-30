@@ -44,7 +44,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   // header data
   private int blockSizeInValues;
-  private int miniBlockNumInABlock;
+  private int miniBlocksPerBlock;
   private int totalValueCount;
   private long firstValue;
 
@@ -78,29 +78,26 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     this.inputStream = in;
     // Read the header
     this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.inputStream);
-    this.miniBlockNumInABlock = BytesUtils.readUnsignedVarInt(this.inputStream);
-    double miniSize = (double) blockSizeInValues / miniBlockNumInABlock;
+    this.miniBlocksPerBlock = BytesUtils.readUnsignedVarInt(this.inputStream);
+    double miniSize = (double) blockSizeInValues / miniBlocksPerBlock;
     Preconditions.checkArgument(
         miniSize % 8 == 0, "miniBlockSize must be multiple of 8, but it's " + miniSize);
     this.miniBlockSizeInValues = (int) miniSize;
     // True value count. May be less than valueCount because of nulls
     this.totalValueCount = BytesUtils.readUnsignedVarInt(this.inputStream);
-    this.bitWidths = new int[miniBlockNumInABlock];
+    this.bitWidths = new int[miniBlocksPerBlock];
     this.unpackedValuesBuffer = new long[miniBlockSizeInValues];
     // read the first value
     firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
   }
 
-  // True value count. May be less than valueCount because of nulls
-  int getTotalValueCount() {
-    return totalValueCount;
-  }
-
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public byte readByte() {
     throw new UnsupportedOperationException("readByte is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public short readShort() {
     throw new UnsupportedOperationException("readShort is not supported");
@@ -118,11 +115,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     return longVal;
   }
 
+  /** The Iceberg reader currently does not do skipping */
   @Override
   public void skip() {
     throw new UnsupportedOperationException("skip is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public Binary readBinary(int len) {
     throw new UnsupportedOperationException("readBinary is not supported");
@@ -130,7 +129,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
+    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setInt(i, (int) v));
   }
 
   @Override
@@ -138,19 +137,16 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public void readFloats(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readFloats is not supported");
   }
 
+  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
-  }
-
-  @Override
-  public void readBinary(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readBinary is not supported");
   }
 
   private void readValues(
@@ -165,6 +161,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
               + total
               + " more.");
     }
+
     int remaining = total;
     int currentRowId = rowId;
     // First value
@@ -174,6 +171,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       currentRowId++;
       remaining--;
     }
+
     while (remaining > 0) {
       int loadedRows;
       try {
@@ -259,7 +257,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   // From org.apache.parquet.column.values.delta.DeltaBinaryPackingValuesReader
   private void readBitWidthsForMiniBlocks() {
-    for (int i = 0; i < miniBlockNumInABlock; i++) {
+    for (int i = 0; i < miniBlocksPerBlock; i++) {
       try {
         bitWidths[i] = BytesUtils.readIntLittleEndianOnOneByte(inputStream);
       } catch (IOException e) {

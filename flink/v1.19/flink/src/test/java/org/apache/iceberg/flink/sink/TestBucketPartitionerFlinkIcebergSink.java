@@ -34,6 +34,8 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -76,7 +78,10 @@ public class TestBucketPartitionerFlinkIcebergSink {
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
+              .map(ExternalTypeInfo::of)
+              .toArray(TypeInformation[]::new));
 
   // Parallelism = 8 (parallelism > numBuckets) throughout the test suite
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
@@ -107,7 +112,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   private void appendRowsToTable(List<RowData> allRows) throws Exception {
     DataFormatConverters.RowConverter converter =
-        new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+        new DataFormatConverters.RowConverter(
+            SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(DataType[]::new));
 
     DataStream<RowData> dataStream =
         env.addSource(
@@ -147,8 +153,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
     assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
-    assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
-    assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.writersPerBucket).hasSize(numBuckets);
+    assertThat(stats.numFilesPerBucket).hasSize(numBuckets);
     // Writer expectation (2 writers per bucket):
     // - Bucket0 -> Writers [0, 4]
     // - Bucket1 -> Writers [1, 5]

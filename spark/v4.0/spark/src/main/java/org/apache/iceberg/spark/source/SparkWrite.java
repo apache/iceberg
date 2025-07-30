@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -51,13 +52,15 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -65,6 +68,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.executor.OutputMetrics;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -241,14 +245,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   private void abort(WriterCommitMessage[] messages) {
     if (cleanupOnAbort) {
-      SparkCleanupUtil.deleteFiles("job abort", table.io(), files(messages));
+      SparkCleanupUtil.deleteFiles("job abort", table.io(), Lists.newArrayList(files(messages)));
     } else {
       LOG.warn("Skipping cleanup of written files");
     }
   }
 
-  private List<DataFile> files(WriterCommitMessage[] messages) {
-    List<DataFile> files = Lists.newArrayList();
+  private DataFileSet files(WriterCommitMessage[] messages) {
+    DataFileSet files = DataFileSet.create();
 
     for (WriterCommitMessage message : messages) {
       if (message != null) {
@@ -305,7 +309,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private class DynamicOverwrite extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      List<DataFile> files = files(messages);
+      DataFileSet files = files(messages);
 
       if (files.isEmpty()) {
         LOG.info("Dynamic overwrite is empty, skipping commit");
@@ -323,7 +327,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (isolationLevel == SERIALIZABLE) {
         dynamicOverwrite.validateNoConflictingData();
         dynamicOverwrite.validateNoConflictingDeletes();
-
       } else if (isolationLevel == SNAPSHOT) {
         dynamicOverwrite.validateNoConflictingDeletes();
       }
@@ -368,7 +371,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (isolationLevel == SERIALIZABLE) {
         overwriteFiles.validateNoConflictingDeletes();
         overwriteFiles.validateNoConflictingData();
-
       } else if (isolationLevel == SNAPSHOT) {
         overwriteFiles.validateNoConflictingDeletes();
       }
@@ -388,11 +390,23 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.isolationLevel = isolationLevel;
     }
 
-    private List<DataFile> overwrittenFiles() {
+    private DataFileSet overwrittenFiles() {
       if (scan == null) {
-        return ImmutableList.of();
+        return DataFileSet.create();
       } else {
-        return scan.tasks().stream().map(FileScanTask::file).collect(Collectors.toList());
+        return scan.tasks().stream()
+            .map(FileScanTask::file)
+            .collect(Collectors.toCollection(DataFileSet::create));
+      }
+    }
+
+    private DeleteFileSet danglingDVs() {
+      if (scan == null) {
+        return DeleteFileSet.create();
+      } else {
+        return scan.tasks().stream()
+            .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
+            .collect(Collectors.toCollection(DeleteFileSet::create));
       }
     }
 
@@ -413,11 +427,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       OverwriteFiles overwriteFiles = table.newOverwrite();
 
-      List<DataFile> overwrittenFiles = overwrittenFiles();
+      DataFileSet overwrittenFiles = overwrittenFiles();
       int numOverwrittenFiles = overwrittenFiles.size();
-      for (DataFile overwrittenFile : overwrittenFiles) {
-        overwriteFiles.deleteFile(overwrittenFile);
-      }
+      DeleteFileSet danglingDVs = danglingDVs();
+      overwriteFiles.deleteFiles(overwrittenFiles, danglingDVs);
 
       int numAddedFiles = 0;
       for (DataFile file : files(messages)) {
@@ -491,7 +504,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-      coordinator.stageRewrite(table, fileSetID, DataFileSet.of(files(messages)));
+      coordinator.stageRewrite(table, fileSetID, files(messages));
     }
   }
 
@@ -687,8 +700,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .writeProperties(writeProperties)
               .build();
 
+      Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
+
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
+        return new UnpartitionedDataWriter(
+            writerFactory, fileFactory, io, spec, targetFileSize, rowLineageExtractor);
 
       } else {
         return new PartitionedDataWriter(
@@ -699,12 +715,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             writeSchema,
             dsSchema,
             targetFileSize,
-            useFanoutWriter);
+            useFanoutWriter,
+            rowLineageExtractor);
       }
     }
   }
 
-  private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
+  private static class UnpartitionedDataWriter extends DataWriterWithLineage<InternalRow> {
     private final FileWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
 
@@ -713,7 +730,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         OutputFileFactory fileFactory,
         FileIO io,
         PartitionSpec spec,
-        long targetFileSize) {
+        long targetFileSize,
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       this.delegate =
           new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
@@ -721,7 +740,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void write(InternalRow record) throws IOException {
-      delegate.write(record);
+      write(null, record);
+    }
+
+    @Override
+    public void write(InternalRow meta, InternalRow record) throws IOException {
+      delegate.write(decorateWithRowLineage(meta, record));
     }
 
     @Override
@@ -748,7 +772,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
   }
 
-  private static class PartitionedDataWriter implements DataWriter<InternalRow> {
+  private static class PartitionedDataWriter extends DataWriterWithLineage<InternalRow> {
     private final PartitioningWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
     private final PartitionSpec spec;
@@ -763,7 +787,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Schema dataSchema,
         StructType dataSparkType,
         long targetFileSize,
-        boolean fanoutEnabled) {
+        boolean fanoutEnabled,
+        Function<InternalRow, InternalRow> rowLineageExtractor) {
+      super(rowLineageExtractor);
       if (fanoutEnabled) {
         this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
@@ -777,8 +803,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void write(InternalRow row) throws IOException {
-      partitionKey.partition(internalRowWrapper.wrap(row));
-      delegate.write(row, spec, partitionKey);
+      write(null, row);
+    }
+
+    @Override
+    public void write(InternalRow meta, InternalRow record) throws IOException {
+      partitionKey.partition(internalRowWrapper.wrap(record));
+      delegate.write(decorateWithRowLineage(meta, record), spec, partitionKey);
     }
 
     @Override
@@ -802,6 +833,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void close() throws IOException {
       delegate.close();
+    }
+  }
+
+  private abstract static class DataWriterWithLineage<T> implements DataWriter<T> {
+    private final Function<InternalRow, InternalRow> rowLineageExtractor;
+
+    DataWriterWithLineage(Function<InternalRow, InternalRow> rowLineageExtractor) {
+      Preconditions.checkArgument(
+          rowLineageExtractor != null, "Row lineage extractor cannot be null");
+      this.rowLineageExtractor = rowLineageExtractor;
+    }
+
+    protected InternalRow decorateWithRowLineage(InternalRow meta, InternalRow record) {
+      InternalRow rowLineage = rowLineageExtractor.apply(meta);
+      return rowLineage == null ? record : new JoinedRow(record, rowLineage);
     }
   }
 }

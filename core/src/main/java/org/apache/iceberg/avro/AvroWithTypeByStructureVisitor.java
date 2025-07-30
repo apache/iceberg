@@ -24,6 +24,11 @@ import org.apache.iceberg.util.Pair;
 
 public class AvroWithTypeByStructureVisitor<T> extends AvroWithPartnerByStructureVisitor<Type, T> {
   @Override
+  protected boolean isVariantType(Type type) {
+    return type.isVariantType();
+  }
+
+  @Override
   protected boolean isMapType(Type type) {
     return type.isMapType();
   }

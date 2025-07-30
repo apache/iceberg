@@ -332,7 +332,7 @@ public class TestBase {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(
-                File.createTempFile("junit", null, temp.toFile()).toString()));
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {

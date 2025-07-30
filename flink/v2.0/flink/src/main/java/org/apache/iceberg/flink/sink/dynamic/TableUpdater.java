@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,14 +55,14 @@ class TableUpdater {
    * @return a {@link Tuple3} of the new {@link Schema}, the status of the schema compared to the
    *     requested one, and the new {@link PartitionSpec#specId()}.
    */
-  Tuple3<Schema, CompareSchemasVisitor.Result, PartitionSpec> update(
+  Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> update(
       TableIdentifier tableIdentifier, String branch, Schema schema, PartitionSpec spec) {
     findOrCreateTable(tableIdentifier, schema, spec);
     findOrCreateBranch(tableIdentifier, branch);
-    Tuple2<Schema, CompareSchemasVisitor.Result> newSchema =
+    TableMetadataCache.ResolvedSchemaInfo newSchemaInfo =
         findOrCreateSchema(tableIdentifier, schema);
     PartitionSpec newSpec = findOrCreateSpec(tableIdentifier, spec);
-    return Tuple3.of(newSchema.f0, newSchema.f1, newSpec);
+    return Tuple2.of(newSchemaInfo, newSpec);
   }
 
   private void findOrCreateTable(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
@@ -110,10 +111,10 @@ class TableUpdater {
     }
   }
 
-  private Tuple2<Schema, CompareSchemasVisitor.Result> findOrCreateSchema(
+  private TableMetadataCache.ResolvedSchemaInfo findOrCreateSchema(
       TableIdentifier identifier, Schema schema) {
-    Tuple2<Schema, CompareSchemasVisitor.Result> fromCache = cache.schema(identifier, schema);
-    if (fromCache.f1 != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
+    TableMetadataCache.ResolvedSchemaInfo fromCache = cache.schema(identifier, schema);
+    if (fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
     } else {
       Table table = catalog.loadTable(identifier);
@@ -121,9 +122,16 @@ class TableUpdater {
       CompareSchemasVisitor.Result result = CompareSchemasVisitor.visit(schema, tableSchema, true);
       switch (result) {
         case SAME:
+          cache.update(identifier, table);
+          return new TableMetadataCache.ResolvedSchemaInfo(
+              tableSchema, result, DataConverter.identity());
         case DATA_CONVERSION_NEEDED:
           cache.update(identifier, table);
-          return Tuple2.of(tableSchema, result);
+          return new TableMetadataCache.ResolvedSchemaInfo(
+              tableSchema,
+              result,
+              DataConverter.get(
+                  FlinkSchemaUtil.convert(schema), FlinkSchemaUtil.convert(tableSchema)));
         case SCHEMA_UPDATE_NEEDED:
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
@@ -133,16 +141,15 @@ class TableUpdater {
           try {
             updateApi.commit();
             cache.update(identifier, table);
-            Tuple2<Schema, CompareSchemasVisitor.Result> comparisonAfterMigration =
+            TableMetadataCache.ResolvedSchemaInfo comparisonAfterMigration =
                 cache.schema(identifier, schema);
-            Schema newSchema = comparisonAfterMigration.f0;
+            Schema newSchema = comparisonAfterMigration.resolvedTableSchema();
             LOG.info("Table {} schema updated from {} to {}", identifier, tableSchema, newSchema);
             return comparisonAfterMigration;
           } catch (CommitFailedException e) {
             cache.invalidate(identifier);
-            Tuple2<Schema, CompareSchemasVisitor.Result> newSchema =
-                cache.schema(identifier, schema);
-            if (newSchema.f1 != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
+            TableMetadataCache.ResolvedSchemaInfo newSchema = cache.schema(identifier, schema);
+            if (newSchema.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
               LOG.debug("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;
             } else {
