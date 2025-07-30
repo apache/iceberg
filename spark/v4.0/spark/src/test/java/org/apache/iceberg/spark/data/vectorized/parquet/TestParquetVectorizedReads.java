@@ -32,10 +32,7 @@ import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-<<<<<<< HEAD
 import java.util.stream.Stream;
-=======
->>>>>>> 09301c149715f6d561df6dc80855c37576fcca07
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
@@ -46,10 +43,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-<<<<<<< HEAD
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-=======
->>>>>>> 09301c149715f6d561df6dc80855c37576fcca07
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
