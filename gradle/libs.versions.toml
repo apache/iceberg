@@ -46,7 +46,6 @@ esotericsoftware-kryo = "4.0.3"
 errorprone-annotations = "2.41.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
-flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
 flink21 = { strictly = "2.1.0"}
@@ -114,12 +113,6 @@ delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "d
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
-flink119-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink119" }
-flink119-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink119" }
-flink119-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink119" }
-flink119-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink119" }
-flink119-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink119" }
-flink119-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink119" }
 flink120-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink120" }
 flink120-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink120" }
 flink120-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink120" }
@@ -187,11 +180,6 @@ delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark
 derby-core = { module = "org.apache.derby:derby", version.ref = "derby"}
 derby-tools = { module = "org.apache.derby:derbytools", version.ref = "derby"}
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
-flink119-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink119" }
-flink119-core = { module = "org.apache.flink:flink-core", version.ref = "flink119" }
-flink119-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink119" }
-flink119-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink119" }
-flink119-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink119" }
 flink120-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink120" }
 flink120-core = { module = "org.apache.flink:flink-core", version.ref = "flink120" }
 flink120-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink120" }
