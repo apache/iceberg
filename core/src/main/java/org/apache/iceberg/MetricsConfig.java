@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -117,8 +118,8 @@ public final class MetricsConfig implements Serializable {
         new TypeUtil.CustomOrderSchemaVisitor<>() {
           private final Set<Integer> idSet = Sets.newHashSet();
 
-          private boolean shouldTerminateEarly() {
-            return idSet.size() >= limit;
+          private boolean shouldContinue() {
+            return idSet.size() < limit;
           }
 
           private boolean metricsEligible(Type type) {
@@ -135,41 +136,44 @@ public final class MetricsConfig implements Serializable {
 
           @Override
           public Set<Integer> struct(Types.StructType struct, Iterable<Set<Integer>> fieldResults) {
-            for (Types.NestedField field : struct.fields()) {
-              if (shouldTerminateEarly()) return null;
-
+            Iterator<Types.NestedField> fields = struct.fields().iterator();
+            while (shouldContinue() && fields.hasNext()) {
+              Types.NestedField field = fields.next();
               if (metricsEligible(field.type())) {
                 idSet.add(field.fieldId());
               }
             }
 
             // visit children to add more ids
-            for (Set<Integer> ignored : fieldResults) {
-              if (shouldTerminateEarly()) return null;
+            Iterator<Set<Integer>> iter = fieldResults.iterator();
+            while (shouldContinue() && iter.hasNext()) {
+              iter.next();
             }
 
             return null;
           }
 
           @Override
+          @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
-            if (shouldTerminateEarly()) return null;
+            if (shouldContinue()) {
+              fieldResult.get();
+            }
 
-            return fieldResult.get();
+            return null;
           }
 
           @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> list(Types.ListType list, Supplier<Set<Integer>> elementResult) {
-            if (shouldTerminateEarly()) return null;
-
-            if (metricsEligible(list.elementType())) {
+            if (shouldContinue() && metricsEligible(list.elementType())) {
               idSet.add(list.elementId());
             }
 
-            if (shouldTerminateEarly()) return null;
+            if (shouldContinue()) {
+              elementResult.get();
+            }
 
-            elementResult.get();
             return null;
           }
 
@@ -180,25 +184,21 @@ public final class MetricsConfig implements Serializable {
               Supplier<Set<Integer>> keyResult,
               Supplier<Set<Integer>> valueResult) {
 
-            if (shouldTerminateEarly()) return null;
-
-            if (metricsEligible(map.keyType())) {
+            if (shouldContinue() && metricsEligible(map.keyType())) {
               idSet.add(map.keyId());
             }
 
-            if (shouldTerminateEarly()) return null;
-
-            if (metricsEligible(map.valueType())) {
+            if (shouldContinue() && metricsEligible(map.valueType())) {
               idSet.add(map.valueId());
             }
 
-            if (shouldTerminateEarly()) return null;
+            if (shouldContinue()) {
+              keyResult.get();
+            }
 
-            keyResult.get();
-
-            if (shouldTerminateEarly()) return null;
-
-            valueResult.get();
+            if (shouldContinue()) {
+              valueResult.get();
+            }
             return null;
           }
         });

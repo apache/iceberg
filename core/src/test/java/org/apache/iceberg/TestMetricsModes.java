@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +36,6 @@ import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -201,7 +201,7 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testMetricsVariantSupported() {
-    Assumptions.assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Schema schema =
         new Schema(
             required(1, "variant", Types.VariantType.get()),
