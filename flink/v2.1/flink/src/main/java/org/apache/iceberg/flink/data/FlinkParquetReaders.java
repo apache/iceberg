@@ -34,6 +34,7 @@ import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
@@ -800,6 +801,11 @@ public class FlinkParquetReaders {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
       return (RawValueData<T>) values[pos];
+    }
+
+    @Override
+    public Variant getVariant(int pos) {
+      return (Variant) values[pos];
     }
 
     @Override
