@@ -49,6 +49,7 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -2207,7 +2208,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2215,7 +2217,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2223,7 +2226,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
   }
 
   @ParameterizedTest
@@ -2269,7 +2273,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2277,7 +2282,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2285,7 +2291,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
   }
 
   @Test
@@ -2696,6 +2703,41 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // simulate a legacy server that doesn't send back supported endpoints, thus the
     // client relies on the default endpoints
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
+  }
+
+  @Test
+  public void testResponseHeadersConsumer() {
+    Map<String, String> capturedHeaders = Maps.newConcurrentMap();
+
+    RESTCatalogAdapter captureResponseHeaderAdapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            // Capture response headers for verification
+            Consumer<Map<String, String>> headerCapture = capturedHeaders::putAll;
+            return super.execute(request, responseType, errorHandler, headerCapture);
+          }
+        };
+
+    RESTCatalog catalog = catalog(captureResponseHeaderAdapter);
+
+    // Trigger a config request
+    catalog.initialize("test", ImmutableMap.of(CatalogProperties.URI, "ignored"));
+
+    // Verify config headers are present
+    assertThat(capturedHeaders)
+        .containsEntry("X-Iceberg-Version", IcebergBuild.version())
+        .containsKey("X-Request-Id");
+
+    capturedHeaders.clear();
+    catalog.listNamespaces();
+
+    // Verify default header is present
+    assertThat(capturedHeaders).doesNotContainKey("X-Iceberg-Version").containsKey("X-Request-Id");
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
