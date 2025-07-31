@@ -1044,12 +1044,12 @@ class TestIcebergCommitter extends TestBase {
 
       testHarness.open();
 
-      long checkpointId = Long.MAX_VALUE;
+      long checkpointId = 1;
       processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFileTest1);
 
       testHarness.endInput();
 
-      assertMaxCommittedCheckpointId(jobId, OPERATOR_ID, Long.MAX_VALUE);
+      assertMaxCommittedCheckpointId(jobId, OPERATOR_ID, checkpointId);
 
       List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
       assertThat(output).hasSize(2);

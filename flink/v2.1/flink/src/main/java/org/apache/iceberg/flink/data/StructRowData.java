@@ -42,6 +42,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -238,6 +239,11 @@ public class StructRowData implements RowData {
   @Override
   public RowData getRow(int pos, int numFields) {
     return isNullAt(pos) ? null : getStructRowData(pos);
+  }
+
+  @Override
+  public Variant getVariant(int pos) {
+    return isNullAt(pos) ? null : struct.get(pos, Variant.class);
   }
 
   private StructRowData getStructRowData(int pos) {
