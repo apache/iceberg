@@ -447,7 +447,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
-            tableFileIO(context, tableConf, response.credentials()),
+            tableFileIO(context, identifier, tableConf, response.credentials()),
             tableMetadata,
             endpoints);
 
@@ -990,6 +990,24 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .map(c -> StorageCredential.create(c.prefix(), c.config()))
               .collect(Collectors.toList()));
     }
+  }
+
+  private FileIO tableFileIO(
+      SessionContext context,
+      TableIdentifier identifier,
+      Map<String, String> config,
+      List<Credential> storageCredentials) {
+    // inject the credentials refresh endpoint if, refresh is configured
+    // TODO: convert this to constants.
+    boolean refreshEnabled =
+        PropertyUtil.propertyAsBoolean(config, "client.refresh-credentials-enabled", false);
+    if (refreshEnabled && endpoints.contains(Endpoint.V1_TABLE_CREDENTIALS)) {
+      config.put("client.refresh-credentials-endpoint", paths.tableCredentials(identifier));
+    }
+
+    // FileIO will use the credential provider which will use the refresh endpoint when
+    // the vended credentials from load table are close to expiration.
+    return tableFileIO(context, config, storageCredentials);
   }
 
   private FileIO tableFileIO(
