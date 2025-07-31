@@ -31,15 +31,15 @@ public class FieldMetrics<T> {
   private final Type originalType;
 
   public FieldMetrics(int id, long valueCount, long nullValueCount) {
-    this(id, valueCount, nullValueCount, -1L, null, null);
+    this(id, valueCount, nullValueCount, -1L, null, null, null);
   }
 
   public FieldMetrics(int id, long valueCount, long nullValueCount, T lowerBound, T upperBound) {
-    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound);
+    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound, null);
   }
 
   public FieldMetrics(int id, long valueCount, long nullValueCount, long nanValueCount) {
-    this(id, valueCount, nullValueCount, nanValueCount, null, null);
+    this(id, valueCount, nullValueCount, nanValueCount, null, null, null);
   }
 
   public FieldMetrics(
@@ -54,13 +54,7 @@ public class FieldMetrics<T> {
       long nanValueCount,
       T lowerBound,
       T upperBound) {
-    this.id = id;
-    this.valueCount = valueCount;
-    this.nullValueCount = nullValueCount;
-    this.nanValueCount = nanValueCount;
-    this.lowerBound = lowerBound;
-    this.upperBound = upperBound;
-    this.originalType = null;
+    this(id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound, null);
   }
 
   public FieldMetrics(

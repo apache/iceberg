@@ -53,11 +53,7 @@ public class Metrics implements Serializable {
       Map<Integer, Long> valueCounts,
       Map<Integer, Long> nullValueCounts,
       Map<Integer, Long> nanValueCounts) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.nanValueCounts = nanValueCounts;
+    this(rowCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, null, null, null);
   }
 
   public Metrics(
@@ -68,13 +64,15 @@ public class Metrics implements Serializable {
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.nanValueCounts = nanValueCounts;
-    this.lowerBounds = lowerBounds;
-    this.upperBounds = upperBounds;
+    this(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        null);
   }
 
   public Metrics(
