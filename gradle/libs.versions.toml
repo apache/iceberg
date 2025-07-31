@@ -49,6 +49,7 @@ findbugs-jsr305 = "3.0.2"
 flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
+flink21 = { strictly = "2.1.0"}
 google-libraries-bom = "26.67.0"
 guava = "33.4.8-jre"
 hadoop3 = "3.4.1"
@@ -131,6 +132,12 @@ flink20-connector-files = { module = "org.apache.flink:flink-connector-files", v
 flink20-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink20" }
 flink20-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink20" }
 flink20-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink20" }
+flink21-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink21" }
+flink21-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink21" }
+flink21-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink21" }
+flink21-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink21" }
+flink21-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink21" }
+flink21-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink21" }
 google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
@@ -195,6 +202,11 @@ flink20-core = { module = "org.apache.flink:flink-core", version.ref = "flink20"
 flink20-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink20" }
 flink20-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink20" }
 flink20-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink20" }
+flink21-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink21" }
+flink21-core = { module = "org.apache.flink:flink-core", version.ref = "flink21" }
+flink21-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink21" }
+flink21-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink21" }
+flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink21" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
