@@ -26,6 +26,8 @@ import java.util.Collection;
 import java.util.Map;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
+import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
@@ -56,11 +58,15 @@ class DynamicWriteResultAggregator
     extends AbstractStreamOperator<CommittableMessage<DynamicCommittable>>
     implements OneInputStreamOperator<
         CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>> {
+
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriteResultAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   private static final Duration CACHE_EXPIRATION_DURATION = Duration.ofMinutes(1);
 
   private final CatalogLoader catalogLoader;
+
+  private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
+
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
   private transient Cache<String, Map<Integer, PartitionSpec>> specs;
   private transient Cache<String, ManifestOutputFileFactory> outputFileFactories;
@@ -72,6 +78,13 @@ class DynamicWriteResultAggregator
 
   DynamicWriteResultAggregator(CatalogLoader catalogLoader) {
     this.catalogLoader = catalogLoader;
+  }
+
+  @Override
+  public void initializeState(StateInitializationContext context) throws Exception {
+    context
+        .getRestoredCheckpointId()
+        .ifPresent(checkpointId -> this.lastCheckpointId = checkpointId);
   }
 
   @Override
@@ -90,11 +103,21 @@ class DynamicWriteResultAggregator
 
   @Override
   public void finish() throws IOException {
-    prepareSnapshotPreBarrier(Long.MAX_VALUE);
+    prepareSnapshotPreBarrier(lastCheckpointId + 1);
   }
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws IOException {
+    if (checkpointId == lastCheckpointId) {
+      // Already flushed. This can happen when finish() above triggers flushing prior creating the
+      // final checkpoint. The calls are mutually exclusive, but we need to ensure we don't flush
+      // twice.
+      LOG.info("Aggregated writes for checkpoint id {} already flushed.", checkpointId);
+      return;
+    }
+
+    this.lastCheckpointId = checkpointId;
+
     Collection<CommittableWithLineage<DynamicCommittable>> committables =
         Sets.newHashSetWithExpectedSize(results.size());
     int count = 0;

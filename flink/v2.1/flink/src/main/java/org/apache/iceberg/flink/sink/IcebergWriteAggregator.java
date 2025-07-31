@@ -21,6 +21,8 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.Collection;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
+import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
@@ -43,16 +45,28 @@ import org.slf4j.LoggerFactory;
 class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
     implements OneInputStreamOperator<
         CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>> {
+
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriteAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
+
   private final Collection<WriteResult> results;
+  private final TableLoader tableLoader;
+
+  private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
+
   private transient ManifestOutputFileFactory icebergManifestOutputFileFactory;
   private transient Table table;
-  private final TableLoader tableLoader;
 
   IcebergWriteAggregator(TableLoader tableLoader) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
+  }
+
+  @Override
+  public void initializeState(StateInitializationContext context) throws Exception {
+    context
+        .getRestoredCheckpointId()
+        .ifPresent(checkpointId -> this.lastCheckpointId = checkpointId);
   }
 
   @Override
@@ -76,11 +90,21 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   @Override
   public void finish() throws IOException {
-    prepareSnapshotPreBarrier(Long.MAX_VALUE);
+    prepareSnapshotPreBarrier(lastCheckpointId + 1);
   }
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws IOException {
+    if (checkpointId == lastCheckpointId) {
+      // Already flushed. This can happen when finish() above triggers flushing prior creating the
+      // final checkpoint. The calls are mutually exclusive, but we need to ensure we don't flush
+      // twice.
+      LOG.info("Aggregated writes for checkpoint id {} already flushed.", checkpointId);
+      return;
+    }
+
+    this.lastCheckpointId = checkpointId;
+
     IcebergCommittable committable =
         new IcebergCommittable(
             writeToManifest(results, checkpointId),

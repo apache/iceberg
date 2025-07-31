@@ -30,6 +30,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.variant.Variant;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkRowData;
@@ -268,6 +269,11 @@ public class RowDataProjection implements RowData {
   @Override
   public RowData getRow(int pos, int numFields) {
     return (RowData) getValue(pos);
+  }
+
+  @Override
+  public Variant getVariant(int pos) {
+    return (Variant) getValue(pos);
   }
 
   @Override
