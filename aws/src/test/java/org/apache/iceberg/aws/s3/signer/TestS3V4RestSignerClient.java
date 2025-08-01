@@ -59,7 +59,7 @@ class TestS3V4RestSignerClient {
                     "client_secret",
                     "12345",
                     "scope",
-                    "catalog")),
+                    "sign")),
             Mockito.eq(OAuthTokenResponse.class),
             Mockito.anyMap(),
             Mockito.any()))

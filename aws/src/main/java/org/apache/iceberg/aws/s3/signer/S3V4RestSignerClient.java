@@ -116,7 +116,7 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public Map<String, String> optionalOAuthParams() {
-    return OAuth2Util.buildOptionalParam(properties());
+    return OAuth2Util.buildOptionalParam(properties(), SCOPE);
   }
 
   /** A Bearer token supplier which will be used for interaction with the server. */
