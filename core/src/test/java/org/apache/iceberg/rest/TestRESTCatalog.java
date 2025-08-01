@@ -51,6 +51,7 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -3105,6 +3106,27 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Cannot determine whether the commit was successful")
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
+  }
+
+  @Test
+  @Override
+  public void testLoadTableWithMissingMetadatafile(@TempDir Path tempDir) {
+
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(TBL.namespace());
+    }
+
+    restCatalog.buildTable(TBL, SCHEMA).create();
+    assertThat(restCatalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    Table table = restCatalog.loadTable(TBL);
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    table.io().deleteFile(metadataFileLocation);
+
+    assertThatThrownBy(() -> restCatalog.loadTable(TBL))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
