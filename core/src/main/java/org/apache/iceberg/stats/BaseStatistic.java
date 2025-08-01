@@ -24,27 +24,16 @@ import java.util.StringJoiner;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 public class BaseStatistic implements Statistic, StructLike, Serializable {
   private final transient int columnId;
   private final transient Type type;
-  private Long columnSize;
-  private Long valueCount;
-  private Long nullValueCount;
-  private Long nanValueCount;
-  private Object lowerBound;
-  private Object upperBound;
-
-  BaseStatistic(int columnId, Types.StructType structType) {
-    this.type =
-        null != structType.field("lower_bound")
-            ? structType.field("lower_bound").type()
-            : null != structType.field("upper_bound")
-                ? structType.field("upper_bound").type()
-                : null;
-    this.columnId = columnId;
-  }
+  private final Long columnSize;
+  private final Long valueCount;
+  private final Long nullValueCount;
+  private final Long nanValueCount;
+  private final Object lowerBound;
+  private final Object upperBound;
 
   BaseStatistic(
       int columnId,
