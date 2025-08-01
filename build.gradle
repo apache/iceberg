@@ -166,8 +166,14 @@ subprojects {
 
   def testParallelism = project.findProperty('testParallelism')
   if (testParallelism != null) {
+    def numTestWorkers
+    if (testParallelism.equals('auto')) {
+      numTestWorkers = Runtime.getRuntime().availableProcessors() / 2
+    } else {
+      numTestWorkers = testParallelism as int
+    }
     tasks.withType(Test).configureEach {
-      maxParallelForks = testParallelism as int
+      maxParallelForks = numTestWorkers
     }
   }
 
