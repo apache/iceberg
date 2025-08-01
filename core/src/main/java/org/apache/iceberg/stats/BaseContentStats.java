@@ -37,23 +37,31 @@ import org.apache.iceberg.types.Types;
 // e.g. project only lowerBound for columnX
 public class BaseContentStats implements ContentStats, StructLike, Serializable {
 
-  private final List<Statistic> statistics = Lists.newArrayList();
+  private final List<Statistic> statistics;
   private final Map<Integer, Statistic> statisticsById = Maps.newLinkedHashMap();
   private long recordCount = -1L;
 
   public BaseContentStats(Types.StructType projection) {
+    this.statistics = Lists.newArrayListWithCapacity(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
           field.type().isStructType(), "ColumnStats must contain structs: %s", field.type());
+      Types.StructType structType = field.type().asStructType();
+      Type type =
+          null != structType.field("lower_bound")
+              ? structType.field("lower_bound").type()
+              : null != structType.field("upper_bound")
+                  ? structType.field("upper_bound").type()
+                  : null;
       statistics.add(
-          new BaseStatistic(Integer.parseInt(field.name()), field.type().asStructType()));
+          BaseStatistic.builder().columnId(Integer.parseInt(field.name())).type(type).build());
     }
   }
 
   private BaseContentStats(long recordCount, List<Statistic> statistics) {
     this.recordCount = recordCount;
-    this.statistics.addAll(statistics);
+    this.statistics = Lists.newArrayList(statistics);
   }
 
   @Override
@@ -109,10 +117,6 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
       }
       if (null != record.getField("null_value_count")) {
         builder.nullValueCount((Long) record.getField("null_value_count"));
-      }
-      if (null != record.getField("type")) {
-        type = (Type) record.getField("type");
-        builder.type(type);
       }
       if (null != record.getField("lower_bound")) {
         Object lowerBound = record.getField("lower_bound");
