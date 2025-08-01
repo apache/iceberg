@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -39,6 +40,8 @@ import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.iceberg.types.Types.NestedField;
+import com.google.common.collect.Sets;
 
 class IcebergWriterFactory {
 
@@ -83,7 +86,29 @@ class IcebergWriterFactory {
       structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();
     }
 
-    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
+    // Create initial schema to get field IDs
+    org.apache.iceberg.Schema initialSchema = new org.apache.iceberg.Schema(structType.fields());
+    
+    // Get ID columns configuration and map to field IDs
+    List<String> idColumns = config.tableConfig(tableName).idColumns();
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    
+    if (!idColumns.isEmpty()) {
+      for (String idColumn : idColumns) {
+        NestedField field = initialSchema.findField(idColumn);
+        if (field == null) {
+          LOG.warn("ID column '{}' not found in schema for table {}, ignoring", idColumn, tableName);
+        } else {
+          identifierFieldIds.add(field.fieldId());
+        }
+      }
+    }
+    
+    // Create final schema with identifier field IDs
+    org.apache.iceberg.Schema schema = identifierFieldIds.isEmpty() 
+        ? initialSchema 
+        : new org.apache.iceberg.Schema(structType.fields(), identifierFieldIds);
+        
     TableIdentifier identifier = TableIdentifier.parse(tableName);
 
     createNamespaceIfNotExist(catalog, identifier.namespace());

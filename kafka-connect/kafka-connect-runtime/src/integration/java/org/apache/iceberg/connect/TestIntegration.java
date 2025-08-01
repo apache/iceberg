@@ -39,6 +39,8 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.apache.iceberg.Table;
+import java.util.Set;
 
 public class TestIntegration extends IntegrationTestBase {
 
@@ -123,6 +125,47 @@ public class TestIntegration extends IntegrationTestBase {
     }
 
     runTest(branch, useSchema, extraConfig, List.of(TABLE_IDENTIFIER));
+
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
+    // may involve 1 or 2 workers
+    assertThat(files).hasSizeBetween(1, 2);
+    assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
+    assertSnapshotProps(TABLE_IDENTIFIER, branch);
+
+    assertGeneratedSchema(useSchema, LongType.class);
+
+    PartitionSpec spec = catalog().loadTable(TABLE_IDENTIFIER).spec();
+    assertThat(spec.isPartitioned()).isEqualTo(useSchema);
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = "test_branch")
+  public void testIcebergSinkAutoCreateWithIdentifierFields(String branch) {
+    boolean useSchema = branch == null; // use a schema for one of the tests
+
+    Map<String, String> extraConfig = Maps.newHashMap();
+    extraConfig.put("iceberg.tables.auto-create-enabled", "true");
+    // Configure identifier fields
+    extraConfig.put("iceberg.tables.default-id-columns", "id,type");
+    if (useSchema) {
+      // partition the table for one of the tests
+      extraConfig.put("iceberg.tables.default-partition-by", "hour(ts)");
+    }
+
+    runTest(branch, useSchema, extraConfig, List.of(TABLE_IDENTIFIER));
+
+    // Verify table was created with correct identifier fields
+    Table table = catalog().loadTable(TABLE_IDENTIFIER);
+    Schema tableSchema = table.schema();
+    
+    Set<Integer> identifierFieldIds = tableSchema.identifierFieldIds();
+    assertThat(identifierFieldIds)
+        .as("Table should have identifier field IDs set for id and type columns")
+        .isNotEmpty()
+        .containsExactlyInAnyOrder(
+            tableSchema.findField("id").fieldId(),
+            tableSchema.findField("type").fieldId());
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
