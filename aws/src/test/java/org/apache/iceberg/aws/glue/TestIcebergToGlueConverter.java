@@ -52,7 +52,16 @@ public class TestIcebergToGlueConverter {
 
   @Test
   public void testToDatabaseName() {
-    assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false)).isEqualTo("db");
+    List<Object[]> goodNames =
+        Lists.newArrayList(
+            new Object[] {Namespace.of("db"), "db"},
+            new Object[] {Namespace.of("db_1"), "db_1"},
+            new Object[] {Namespace.of("db.1"), "db.1"});
+    for (Object[] name : goodNames) {
+
+      assertThat(IcebergToGlueConverter.toDatabaseName((Namespace) name[0], false))
+          .isEqualTo(name[1]);
+    }
   }
 
   @Test
@@ -71,7 +80,7 @@ public class TestIcebergToGlueConverter {
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
               "to Glue database name, "
-                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore, dot");
     }
   }
 
