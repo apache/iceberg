@@ -90,6 +90,17 @@ public class ResourcePaths {
         RESTUtil.encodeString(ident.name()));
   }
 
+  public String tableCredentials(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "credentials");
+  }
+
   public String register(Namespace ns) {
     return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "register");
   }
