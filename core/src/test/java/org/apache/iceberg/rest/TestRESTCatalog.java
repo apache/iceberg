@@ -3472,7 +3472,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThatThrownBy(() -> restCatalog.loadTable(TBL))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
+        .hasMessageContaining("No in-memory file found for location: " + metadataFileLocation);
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
