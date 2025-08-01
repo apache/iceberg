@@ -21,11 +21,13 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.Table;
@@ -52,6 +54,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
@@ -287,7 +291,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
-      Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+      Route route,
+      Map<String, String> vars,
+      HTTPRequest httpRequest,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders) {
+    Object body = httpRequest.body();
     switch (route) {
       case TOKENS:
         return castResponse(responseType, handleOAuthRequest(body));
@@ -392,8 +401,9 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             return castResponse(
                 responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
           } else {
-            return castResponse(
-                responseType, CatalogHandlers.createTable(catalog, namespace, request));
+            LoadTableResponse resp = CatalogHandlers.createTable(catalog, namespace, request);
+            responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, ETag.of(resp)));
+            return castResponse(responseType, resp);
           }
         }
 
@@ -625,8 +635,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        return handleRequest(routeAndVars.first(), vars.build(), request.body(), responseType);
-
+        return handleRequest(
+            routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
       }
@@ -703,5 +713,13 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static class ETag {
+    private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
+
+    public static String of(LoadTableResponse resp) {
+      return MURMUR3.hashString(resp.metadataLocation(), StandardCharsets.UTF_8).toString();
+    }
   }
 }
