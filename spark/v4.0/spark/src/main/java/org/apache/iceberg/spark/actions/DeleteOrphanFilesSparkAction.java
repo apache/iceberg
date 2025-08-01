@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -117,6 +118,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
+  private DeleteEmptyDirectoriesMode deleteEmptyDirectoriesMode = DeleteEmptyDirectoriesMode.NONE;
   private String location;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Dataset<Row> compareToFileList;
@@ -135,6 +137,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
+  }
+
+  public DeleteOrphanFilesSparkAction deleteEmptyDirectoriesMode(DeleteEmptyDirectoriesMode mode) {
+    this.deleteEmptyDirectoriesMode = mode;
+    return this;
   }
 
   @Override
@@ -255,7 +262,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
     List<String> orphanFiles =
-        findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
+        Lists.newArrayList(
+            findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode));
 
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
       deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
@@ -277,6 +285,26 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         LOG.info("Custom delete function provided. Using non-bulk deletes");
         deleteTasks.run(deleteFunc::accept);
       }
+    }
+    try {
+      if (deleteEmptyDirectoriesMode != DeleteEmptyDirectoriesMode.NONE) {
+        switch (deleteEmptyDirectoriesMode) {
+          case ORPHAN:
+            if (!orphanFiles.isEmpty()) {
+              orphanFiles.addAll(
+                  cleanEmptyDirsAfterFiles(orphanFiles, location, hadoopConf.value()));
+            }
+            break;
+          case ALL:
+            orphanFiles.addAll(cleanAllEmptyDirs(location, hadoopConf.value()));
+            break;
+          default:
+            break;
+        }
+      }
+    } catch (IOException ioe) {
+      throw new RuntimeException(
+          "Failed to clean empty directories after orphan file deletion", ioe);
     }
 
     return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
@@ -375,6 +403,88 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         matchingFiles.add(file.location());
       }
     }
+  }
+
+  public List<String> cleanEmptyDirsAfterFiles(
+      List<String> deletedFilePaths, String root, Configuration conf) throws IOException {
+    Set<String> checkedDirs = Sets.newHashSet();
+    Set<String> deletedDirs = Sets.newHashSet();
+    FileSystem fs = FileSystem.get(new Path(root).toUri(), conf);
+    Path rootPath = new Path(root);
+    String rootPathStr = rootPath.toUri().getPath();
+    if (!rootPathStr.endsWith("/")) {
+      rootPathStr = rootPathStr + "/";
+    }
+
+    for (String filePathStr : deletedFilePaths) {
+      Path filePath = new Path(filePathStr);
+      Path parent = filePath.getParent();
+      while (parent != null
+          && isUnderRoot(parent, rootPathStr)
+          && checkedDirs.add(parent.toString())) {
+        FileStatus[] children = fs.listStatus(parent);
+        if ((children == null || children.length == 0)) {
+          if (fs.delete(parent, false)) {
+            deletedDirs.add(parent.toString());
+          }
+          parent = parent.getParent();
+        } else {
+          break;
+        }
+      }
+    }
+
+    return Lists.newArrayList((deletedDirs));
+  }
+
+  private boolean isUnderRoot(Path parent, String rootPathStr) {
+    String parentPathStr = parent.toUri().getPath();
+    return parentPathStr.equals(rootPathStr.substring(0, rootPathStr.length() - 1))
+        || parentPathStr.startsWith(rootPathStr);
+  }
+
+  public List<String> cleanAllEmptyDirs(String root, Configuration conf) throws IOException {
+    FileSystem fs = FileSystem.get(new Path(root).toUri(), conf);
+    List<String> deletedDirs = Lists.newArrayList();
+    FileStatus[] children = fs.listStatus(new Path(root));
+    if (children == null) {
+      return deletedDirs;
+    }
+
+    for (FileStatus child : children) {
+      if (child.isDirectory()) {
+        deleteEmptyDirsRecursively(fs, child.getPath(), deletedDirs);
+      }
+    }
+    return deletedDirs;
+  }
+
+  private boolean deleteEmptyDirsRecursively(FileSystem fs, Path dir, List<String> deletedDirs)
+      throws IOException {
+    FileStatus status = fs.getFileStatus(dir);
+    if (!status.isDirectory()) {
+      return false;
+    }
+
+    FileStatus[] children = fs.listStatus(dir);
+    boolean allChildrenDeletedOrFiles = true;
+    for (FileStatus child : children) {
+      if (child.isDirectory()) {
+        boolean deleted = deleteEmptyDirsRecursively(fs, child.getPath(), deletedDirs);
+        if (!deleted) {
+          allChildrenDeletedOrFiles = false;
+        }
+      } else {
+        allChildrenDeletedOrFiles = false;
+      }
+    }
+    if (children.length == 0 || allChildrenDeletedOrFiles) {
+      if (fs.delete(dir, false)) {
+        deletedDirs.add(dir.toString());
+      }
+      return true;
+    }
+    return false;
   }
 
   private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {

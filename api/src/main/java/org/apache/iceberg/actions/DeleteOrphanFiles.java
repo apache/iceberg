@@ -164,4 +164,19 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
       }
     }
   }
+
+  enum DeleteEmptyDirectoriesMode {
+    NONE,
+    ORPHAN,
+    ALL;
+
+    public static DeleteEmptyDirectoriesMode fromString(String modeAsString) {
+      Preconditions.checkArgument(modeAsString != null, "Invalid mode: null");
+      try {
+        return DeleteEmptyDirectoriesMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid mode: %s", modeAsString), e);
+      }
+    }
+  }
 }
