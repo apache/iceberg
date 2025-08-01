@@ -65,6 +65,23 @@ class TestS3V4RestSignerClient {
             Mockito.any()))
         .thenReturn(
             OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
+    when(S3V4RestSignerClient.httpClient.postForm(
+            Mockito.anyString(),
+            Mockito.eq(
+                Map.of(
+                    "grant_type",
+                    "client_credentials",
+                    "client_id",
+                    "user",
+                    "client_secret",
+                    "12345",
+                    "scope",
+                    "custom")),
+            Mockito.eq(OAuthTokenResponse.class),
+            Mockito.anyMap(),
+            Mockito.any()))
+        .thenReturn(
+            OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
   }
 
   @AfterAll
@@ -133,6 +150,18 @@ class TestS3V4RestSignerClient {
                 "token",
                 OAuth2Properties.CREDENTIAL,
                 "user:12345"),
+            "token"),
+        // Custom scope
+        Arguments.of(
+            Map.of(
+                S3_SIGNER_URI,
+                "https://signer.com",
+                AuthProperties.AUTH_TYPE,
+                AuthProperties.AUTH_TYPE_OAUTH2,
+                OAuth2Properties.CREDENTIAL,
+                "user:12345",
+                OAuth2Properties.SCOPE,
+                "custom"),
             "token"));
   }
 }
