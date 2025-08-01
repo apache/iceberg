@@ -55,7 +55,7 @@ class SparkBatch implements Batch {
   private final boolean caseSensitive;
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
-  private final int scanHashCode;
+  private final String scanDigest;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -64,7 +64,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
-      int scanHashCode) {
+      String scanDigest) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.branch = readConf.branch();
@@ -75,7 +75,7 @@ class SparkBatch implements Batch {
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
-    this.scanHashCode = scanHashCode;
+    this.scanDigest = scanDigest;
   }
 
   @Override
@@ -219,11 +219,11 @@ class SparkBatch implements Batch {
     }
 
     SparkBatch that = (SparkBatch) o;
-    return table.name().equals(that.table.name()) && scanHashCode == that.scanHashCode;
+    return table.name().equals(that.table.name()) && scanDigest.equals(that.scanDigest);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(table.name(), scanHashCode);
+    return Objects.hash(table.name(), scanDigest);
   }
 }
