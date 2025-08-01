@@ -168,7 +168,7 @@ subprojects {
   if (testParallelism != null) {
     def numTestWorkers
     if (testParallelism.equals('auto')) {
-      numTestWorkers = Runtime.getRuntime().availableProcessors()
+      numTestWorkers = Runtime.getRuntime().availableProcessors() / 2
     } else {
       numTestWorkers = testParallelism as int
     }
