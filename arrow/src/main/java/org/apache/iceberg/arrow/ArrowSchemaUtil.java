@@ -78,10 +78,9 @@ public class ArrowSchemaUtil {
 
     @Override
     public Field struct(StructType struct, List<Field> fieldResults) {
-      ArrowType arrowType = ArrowType.Struct.INSTANCE;
       return new Field(
           currentField.name(),
-          new FieldType(currentField.isOptional(), arrowType, null),
+          new FieldType(currentField.isOptional(), ArrowType.Struct.INSTANCE, null),
           convertChildren(struct.fields()));
     }
 
@@ -92,10 +91,9 @@ public class ArrowSchemaUtil {
 
     @Override
     public Field list(ListType list, Field elementResult) {
-      ArrowType arrowType = ArrowType.List.INSTANCE;
       return new Field(
           currentField.name(),
-          new FieldType(currentField.isOptional(), arrowType, null),
+          new FieldType(currentField.isOptional(), ArrowType.List.INSTANCE, null),
           convertChildren(list.fields()));
     }
 
