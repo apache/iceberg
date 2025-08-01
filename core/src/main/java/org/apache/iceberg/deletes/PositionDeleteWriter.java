@@ -66,12 +66,38 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
       PartitionSpec spec,
       StructLike partition,
       EncryptionKeyMetadata keyMetadata) {
+    this(
+        appender,
+        format,
+        location,
+        spec,
+        partition,
+        keyMetadata != null ? keyMetadata.buffer() : null);
+  }
+
+  public PositionDeleteWriter(PositionDeleteWriter<T> wrapped) {
+    this(
+        wrapped.appender,
+        wrapped.format,
+        wrapped.location,
+        wrapped.spec,
+        wrapped.partition,
+        wrapped.keyMetadata);
+  }
+
+  private PositionDeleteWriter(
+      FileAppender<StructLike> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      ByteBuffer keyMetadata) {
     this.appender = appender;
     this.format = format;
     this.location = location;
     this.spec = spec;
     this.partition = partition;
-    this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
+    this.keyMetadata = keyMetadata;
     this.referencedDataFiles = CharSequenceSet.empty();
   }
 
