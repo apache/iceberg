@@ -46,6 +46,7 @@ public class ExpireSnapshots {
     private Integer numSnapshots = null;
     private Integer planningWorkerPoolSize;
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
+    private Boolean cleanExpiredMetadata = null;
 
     @Override
     String maintenanceTaskName() {
@@ -94,6 +95,18 @@ public class ExpireSnapshots {
       return this;
     }
 
+    /**
+     * Expires unused table metadata such as partition specs and schemas.
+     *
+     * @param newCleanExpiredMetadata remove unused partition specs, schemas, or other metadata when
+     *     true
+     * @return this for method chaining
+     */
+    public Builder cleanExpiredMetadata(boolean newCleanExpiredMetadata) {
+      this.cleanExpiredMetadata = newCleanExpiredMetadata;
+      return this;
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");
@@ -105,7 +118,8 @@ public class ExpireSnapshots {
                       tableLoader(),
                       maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
                       numSnapshots,
-                      planningWorkerPoolSize))
+                      planningWorkerPoolSize,
+                      cleanExpiredMetadata))
               .name(operatorName(EXECUTOR_OPERATOR_NAME))
               .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
