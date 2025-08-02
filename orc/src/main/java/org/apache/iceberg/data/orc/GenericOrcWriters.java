@@ -248,7 +248,8 @@ public class GenericOrcWriters {
               nullValueCount,
               metricsWithoutNullCount.nanValueCount(),
               metricsWithoutNullCount.lowerBound(),
-              metricsWithoutNullCount.upperBound()));
+              metricsWithoutNullCount.upperBound(),
+              metricsWithoutNullCount.originalType()));
     }
   }
 
@@ -281,7 +282,8 @@ public class GenericOrcWriters {
               nullValueCount,
               metricsWithoutNullCount.nanValueCount(),
               metricsWithoutNullCount.lowerBound(),
-              metricsWithoutNullCount.upperBound()));
+              metricsWithoutNullCount.upperBound(),
+              metricsWithoutNullCount.originalType()));
     }
   }
 

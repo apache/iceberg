@@ -770,6 +770,10 @@ public abstract class TestMetrics {
       int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
+    if (null != lowerBound || null != upperBound) {
+      // if there's an expected lower/upper bound, then the original type should be available
+      assertThat(metrics.originalTypes().get(fieldId)).isEqualTo(type);
+    }
 
     if (lowerBounds.containsKey(fieldId)) {
       assertThat((Object) fromByteBuffer(type, lowerBounds.get(fieldId))).isEqualTo(lowerBound);

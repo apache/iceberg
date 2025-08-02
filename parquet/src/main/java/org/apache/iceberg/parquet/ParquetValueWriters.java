@@ -456,7 +456,8 @@ public class ParquetValueWriters {
                   nullValueCount,
                   metrics.nanValueCount(),
                   metrics.lowerBound(),
-                  metrics.upperBound()));
+                  metrics.upperBound(),
+                  metrics.originalType()));
         } else {
           throw new IllegalStateException(
               String.format(

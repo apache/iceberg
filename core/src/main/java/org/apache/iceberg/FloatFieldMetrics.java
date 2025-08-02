@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.types.Types;
+
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  *
@@ -29,7 +31,7 @@ public class FloatFieldMetrics extends FieldMetrics<Float> {
 
   private FloatFieldMetrics(
       int id, long valueCount, long nanValueCount, Float lowerBound, Float upperBound) {
-    super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
+    super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound, Types.FloatType.get());
   }
 
   public Builder builderFor(int id) {
