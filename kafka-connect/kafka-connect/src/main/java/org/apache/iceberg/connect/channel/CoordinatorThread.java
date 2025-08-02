@@ -64,6 +64,5 @@ class CoordinatorThread extends Thread {
 
   void terminate() {
     this.terminated = true;
-    coordinator.terminate();
   }
 }
