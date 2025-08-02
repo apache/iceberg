@@ -43,24 +43,34 @@ class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
   public Mono<HttpResponse> process(
       HttpPipelineCallContext httpPipelineCallContext,
       HttpPipelineNextPolicy httpPipelineNextPolicy) {
-    maybeUpdateCredential();
-    return azureSasCredentialPolicy.process(httpPipelineCallContext, httpPipelineNextPolicy);
+    return maybeUpdateCredential()
+        .then(
+            Mono.defer(
+                () ->
+                    azureSasCredentialPolicy.process(
+                        httpPipelineCallContext, httpPipelineNextPolicy)));
   }
 
   @Override
   public HttpResponse processSync(
       HttpPipelineCallContext context, HttpPipelineNextSyncPolicy next) {
-    maybeUpdateCredential();
+    maybeUpdateCredential().block();
     return azureSasCredentialPolicy.processSync(context, next);
   }
 
-  private void maybeUpdateCredential() {
-    String sasToken = vendedAdlsCredentialProvider.credentialForAccount(account);
-    if (azureSasCredential == null) {
-      this.azureSasCredential = new AzureSasCredential(sasToken);
-      this.azureSasCredentialPolicy = new AzureSasCredentialPolicy(azureSasCredential, false);
-    } else {
-      azureSasCredential.update(sasToken);
-    }
+  private Mono<Void> maybeUpdateCredential() {
+    return vendedAdlsCredentialProvider
+        .credentialForAccount(account)
+        .flatMap(
+            sasToken -> {
+              if (azureSasCredential == null) {
+                this.azureSasCredential = new AzureSasCredential(sasToken);
+                this.azureSasCredentialPolicy =
+                    new AzureSasCredentialPolicy(azureSasCredential, false);
+              } else {
+                azureSasCredential.update(sasToken);
+              }
+              return Mono.empty();
+            });
   }
 }
