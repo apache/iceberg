@@ -106,6 +106,12 @@ public class ArrowSchemaUtil {
                 TimeUnit.MICROSECOND,
                 ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
         break;
+      case TIMESTAMP_NANO:
+        arrowType =
+            new ArrowType.Timestamp(
+                TimeUnit.NANOSECOND,
+                ((Types.TimestampNanoType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
+        break;
       case DATE:
         arrowType = new ArrowType.Date(DateUnit.DAY);
         break;
