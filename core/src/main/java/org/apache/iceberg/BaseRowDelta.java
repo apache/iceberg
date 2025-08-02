@@ -28,7 +28,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 
-class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
+public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private final DataFileSet removedDataFiles = DataFileSet.create();
@@ -37,7 +37,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
 
-  BaseRowDelta(String tableName, TableOperations ops) {
+  protected BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
   }
 
