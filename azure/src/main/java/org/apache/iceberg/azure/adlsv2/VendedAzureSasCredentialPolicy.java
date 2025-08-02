@@ -30,7 +30,7 @@ import reactor.core.publisher.Mono;
 class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
   private final String account;
   private final VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
-  private AzureSasCredential azureSasCredential;
+  private volatile AzureSasCredential azureSasCredential;
   private AzureSasCredentialPolicy azureSasCredentialPolicy;
 
   VendedAzureSasCredentialPolicy(
@@ -64,12 +64,16 @@ class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
         .flatMap(
             sasToken -> {
               if (azureSasCredential == null) {
-                this.azureSasCredential = new AzureSasCredential(sasToken);
-                this.azureSasCredentialPolicy =
-                    new AzureSasCredentialPolicy(azureSasCredential, false);
-              } else {
-                azureSasCredential.update(sasToken);
+                synchronized (this) {
+                  if (azureSasCredential == null) {
+                    this.azureSasCredential = new AzureSasCredential(sasToken);
+                    this.azureSasCredentialPolicy =
+                        new AzureSasCredentialPolicy(azureSasCredential, false);
+                    return Mono.empty();
+                  }
+                }
               }
+              azureSasCredential.update(sasToken);
               return Mono.empty();
             });
   }

@@ -111,7 +111,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     if (this.sasCredentialByAccount == null) {
       synchronized (this) {
         if (this.sasCredentialByAccount == null) {
-          this.sasCredentialByAccount = Maps.newHashMap();
+          this.sasCredentialByAccount = Maps.newConcurrentMap();
         }
       }
     }
