@@ -273,7 +273,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
               currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readPrimitive));
     }
 
-    if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive)) {
+    if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive, false)) {
       return ImmutableList.of(
           String.format(": %s cannot be promoted to %s", currentType, readPrimitive));
     }
