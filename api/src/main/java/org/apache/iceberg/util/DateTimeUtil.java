@@ -196,6 +196,14 @@ public class DateTimeUtil {
     return convertDays(days, ChronoUnit.MONTHS);
   }
 
+  public static long daysToMicros(int days) {
+    return convertDays1(days, ChronoUnit.MICROS);
+  }
+
+  public static long daysToNanos(int days) {
+    return convertDays1(days, ChronoUnit.NANOS);
+  }
+
   private static int convertDays(int days, ChronoUnit granularity) {
     if (days >= 0) {
       LocalDate date = EPOCH_DAY.plusDays(days);
@@ -205,6 +213,18 @@ public class DateTimeUtil {
       // date and epoch because the result will always be decremented.
       LocalDate date = EPOCH_DAY.plusDays(days + 1);
       return (int) granularity.between(EPOCH_DAY, date) - 1;
+    }
+  }
+
+  private static long convertDays1(int days, ChronoUnit granularity) {
+    if (days >= 0) {
+      LocalDate date = EPOCH_DAY.plusDays(days);
+      return granularity.between(EPOCH_DAY, date);
+    } else {
+      // add 1 day to the value to account for the case where there is exactly 1 unit between the
+      // date and epoch because the result will always be decremented.
+      LocalDate date = EPOCH_DAY.plusDays(days + 1);
+      return granularity.between(EPOCH_DAY, date) - 1;
     }
   }
 
