@@ -969,7 +969,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
   @Test
   public void testUUIDEq() {
-    UUID VAR_UUID = UUID.randomUUID();
+    UUID uuid = UUID.randomUUID();
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
             ImmutableMap.of(
@@ -977,7 +977,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                     VariantTestUtil.variantBuffer(
                             Map.of(
                                     "$['event_uuid']",
-                                    Variants.ofUUID(VAR_UUID))));
+                                    Variants.ofUUID(uuid))));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
             ImmutableMap.of(
@@ -985,10 +985,10 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                     VariantTestUtil.variantBuffer(
                             Map.of(
                                     "$['event_uuid']",
-                                    Variants.ofUUID(VAR_UUID))));
+                                    Variants.ofUUID(uuid))));
     DataFile file =
             new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
-    Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), VAR_UUID);
+    Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
     assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
 }
