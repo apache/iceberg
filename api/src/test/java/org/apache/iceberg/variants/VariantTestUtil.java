@@ -135,8 +135,8 @@ public class VariantTestUtil {
   /** Creates a short string primitive of max 63 bytes to use only 1 header */
   static SerializedShortString createShortString(String string) {
     Preconditions.checkArgument(
-            string.length() <= MAX_SHORT_STRING_LENGTH,
-            "Short String length is " + string.length() + ",  should not be greater than 63");
+        string.length() <= MAX_SHORT_STRING_LENGTH,
+        "Short String length is " + string.length() + ",  should not be greater than 63");
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, VariantUtil.shortStringHeader(utf8.length));

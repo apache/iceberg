@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.expressions;
 
+import static java.util.stream.Collectors.joining;
+
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -46,8 +46,6 @@ import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantValue;
-
-import static java.util.stream.Collectors.joining;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
