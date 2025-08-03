@@ -42,6 +42,7 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
@@ -1164,32 +1165,71 @@ public class TestExpressionUtil {
               0x09, (byte) 0xB1, 0x1C, 0x6C, (byte) 0xB1, (byte) 0xF4, 0x10, 0x22, 0x11
             }));
     data.put(
-            "event_id_dec16", // scale=9
-            VariantTestUtil.createSerializedPrimitive(10, new byte[] {0x09, 0x15, 0x71, 0x34, (byte) 0xB0, (byte) 0xB8, (byte) 0x87, 0x10, (byte) 0x89, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}));
+        "event_id_dec16", // scale=9
+        VariantTestUtil.createSerializedPrimitive(
+            10,
+            new byte[] {
+              0x09,
+              0x15,
+              0x71,
+              0x34,
+              (byte) 0xB0,
+              (byte) 0xB8,
+              (byte) 0x87,
+              0x10,
+              (byte) 0x89,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00,
+              0x00
+            }));
     data.put(
         "event_date",
         VariantTestUtil.createSerializedPrimitive(11, new byte[] {(byte) 0xF4, 0x43, 0x00, 0x00}));
+    data.put("event_timestamp_tz", createTimestamp(12));
+    data.put("event_timestamp_ntz", createTimestamp(13));
     data.put(
-        "event_timestamp_tz",
+        "event_time",
         VariantTestUtil.createSerializedPrimitive(
-            12, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
+            17,
+            new byte[] {
+              (byte) 0x80,
+              (byte) 0xa8,
+              (byte) 0x4b,
+              (byte) 0xb7,
+              (byte) 0x02,
+              (byte) 0x00,
+              (byte) 0x00,
+              0x00
+            }));
+    data.put("event_timestamp_tz_nanos", createTimestampNanos(18));
+    data.put("event_timestamp_ntz_nanos", createTimestampNanos(19));
     data.put(
-        "event_timestamp_ntz",
+        "event_uuid",
         VariantTestUtil.createSerializedPrimitive(
-            13, new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00}));
-    data.put(
-            "event_time",
-             VariantTestUtil.createSerializedPrimitive(
-                     17, new byte[] { (byte) 0x80, (byte) 0xa8, (byte) 0x4b, (byte) 0xb7, (byte) 0x02, (byte) 0x00, (byte) 0x00, 0x00}));
-    data.put(
-            "event_timestamp_tz_nanos",
-            VariantTestUtil.createSerializedPrimitive(18, new byte[] {0x15, (byte) 0x8f, (byte) 0x35, (byte) 0x77, (byte) 0x9e, (byte) 0xf6, (byte) 0xdb, 0x14}));
-    data.put(
-            "event_timestamp_ntz_nanos",
-            VariantTestUtil.createSerializedPrimitive(19, new byte[] {0x15, (byte) 0x8f, (byte) 0x35, (byte) 0x77, (byte) 0x9e, (byte) 0xf6, (byte) 0xdb, 0x14}));
-    data.put(
-            "event_uuid",
-            VariantTestUtil.createSerializedPrimitive(20, new byte[] {(byte) 0xf2, 0x4f, (byte) 0x9b, 0x64, (byte) 0x81, (byte) 0xfa, 0x49, (byte) 0xd1, (byte) 0xb7, 0x4e, (byte) 0x8c, 0x09, (byte) 0xa6, (byte) 0xe3, 0x1c, 0x56}));
+            20,
+            new byte[] {
+              (byte) 0xf2,
+              0x4f,
+              (byte) 0x9b,
+              0x64,
+              (byte) 0x81,
+              (byte) 0xfa,
+              0x49,
+              (byte) 0xd1,
+              (byte) 0xb7,
+              0x4e,
+              (byte) 0x8c,
+              0x09,
+              (byte) 0xa6,
+              (byte) 0xe3,
+              0x1c,
+              0x56
+            }));
     data.put(
         "event_binary",
         VariantTestUtil.createSerializedPrimitive(
@@ -1223,6 +1263,20 @@ public class TestExpressionUtil {
                 + "(hash-event_timestamp_tz_nanos): (timestamp), "
                 + "(hash-event_uuid): (hash-54e07fa7)}"),
         ExpressionUtil.sanitize(bound));
+  }
+
+  private VariantPrimitive<?> createTimestampNanos(int primitiveHeader) {
+    return VariantTestUtil.createSerializedPrimitive(
+        primitiveHeader,
+        new byte[] {
+          0x15, (byte) 0x8f, (byte) 0x35, (byte) 0x77, (byte) 0x9e, (byte) 0xf6, (byte) 0xdb, 0x14
+        });
+  }
+
+  private VariantPrimitive<?> createTimestamp(int primitiveHeader) {
+    return VariantTestUtil.createSerializedPrimitive(
+        primitiveHeader,
+        new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00});
   }
 
   private VariantArray createArrayWithNestedTypes() {
