@@ -857,8 +857,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
-      rec.setField("fixed", new byte[] {1, 2, 3, 4, 5, 6, (byte) i});
-      rec.setField("fixed_nullable", new byte[] {1, 2, 3, 4, 5, 6, (byte) i});
+      rec.setField("fixed", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
@@ -896,8 +896,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
-      rec.setField("fixed", new byte[] {1, 2, 3, 4, 5, 6, 7});
-      rec.setField("fixed_nullable", new byte[] {1, 2, 3, 4, 5, 6, 7});
+      rec.setField("fixed", ("abcdefg").getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdefg").getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
