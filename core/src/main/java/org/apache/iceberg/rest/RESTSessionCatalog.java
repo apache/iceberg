@@ -997,12 +997,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier identifier,
       Map<String, String> config,
       List<Credential> storageCredentials) {
-    // inject the credentials refresh endpoint if, refresh is configured
+    // Check if either credential refresh is enabled from either client side or server side.
     // TODO: convert this to constants.
-    boolean refreshEnabled =
-        PropertyUtil.propertyAsBoolean(config, "client.refresh-credentials-enabled", false);
-    if (refreshEnabled && endpoints.contains(Endpoint.V1_TABLE_CREDENTIALS)) {
-      config.put("client.refresh-credentials-endpoint", paths.tableCredentials(identifier));
+    boolean s3RefreshEnabled =
+        PropertyUtil.propertyAsBoolean(config, "client.refresh-credentials-enabled", false)
+            || PropertyUtil.propertyAsBoolean(
+                properties(), "client.refresh-credentials-enabled", false);
+    boolean adlsRefreshEnabled =
+        PropertyUtil.propertyAsBoolean(config, "adls.refresh-credentials-enabled", false)
+            || PropertyUtil.propertyAsBoolean(
+                properties(), "adls.refresh-credentials-enabled", false);
+
+    // Inject the credentials refresh endpoint if, refresh is configured.
+    // This is done because the server would not know the complete URI of the refresh endpoint.
+    // The IRC relative path for refreshing the credentials for a table is fixed.
+    if (s3RefreshEnabled && endpoints.contains(Endpoint.V1_TABLE_CREDENTIALS)) {
+      // respect server-side refresh endpoint configuration.
+      config.putIfAbsent("client.refresh-credentials-endpoint", paths.tableCredentials(identifier));
+    } else if (adlsRefreshEnabled && endpoints.contains(Endpoint.V1_TABLE_CREDENTIALS)) {
+      // respect server-side refresh endpoint configuration.
+      config.putIfAbsent("adls.refresh-credentials-endpoint", paths.tableCredentials(identifier));
     }
 
     // FileIO will use the credential provider which will use the refresh endpoint when
