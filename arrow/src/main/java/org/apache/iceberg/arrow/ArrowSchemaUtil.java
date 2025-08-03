@@ -57,6 +57,7 @@ public class ArrowSchemaUtil {
     for (NestedField field : schema.columns()) {
       fields.add(TypeUtil.visit(field.type(), new IcebergToArrowTypeConverter(field)));
     }
+
     return new Schema(fields.build());
   }
 
@@ -116,9 +117,11 @@ public class ArrowSchemaUtil {
 
     private List<Field> convertChildren(Collection<NestedField> children) {
       List<Field> converted = Lists.newArrayListWithCapacity(children.size());
+
       for (NestedField child : children) {
         converted.add(TypeUtil.visit(child.type(), new IcebergToArrowTypeConverter(child)));
       }
+
       return converted;
     }
 
