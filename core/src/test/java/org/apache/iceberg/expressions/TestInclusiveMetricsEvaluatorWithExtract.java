@@ -712,19 +712,11 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    lowerBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    upperBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
@@ -753,19 +745,11 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    lowerBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    upperBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
@@ -794,19 +778,11 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    lowerBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    upperBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
@@ -845,19 +821,11 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    lowerBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    upperBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
@@ -896,19 +864,11 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    lowerBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(
-            2,
-            VariantTestUtil.variantBuffer(
-                Map.of(
-                    "$['event_timestamp']",
-                    upperBound)));
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
@@ -918,51 +878,43 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
   private static Stream<Arguments> dateNotEqParameters() {
     return Stream.of(
-            Arguments.of(
-                    Types.TimestampType.withoutZone().toString(),
-                    "1970-03-01T00:00:01.123456",
-                    Variants.ofIsoDate("1970-01-31"),
-                    Variants.ofIsoDate("1970-03-31")),
-            Arguments.of(
-                    Types.TimestampType.withoutZone().toString(),
-                    "1970-04-01T00:00:01.123456",
-                    Variants.ofIsoDate("1970-01-31"),
-                    Variants.ofIsoDate("1970-03-31")),
-            Arguments.of(
-                    Types.TimestampNanoType.withoutZone().toString(),
-                    "1970-03-01T00:00:01.123456789",
-                    Variants.ofIsoDate("1970-01-31"),
-                    Variants.ofIsoDate("1970-03-31")),
-            Arguments.of(
-                    Types.TimestampNanoType.withoutZone().toString(),
-                    "1970-04-01T00:00:01.123456789",
-                    Variants.ofIsoDate("1970-01-31"),
-                    Variants.ofIsoDate("1970-03-31")));
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")));
   }
 
   @ParameterizedTest
   @MethodSource("dateNotEqParameters")
   public void testDateNotEq(
-          String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
-            ImmutableMap.of(
-                    2,
-                    VariantTestUtil.variantBuffer(
-                            Map.of(
-                                    "$['event_timestamp']",
-                                    lowerBound)));
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
-            ImmutableMap.of(
-                    2,
-                    VariantTestUtil.variantBuffer(
-                            Map.of(
-                                    "$['event_timestamp']",
-                                    upperBound)));
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
 
     DataFile file =
-            new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), literal);
     assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
@@ -972,22 +924,14 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     UUID uuid = UUID.randomUUID();
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
-            ImmutableMap.of(
-                    2,
-                    VariantTestUtil.variantBuffer(
-                            Map.of(
-                                    "$['event_uuid']",
-                                    Variants.ofUUID(uuid))));
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
     // upper bounds
     Map<Integer, ByteBuffer> upperBounds =
-            ImmutableMap.of(
-                    2,
-                    VariantTestUtil.variantBuffer(
-                            Map.of(
-                                    "$['event_uuid']",
-                                    Variants.ofUUID(uuid))));
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
     DataFile file =
-            new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
     assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
