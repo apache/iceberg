@@ -22,6 +22,8 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -44,6 +46,8 @@ import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantValue;
+
+import static java.util.stream.Collectors.joining;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -425,7 +429,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
@@ -434,7 +438,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
@@ -477,7 +481,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
@@ -486,7 +490,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
@@ -690,7 +694,7 @@ public class ExpressionUtil {
 
   private static String sanitizeVariantArray(VariantArray value, long now, int today) {
     StringBuilder builder = new StringBuilder();
-    builder.append("{");
+    builder.append("[");
     boolean first = true;
     for (int i = 0; i < value.numElements(); i++) {
       if (first) {
@@ -700,7 +704,7 @@ public class ExpressionUtil {
       }
       builder.append(sanitizeVariantValue(value.get(i), value.get(i).type(), now, today));
     }
-    builder.append("}");
+    builder.append("]");
     return builder.toString();
   }
 
@@ -733,6 +737,9 @@ public class ExpressionUtil {
         return "(time)";
       case ARRAY:
         builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
+        break;
+      case OBJECT:
+        builder.append(sanitizeVariantObject((VariantObject) fieldValue, now, today));
         break;
       default:
         builder.append(sanitizeSimpleString(fieldValue.toString()));
