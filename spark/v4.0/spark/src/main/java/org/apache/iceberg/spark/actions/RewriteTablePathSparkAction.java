@@ -548,8 +548,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
-  /** Rewrite manifest files in a distributed manner and return the resulting manifests
-   *   and content files selected for rewriting.
+  /**
+   * Rewrite manifest files in a distributed manner and return the resulting manifests and content
+   * files selected for rewriting.
    */
   private ManifestsRewriteResult rewriteManifests(
       Set<Snapshot> deltaSnapshots, TableMetadata tableMetadata, Set<ManifestFile> toRewrite) {
