@@ -63,16 +63,7 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
-import org.apache.iceberg.rest.responses.ConfigResponse;
-import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
-import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.GetNamespaceResponse;
-import org.apache.iceberg.rest.responses.ListNamespacesResponse;
-import org.apache.iceberg.rest.responses.ListTablesResponse;
-import org.apache.iceberg.rest.responses.LoadTableResponse;
-import org.apache.iceberg.rest.responses.LoadViewResponse;
-import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.rest.responses.*;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -163,7 +154,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     UPDATE_VIEW(
         HTTPMethod.POST, ResourcePaths.V1_VIEW, UpdateTableRequest.class, LoadViewResponse.class),
     RENAME_VIEW(HTTPMethod.POST, ResourcePaths.V1_VIEW_RENAME, RenameTableRequest.class, null),
-    DROP_VIEW(HTTPMethod.DELETE, ResourcePaths.V1_VIEW);
+    DROP_VIEW(HTTPMethod.DELETE, ResourcePaths.V1_VIEW),
+    LOAD_TABLE_CREDENTIALS(HTTPMethod.GET, ResourcePaths.V1_TABLE_CREDENTIALS, null, LoadCredentialsResponse.class);
 
     private final HTTPMethod method;
     private final int requiredLength;
