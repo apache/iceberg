@@ -172,21 +172,29 @@ public class MetricsUtil {
               "Lower bound",
               DataFile.LOWER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.lowerBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.lowerBounds().get(field.fieldId()))),
+              (file, field) -> {
+                if (file.lowerBounds() == null) {
+                  return null;
+                }
+                Object value =
+                    Conversions.fromByteBuffer(
+                        field.type(), file.lowerBounds().get(field.fieldId()));
+                return (value instanceof java.util.UUID) ? value.toString() : value;
+              }),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.upperBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.upperBounds().get(field.fieldId()))));
+              (file, field) -> {
+                if (file.upperBounds() == null) {
+                  return null;
+                }
+                Object value =
+                    Conversions.fromByteBuffer(
+                        field.type(), file.upperBounds().get(field.fieldId()));
+                return (value instanceof java.util.UUID) ? value.toString() : value;
+              }));
 
   public static final String READABLE_METRICS = "readable_metrics";
 
