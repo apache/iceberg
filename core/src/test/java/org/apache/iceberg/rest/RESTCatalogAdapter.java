@@ -525,6 +525,13 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           break;
         }
 
+      case LOAD_TABLE_CREDENTIALS:
+        {
+
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          return castResponse(responseType, CatalogHandlers.loadCredentials(catalog, ident));
+        }
+
       default:
         if (responseType == OAuthTokenResponse.class) {
           return castResponse(responseType, handleOAuthRequest(body));

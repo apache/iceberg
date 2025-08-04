@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAUL
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -69,6 +70,7 @@ import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -332,6 +334,19 @@ public class CatalogHandlers {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
+    } else if (table instanceof BaseMetadataTable) {
+      // metadata tables are loaded on the client side, return NoSuchTableException for now
+      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
+    }
+
+    throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+  }
+
+  public static LoadCredentialsResponse loadCredentials(Catalog catalog, TableIdentifier ident) {
+    Table table = catalog.loadTable(ident);
+
+    if (table instanceof BaseTable) {
+      return ImmutableLoadCredentialsResponse.builder().addCredentials(table.credentials()).build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
       throw new NoSuchTableException("Table does not exist: %s", ident.toString());
