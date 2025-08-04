@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -60,8 +61,9 @@ public class RewriteDataFiles {
     private long maxRewriteBytes = Long.MAX_VALUE;
     private Expression filter = Expressions.alwaysTrue();
 
+    @Internal
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "RewriteDataFiles";
     }
 
@@ -269,7 +271,8 @@ public class RewriteDataFiles {
               .transform(
                   operatorName(COMMIT_TASK_NAME),
                   TypeInformation.of(Trigger.class),
-                  new DataFileRewriteCommitter(tableName(), taskName(), index(), tableLoader()))
+                  new DataFileRewriteCommitter(
+                      tableName(), taskName(), index(), tableLoader(), collectResults()))
               .uid(COMMIT_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();
