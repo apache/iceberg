@@ -77,7 +77,8 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .deleteBatchSize(3)
             .maxSnapshotAge(Duration.ZERO)
             .planningWorkerPoolSize(1)
-            .retainLast(1);
+            .retainLast(1)
+            .collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
@@ -118,7 +119,8 @@ class TestExpireSnapshotsAction extends MaintenanceTaskTestBase {
             .maxSnapshotAge(Duration.ZERO)
             .planningWorkerPoolSize(1)
             .retainLast(1)
-            .parallelism(1);
+            .parallelism(1)
+            .collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(

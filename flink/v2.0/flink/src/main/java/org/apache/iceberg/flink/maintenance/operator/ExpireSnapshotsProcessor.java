@@ -29,6 +29,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.ActionResult;
 import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
@@ -53,6 +54,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   private final Long maxSnapshotAgeMs;
   private final Integer numSnapshots;
   private final Integer plannerPoolSize;
+  private final boolean collectResults;
   private transient ExecutorService plannerPool;
   private transient Table table;
 
@@ -60,13 +62,15 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
       TableLoader tableLoader,
       Long maxSnapshotAgeMs,
       Integer numSnapshots,
-      Integer plannerPoolSize) {
+      Integer plannerPoolSize,
+      boolean collectResults) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
 
     this.tableLoader = tableLoader;
     this.maxSnapshotAgeMs = maxSnapshotAgeMs;
     this.numSnapshots = numSnapshots;
     this.plannerPoolSize = plannerPoolSize;
+    this.collectResults = collectResults;
   }
 
   @Override
@@ -109,13 +113,11 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
           table,
           ctx.timestamp(),
           deleteFileCounter.get());
+      ActionResult actionResult =
+          collectResults ? new ExpireSnapshotsActionResult(deleteFileCounter.get()) : null;
       out.collect(
           new TaskResult(
-              trigger.taskId(),
-              trigger.timestamp(),
-              true,
-              Collections.emptyList(),
-              new ExpireSnapshotsActionResult(deleteFileCounter.get())));
+              trigger.taskId(), trigger.timestamp(), true, Collections.emptyList(), actionResult));
     } catch (Exception e) {
       LOG.error("Failed to expiring snapshots for {} at {}", table, ctx.timestamp(), e);
       out.collect(

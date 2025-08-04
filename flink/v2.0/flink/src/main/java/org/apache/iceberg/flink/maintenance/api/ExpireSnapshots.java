@@ -107,7 +107,8 @@ public class ExpireSnapshots {
                       tableLoader(),
                       maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
                       numSnapshots,
-                      planningWorkerPoolSize))
+                      planningWorkerPoolSize,
+                      collectResults()))
               .name(operatorName(EXECUTOR_OPERATOR_NAME))
               .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())

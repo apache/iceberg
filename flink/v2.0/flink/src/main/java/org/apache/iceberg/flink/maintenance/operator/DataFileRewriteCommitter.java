@@ -55,6 +55,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private final String taskName;
   private final int taskIndex;
   private final TableLoader tableLoader;
+  private final boolean collectResults;
 
   private transient Table table;
   private transient CommitService commitService;
@@ -68,7 +69,11 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private transient List<DataFile> removedDataFiles;
 
   public DataFileRewriteCommitter(
-      String tableName, String taskName, int taskIndex, TableLoader tableLoader) {
+      String tableName,
+      String taskName,
+      int taskIndex,
+      TableLoader tableLoader,
+      boolean collectResults) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
@@ -77,6 +82,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     this.taskName = taskName;
     this.taskIndex = taskIndex;
     this.tableLoader = tableLoader;
+    this.collectResults = collectResults;
   }
 
   @Override
@@ -136,11 +142,14 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     try {
       if (commitService != null) {
         commitService.close();
-        RewriteDataFilesActionResult actionRes =
-            new RewriteDataFilesActionResult(
-                Lists.newArrayList(removedDataFiles.iterator()),
-                Lists.newArrayList(addedDataFiles.iterator()));
-        output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+
+        if (collectResults) {
+          RewriteDataFilesActionResult actionRes =
+              new RewriteDataFilesActionResult(
+                  Lists.newArrayList(removedDataFiles.iterator()),
+                  Lists.newArrayList(addedDataFiles.iterator()));
+          output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+        }
       }
 
       LOG.info(
@@ -173,9 +182,11 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   public void close() throws IOException {
     if (commitService != null) {
       commitService.close();
-      RewriteDataFilesActionResult actionRes =
-          new RewriteDataFilesActionResult(addedDataFiles, removedDataFiles);
-      output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+      if (collectResults) {
+        RewriteDataFilesActionResult actionRes =
+            new RewriteDataFilesActionResult(addedDataFiles, removedDataFiles);
+        output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+      }
     }
   }
 
@@ -205,13 +216,19 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         for (DataFile added : fileGroup.addedFiles()) {
           addedDataFileNumCounter.inc();
           addedDataFileSizeCounter.inc(added.fileSizeInBytes());
-          addedDataFiles.add(added);
+
+          if (collectResults) {
+            addedDataFiles.add(added);
+          }
         }
 
         for (DataFile rewritten : fileGroup.rewrittenFiles()) {
           removedDataFileNumCounter.inc();
           removedDataFileSizeCounter.inc(rewritten.fileSizeInBytes());
-          removedDataFiles.add(rewritten);
+
+          if (collectResults) {
+            removedDataFiles.add(rewritten);
+          }
         }
       }
     }
