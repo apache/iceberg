@@ -77,6 +77,7 @@ class PrefixedStorage implements AutoCloseable {
               builder.setCredentials(
                   GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup));
             }
+
             return builder.build().getService();
           };
     }

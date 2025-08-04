@@ -53,6 +53,14 @@ public abstract class TestKeyManagementClient {
 
   protected abstract Map<String, String> properties();
 
+  public void setKmsClient(KeyManagementServiceClient kmsClient) {
+    this.kmsClient = kmsClient;
+  }
+
+  public void setProjectId(String projectId) {
+    this.projectId = projectId;
+  }
+
   @BeforeEach
   public void before() throws IOException {
     init();
@@ -95,24 +103,13 @@ public abstract class TestKeyManagementClient {
   public void testKeyWrapping() {
     String keyname = CryptoKeyName.of(projectId, LOCATION, KEY_RING_ID, keyId).toString();
 
-    GcpKeyManagementClient keyManagementClient = new GcpKeyManagementClient();
-    try {
+    try (GcpKeyManagementClient keyManagementClient = new GcpKeyManagementClient(); ) {
       keyManagementClient.initialize(properties());
 
       ByteBuffer key = ByteBuffer.wrap(new String("super-secret-table-master-key").getBytes());
       ByteBuffer encryptedKey = keyManagementClient.wrapKey(key, keyname);
 
       assertThat(keyManagementClient.unwrapKey(encryptedKey, keyname)).isEqualTo(key);
-    } finally {
-      keyManagementClient.close();
     }
-  }
-
-  public void setKmsClient(KeyManagementServiceClient kmsClient) {
-    this.kmsClient = kmsClient;
-  }
-
-  public void setProjectId(String projectId) {
-    this.projectId = projectId;
   }
 }

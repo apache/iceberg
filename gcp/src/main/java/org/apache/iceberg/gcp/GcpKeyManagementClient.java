@@ -38,10 +38,10 @@ import org.apache.iceberg.io.CloseableGroup;
  * Key management client implementation that uses Google Cloud Key Management. To be used for
  * encrypting/decrypting keys with a KMS-managed master key (by referencing its key ID)
  *
- * <p>Uses {@link ByteStringReflectionUtil} to ensure this class works with and without
- * iceberg-gcp-bundle. Since the bundle relocates {@link com.google.protobuf.ByteString}, all
- * related methods need to be loaded dynamically. During runtime if the relocated class is observed,
- * it will be preferred over the original one.
+ * <p>Uses {@link ByteStringShim} to ensure this class works with and without iceberg-gcp-bundle.
+ * Since the bundle relocates {@link com.google.protobuf.ByteString}, all related methods need to be
+ * loaded dynamically. During runtime if the relocated class is observed, it will be preferred over
+ * the original one.
  */
 public class GcpKeyManagementClient implements KeyManagementClient {
 
@@ -62,6 +62,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
             GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup);
         kmsBuilder.setCredentialsProvider(FixedCredentialsProvider.create(oAuth2Credentials));
       }
+
       // if not OAuth then defaults to GoogleCredentials.getApplicationDefault()
       this.kmsClient = KeyManagementServiceClient.create(kmsBuilder.build());
       closeableGroup.addCloseable(kmsClient);
@@ -74,27 +75,27 @@ public class GcpKeyManagementClient implements KeyManagementClient {
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
     EncryptRequest.Builder requestBuilder = EncryptRequest.newBuilder().setName(wrappingKeyId);
-    requestBuilder = ByteStringReflectionUtil.setPlainText(requestBuilder, key);
+    requestBuilder = ByteStringShim.setPlainText(requestBuilder, key);
 
     EncryptRequest encryptRequest = requestBuilder.build();
     EncryptResponse encryptResponse = kmsClient.encrypt(encryptRequest);
 
     // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     key.position(0);
-    return ByteBuffer.wrap(ByteStringReflectionUtil.getCipherText(encryptResponse));
+    return ByteBuffer.wrap(ByteStringShim.getCipherText(encryptResponse));
   }
 
   @Override
   public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
     DecryptRequest.Builder requestBuilder = DecryptRequest.newBuilder().setName(wrappingKeyId);
-    requestBuilder = ByteStringReflectionUtil.setCipherText(requestBuilder, wrappedKey);
+    requestBuilder = ByteStringShim.setCipherText(requestBuilder, wrappedKey);
 
     DecryptRequest decryptRequest = requestBuilder.build();
     DecryptResponse decryptResponse = kmsClient.decrypt(decryptRequest);
 
     // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     wrappedKey.position(0);
-    return ByteBuffer.wrap(ByteStringReflectionUtil.getPlainText(decryptResponse));
+    return ByteBuffer.wrap(ByteStringShim.getPlainText(decryptResponse));
   }
 
   @Override
@@ -106,7 +107,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
     }
   }
 
-  static final class ByteStringReflectionUtil {
+  private static final class ByteStringShim {
     private static final String ORIGINAL_BYTE_STRING_CLASS_NAME = "com.google.protobuf.ByteString";
     private static final String SHADED_BYTE_STRING_CLASS_NAME =
         "org.apache.iceberg.gcp.shaded." + ORIGINAL_BYTE_STRING_CLASS_NAME;
@@ -118,6 +119,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
       if (byteStringClass == null) {
         byteStringClass = DynClasses.builder().impl(ORIGINAL_BYTE_STRING_CLASS_NAME).build();
       }
+
       BYTE_STRING_CLASS = byteStringClass;
     }
 
