@@ -896,8 +896,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
-      rec.setField("fixed", ("abcdefg").getBytes(StandardCharsets.UTF_8));
-      rec.setField("fixed_nullable", ("abcdefg").getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed", "abcdefg".getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
