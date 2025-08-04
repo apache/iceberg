@@ -47,12 +47,12 @@ public class VectorizedDeltaLengthByteArrayValuesReader
   }
 
   @Override
-  public void initFromPage(int valueCount, ByteBufferInputStream in) throws IOException {
+  public void initFromPage(int valueCount, ByteBufferInputStream inputStream) throws IOException {
     lengthsVector = new IntVector("length-" + UUID.randomUUID(), ArrowAllocation.rootAllocator());
     closeables.addCloseable(lengthsVector);
-    lengthReader.initFromPage(valueCount, in);
+    lengthReader.initFromPage(valueCount, inputStream);
     lengthReader.readIntegers(lengthReader.getTotalValueCount(), lengthsVector, 0);
-    this.in = in.remainingStream();
+    this.in = inputStream.remainingStream();
   }
 
   @Override
