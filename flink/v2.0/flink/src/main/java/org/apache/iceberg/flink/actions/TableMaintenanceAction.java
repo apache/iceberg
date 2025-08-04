@@ -20,12 +20,9 @@ package org.apache.iceberg.flink.actions;
 
 import java.util.List;
 import java.util.UUID;
-import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.flink.TableLoader;
@@ -44,7 +41,6 @@ public class TableMaintenanceAction {
   private static final String DEFAULT_UID_SUFFIX = UUID.randomUUID().toString();
   private static final int DEFAULT_TASK_INDEX = 0;
   private final MaintenanceTaskBuilder<?> builder;
-  private Sink<TaskResult> sink = new DiscardingSink<>();
 
   public TableMaintenanceAction(
       StreamExecutionEnvironment env,
@@ -64,15 +60,7 @@ public class TableMaintenanceAction {
     this.builder = builder;
   }
 
-  /** Append stream to sink */
-  public void append() throws Exception {
-    Preconditions.checkNotNull(sink, "Sink should not be null");
-    DataStream<TaskResult> resultDataStream = appendInternal();
-    resultDataStream.sinkTo(sink);
-  }
-
-  @VisibleForTesting
-  TaskResult collect() {
+  public TaskResult collect() {
     DataStream<TaskResult> resultDataStream = appendInternal();
     try {
       CloseableIterator<TaskResult> iter = resultDataStream.executeAndCollect();
@@ -114,8 +102,8 @@ public class TableMaintenanceAction {
     return this;
   }
 
-  public TableMaintenanceAction sink(Sink<TaskResult> newSink) {
-    this.sink = newSink;
+  public TableMaintenanceAction collectResults(boolean newCollectResults) {
+    builder.collectResults(newCollectResults);
     return this;
   }
 

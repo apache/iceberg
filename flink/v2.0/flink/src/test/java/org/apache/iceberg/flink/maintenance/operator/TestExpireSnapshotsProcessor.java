@@ -20,25 +20,47 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestExpireSnapshotsProcessor extends OperatorTestBase {
+
+  @Parameter(index = 0)
+  private boolean success;
+
+  @Parameter(index = 1)
+  private boolean collectResults;
+
+  @Parameters(name = "success = {0},collectResults = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {true, true},
+        new Object[] {true, false},
+        new Object[] {false, true},
+        new Object[] {false, false});
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  void testExpire(boolean success) throws Exception {
+  void testExpire() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -47,7 +69,7 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false))) {
+            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false,collectResults))) {
       testHarness.open();
 
       if (!success) {

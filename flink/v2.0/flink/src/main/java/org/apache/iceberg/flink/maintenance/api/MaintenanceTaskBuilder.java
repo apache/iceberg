@@ -38,6 +38,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   private String uidSuffix = null;
   private String slotSharingGroup = null;
   private Integer parallelism = null;
+  private boolean collectResults = false;
   private final TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
@@ -161,6 +162,16 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return (T) this;
   }
 
+  /**
+   * Set whether to collect the results of the task.
+   *
+   * @param newCollectResults whether to collect the results.
+   */
+  public T collectResults(boolean newCollectResults) {
+    this.collectResults = newCollectResults;
+    return (T) this;
+  }
+
   protected int index() {
     return index;
   }
@@ -187,6 +198,10 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   protected Integer parallelism() {
     return parallelism;
+  }
+
+  protected boolean collectResults() {
+    return collectResults;
   }
 
   protected String operatorName(String operatorNameBase) {

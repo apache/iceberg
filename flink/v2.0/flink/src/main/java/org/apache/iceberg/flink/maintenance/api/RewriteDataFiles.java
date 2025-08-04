@@ -271,7 +271,8 @@ public class RewriteDataFiles {
               .transform(
                   operatorName(COMMIT_TASK_NAME),
                   TypeInformation.of(Trigger.class),
-                  new DataFileRewriteCommitter(tableName(), taskName(), index(), tableLoader()))
+                  new DataFileRewriteCommitter(
+                      tableName(), taskName(), index(), tableLoader(), collectResults()))
               .uid(COMMIT_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();

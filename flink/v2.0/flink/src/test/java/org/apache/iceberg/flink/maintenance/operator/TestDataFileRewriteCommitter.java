@@ -25,20 +25,34 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestDataFileRewriteCommitter extends OperatorTestBase {
 
-  @Test
+  @Parameter(index = 0)
+  private boolean collectResults;
+
+  @Parameters(name = "collectResults = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(new Object[] {true}, new Object[] {false});
+  }
+
+  @TestTemplate
   void testUnpartitioned() throws Exception {
     Table table = createTable();
     insert(table, 1, "p1");
@@ -58,16 +72,20 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      List<Trigger> triggers = testHarness.extractOutputValues();
-      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-      assertThat(triggers.get(0).taskId()).isNull();
+      if (collectResults) {
+        List<Trigger> triggers = testHarness.extractOutputValues();
+        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+        assertThat(triggers.get(0).taskId()).isNull();
+      } else {
+        assertThat(testHarness.extractOutputValues()).isEmpty();
+      }
     }
 
     assertDataFiles(
         table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
-  @Test
+  @TestTemplate
   void testPartitioned() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -104,13 +122,17 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      List<Trigger> triggers = testHarness.extractOutputValues();
-      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-      assertThat(triggers.get(0).taskId()).isNull();
+      if (collectResults) {
+        List<Trigger> triggers = testHarness.extractOutputValues();
+        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+        assertThat(triggers.get(0).taskId()).isNull();
+      } else {
+        assertThat(testHarness.extractOutputValues()).isEmpty();
+      }
     }
   }
 
-  @Test
+  @TestTemplate
   void testNewTable() throws Exception {
     Table table = createTable();
     List<DataFileRewriteRunner.ExecutedGroup> rewritten;
@@ -132,16 +154,20 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      List<Trigger> triggers = testHarness.extractOutputValues();
-      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-      assertThat(triggers.get(0).taskId()).isNull();
+      if (collectResults) {
+        List<Trigger> triggers = testHarness.extractOutputValues();
+        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+        assertThat(triggers.get(0).taskId()).isNull();
+      } else {
+        assertThat(testHarness.extractOutputValues()).isEmpty();
+      }
     }
 
     assertDataFiles(
         table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
-  @Test
+  @TestTemplate
   void testBatchSize() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -177,9 +203,13 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
       testHarness.processWatermark(EVENT_TIME);
-      List<Trigger> triggers = testHarness.extractOutputValues();
-      assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-      assertThat(triggers.get(0).taskId()).isNull();
+      if (collectResults) {
+        List<Trigger> triggers = testHarness.extractOutputValues();
+        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
+        assertThat(triggers.get(0).taskId()).isNull();
+      } else {
+        assertThat(testHarness.extractOutputValues()).isEmpty();
+      }
     }
 
     // This should be committed on close
@@ -187,7 +217,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         table, rewritten.get(2).group().addedFiles(), rewritten.get(2).group().rewrittenFiles(), 3);
   }
 
-  @Test
+  @TestTemplate
   void testError() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -234,7 +264,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
             OperatorTestBase.DUMMY_TABLE_NAME,
             OperatorTestBase.DUMMY_TABLE_NAME,
             0,
-            tableLoader()));
+            tableLoader(),
+            collectResults));
   }
 
   private static DataFileRewriteRunner.ExecutedGroup setBatchSizeToTwo(

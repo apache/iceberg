@@ -73,7 +73,8 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false);
+            .rewriteAll(false)
+            .collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
@@ -127,7 +128,8 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
-            .rewriteAll(false);
+            .rewriteAll(false)
+            .collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
@@ -169,7 +171,8 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
 
     long triggerTime = System.currentTimeMillis();
 
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().rewriteAll(true);
+    RewriteDataFiles.Builder builder =
+        RewriteDataFiles.builder().rewriteAll(true).collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
@@ -208,7 +211,8 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     assertFileNum(table, 2, 0);
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
+    RewriteDataFiles.Builder builder =
+        RewriteDataFiles.builder().parallelism(1).rewriteAll(true).collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
@@ -287,7 +291,8 @@ class TestRewriteDataFilesActionV2 extends MaintenanceTaskTestBase {
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
 
     long triggerTime = System.currentTimeMillis();
-    RewriteDataFiles.Builder builder = RewriteDataFiles.builder().parallelism(1).rewriteAll(true);
+    RewriteDataFiles.Builder builder =
+        RewriteDataFiles.builder().parallelism(1).rewriteAll(true).collectResults(true);
 
     TaskResult result =
         new TableMaintenanceAction(
