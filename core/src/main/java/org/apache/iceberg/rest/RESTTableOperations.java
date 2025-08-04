@@ -38,6 +38,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -45,6 +46,8 @@ import org.apache.iceberg.util.LocationUtil;
 
 class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
+  static final String ETAG_HEADER = "ETag";
+  static final String IF_NONE_MATCH_HEADER = "If-None-Match";
 
   enum UpdateType {
     CREATE,
@@ -133,6 +136,10 @@ class RESTTableOperations implements TableOperations {
     return current;
   }
 
+  public String etag() {
+    return etag;
+  }
+
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -153,13 +160,9 @@ class RESTTableOperations implements TableOperations {
     return updateCurrentMetadata(response);
   }
 
-  public String etag() {
-    return etag;
-  }
-
   void consumeResponseHeaders(Map<String, String> responseHeaders) {
-    if (responseHeaders.containsKey("ETag")) {
-      etag = responseHeaders.get("ETag");
+    if (responseHeaders.containsKey(ETAG_HEADER)) {
+      etag = responseHeaders.get(ETAG_HEADER);
     }
   }
 
@@ -168,8 +171,8 @@ class RESTTableOperations implements TableOperations {
       return headers;
     }
     return () -> {
-      Map<String, String> result = headers.get();
-      result.put("If-None-Match", etag);
+      Map<String, String> result = Maps.newHashMap(headers.get());
+      result.put(IF_NONE_MATCH_HEADER, etag);
       return result;
     };
   }
