@@ -165,6 +165,12 @@ public class OperatorTestBase {
     table.refresh();
   }
 
+  protected void insert(Table table, Integer id, String data, String extra) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data, extra)));
+    table.refresh();
+  }
+
   /**
    * For the same identifier column id this methods simulate the following row operations: <tr>
    * <li>add an equality delete on oldData
