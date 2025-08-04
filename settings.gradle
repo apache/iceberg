@@ -112,15 +112,6 @@ if (!flinkVersions.isEmpty()) {
   project(':flink').name = 'iceberg-flink'
 }
 
-if (flinkVersions.contains("1.19")) {
-  include ":iceberg-flink:flink-1.19"
-  include ":iceberg-flink:flink-runtime-1.19"
-  project(":iceberg-flink:flink-1.19").projectDir = file('flink/v1.19/flink')
-  project(":iceberg-flink:flink-1.19").name = "iceberg-flink-1.19"
-  project(":iceberg-flink:flink-runtime-1.19").projectDir = file('flink/v1.19/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.19").name = "iceberg-flink-runtime-1.19"
-}
-
 if (flinkVersions.contains("1.20")) {
   include ":iceberg-flink:flink-1.20"
   include ":iceberg-flink:flink-runtime-1.20"
@@ -137,6 +128,15 @@ if (flinkVersions.contains("2.0")) {
   project(":iceberg-flink:flink-2.0").name = "iceberg-flink-2.0"
   project(":iceberg-flink:flink-runtime-2.0").projectDir = file('flink/v2.0/flink-runtime')
   project(":iceberg-flink:flink-runtime-2.0").name = "iceberg-flink-runtime-2.0"
+}
+
+if (flinkVersions.contains("2.1")) {
+  include ":iceberg-flink:flink-2.1"
+  include ":iceberg-flink:flink-runtime-2.1"
+  project(":iceberg-flink:flink-2.1").projectDir = file('flink/v2.1/flink')
+  project(":iceberg-flink:flink-2.1").name = "iceberg-flink-2.1"
+  project(":iceberg-flink:flink-runtime-2.1").projectDir = file('flink/v2.1/flink-runtime')
+  project(":iceberg-flink:flink-runtime-2.1").name = "iceberg-flink-runtime-2.1"
 }
 
 if (sparkVersions.contains("3.4")) {
