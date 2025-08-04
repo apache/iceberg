@@ -108,7 +108,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     this.maxContinuousEmptyCommitsMap = Maps.newHashMap();
     this.continuousEmptyCheckpointsMap = Maps.newHashMap();
 
-    this.workerPool = ThreadPools.newWorkerPool("iceberg-committer-pool-" + sinkId, workerPoolSize);
+    this.workerPool =
+        ThreadPools.newFixedThreadPool("iceberg-committer-pool-" + sinkId, workerPoolSize);
   }
 
   @Override
