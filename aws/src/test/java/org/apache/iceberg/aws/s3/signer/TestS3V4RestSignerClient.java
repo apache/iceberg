@@ -97,11 +97,12 @@ class TestS3V4RestSignerClient {
 
   @ParameterizedTest
   @MethodSource("validOAuth2Properties")
-  void authSessionOAuth2(Map<String, String> properties, String expectedToken) throws Exception {
+  void authSessionOAuth2(Map<String, String> properties, String expectedScope, String expectedToken)
+      throws Exception {
     try (S3V4RestSignerClient client =
             ImmutableS3V4RestSignerClient.builder().properties(properties).build();
         AuthSession authSession = client.authSession()) {
-
+      assertThat(client.optionalOAuthParams()).containsEntry(OAuth2Properties.SCOPE, expectedScope);
       if (expectedToken == null) {
         assertThat(authSession).isInstanceOf(AuthSession.class);
       } else {
@@ -118,7 +119,7 @@ class TestS3V4RestSignerClient {
   public static Stream<Arguments> validOAuth2Properties() {
     return Stream.of(
         // No OAuth2 data
-        Arguments.of(Map.of(S3_SIGNER_URI, "https://signer.com"), null),
+        Arguments.of(Map.of(S3_SIGNER_URI, "https://signer.com"), "sign", null),
         // Token only
         Arguments.of(
             Map.of(
@@ -128,6 +129,7 @@ class TestS3V4RestSignerClient {
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
                 "token"),
+            "sign",
             "token"),
         // Credential only: expect a token to be fetched
         Arguments.of(
@@ -138,6 +140,7 @@ class TestS3V4RestSignerClient {
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
                 "user:12345"),
+            "sign",
             "token"),
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
@@ -150,6 +153,7 @@ class TestS3V4RestSignerClient {
                 "token",
                 OAuth2Properties.CREDENTIAL,
                 "user:12345"),
+            "sign",
             "token"),
         // Custom scope
         Arguments.of(
@@ -162,6 +166,7 @@ class TestS3V4RestSignerClient {
                 "user:12345",
                 OAuth2Properties.SCOPE,
                 "custom"),
+            "custom",
             "token"));
   }
 }
