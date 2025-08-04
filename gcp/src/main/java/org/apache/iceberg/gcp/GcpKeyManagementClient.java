@@ -26,14 +26,25 @@ import com.google.cloud.kms.v1.EncryptRequest;
 import com.google.cloud.kms.v1.EncryptResponse;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.cloud.kms.v1.KeyManagementServiceSettings;
-import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.io.CloseableGroup;
 
+/**
+ * Key management client implementation that uses Google Cloud Key Management. To be used for
+ * encrypting/decrypting keys with a KMS-managed master key (by referencing its key ID)
+ *
+ * <p>Uses {@link ByteStringReflectionUtil} to ensure this class works with and without
+ * iceberg-gcp-bundle. Since the bundle relocates {@link com.google.protobuf.ByteString}, all
+ * related methods need to be loaded dynamically. During runtime if the relocated class is observed,
+ * it will be preferred over the original one.
+ */
 public class GcpKeyManagementClient implements KeyManagementClient {
+
   private KeyManagementServiceClient kmsClient;
   private CloseableGroup closeableGroup = new CloseableGroup();
 
@@ -62,28 +73,28 @@ public class GcpKeyManagementClient implements KeyManagementClient {
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
-    EncryptRequest encryptRequest =
-        EncryptRequest.newBuilder()
-            .setPlaintext(ByteString.copyFrom(key))
-            .setName(wrappingKeyId)
-            .build();
+    EncryptRequest.Builder requestBuilder = EncryptRequest.newBuilder().setName(wrappingKeyId);
+    requestBuilder = ByteStringReflectionUtil.setPlainText(requestBuilder, key);
+
+    EncryptRequest encryptRequest = requestBuilder.build();
     EncryptResponse encryptResponse = kmsClient.encrypt(encryptRequest);
-    // need ByteString.copyFrom leaves the BB in an end position, need to reset
+
+    // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     key.position(0);
-    return ByteBuffer.wrap(encryptResponse.getCiphertext().toByteArray());
+    return ByteBuffer.wrap(ByteStringReflectionUtil.getCipherText(encryptResponse));
   }
 
   @Override
   public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
-    DecryptRequest decryptRequest =
-        DecryptRequest.newBuilder()
-            .setCiphertext(ByteString.copyFrom(wrappedKey))
-            .setName(wrappingKeyId)
-            .build();
+    DecryptRequest.Builder requestBuilder = DecryptRequest.newBuilder().setName(wrappingKeyId);
+    requestBuilder = ByteStringReflectionUtil.setCipherText(requestBuilder, wrappedKey);
+
+    DecryptRequest decryptRequest = requestBuilder.build();
     DecryptResponse decryptResponse = kmsClient.decrypt(decryptRequest);
-    // need ByteString.copyFrom leaves the BB in an end position, need to reset
+
+    // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     wrappedKey.position(0);
-    return ByteBuffer.wrap(decryptResponse.getPlaintext().toByteArray());
+    return ByteBuffer.wrap(ByteStringReflectionUtil.getPlainText(decryptResponse));
   }
 
   @Override
@@ -92,6 +103,67 @@ public class GcpKeyManagementClient implements KeyManagementClient {
       closeableGroup.close();
     } catch (IOException ioe) {
       // closure exceptions already suppressed and logged in closeableGroup
+    }
+  }
+
+  static final class ByteStringReflectionUtil {
+    private static final String ORIGINAL_BYTE_STRING_CLASS_NAME = "com.google.protobuf.ByteString";
+    private static final String SHADED_BYTE_STRING_CLASS_NAME =
+        "org.apache.iceberg.gcp.shaded." + ORIGINAL_BYTE_STRING_CLASS_NAME;
+    private static final Class<?> BYTE_STRING_CLASS;
+
+    static {
+      Class<?> byteStringClass =
+          DynClasses.builder().impl(SHADED_BYTE_STRING_CLASS_NAME).orNull().build();
+      if (byteStringClass == null) {
+        byteStringClass = DynClasses.builder().impl(ORIGINAL_BYTE_STRING_CLASS_NAME).build();
+      }
+      BYTE_STRING_CLASS = byteStringClass;
+    }
+
+    private static final DynMethods.UnboundMethod SET_PLAIN_TEXT_METHOD =
+        new DynMethods.Builder("setPlaintext")
+            .hiddenImpl(EncryptRequest.Builder.class, BYTE_STRING_CLASS)
+            .build();
+    private static final DynMethods.UnboundMethod SET_CIPHER_TEXT_METHOD =
+        new DynMethods.Builder("setCiphertext")
+            .hiddenImpl(DecryptRequest.Builder.class, BYTE_STRING_CLASS)
+            .build();
+    private static final DynMethods.UnboundMethod GET_PLAIN_TEXT_METHOD =
+        new DynMethods.Builder("getPlaintext").hiddenImpl(DecryptResponse.class).build();
+    private static final DynMethods.UnboundMethod GET_CIPHER_TEXT_METHOD =
+        new DynMethods.Builder("getCiphertext").hiddenImpl(EncryptResponse.class).build();
+    private static final DynMethods.StaticMethod COPY_FROM_BYTEBUFFER_METHOD =
+        new DynMethods.Builder("copyFrom")
+            .hiddenImpl(BYTE_STRING_CLASS, ByteBuffer.class)
+            .buildStatic();
+    private static final DynMethods.UnboundMethod TO_BYTE_ARRAY_METHOD =
+        new DynMethods.Builder("toByteArray").hiddenImpl(BYTE_STRING_CLASS).build();
+
+    static EncryptRequest.Builder setPlainText(
+        EncryptRequest.Builder requestBuilder, ByteBuffer key) {
+      // dynamic call: requestBuilder.setPlaintext(ByteString.copyFrom(key))
+      Object byteStringKey = COPY_FROM_BYTEBUFFER_METHOD.invoke(key);
+      return SET_PLAIN_TEXT_METHOD.invoke(requestBuilder, byteStringKey);
+    }
+
+    static DecryptRequest.Builder setCipherText(
+        DecryptRequest.Builder requestBuilder, ByteBuffer wrappedKey) {
+      // dynamic call: requestBuilder.setCiphertext(ByteString.copyFrom(wrappedKey))
+      Object byteStringWrappedKey = COPY_FROM_BYTEBUFFER_METHOD.invoke(wrappedKey);
+      return SET_CIPHER_TEXT_METHOD.invoke(requestBuilder, byteStringWrappedKey);
+    }
+
+    static byte[] getCipherText(EncryptResponse response) {
+      // dynamic call: response.getCipherText().toByteArray()
+      Object byteStringEncryptedKey = GET_CIPHER_TEXT_METHOD.invoke(response);
+      return TO_BYTE_ARRAY_METHOD.invoke(byteStringEncryptedKey);
+    }
+
+    static byte[] getPlainText(DecryptResponse response) {
+      // dynamic call: response.getPlainText().toByteArray()
+      Object byteStringDecryptedKey = GET_PLAIN_TEXT_METHOD.invoke(response);
+      return TO_BYTE_ARRAY_METHOD.invoke(byteStringDecryptedKey);
     }
   }
 }
