@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -42,7 +43,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -257,7 +257,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
-    Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
+    assumeThat(multiRegionAccessPointAlias).isNotEmpty();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
@@ -368,7 +368,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewOutputStreamWithMultiRegionAccessPoint() throws Exception {
-    Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
+    assumeThat(multiRegionAccessPointAlias).isNotEmpty();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(
@@ -730,21 +730,21 @@ public class TestS3FileIOIntegration {
 
   /** S3 Express doesn't support access points */
   private void requireAccessPointSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn’t support KMS/custom encryption */
   private void requireKMSEncryptionSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn't support versioning */
   private void requireVersioningSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** File ACLs aren’t supported by S3 Express */
   private void requireACLSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 }

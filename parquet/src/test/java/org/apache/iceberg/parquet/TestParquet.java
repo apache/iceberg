@@ -190,8 +190,7 @@ public class TestParquet {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.toFile();
-    assertThat(testFile.delete()).isTrue();
+    File testFile = new File(temp.toFile(), "test" + System.nanoTime() + ".parquet");
 
     ParquetWriter<GenericRecord> writer =
         AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(testFile.toURI()))

@@ -38,6 +38,7 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.http.protocol.HttpCoreContext;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -63,6 +64,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
+ * The following retriable HTTP status codes are defined for idempotent requests:
+ *
+ * <ul>
+ *   <li>SC_TOO_MANY_REQUESTS (429)
+ *   <li>SC_SERVICE_UNAVAILABLE (503)
+ *   <li>SC_INTERNAL_SERVER_ERROR (500)
+ *   <li>SC_BAD_GATEWAY (502)
+ *   <li>SC_GATEWAY_TIMEOUT (504)
+ *   <li>SC_REQUEST_TIMEOUT (408)
+ *   <li>SC_SERVICE_UNAVAILABLE (503)
+ * </ul>
+ *
  * Most code and behavior is taken from {@link
  * org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, with minor modifications to
  * {@link #getRetryInterval(HttpResponse, int, HttpContext)} to achieve exponential backoff.
@@ -71,6 +84,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   private final int maxRetries;
   private final Set<Class<? extends IOException>> nonRetriableExceptions;
   private final Set<Integer> retriableCodes;
+  private final Set<Integer> idempotentRetriableCodes;
 
   ExponentialHttpRequestRetryStrategy(int maximumRetries) {
     Preconditions.checkArgument(
@@ -78,6 +92,15 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     this.maxRetries = maximumRetries;
     this.retriableCodes =
         ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
+    this.idempotentRetriableCodes =
+        ImmutableSet.of(
+            HttpStatus.SC_TOO_MANY_REQUESTS,
+            HttpStatus.SC_SERVICE_UNAVAILABLE,
+            HttpStatus.SC_INTERNAL_SERVER_ERROR,
+            HttpStatus.SC_SERVICE_UNAVAILABLE,
+            HttpStatus.SC_BAD_GATEWAY,
+            HttpStatus.SC_GATEWAY_TIMEOUT,
+            HttpStatus.SC_REQUEST_TIMEOUT);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
@@ -117,7 +140,15 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
 
   @Override
   public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
-    return execCount <= maxRetries && retriableCodes.contains(response.getCode());
+    HttpRequest request =
+        context instanceof HttpCoreContext ? ((HttpCoreContext) context).getRequest() : null;
+
+    boolean shouldRetry =
+        execCount <= maxRetries
+            && (retriableCodes.contains(response.getCode())
+                || shouldRetryIdempotent(request, response.getCode()));
+
+    return shouldRetry;
   }
 
   @Override
@@ -147,5 +178,15 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMillis * 0.1)));
 
     return TimeValue.ofMilliseconds(delayMillis + jitter);
+  }
+
+  private boolean shouldRetryIdempotent(HttpRequest request, int responseCode) {
+    if (request == null) {
+      return false;
+    }
+
+    // Check if the request is idempotent
+    return Method.isIdempotent(request.getMethod())
+        && idempotentRetriableCodes.contains(responseCode);
   }
 }

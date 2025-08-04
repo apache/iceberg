@@ -43,6 +43,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
+import org.apache.spark.sql.types.VariantType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   TypeToSparkType() {}
@@ -86,6 +87,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   @Override
   public DataType map(Types.MapType map, DataType keyResult, DataType valueResult) {
     return MapType$.MODULE$.apply(keyResult, valueResult, map.isValueOptional());
+  }
+
+  @Override
+  public DataType variant(Types.VariantType variant) {
+    return VariantType$.MODULE$;
   }
 
   @Override

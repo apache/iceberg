@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -69,7 +70,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -122,10 +122,10 @@ public class TestVariantReaders {
         Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00"),
         Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456"),
         Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456"),
-        Variants.of(new BigDecimal("123456.7890")), // decimal4
-        Variants.of(new BigDecimal("-123456.7890")), // decimal4
-        Variants.of(new BigDecimal("1234567890.987654321")), // decimal8
-        Variants.of(new BigDecimal("-1234567890.987654321")), // decimal8
+        Variants.of(new BigDecimal("12345.6789")), // decimal4
+        Variants.of(new BigDecimal("-12345.6789")), // decimal4
+        Variants.of(new BigDecimal("123456789.987654321")), // decimal8
+        Variants.of(new BigDecimal("-123456789.987654321")), // decimal8
         Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
@@ -198,9 +198,7 @@ public class TestVariantReaders {
   @ParameterizedTest
   @FieldSource("PRIMITIVES")
   public void testShreddedVariantPrimitives(VariantPrimitive<?> primitive) throws IOException {
-    Assumptions.assumeThat(primitive.type() != PhysicalType.NULL)
-        .as("Null is not a shredded type")
-        .isTrue();
+    assumeThat(primitive.type()).as("Null is not a shredded type").isNotEqualTo(PhysicalType.NULL);
 
     GroupType variantType = variant("var", 2, shreddedType(primitive));
     MessageType parquetSchema = parquetSchema(variantType);

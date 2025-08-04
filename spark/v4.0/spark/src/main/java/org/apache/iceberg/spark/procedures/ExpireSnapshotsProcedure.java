@@ -58,7 +58,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         optionalInParameter("retain_last", DataTypes.IntegerType),
         optionalInParameter("max_concurrent_deletes", DataTypes.IntegerType),
         optionalInParameter("stream_results", DataTypes.BooleanType),
-        optionalInParameter("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
+        optionalInParameter("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType)),
+        optionalInParameter("clean_expired_metadata", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -109,6 +110,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
     long[] snapshotIds = args.isNullAt(5) ? null : args.getArray(5).toLongArray();
+    Boolean cleanExpiredMetadata = args.isNullAt(6) ? null : args.getBoolean(6);
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
@@ -151,6 +153,10 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
           if (streamResult != null) {
             action.option(
                 ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+          }
+
+          if (cleanExpiredMetadata != null) {
+            action.cleanExpiredMetadata(cleanExpiredMetadata);
           }
 
           ExpireSnapshots.Result result = action.execute();

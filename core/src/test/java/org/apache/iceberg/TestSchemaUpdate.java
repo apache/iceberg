@@ -780,6 +780,22 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testAddMultipleRequiredColumnCaseInsensitive() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .caseSensitive(false)
+                    .allowIncompatibleChanges()
+                    .addRequiredColumn("data", Types.StringType.get())
+                    .addRequiredColumn("DATA", Types.StringType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot build lower case index: data and DATA collide");
+  }
+
+  @Test
   public void testMakeColumnOptional() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Schema expected = new Schema(optional(1, "id", Types.IntegerType.get()));

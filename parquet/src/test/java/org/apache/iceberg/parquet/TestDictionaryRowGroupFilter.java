@@ -167,8 +167,7 @@ public class TestDictionaryRowGroupFilter {
 
   @BeforeEach
   public void createInputFile() throws IOException {
-    File parquetFile = temp.toFile();
-    assertThat(parquetFile.delete()).isTrue();
+    File parquetFile = new File(temp.toFile(), "test" + System.nanoTime() + ".parquet");
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
