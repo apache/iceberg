@@ -167,7 +167,7 @@ public class Metrics implements Serializable {
    *
    * @return A map of fieldId to the original type of the upper/lower bound.
    */
-  public Map<Integer, Type> originalTypes() {
+  Map<Integer, Type> originalTypes() {
     return originalTypes;
   }
 
