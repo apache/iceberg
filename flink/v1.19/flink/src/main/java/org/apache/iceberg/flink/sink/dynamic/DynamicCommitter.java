@@ -369,7 +369,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
   @Override
   public void close() throws IOException {
-    // do nothing
+    workerPool.shutdown();
   }
 
   private static class TableKey implements Serializable {
