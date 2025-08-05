@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
@@ -61,7 +62,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -74,7 +74,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
       ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
-  private static final Map<String, org.apache.iceberg.types.Type.PrimitiveType> GOLDEN_FILE_TYPES =
+  private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
           "float", Types.FloatType.get(),
@@ -480,11 +480,11 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
   public void testGoldenFiles(
-      String encoding, String typeName, org.apache.iceberg.types.Type.PrimitiveType primitiveType)
+      String encoding, String typeName, PrimitiveType primitiveType)
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
-    Assumptions.assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
+    assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
 
     Path plainResourcePath = Paths.get("encodings", PLAIN, typeName + ".parquet");
     URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
