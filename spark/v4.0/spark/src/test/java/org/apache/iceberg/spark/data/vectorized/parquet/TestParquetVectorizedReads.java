@@ -53,8 +53,8 @@ import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
@@ -479,8 +479,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
-  public void testGoldenFiles(
-      String encoding, String typeName, PrimitiveType primitiveType)
+  public void testGoldenFiles(String encoding, String typeName, PrimitiveType primitiveType)
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
