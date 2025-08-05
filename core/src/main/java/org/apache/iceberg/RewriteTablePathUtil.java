@@ -296,6 +296,7 @@ public class RewriteTablePathUtil {
 
   /**
    * Rewrite a manifest list representing a snapshot, replacing path references.
+   *
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
@@ -438,7 +439,6 @@ public class RewriteTablePathUtil {
     }
   }
 
-
   /**
    * Rewrite a data manifest, replacing path references.
    *
@@ -464,25 +464,19 @@ public class RewriteTablePathUtil {
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     ManifestWriter<DataFile> writer =
-            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+        ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
     RewriteResult<DataFile> rewriteResult = null;
 
     try (ManifestWriter<DataFile> dataManifestWriter = writer;
-         ManifestReader<DataFile> reader =
-            ManifestFiles.read(manifestFile, io, specsById)
-                .select(Arrays.asList("*"))) {
-       rewriteResult =
+        ManifestReader<DataFile> reader =
+            ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
+      rewriteResult =
           StreamSupport.stream(reader.entries().spliterator(), false)
-            .map(
-                entry ->
-                    writeDataFileEntry(
-                        entry,
-                        snapshotIds,
-                        spec,
-                        sourcePrefix,
-                        targetPrefix,
-                        writer))
-            .reduce(new RewriteResult<>(), RewriteResult::append);
+              .map(
+                  entry ->
+                      writeDataFileEntry(
+                          entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
     return Pair.of(writer.toManifestFile(), rewriteResult);
   }
@@ -541,8 +535,8 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
-   * @return rewritten manifest file and a copy plan of content files
-   *    in the manifest that was rewritten
+   * @return rewritten manifest file and a copy plan of content files in the manifest that was
+   *     rewritten
    * @deprecated since 1.10.0, will be removed in 1.11.0
    */
   @Deprecated
@@ -606,26 +600,26 @@ public class RewriteTablePathUtil {
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     ManifestWriter<DeleteFile> writer =
-            ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+        ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
     RewriteResult<DeleteFile> rewriteResult = null;
 
     try (ManifestWriter<DeleteFile> deleteManifestWriter = writer;
-         ManifestReader<DeleteFile> reader =
+        ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {
-       rewriteResult =
+      rewriteResult =
           StreamSupport.stream(reader.entries().spliterator(), false)
-            .map(
-                entry ->
-                    writeDeleteFileEntry(
-                        entry,
-                        snapshotIds,
-                        spec,
-                        sourcePrefix,
-                        targetPrefix,
-                        stagingLocation,
-                        writer))
-            .reduce(new RewriteResult<>(), RewriteResult::append);
+              .map(
+                  entry ->
+                      writeDeleteFileEntry(
+                          entry,
+                          snapshotIds,
+                          spec,
+                          sourcePrefix,
+                          targetPrefix,
+                          stagingLocation,
+                          writer))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
 
     return Pair.of(writer.toManifestFile(), rewriteResult);
