@@ -47,7 +47,9 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -79,6 +81,32 @@ public class TestExpressionHelpers {
     Literal<Long> nanos = Expressions.nanos(ts);
     assertThat(nanos.value()).isEqualTo(ts);
     assertThat(nanos.to(Types.TimestampType.withoutZone()).value()).isEqualTo(1510842668000000L);
+  }
+
+  @Test
+  public void testMixedTimestampLiterals() {
+    long now = System.currentTimeMillis();
+    Schema schema = new Schema(NestedField.required(1, "ts", Types.TimestampType.withoutZone()));
+
+    // all 3 timestamp values represent the same time and will be deduplicated
+    Expression expr =
+        Expressions.in(
+            "ts",
+            List.of(
+                Expressions.millis(now),
+                Expressions.micros(now * 1000),
+                Expressions.nanos(now * 1_000_000)));
+
+    Expression bound = Binder.bind(schema.asStruct(), expr);
+
+    // duplicates are replaced with a single value and in is converted to equals
+    assertThat(bound).isInstanceOf(BoundPredicate.class);
+    BoundPredicate<?> predicate = (BoundPredicate<?>) bound;
+    assertThat(predicate.isLiteralPredicate()).isTrue();
+    assertThat(predicate.asLiteralPredicate().op()).isEqualTo(Expression.Operation.EQ);
+    assertThat(predicate.asLiteralPredicate().ref().type())
+        .isEqualTo(Types.TimestampType.withoutZone());
+    assertThat(predicate.asLiteralPredicate().literal().value()).isEqualTo(now * 1000);
   }
 
   @Test
