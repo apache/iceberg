@@ -150,7 +150,7 @@ class Identity<T> implements Transform<T, T> {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate.isLiteralPredicate()) {
       return Expressions.predicate(
-          predicate.op(), name, predicate.asLiteralPredicate().literal().value());
+          predicate.op(), name, predicate.asLiteralPredicate().literal());
     } else if (predicate.isSetPredicate()) {
       return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
     }
