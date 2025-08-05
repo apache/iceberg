@@ -131,8 +131,8 @@ public class TestArrowReader {
           "decimal_nullable",
           "fixed",
           "fixed_nullable",
-          "timestamp_ns",
-          "timestamp_ns_nullable",
+          "timestamp_nano",
+          "timestamp_nano_nullable",
           "timestamp_nano_tz",
           "timestamp_nano_tz_nullable");
   @TempDir private File tempDir;
@@ -668,19 +668,19 @@ public class TestArrowReader {
         expectedNumRows,
         expectedRows,
         batch,
-        columnNameToIndex.get("timestamp_ns"),
+        columnNameToIndex.get("timestamp_nano"),
         columnSet,
-        "timestamp_ns",
-        (records, i) -> records.get(i).getField("timestamp_ns"),
+        "timestamp_nano",
+        (records, i) -> records.get(i).getField("timestamp_nano"),
         (array, i) -> timestampFromNanos(array.getLong(i)));
     checkColumnarArrayValues(
         expectedNumRows,
         expectedRows,
         batch,
-        columnNameToIndex.get("timestamp_ns_nullable"),
+        columnNameToIndex.get("timestamp_nano_nullable"),
         columnSet,
-        "timestamp_ns_nullable",
-        (records, i) -> records.get(i).getField("timestamp_ns_nullable"),
+        "timestamp_nano_nullable",
+        (records, i) -> records.get(i).getField("timestamp_nano_nullable"),
         (array, i) -> timestampFromNanos(array.getLong(i)));
     checkColumnarArrayValues(
         expectedNumRows,
@@ -771,9 +771,9 @@ public class TestArrowReader {
             Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)),
             Types.NestedField.required(28, "fixed", Types.FixedType.ofLength(7)),
             Types.NestedField.optional(29, "fixed_nullable", Types.FixedType.ofLength(7)),
-            Types.NestedField.required(30, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(30, "timestamp_nano", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.optional(
-                31, "timestamp_ns_nullable", Types.TimestampNanoType.withoutZone()),
+                31, "timestamp_nano_nullable", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.required(32, "timestamp_nano_tz", Types.TimestampNanoType.withZone()),
             Types.NestedField.optional(
                 33, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()));
@@ -875,11 +875,11 @@ public class TestArrowReader {
                 new FieldType(true, new ArrowType.FixedSizeBinary(7), null),
                 null),
             new Field(
-                "timestamp_ns",
+                "timestamp_nano",
                 new FieldType(false, MinorType.TIMESTAMPNANO.getType(), null),
                 null),
             new Field(
-                "timestamp_ns_nullable",
+                "timestamp_nano_nullable",
                 new FieldType(true, MinorType.TIMESTAMPNANO.getType(), null),
                 null),
             new Field(
@@ -942,8 +942,8 @@ public class TestArrowReader {
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
       rec.setField("fixed", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
       rec.setField("fixed_nullable", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
-      rec.setField("timestamp_ns", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
-      rec.setField("timestamp_ns_nullable", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
+      rec.setField("timestamp_nano", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
+      rec.setField("timestamp_nano_nullable", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
       rec.setField(
           "timestamp_nano_tz",
           datetime.plus(i, ChronoUnit.MINUTES).plusNanos(i).atOffset(ZoneOffset.UTC));
@@ -989,8 +989,8 @@ public class TestArrowReader {
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
       rec.setField("fixed", "abcdefg".getBytes(StandardCharsets.UTF_8));
       rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
-      rec.setField("timestamp_ns", datetime);
-      rec.setField("timestamp_ns_nullable", datetime);
+      rec.setField("timestamp_nano", datetime);
+      rec.setField("timestamp_nano_nullable", datetime);
       rec.setField("timestamp_nano_tz", datetime.atOffset(ZoneOffset.UTC));
       rec.setField("timestamp_nano_tz_nullable", datetime.atOffset(ZoneOffset.UTC));
       records.add(rec);
@@ -1087,8 +1087,8 @@ public class TestArrowReader {
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
     assertEqualsForField(root, columnSet, "fixed", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "fixed_nullable", FixedSizeBinaryVector.class);
-    assertEqualsForField(root, columnSet, "timestamp_ns", TimeStampNanoVector.class);
-    assertEqualsForField(root, columnSet, "timestamp_ns_nullable", TimeStampNanoVector.class);
+    assertEqualsForField(root, columnSet, "timestamp_nano", TimeStampNanoVector.class);
+    assertEqualsForField(root, columnSet, "timestamp_nano_nullable", TimeStampNanoVector.class);
     assertEqualsForField(root, columnSet, "timestamp_nano_tz", TimeStampNanoTZVector.class);
     assertEqualsForField(
         root, columnSet, "timestamp_nano_tz_nullable", TimeStampNanoTZVector.class);
@@ -1356,16 +1356,16 @@ public class TestArrowReader {
         expectedRows,
         root,
         columnSet,
-        "timestamp_ns",
-        (records, i) -> records.get(i).getField("timestamp_ns"),
+        "timestamp_nano",
+        (records, i) -> records.get(i).getField("timestamp_nano"),
         (vector, i) -> ((TimeStampNanoVector) vector).getObject(i));
     checkVectorValues(
         expectedNumRows,
         expectedRows,
         root,
         columnSet,
-        "timestamp_ns_nullable",
-        (records, i) -> records.get(i).getField("timestamp_ns_nullable"),
+        "timestamp_nano_nullable",
+        (records, i) -> records.get(i).getField("timestamp_nano_nullable"),
         (vector, i) -> ((TimeStampNanoVector) vector).getObject(i));
     checkVectorValues(
         expectedNumRows,

@@ -465,13 +465,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
-      return visitEnumJsonBsonString();
+      return allocateVectorForEnumJsonBsonString();
     }
 
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
-      return visitEnumJsonBsonString();
+      return allocateVectorForEnumJsonBsonString();
     }
 
     @Override
@@ -565,14 +565,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
       FieldVector vector = arrowField.createVector(rootAlloc);
+      int bitWidth = intLogicalType.getBitWidth();
 
-      if (intLogicalType.getBitWidth() == 8
-          || intLogicalType.getBitWidth() == 16
-          || intLogicalType.getBitWidth() == 32) {
+      if (bitWidth == 8 || bitWidth == 16 || bitWidth == 32) {
         ((IntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.INT, (int) IntVector.TYPE_WIDTH));
-      } else if (intLogicalType.getBitWidth() == 64) {
+      } else if (bitWidth == 64) {
         ((BigIntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
@@ -581,7 +580,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return Optional.empty();
     }
 
-    private Optional<LogicalTypeVisitorResult> visitEnumJsonBsonString() {
+    private Optional<LogicalTypeVisitorResult> allocateVectorForEnumJsonBsonString() {
       FieldVector vector = arrowField.createVector(rootAlloc);
       // TODO: Possibly use the uncompressed page size info to set the initial capacity
       vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
@@ -592,13 +591,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-      return visitEnumJsonBsonString();
+      return allocateVectorForEnumJsonBsonString();
     }
 
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
-      return visitEnumJsonBsonString();
+      return allocateVectorForEnumJsonBsonString();
     }
   }
 
