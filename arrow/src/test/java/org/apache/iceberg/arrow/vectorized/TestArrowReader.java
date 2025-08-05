@@ -129,6 +129,8 @@ public class TestArrowReader {
           "uuid_nullable",
           "decimal",
           "decimal_nullable",
+          "fixed",
+          "fixed_nullable",
           "timestamp_ns",
           "timestamp_ns_nullable",
           "timestamp_nano_tz",
@@ -646,6 +648,26 @@ public class TestArrowReader {
         expectedNumRows,
         expectedRows,
         batch,
+        columnNameToIndex.get("fixed"),
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (array, i) -> array.getBinary(i));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("fixed_nullable"),
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (array, i) -> array.getBinary(i));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
         columnNameToIndex.get("timestamp_ns"),
         columnSet,
         "timestamp_ns",
@@ -747,12 +769,14 @@ public class TestArrowReader {
             Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
             Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
             Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)),
-            Types.NestedField.required(28, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(28, "fixed", Types.FixedType.ofLength(7)),
+            Types.NestedField.optional(29, "fixed_nullable", Types.FixedType.ofLength(7)),
+            Types.NestedField.required(30, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.optional(
-                29, "timestamp_ns_nullable", Types.TimestampNanoType.withoutZone()),
-            Types.NestedField.required(30, "timestamp_nano_tz", Types.TimestampNanoType.withZone()),
+                31, "timestamp_ns_nullable", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(32, "timestamp_nano_tz", Types.TimestampNanoType.withZone()),
             Types.NestedField.optional(
-                31, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()));
+                33, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
@@ -845,6 +869,11 @@ public class TestArrowReader {
                 "decimal_nullable",
                 new FieldType(true, new ArrowType.Decimal(9, 2, 128), null),
                 null),
+            new Field("fixed", new FieldType(false, new ArrowType.FixedSizeBinary(7), null), null),
+            new Field(
+                "fixed_nullable",
+                new FieldType(true, new ArrowType.FixedSizeBinary(7), null),
+                null),
             new Field(
                 "timestamp_ns",
                 new FieldType(false, MinorType.TIMESTAMPNANO.getType(), null),
@@ -911,6 +940,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
+      rec.setField("fixed", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
       rec.setField("timestamp_ns", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
       rec.setField("timestamp_ns_nullable", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
       rec.setField(
@@ -956,6 +987,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
+      rec.setField("fixed", "abcdefg".getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
       rec.setField("timestamp_ns", datetime);
       rec.setField("timestamp_ns_nullable", datetime);
       rec.setField("timestamp_nano_tz", datetime.atOffset(ZoneOffset.UTC));
@@ -1052,6 +1085,8 @@ public class TestArrowReader {
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
     assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "fixed", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "fixed_nullable", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "timestamp_ns", TimeStampNanoVector.class);
     assertEqualsForField(root, columnSet, "timestamp_ns_nullable", TimeStampNanoVector.class);
     assertEqualsForField(root, columnSet, "timestamp_nano_tz", TimeStampNanoTZVector.class);
@@ -1297,6 +1332,24 @@ public class TestArrowReader {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
 
     checkVectorValues(
         expectedNumRows,

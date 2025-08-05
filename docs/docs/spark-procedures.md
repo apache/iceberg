@@ -488,7 +488,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Argument Name | Required? | Type | Description                                                   |
 |---------------|-----------|------|---------------------------------------------------------------|
 | `table`       | ✔️  | string | Name of the table to update                                   |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
@@ -505,9 +505,9 @@ Rewrite the manifests in table `db.sample` and align manifest files with table p
 CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
-Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
+Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false);
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
 
 ### `rewrite_position_delete_files`
@@ -523,6 +523,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 |---------------|-----------|------|----------------------------------|
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
+| `where`       | ️   | string | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
@@ -973,6 +974,38 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
 ```sql
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
+```
+
+## Partition Statistics
+
+### `compute_partition_stats`
+
+This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile` 
+until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`. 
+It performs a full compute if the previous partition statistics file does not exist. It also registers the 
+`PartitionStatisticsFile` to the table metadata.
+
+| Argument Name | Required? | Type          | Description                                                                    |
+|---------------|-----------|---------------|--------------------------------------------------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                                                              |
+| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
+
+#### Output
+
+| Output Name       | Type   | Description                                              |
+|-------------------|--------|----------------------------------------------------------|
+| `partition_statistics_file` | string | Path to the partition stats file created from by command |
+
+#### Examples
+
+Collect partition statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats('my_table');
+```
+
+Collect partition statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
 ```
 
 ## Table Replication

@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,11 +35,14 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
@@ -62,7 +63,7 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
   }
 
   @Override
-  protected void writeRecords(Table table, List<GenericData.Record> records) throws IOException {
+  protected void writeRecords(Table table, List<Record> records) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     Dataset<Row> df = createDataset(records, tableSchema);
@@ -74,18 +75,19 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
     table.refresh();
   }
 
-  private Dataset<Row> createDataset(List<GenericData.Record> records, Schema schema)
-      throws IOException {
+  private Dataset<Row> createDataset(List<Record> records, Schema schema) throws IOException {
     // this uses the SparkAvroReader to create a DataFrame from the list of records
     // it assumes that SparkAvroReader is correct
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    try (FileAppender<GenericData.Record> writer =
-        Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(DataWriter::create)
+            .named("test")
+            .build()) {
+      writer.addAll(records);
     }
 
     List<InternalRow> rows;
@@ -98,10 +100,10 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
     }
 
     // verify that the dataframe matches
-    assertThat(rows.size()).isEqualTo(records.size());
-    Iterator<GenericData.Record> recordIter = records.iterator();
+    assertThat(rows).hasSameSizeAs(records);
+    Iterator<Record> recordIter = records.iterator();
     for (InternalRow row : rows) {
-      assertEqualsUnsafe(schema.asStruct(), recordIter.next(), row);
+      GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), recordIter.next(), row);
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
@@ -130,7 +132,7 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
         .set(TableProperties.WRITE_DATA_LOCATION, altLocation.getAbsolutePath())
         .commit();
 
-    writeRecords(table, RandomData.generateList(table.schema(), 100, 87112L));
+    writeRecords(table, RandomGenericData.generate(table.schema(), 100, 87112L));
 
     table
         .currentSnapshot()

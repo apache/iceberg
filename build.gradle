@@ -231,7 +231,13 @@ subprojects {
     jvmArgs += project.property('extraJvmArgs')
 
     testLogging {
-      events "failed"
+      // Check if running on CI environment
+      if (System.getenv('CI') != null) {
+        // More verbose logging for CI environments
+        events "started", "passed", "skipped", "failed"
+      } else {
+        events "failed"
+      }
       exceptionFormat "full"
     }
 

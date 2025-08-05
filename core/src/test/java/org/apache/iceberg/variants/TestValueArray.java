@@ -65,8 +65,7 @@ public class TestValueArray {
     assertThat(actual.numElements()).isEqualTo(3);
     assertThat(actual.get(0)).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get(0).asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get(1)).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get(1).asPrimitive().get()).isEqualTo("iceberg");
+    VariantTestUtil.assertVariantString(actual.get(1), "iceberg");
     assertThat(actual.get(2)).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
@@ -83,8 +82,7 @@ public class TestValueArray {
     assertThat(actual.numElements()).isEqualTo(3);
     assertThat(actual.get(0)).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get(0).asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get(1)).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get(1).asPrimitive().get()).isEqualTo("iceberg");
+    VariantTestUtil.assertVariantString(actual.get(1), "iceberg");
     assertThat(actual.get(2)).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
@@ -109,12 +107,10 @@ public class TestValueArray {
 
     assertThat(actualArray.get(0).type()).isEqualTo(PhysicalType.INT32);
     assertThat(actualArray.get(0).asPrimitive().get()).isEqualTo(34);
-    assertThat(actualArray.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(actualArray.get(1).asPrimitive().get()).isEqualTo("iceberg");
+    VariantTestUtil.assertVariantString(actualArray.get(1), "iceberg");
     assertThat(actualArray.get(2).type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(actualArray.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    assertThat(actualArray.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(actualArray.get(3).asPrimitive().get()).isEqualTo(randomString);
+    VariantTestUtil.assertVariantString(actualArray.get(3), randomString);
   }
 
   @Test

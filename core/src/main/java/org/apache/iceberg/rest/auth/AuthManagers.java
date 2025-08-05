@@ -95,6 +95,9 @@ public class AuthManagers {
       case AuthProperties.AUTH_TYPE_SIGV4:
         impl = AuthProperties.AUTH_MANAGER_IMPL_SIGV4;
         break;
+      case AuthProperties.AUTH_TYPE_GOOGLE:
+        impl = AuthProperties.AUTH_MANAGER_IMPL_GOOGLE;
+        break;
       case AuthProperties.AUTH_TYPE_OAUTH2:
         impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
         break;

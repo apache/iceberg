@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -50,11 +49,6 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    if (afterExpiration.refs().size() > 1) {
-      throw new UnsupportedOperationException(
-          "Cannot incrementally clean files for tables with more than 1 ref");
-    }
-
     // clean up the expired snapshots:
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
@@ -81,12 +75,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       return;
     }
 
-    SnapshotRef branchToCleanup = Iterables.getFirst(beforeExpiration.refs().values(), null);
-    if (branchToCleanup == null) {
+    Snapshot latest = beforeExpiration.currentSnapshot();
+    if (latest == null) {
       return;
     }
 
-    Snapshot latest = beforeExpiration.snapshot(branchToCleanup.snapshotId());
     List<Snapshot> snapshots = afterExpiration.snapshots();
 
     // this is the set of ancestors of the current table state. when removing snapshots, this must

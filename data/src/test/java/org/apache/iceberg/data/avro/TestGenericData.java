@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.data.avro;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -56,8 +54,7 @@ public class TestGenericData extends DataTestBase {
   private void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
       throws IOException {
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     try (FileAppender<Record> writer =
         Avro.write(Files.localOutput(testFile))

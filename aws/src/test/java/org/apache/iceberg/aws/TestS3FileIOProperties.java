@@ -290,7 +290,7 @@ public class TestS3FileIOProperties {
     S3ClientBuilder builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(1);
+    assertThat(builder.plugins()).hasSize(1);
   }
 
   @Test
@@ -302,7 +302,7 @@ public class TestS3FileIOProperties {
     S3ClientBuilder builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(0);
+    assertThat(builder.plugins()).hasSize(0);
 
     // Implicitly false
     properties = ImmutableMap.of();
@@ -310,7 +310,7 @@ public class TestS3FileIOProperties {
     builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(0);
+    assertThat(builder.plugins()).hasSize(0);
   }
 
   @Test

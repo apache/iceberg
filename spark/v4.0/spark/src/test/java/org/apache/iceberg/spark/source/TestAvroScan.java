@@ -24,16 +24,22 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 
 public class TestAvroScan extends ScanTestBase {
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   @Override
   protected void writeRecords(Table table, List<Record> records) throws IOException {
     File dataFolder = new File(table.location(), "data");
@@ -43,7 +49,10 @@ public class TestAvroScan extends ScanTestBase {
         new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
 
     try (FileAppender<Record> writer =
-        Avro.write(localOutput(avroFile)).schema(table.schema()).build()) {
+        Avro.write(localOutput(avroFile))
+            .schema(table.schema())
+            .createWriterFunc(DataWriter::create)
+            .build()) {
       writer.addAll(records);
     }
 

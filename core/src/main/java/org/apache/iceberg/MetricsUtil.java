@@ -55,7 +55,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
-        metrics.upperBounds());
+        metrics.upperBounds(),
+        metrics.originalTypes());
   }
 
   /**
@@ -73,7 +74,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
-        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
   private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
@@ -172,21 +174,29 @@ public class MetricsUtil {
               "Lower bound",
               DataFile.LOWER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.lowerBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.lowerBounds().get(field.fieldId()))),
+              (file, field) -> {
+                if (file.lowerBounds() == null) {
+                  return null;
+                }
+                Object value =
+                    Conversions.fromByteBuffer(
+                        field.type(), file.lowerBounds().get(field.fieldId()));
+                return (value instanceof java.util.UUID) ? value.toString() : value;
+              }),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.upperBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.upperBounds().get(field.fieldId()))));
+              (file, field) -> {
+                if (file.upperBounds() == null) {
+                  return null;
+                }
+                Object value =
+                    Conversions.fromByteBuffer(
+                        field.type(), file.upperBounds().get(field.fieldId()));
+                return (value instanceof java.util.UUID) ? value.toString() : value;
+              }));
 
   public static final String READABLE_METRICS = "readable_metrics";
 

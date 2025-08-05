@@ -1424,24 +1424,18 @@ public class TableMetadata implements Serializable {
     private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
-      Set<Long> snapshotIdsToRemove = Sets.newHashSet();
-
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            snapshotIdsToRemove.add(snapshotId);
+            changes.add(new MetadataUpdate.RemoveSnapshots(snapshotId));
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
         } else {
           retainedSnapshots.add(snapshot);
         }
-      }
-
-      if (!snapshotIdsToRemove.isEmpty()) {
-        changes.add(new MetadataUpdate.RemoveSnapshots(snapshotIdsToRemove));
       }
 
       this.snapshots = retainedSnapshots;

@@ -38,6 +38,7 @@ import org.apache.iceberg.types.Types;
  *   <li>{@link Types.DoubleType}
  *   <li>{@link Types.StringType}
  *   <li>{@link Types.BinaryType}
+ *   <li>{@link Types.FixedType}
  *   <li>{@link Types.TimestampType} (with and without timezone)
  *   <li>{@link Types.TimestampNanoType} (with and without timezone)
  *   <li>{@link Types.DateType}
