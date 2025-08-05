@@ -39,6 +39,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
@@ -46,6 +47,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
@@ -358,6 +360,18 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(3L, FILE_C2.location()),
             Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
+
+    String[] commitMetricsKeys =
+        new String[] {
+          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP,
+          SnapshotSummary.REMOVED_DELETE_FILES_PROP,
+          SnapshotSummary.REMOVED_POS_DELETES_PROP,
+          SnapshotSummary.REMOVED_EQ_DELETES_PROP,
+          SnapshotSummary.TOTAL_DATA_FILES_PROP,
+          SnapshotSummary.TOTAL_DELETE_FILES_PROP,
+          SparkWriteUtil.SPARK_APP_ID
+        };
+    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   @TestTemplate

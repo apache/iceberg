@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.spark.sql.SparkSession;
 
 abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<ThisT> {
@@ -38,10 +39,12 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
 
   protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
     summary.forEach(update::set);
+    update.set(SparkWriteUtil.SPARK_APP_ID, spark().sparkContext().applicationId());
     update.commit();
   }
 
   protected Map<String, String> commitSummary() {
+    summary.put(SparkWriteUtil.SPARK_APP_ID, spark().sparkContext().applicationId());
     return ImmutableMap.copyOf(summary);
   }
 }

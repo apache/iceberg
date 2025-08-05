@@ -71,6 +71,7 @@ import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -315,7 +316,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private void commitOperation(SnapshotUpdate<?> operation, String description) {
       LOG.info("Committing {} to table {}", description, table);
       if (applicationId != null) {
-        operation.set("spark.app.id", applicationId);
+        operation.set(SparkWriteUtil.SPARK_APP_ID, applicationId);
       }
 
       extraSnapshotMetadata.forEach(operation::set);

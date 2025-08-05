@@ -57,6 +57,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -75,6 +76,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
@@ -270,6 +272,15 @@ public class TestRewriteManifestsAction extends TestBase {
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
+
+    String[] commitMetricsKeys =
+        new String[] {
+          SnapshotSummary.CREATED_MANIFESTS_COUNT,
+          SnapshotSummary.REPLACED_MANIFESTS_COUNT,
+          SnapshotSummary.KEPT_MANIFESTS_COUNT,
+          SparkWriteUtil.SPARK_APP_ID
+        };
+    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   @TestTemplate

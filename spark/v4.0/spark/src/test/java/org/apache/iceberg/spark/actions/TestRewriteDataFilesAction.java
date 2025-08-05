@@ -112,6 +112,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -1893,17 +1894,18 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSnapshotProperty() {
     Table table = createTable(4);
     Result ignored = basicRewrite(table).snapshotProperty("key", "value").execute();
-    assertThat(table.currentSnapshot().summary())
-        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+    Map<String, String> summary = table.currentSnapshot().summary();
+    assertThat(summary).containsAllEntriesOf(ImmutableMap.of("key", "value"));
     // make sure internal produced properties are not lost
     String[] commitMetricsKeys =
         new String[] {
           SnapshotSummary.ADDED_FILES_PROP,
           SnapshotSummary.DELETED_FILES_PROP,
           SnapshotSummary.TOTAL_DATA_FILES_PROP,
-          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
+          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP,
+          SparkWriteUtil.SPARK_APP_ID
         };
-    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
+    assertThat(summary).containsKeys(commitMetricsKeys);
   }
 
   @TestTemplate
