@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -60,7 +59,6 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -83,9 +81,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Tuple3;
@@ -286,15 +282,16 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
     Set<Snapshot> deltaSnapshots = deltaSnapshots(startMetadata, rewriteVersionResult.toRewrite());
+    Set<Snapshot> validSnapshots =
+        Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
     // rebuild manifest files
-    Set<ManifestFile> manifestsToRewrite = manifestsToRewrite(deltaSnapshots, startMetadata);
+    Set<ManifestFile> manifestsToRewrite = manifestsToRewrite(validSnapshots);
+
     ManifestsRewriteResult rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, manifestsToRewrite);
 
     // rebuild manifest-list files
-    Set<Snapshot> validSnapshots =
-        Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
     RewriteResult<ManifestFile> rewriteManifestListResult =
         validSnapshots.stream()
             .map(
@@ -432,14 +429,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     String path = snapshot.manifestListLocation();
     String outputPath = RewriteTablePathUtil.stagingPath(path, stagingDir);
     RewriteTablePathUtil.rewriteManifestList(
-        snapshot,
-        table.io(),
-        tableMetadata,
-        rewrittenManifests,
-        sourcePrefix,
-        targetPrefix,
-        stagingDir,
-        outputPath);
+        snapshot, table.io(), tableMetadata, rewrittenManifests, outputPath);
 
     // add the manifest list copy plan itself to the result
     result
@@ -448,58 +438,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return result;
   }
 
-  private Set<ManifestFile> manifestsToRewrite(
-      Set<Snapshot> deltaSnapshots, TableMetadata startMetadata) {
+  private Set<ManifestFile> manifestsToRewrite(Set<Snapshot> liveSnapshots) {
     try {
       Table endStaticTable = newStaticTable(endVersionName, table.io());
-      Dataset<Row> allManifestsDF = manifestDS(endStaticTable).select("path");
-      Set<String> expectedManifestPaths;
-
-      if (startMetadata == null) {
-        expectedManifestPaths =
-            Sets.newHashSet(allManifestsDF.distinct().as(Encoders.STRING()).collectAsList());
-      } else {
-        Set<Long> deltaSnapshotIds =
-            deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-        expectedManifestPaths =
-            Sets.newHashSet(
-                allManifestsDF
-                    .distinct()
-                    .filter(
-                        functions
-                            .column(ManifestFile.SNAPSHOT_ID.name())
-                            .isInCollection(deltaSnapshotIds))
-                    .as(Encoders.STRING())
-                    .collectAsList());
-      }
-
-      Set<ManifestFile> foundManifests =
-          deltaSnapshots.stream()
-              .flatMap(
-                  s -> {
-                    try {
-                      return s.allManifests(table.io()).stream();
-                    } catch (NotFoundException e) {
-                      LOG.warn(
-                          "Skipping snapshot {} as its manifest list is missing (likely expired).",
-                          s.snapshotId(),
-                          e);
-                      return Stream.empty();
-                    }
-                  })
-              .collect(Collectors.toSet());
-
-      Set<String> foundManifestPaths =
-          foundManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
-      Set<String> missingPaths = Sets.difference(expectedManifestPaths, foundManifestPaths);
-      Preconditions.checkState(
-          missingPaths.isEmpty(),
-          "Could not find all expected manifests. Missing files: %s",
-          String.join(", ", missingPaths));
-
-      return foundManifests.stream()
-          .filter(m -> expectedManifestPaths.contains(m.path()))
-          .collect(Collectors.toSet());
+      Set<Long> liveSnapshotIds =
+          liveSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      return Sets.newHashSet(manifestBeanDS(endStaticTable, liveSnapshotIds).collectAsList());
     } catch (Exception e) {
       throw new UnsupportedOperationException(
           "Unable to build the manifest files dataframe. The end version in use may contain invalid snapshots. "

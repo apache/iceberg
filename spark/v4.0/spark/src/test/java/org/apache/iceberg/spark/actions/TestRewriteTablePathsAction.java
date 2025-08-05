@@ -39,7 +39,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
-import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -232,7 +231,8 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v2.metadata.json")
             .execute();
 
-    checkFileNum(1, 1, 1, 4, result);
+    // 1 metadata JSON file, 1 snapshot, 2 manifests, 1 data file
+    checkFileNum(1, 1, 2, 5, result);
 
     List<Tuple2<String, String>> paths = readPathPairList(result.fileListLocation());
 
@@ -306,7 +306,8 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v2.metadata.json")
             .execute();
 
-    checkFileNum(2, 2, 2, 8, result);
+    // 2 metadata JSON files, 2 snapshots, 3 manifests, 2 data files
+    checkFileNum(2, 2, 3, 9, result);
 
     // start from the first version
     RewriteTablePath.Result result1 =
@@ -316,6 +317,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v1.metadata.json")
             .execute();
 
+    // 3 metadata JSON files, 3 snapshots, 3 manifests, 3 data files
     checkFileNum(3, 3, 3, 12, result1);
   }
 
@@ -716,8 +718,8 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v2.metadata.json")
             .execute();
 
-    // 2 metadata.json, 1 manifest list file, 1 manifest files
-    checkFileNum(2, 1, 1, 5, result);
+    // 2 metadata.json, 1 manifest list file, 2 manifest files
+    checkFileNum(2, 1, 2, 6, result);
   }
 
   @Test
@@ -1041,7 +1043,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion(fileName(metadataFilePath))
             .execute();
 
-    checkFileNum(2, 1, 1, 5, result2);
+    checkFileNum(2, 1, 2, 6, result2);
   }
 
   @Test
@@ -1152,24 +1154,28 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     Table targetTable = TABLES.load(targetLocation);
 
-    // We have rewritten all manifests. Make sure all sizes were correctly updated in manifest lists
-    assertThat(targetTable.currentSnapshot().allManifests(targetTable.io()))
+    // We have rewritten all 11 snapshots. Make sure all sizes were correctly updated
+    // across all manifest lists
+    assertThat(targetTable.snapshots())
         .allSatisfy(
-            manifest -> {
-              String manifestName = fileName(manifest.path());
-              assertThat(manifest.length())
-                  .isNotEqualTo(manifestSizesBeforeRewrite.get(manifestName));
-            })
-        .allSatisfy(
-            manifest -> {
-              assertThat(targetTable.io().newInputFile(manifest.path()).getLength())
-                  .isEqualTo(manifest.length());
-            });
+            snapshot ->
+                assertThat(snapshot.allManifests(targetTable.io()))
+                    .allSatisfy(
+                        manifest -> {
+                          String manifestName = fileName(manifest.path());
+                          assertThat(manifest.length())
+                              .isNotEqualTo(manifestSizesBeforeRewrite.get(manifestName));
+                        })
+                    .allSatisfy(
+                        manifest -> {
+                          assertThat(targetTable.io().newInputFile(manifest.path()).getLength())
+                              .isEqualTo(manifest.length());
+                        }));
   }
 
   @Test
-  public void testKeepsExistingDataManifestLengthInManifestList(@TempDir Path rootTargetLocation)
-      throws Exception {
+  public void testPartialRewriteUpdatesDataManifestLengthInManifestList(
+      @TempDir Path rootTargetLocation) throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 10);
 
@@ -1187,8 +1193,8 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v10.metadata.json")
             .execute();
 
-    // 1 metadata JSON file, 1 snapshot, 1 manifest, 4 data files
-    checkFileNum(1, 1, 1, 4, result);
+    // 1 metadata JSON file, 1 snapshot, 10 manifests, 1 data file
+    checkFileNum(1, 1, 10, 13, result);
     copyTableFiles(result);
 
     Table targetTable = TABLES.load(targetLocation);
@@ -1201,24 +1207,25 @@ public class TestRewriteTablePathsAction extends TestBase {
                 .filter(manifest -> manifest.snapshotId() == lastSnapshot.snapshotId())
                 .collect(Collectors.toList()));
 
-    // We have rewritten exactly one (data) manifest. Check that its size was correctly
-    // updated in the manifest list and sizes of all other manifests were left unchanged
-    assertThat(allManifests)
-        .filteredOn(manifest -> manifest != rewrittenManifest)
+    // We have rewritten all manifests in one snapshot. Make sure all sizes were correctly
+    // updated in the manifest list
+    assertThat(targetTable.currentSnapshot().allManifests(targetTable.io()))
         .allSatisfy(
             manifest -> {
               String manifestName = fileName(manifest.path());
-              assertThat(manifest.length()).isEqualTo(manifestSizesBeforeRewrite.get(manifestName));
+              assertThat(manifest.length())
+                  .isNotEqualTo(manifestSizesBeforeRewrite.get(manifestName));
+            })
+        .allSatisfy(
+            manifest -> {
+              assertThat(targetTable.io().newInputFile(manifest.path()).getLength())
+                  .isEqualTo(manifest.length());
             });
-    assertThat(rewrittenManifest.content()).isEqualTo(ManifestContent.DATA);
-    assertThat(rewrittenManifest.length())
-        .isNotEqualTo(manifestSizesBeforeRewrite.get(fileName(rewrittenManifest.path())))
-        .isEqualTo(targetTable.io().newInputFile(rewrittenManifest.path()).getLength());
   }
 
   @Test
-  public void testKeepsExistingDeleteManifestLengthInManifestList(@TempDir Path rootTargetLocation)
-      throws Exception {
+  public void testPartialRewriteUpdatesDeleteManifestLengthInManifestList(
+      @TempDir Path rootTargetLocation) throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 5);
 
@@ -1244,8 +1251,8 @@ public class TestRewriteTablePathsAction extends TestBase {
             .startVersion("v7.metadata.json")
             .execute();
 
-    // 1 metadata JSON file, 1 snapshot, 1 manifest, 1 delete file
-    checkFileNum(1, 1, 1, 4, result);
+    // 1 metadata JSON file, 1 snapshot, 5 + 2 manifests, 1 delete file
+    checkFileNum(1, 1, 7, 10, result);
     copyTableFiles(result);
 
     Table targetTable = TABLES.load(targetLocation);
@@ -1258,19 +1265,20 @@ public class TestRewriteTablePathsAction extends TestBase {
                 .filter(manifest -> manifest.snapshotId() == lastSnapshot.snapshotId())
                 .collect(Collectors.toList()));
 
-    // We have rewritten exactly one (delete) manifest. Check that its size was correctly
-    // updated in the manifest list and sizes of all other manifests were left unchanged
-    assertThat(allManifests)
-        .filteredOn(manifest -> manifest != rewrittenManifest)
+    // We have rewritten all manifests in one snapshot. Make sure all sizes were correctly
+    // updated in the manifest list
+    assertThat(targetTable.currentSnapshot().allManifests(targetTable.io()))
         .allSatisfy(
             manifest -> {
               String manifestName = fileName(manifest.path());
-              assertThat(manifest.length()).isEqualTo(manifestSizesBeforeRewrite.get(manifestName));
+              assertThat(manifest.length())
+                  .isNotEqualTo(manifestSizesBeforeRewrite.get(manifestName));
+            })
+        .allSatisfy(
+            manifest -> {
+              assertThat(targetTable.io().newInputFile(manifest.path()).getLength())
+                  .isEqualTo(manifest.length());
             });
-    assertThat(rewrittenManifest.content()).isEqualTo(ManifestContent.DELETES);
-    assertThat(rewrittenManifest.length())
-        .isNotEqualTo(manifestSizesBeforeRewrite.get(fileName(rewrittenManifest.path())))
-        .isEqualTo(targetTable.io().newInputFile(rewrittenManifest.path()).getLength());
   }
 
   protected static String generateLongNestedPath(int depth) {

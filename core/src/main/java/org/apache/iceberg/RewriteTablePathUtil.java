@@ -301,9 +301,6 @@ public class RewriteTablePathUtil {
    * @param io file io
    * @param tableMetadata metadata of table
    * @param rewrittenManifests information about rewritten manifest files
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
-   * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
    */
   public static void rewriteManifestList(
@@ -311,9 +308,6 @@ public class RewriteTablePathUtil {
       FileIO io,
       TableMetadata tableMetadata,
       Map<String, RewrittenFileInfo> rewrittenManifests,
-      String sourcePrefix,
-      String targetPrefix,
-      String stagingDir,
       String outputPath) {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -321,10 +315,9 @@ public class RewriteTablePathUtil {
     manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
-                mf.path().startsWith(sourcePrefix),
-                "Encountered manifest file %s not under the source prefix %s",
-                mf.path(),
-                sourcePrefix));
+                rewrittenManifests.containsKey(mf.path()),
+                "Encountered manifest file %s that was not rewritten",
+                mf.path()));
 
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
@@ -336,16 +329,13 @@ public class RewriteTablePathUtil {
             snapshot.firstRowId())) {
 
       for (ManifestFile file : manifestFiles) {
-        ManifestFile newFile = file.copy();
+        String rewrittenPath = rewrittenManifests.get(file.path()).getNewPath();
+        long rewrittenSize = rewrittenManifests.get(file.path()).getNewSize();
 
-        if (rewrittenManifests.containsKey(file.path())) {
-          String rewrittenPath = rewrittenManifests.get(file.path()).getNewPath();
-          long rewrittenSize = rewrittenManifests.get(file.path()).getNewSize();
-          ((StructLike) newFile).set(0, rewrittenPath);
-          ((StructLike) newFile).set(1, rewrittenSize);
-        } else {
-          ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
-        }
+        ManifestFile newFile = file.copy();
+        ((StructLike) newFile).set(0, rewrittenPath);
+        ((StructLike) newFile).set(1, rewrittenSize);
+
         writer.add(newFile);
       }
     } catch (IOException e) {
