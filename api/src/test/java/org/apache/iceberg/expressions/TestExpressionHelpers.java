@@ -58,6 +58,30 @@ public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);
 
   @Test
+  public void testMillisLiteral() {
+    long now = System.currentTimeMillis();
+    Literal<Long> millis = Expressions.millis(now);
+    assertThat(millis.value()).isEqualTo(now * 1000L);
+    assertThat(millis.to(Types.TimestampNanoType.withZone()).value()).isEqualTo(now * 1_000_000L);
+  }
+
+  @Test
+  public void testMicrosLiteal() {
+    long ts = 1510842668000000L;
+    Literal<Long> micros = Expressions.micros(ts);
+    assertThat(micros.value()).isEqualTo(ts);
+    assertThat(micros.to(Types.TimestampNanoType.withZone()).value()).isEqualTo(ts * 1000L);
+  }
+
+  @Test
+  public void testNanosLiteral() {
+    long ts = 1510842668000000001L;
+    Literal<Long> nanos = Expressions.nanos(ts);
+    assertThat(nanos.value()).isEqualTo(ts);
+    assertThat(nanos.to(Types.TimestampType.withoutZone()).value()).isEqualTo(1510842668000000L);
+  }
+
+  @Test
   public void testSimplifyOr() {
     assertThat(or(alwaysTrue(), pred))
         .as("alwaysTrue or pred => alwaysTrue")
