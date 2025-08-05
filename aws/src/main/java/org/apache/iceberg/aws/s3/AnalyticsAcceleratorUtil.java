@@ -22,8 +22,14 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.List;
+import javax.net.ssl.SSLException;
+import org.apache.hadoop.classification.VisibleForTesting;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,10 +45,16 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
+import software.amazon.s3.analyticsaccelerator.util.retry.DefaultRetryStrategyImpl;
+import software.amazon.s3.analyticsaccelerator.util.retry.RetryPolicy;
+import software.amazon.s3.analyticsaccelerator.util.retry.RetryStrategy;
 
 class AnalyticsAcceleratorUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyticsAcceleratorUtil.class);
+  private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
+      ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
+  private static final int MAX_RETRIES = 3;
 
   private static final Cache<Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>
       STREAM_FACTORY_CACHE =
@@ -54,9 +66,18 @@ class AnalyticsAcceleratorUtil {
                       (key, factory, cause) -> close(factory))
               .build();
 
+  private static final RetryStrategy RETRY_STRATEGY =
+      new DefaultRetryStrategyImpl(
+          RetryPolicy.builder().handle(RETRYABLE_EXCEPTIONS).withMaxRetries(MAX_RETRIES).build());
+
   private AnalyticsAcceleratorUtil() {}
 
   public static SeekableInputStream newStream(S3InputFile inputFile) {
+    return newStream(inputFile, RETRY_STRATEGY);
+  }
+
+  @VisibleForTesting
+  static SeekableInputStream newStream(S3InputFile inputFile, RetryStrategy retryStrategy) {
     S3URI uri = S3URI.of(inputFile.uri().bucket(), inputFile.uri().key());
     HeadObjectResponse metadata = inputFile.getObjectMetadata();
     OpenStreamInformation openStreamInfo =
@@ -66,6 +87,7 @@ class AnalyticsAcceleratorUtil {
                     .contentLength(metadata.contentLength())
                     .etag(metadata.eTag())
                     .build())
+            .retryStrategy(retryStrategy)
             .build();
 
     S3SeekableInputStreamFactory factory =
