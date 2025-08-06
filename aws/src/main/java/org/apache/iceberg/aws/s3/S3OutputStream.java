@@ -218,7 +218,6 @@ class S3OutputStream extends PositionOutputStream {
 
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
-    currentStagingFile.deleteOnExit();
     try {
       currentPartMessageDigest =
           isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
