@@ -45,7 +45,7 @@ public class StatsUtil {
       id = RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
     }
 
-    int finalId = idSpaceStart + NUM_STATS_PER_COLUMN * id;
+    long finalId = idSpaceStart + NUM_STATS_PER_COLUMN * (long) id;
     if (finalId < 0
         || finalId > RESERVED_FIELD_IDS_START
         || (finalId >= METADATA_SPACE_FIELD_ID_START
@@ -54,7 +54,27 @@ public class StatsUtil {
       return -1;
     }
 
-    return finalId;
+    return (int) finalId;
+  }
+
+  public static int fieldIdFor(int statsFieldId) {
+    if (statsFieldId < 0 || statsFieldId % NUM_STATS_PER_COLUMN != 0) {
+      return -1;
+    }
+
+    int finalId;
+    if (statsFieldId < METADATA_SPACE_FIELD_ID_START) {
+      finalId = (statsFieldId - DATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN;
+    } else {
+      // this is a reserved field ID, which uses a different calculation
+      finalId =
+          statsFieldId
+              - RESERVED_FIELD_IDS
+              + (Integer.MAX_VALUE - statsFieldId)
+              + (statsFieldId - METADATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN;
+    }
+
+    return Math.max(-1, finalId);
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {
