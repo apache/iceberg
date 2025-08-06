@@ -71,27 +71,20 @@ abstract class ContentFileWriteBuilderImpl<
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
 
-  static <C extends DataWriteBuilder<C, D>, W extends WriteBuilder<W, D>, D>
-      DataWriteBuilder<C, D> forDataFile(
-          WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
-    return (DataWriteBuilder<C, D>) new DataFileWriteBuilder<>(writeBuilder, location, format);
+  static <W extends WriteBuilder<W, D>, D> DataWriteBuilder<D> forDataFile(
+      WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+    return new DataFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <C extends EqualityDeleteWriteBuilder<C, D>, W extends WriteBuilder<W, D>, D>
-      EqualityDeleteWriteBuilder<C, D> forEqualityDelete(
-          WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
-    return (EqualityDeleteWriteBuilder<C, D>)
-        new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
+  static <W extends WriteBuilder<W, D>, D> EqualityDeleteWriteBuilder<D> forEqualityDelete(
+      WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+    return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <
-          C extends PositionDeleteWriteBuilder<C, D>,
-          W extends WriteBuilder<W, PositionDelete<D>>,
-          D>
-      PositionDeleteWriteBuilder<C, D> forPositionDelete(
+  static <W extends WriteBuilder<W, PositionDelete<D>>, D>
+      PositionDeleteWriteBuilder<D> forPositionDelete(
           WriteBuilder<W, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
-    return (PositionDeleteWriteBuilder<C, D>)
-        new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
+    return new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
   private ContentFileWriteBuilderImpl(
@@ -168,8 +161,8 @@ abstract class ContentFileWriteBuilderImpl<
   }
 
   private static class DataFileWriteBuilder<W extends WriteBuilder<W, D>, D>
-      extends ContentFileWriteBuilderImpl<DataFileWriteBuilder<W, D>, W, D>
-      implements DataWriteBuilder<DataFileWriteBuilder<W, D>, D> {
+      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D>, W, D>
+      implements DataWriteBuilder<D> {
     private DataFileWriteBuilder(
         WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
@@ -199,8 +192,8 @@ abstract class ContentFileWriteBuilderImpl<
   }
 
   private static class EqualityDeleteFileWriteBuilder<W extends WriteBuilder<W, D>, D>
-      extends ContentFileWriteBuilderImpl<EqualityDeleteFileWriteBuilder<W, D>, W, D>
-      implements EqualityDeleteWriteBuilder<EqualityDeleteFileWriteBuilder<W, D>, D> {
+      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D>, W, D>
+      implements EqualityDeleteWriteBuilder<D> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
 
@@ -260,9 +253,8 @@ abstract class ContentFileWriteBuilderImpl<
 
   private static class PositionDeleteFileWriteBuilder<
           W extends WriteBuilder<W, PositionDelete<D>>, D>
-      extends ContentFileWriteBuilderImpl<
-          PositionDeleteFileWriteBuilder<W, D>, W, PositionDelete<D>>
-      implements PositionDeleteWriteBuilder<PositionDeleteFileWriteBuilder<W, D>, D> {
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D>, W, PositionDelete<D>>
+      implements PositionDeleteWriteBuilder<D> {
     private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(

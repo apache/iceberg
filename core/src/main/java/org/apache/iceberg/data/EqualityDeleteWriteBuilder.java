@@ -35,21 +35,20 @@ import org.apache.iceberg.util.ArrayUtil;
  * through {@link #equalityFieldIds(List)} or {@link #equalityFieldIds(int...)}, along with schema
  * configuration for the delete records.
  *
- * @param <B> the concrete builder type for method chaining
  * @param <D> the type of data records the writer will accept
  */
-public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder<B, D>, D>
-    extends ContentFileWriteBuilder<B> {
+public interface EqualityDeleteWriteBuilder<D>
+    extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D>> {
   /** Sets the row schema for the delete writers. */
-  B rowSchema(Schema rowSchema);
+  EqualityDeleteWriteBuilder<D> rowSchema(Schema rowSchema);
 
   /** Sets the equality field ids for the equality delete writer. */
-  default B equalityFieldIds(List<Integer> fieldIds) {
+  default EqualityDeleteWriteBuilder<D> equalityFieldIds(List<Integer> fieldIds) {
     return equalityFieldIds(ArrayUtil.toIntArray(fieldIds));
   }
 
   /** Sets the equality field ids for the equality delete writer. */
-  B equalityFieldIds(int... fieldIds);
+  EqualityDeleteWriteBuilder<D> equalityFieldIds(int... fieldIds);
 
   /**
    * Creates an equality-based delete file writer configured with the current builder settings.

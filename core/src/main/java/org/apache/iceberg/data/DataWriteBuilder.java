@@ -31,11 +31,9 @@ import org.apache.iceberg.io.DataWriter;
  * containing actual data records stored in an Iceberg table, configured according to the table's
  * schema and partition specification.
  *
- * @param <B> the concrete builder type for method chaining
  * @param <D> the type of data records the writer will accept
  */
-public interface DataWriteBuilder<B extends DataWriteBuilder<B, D>, D>
-    extends ContentFileWriteBuilder<B> {
+public interface DataWriteBuilder<D> extends ContentFileWriteBuilder<DataWriteBuilder<D>> {
   /**
    * Creates a data file writer configured with the current builder settings.
    *

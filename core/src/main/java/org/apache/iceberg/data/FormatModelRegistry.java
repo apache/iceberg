@@ -172,7 +172,7 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <D> DataWriteBuilder<?, D> dataWriteBuilder(
+  public static <D> DataWriteBuilder<D> dataWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
     WriteBuilder<?, D> writeBuilder = factory.dataBuilder(outputFile.encryptingOutputFile());
@@ -194,7 +194,7 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <D> EqualityDeleteWriteBuilder<?, D> equalityDeleteWriteBuilder(
+  public static <D> EqualityDeleteWriteBuilder<D> equalityDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
     WriteBuilder<?, D> writeBuilder =
@@ -218,7 +218,7 @@ public final class FormatModelRegistry {
    *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <D> PositionDeleteWriteBuilder<?, D> positionDeleteWriteBuilder(
+  public static <D> PositionDeleteWriteBuilder<D> positionDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
     WriteBuilder<?, PositionDelete<D>> writeBuilder =
