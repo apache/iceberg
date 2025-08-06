@@ -1377,12 +1377,13 @@ public class TestRewriteTablePathsAction extends TestBase {
     return pathBuilder.toString();
   }
 
-  protected void addAnyPositionDelete(Table table, String path) throws Exception {
+  protected void addAnyPositionDelete(Table targetTable, String path) throws Exception {
     DataFile dataFile =
-        StreamSupport.stream(table.snapshots().spliterator(), false)
+        StreamSupport.stream(targetTable.snapshots().spliterator(), false)
             .flatMap(
                 snapshot ->
-                    StreamSupport.stream(snapshot.addedDataFiles(table.io()).spliterator(), false))
+                    StreamSupport.stream(
+                        snapshot.addedDataFiles(targetTable.io()).spliterator(), false))
             .findAny()
             .get();
 
@@ -1391,10 +1392,10 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+                targetTable, targetTable.io().newOutputFile(file.toURI().toString()), deletes)
             .first();
 
-    table.newRowDelta().addDeletes(positionDeletes).commit();
+    targetTable.newRowDelta().addDeletes(positionDeletes).commit();
   }
 
   protected void checkFileNum(
