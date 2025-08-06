@@ -21,6 +21,20 @@ nav:
     - Spark: spark-quickstart.md
     - Hive: hive-quickstart.md
   - Docs:
+    - introduction.md
+    - Concepts:
+      - Tables:
+        - concepts/branching.md
+        - concepts/configuration.md
+        - concepts/evolution.md
+        - concepts/maintenance.md
+        - concepts/metrics-reporting.md
+        - concepts/partitioning.md
+        - concepts/performance.md
+        - concepts/reliability.md
+        - concepts/schemas.md
+      - Views:
+        - concepts/view-configuration.md
     - Java:
       - Nightly: '!include docs/docs/nightly/mkdocs.yml'
       - Latest (1.9.2): '!include docs/docs/latest/mkdocs.yml'
