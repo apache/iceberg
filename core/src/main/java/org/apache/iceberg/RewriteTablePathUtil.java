@@ -87,24 +87,6 @@ public class RewriteTablePathUtil {
     }
   }
 
-  public static class RewrittenFileInfo implements Serializable {
-    private final String newPath;
-    private final long newSize;
-
-    public RewrittenFileInfo(String newPath, long newSize) {
-      this.newPath = newPath;
-      this.newSize = newSize;
-    }
-
-    public String getNewPath() {
-      return newPath;
-    }
-
-    public long getNewSize() {
-      return newSize;
-    }
-  }
-
   /**
    * Create a new table metadata object, replacing path references
    *
@@ -300,14 +282,20 @@ public class RewriteTablePathUtil {
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
-   * @param rewrittenManifests information about rewritten manifest files
+   * @param rewrittenManifestLengths rewritten manifest files and their sizes
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
    */
   public static void rewriteManifestList(
       Snapshot snapshot,
       FileIO io,
       TableMetadata tableMetadata,
-      Map<String, RewrittenFileInfo> rewrittenManifests,
+      Map<String, Long> rewrittenManifestLengths,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingDir,
       String outputPath) {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -315,7 +303,7 @@ public class RewriteTablePathUtil {
     manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
-                rewrittenManifests.containsKey(mf.path()),
+                rewrittenManifestLengths.containsKey(mf.path()),
                 "Encountered manifest file %s that was not rewritten",
                 mf.path()));
 
@@ -329,13 +317,9 @@ public class RewriteTablePathUtil {
             snapshot.firstRowId())) {
 
       for (ManifestFile file : manifestFiles) {
-        String rewrittenPath = rewrittenManifests.get(file.path()).getNewPath();
-        long rewrittenSize = rewrittenManifests.get(file.path()).getNewSize();
-
         ManifestFile newFile = file.copy();
-        ((StructLike) newFile).set(0, rewrittenPath);
-        ((StructLike) newFile).set(1, rewrittenSize);
-
+        ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        ((StructLike) newFile).set(1, rewrittenManifestLengths.get(file.path()));
         writer.add(newFile);
       }
     } catch (IOException e) {
@@ -440,9 +424,9 @@ public class RewriteTablePathUtil {
    * @param specsById map of partition specs by id
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
-   * @return rewritten manifest file and a copy plan for the referenced content files
+   * @return size of the resulting manifest file and a copy plan for the referenced content files
    */
-  public static Pair<ManifestFile, RewriteResult<DataFile>> rewriteDataManifestWithResult(
+  public static Pair<Long, RewriteResult<DataFile>> rewriteDataManifestWithResult(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
       OutputFile outputFile,
@@ -468,7 +452,7 @@ public class RewriteTablePathUtil {
                           entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
               .reduce(new RewriteResult<>(), RewriteResult::append);
     }
-    return Pair.of(writer.toManifestFile(), rewriteResult);
+    return Pair.of(writer.length(), rewriteResult);
   }
 
   /**
@@ -575,9 +559,9 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
-   * @return rewritten manifest file and a copy plan for the referenced content files
+   * @return size of the resulting manifest file and a copy plan for the referenced content files
    */
-  public static Pair<ManifestFile, RewriteResult<DeleteFile>> rewriteDeleteManifestWithResult(
+  public static Pair<Long, RewriteResult<DeleteFile>> rewriteDeleteManifestWithResult(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
       OutputFile outputFile,
@@ -611,8 +595,7 @@ public class RewriteTablePathUtil {
                           writer))
               .reduce(new RewriteResult<>(), RewriteResult::append);
     }
-
-    return Pair.of(writer.toManifestFile(), rewriteResult);
+    return Pair.of(writer.length(), rewriteResult);
   }
 
   private static RewriteResult<DataFile> writeDataFileEntry(
