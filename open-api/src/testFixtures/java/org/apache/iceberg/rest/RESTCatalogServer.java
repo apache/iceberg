@@ -96,7 +96,8 @@ public class RESTCatalogServer {
     }
 
     // Get catalog name from environment or use default
-    String catalogName = PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
+    String catalogName =
+        PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
     LOG.info("Using catalog name: {}", catalogName);
 
     LOG.info("Creating catalog with properties: {}", catalogProperties);
