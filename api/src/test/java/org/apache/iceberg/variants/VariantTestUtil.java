@@ -107,6 +107,10 @@ public class VariantTestUtil {
     return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
   }
 
+  public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
+    return VariantValue.from(metadata, value);
+  }
+
   /** A hacky absolute put for ByteBuffer */
   private static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
     int originalPosition = buffer.position();
@@ -119,7 +123,7 @@ public class VariantTestUtil {
   }
 
   /** Creates a random string primitive of the given length for forcing large offset sizes */
-  static SerializedPrimitive createString(String string) {
+  public static VariantPrimitive<?> createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
@@ -138,6 +142,15 @@ public class VariantTestUtil {
     buffer.put(0, VariantUtil.shortStringHeader(utf8.length));
     writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
     return SerializedShortString.from(buffer, buffer.get(0));
+  }
+
+  public static VariantPrimitive<?> createSerializedPrimitive(int primitiveType, byte[] bytes) {
+    byte[] header = new byte[1];
+    header[0] = primitiveHeader(primitiveType);
+    byte[] primitives = new byte[bytes.length + header.length];
+    System.arraycopy(header, 0, primitives, 0, header.length);
+    System.arraycopy(bytes, 0, primitives, header.length, bytes.length);
+    return SerializedPrimitive.from(primitives);
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {

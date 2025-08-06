@@ -160,7 +160,7 @@ public class TestSerializedArray {
       })
   public void testMultiByteOffsets(int multiByteOffset) {
     String randomString = RandomUtil.generateString(multiByteOffset, random);
-    SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
+    VariantPrimitive<?> bigString = VariantTestUtil.createString(randomString);
 
     ByteBuffer buffer = VariantTestUtil.createArray(bigString, A, B, C);
     SerializedArray array = SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
