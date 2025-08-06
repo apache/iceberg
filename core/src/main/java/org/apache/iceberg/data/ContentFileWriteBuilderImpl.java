@@ -20,8 +20,6 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -40,7 +38,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.ArrayUtil;
 
 /**
  * An internal implementation that handles all {@link ContentFileWriteBuilder} interface variants.
@@ -63,7 +60,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
-class ContentFileWriteBuilderImpl<
+abstract class ContentFileWriteBuilderImpl<
         C extends ContentFileWriteBuilder<C>, W extends WriteBuilder<W, D>, D>
     implements ContentFileWriteBuilder<C> {
   private final WriteBuilder<W, D> writeBuilder;
@@ -105,89 +102,82 @@ class ContentFileWriteBuilderImpl<
   }
 
   @Override
-  public C fileSchema(Schema fileSchema) {
-    writeBuilder.fileSchema(fileSchema);
-    return (C) this;
+  public C schema(Schema fileSchema) {
+    writeBuilder.schema(fileSchema);
+    return self();
   }
 
   @Override
   public C set(String property, String value) {
     writeBuilder.set(property, value);
-    return (C) this;
-  }
-
-  @Override
-  public C set(Map<String, String> properties) {
-    properties.forEach(writeBuilder::set);
-    return (C) this;
+    return self();
   }
 
   @Override
   public C meta(String property, String value) {
     writeBuilder.meta(property, value);
-    return (C) this;
-  }
-
-  @Override
-  public C meta(Map<String, String> properties) {
-    properties.forEach(writeBuilder::meta);
-    return (C) this;
+    return self();
   }
 
   @Override
   public C metricsConfig(MetricsConfig metricsConfig) {
     writeBuilder.metricsConfig(metricsConfig);
-    return (C) this;
+    return self();
   }
 
   @Override
   public C overwrite() {
     writeBuilder.overwrite();
-    return (C) this;
+    return self();
   }
 
   @Override
   public C fileEncryptionKey(ByteBuffer encryptionKey) {
     writeBuilder.fileEncryptionKey(encryptionKey);
-    return (C) this;
+    return self();
   }
 
   @Override
   public C fileAADPrefix(ByteBuffer aadPrefix) {
     writeBuilder.fileAADPrefix(aadPrefix);
-    return (C) this;
+    return self();
   }
 
   @Override
   public C spec(PartitionSpec newSpec) {
     this.spec = newSpec;
-    return (C) this;
+    return self();
   }
 
   @Override
   public C partition(StructLike newPartition) {
     this.partition = newPartition;
-    return (C) this;
+    return self();
   }
 
   @Override
   public C keyMetadata(EncryptionKeyMetadata newKeyMetadata) {
     this.keyMetadata = newKeyMetadata;
-    return (C) this;
+    return self();
   }
 
   @Override
   public C sortOrder(SortOrder newSortOrder) {
     this.sortOrder = newSortOrder;
-    return (C) this;
+    return self();
   }
 
-  private static class DataFileWriteBuilder<
-          C extends DataFileWriteBuilder<C, W, D>, W extends WriteBuilder<W, D>, D>
-      extends ContentFileWriteBuilderImpl<C, W, D> implements DataWriteBuilder<C, D> {
+  private static class DataFileWriteBuilder<W extends WriteBuilder<W, D>, D>
+      extends ContentFileWriteBuilderImpl<DataFileWriteBuilder<W, D>, W, D>
+      implements DataWriteBuilder<DataFileWriteBuilder<W, D>, D> {
     private DataFileWriteBuilder(
         WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
+    }
+
+    @Override
+    public DataFileWriteBuilder<W, D> self() {
+      return this;
     }
 
     @Override
@@ -208,33 +198,32 @@ class ContentFileWriteBuilderImpl<
     }
   }
 
-  private static class EqualityDeleteFileWriteBuilder<
-          C extends EqualityDeleteFileWriteBuilder<C, B, D>, B extends WriteBuilder<B, D>, D>
-      extends ContentFileWriteBuilderImpl<C, B, D> implements EqualityDeleteWriteBuilder<C, D> {
+  private static class EqualityDeleteFileWriteBuilder<W extends WriteBuilder<W, D>, D>
+      extends ContentFileWriteBuilderImpl<EqualityDeleteFileWriteBuilder<W, D>, W, D>
+      implements EqualityDeleteWriteBuilder<EqualityDeleteFileWriteBuilder<W, D>, D> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
-        WriteBuilder<B, D> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public C rowSchema(Schema schema) {
+    public EqualityDeleteFileWriteBuilder<W, D> rowSchema(Schema schema) {
       this.rowSchema = schema;
-      return (C) this;
+      return this;
     }
 
     @Override
-    public C equalityFieldIds(List<Integer> fieldIds) {
-      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
-      return (C) this;
-    }
-
-    @Override
-    public C equalityFieldIds(int... fieldIds) {
+    public EqualityDeleteFileWriteBuilder<W, D> equalityFieldIds(int... fieldIds) {
       this.equalityFieldIds = fieldIds;
-      return (C) this;
+      return this;
+    }
+
+    @Override
+    public EqualityDeleteFileWriteBuilder<W, D> self() {
+      return this;
     }
 
     @Override
@@ -251,7 +240,7 @@ class ContentFileWriteBuilderImpl<
 
       return new EqualityDeleteWriter<>(
           super.writeBuilder
-              .fileSchema(rowSchema)
+              .schema(rowSchema)
               .meta("delete-type", "equality")
               .meta(
                   "delete-field-ids",
@@ -270,22 +259,26 @@ class ContentFileWriteBuilderImpl<
   }
 
   private static class PositionDeleteFileWriteBuilder<
-          C extends PositionDeleteFileWriteBuilder<C, B, D>,
-          B extends WriteBuilder<B, PositionDelete<D>>,
-          D>
-      extends ContentFileWriteBuilderImpl<C, B, PositionDelete<D>>
-      implements PositionDeleteWriteBuilder<C, D> {
+          W extends WriteBuilder<W, PositionDelete<D>>, D>
+      extends ContentFileWriteBuilderImpl<
+          PositionDeleteFileWriteBuilder<W, D>, W, PositionDelete<D>>
+      implements PositionDeleteWriteBuilder<PositionDeleteFileWriteBuilder<W, D>, D> {
     private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<B, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<W, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public C rowSchema(Schema schema) {
+    public PositionDeleteFileWriteBuilder<W, D> rowSchema(Schema schema) {
       this.rowSchema = schema;
-      return (C) this;
+      return this;
+    }
+
+    @Override
+    public PositionDeleteFileWriteBuilder<W, D> self() {
+      return this;
     }
 
     @Override
@@ -300,7 +293,7 @@ class ContentFileWriteBuilderImpl<
           (FileAppender)
               super.writeBuilder
                   .meta("delete-type", "position")
-                  .fileSchema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
+                  .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
                   .build(),
           super.format,
           super.location,

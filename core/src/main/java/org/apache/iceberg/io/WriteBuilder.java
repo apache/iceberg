@@ -39,7 +39,7 @@ import org.apache.iceberg.Schema;
  */
 public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
   /** Set the file schema. */
-  B fileSchema(Schema fileSchema);
+  B schema(Schema schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.

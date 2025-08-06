@@ -38,9 +38,6 @@ import org.apache.iceberg.mapping.NameMapping;
  * @param <D> the output data type produced by the reader
  */
 public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
-  /** The configuration key for the batch size in the case of vectorized reads. */
-  String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
-
   /**
    * Restricts the read to the given range: [start, start + length).
    *
@@ -83,18 +80,21 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
   @SuppressWarnings("unchecked")
   default B set(Map<String, String> properties) {
     properties.forEach(this::set);
-    return (B) this;
+    return self();
   }
 
   /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
   B reuseContainers();
 
+  /** Sets the batch size for vectorized readers. */
+  B recordsPerBatch(int numRowsPerBatch);
+
   /**
-   * Accessors for constant field values. Used for calculating values in the result which are coming
-   * from metadata and not coming from the data files themselves. The keys of the map are the column
-   * ids, the values are the accessors generating the values.
+   * Contains the values in the result objects which are coming from metadata and not coming from
+   * the data files themselves. The keys of the map are the column ids, the values are the constant
+   * values to be used in the result.
    */
-  B constantFieldAccessors(Map<Integer, ?> constantFieldAccessors);
+  B constantValues(Map<Integer, ?> constantValues);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   B nameMapping(NameMapping nameMapping);
@@ -113,4 +113,6 @@ public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
 
   /** Builds the reader. */
   CloseableIterable<D> build();
+
+  B self();
 }

@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.util.ArrayUtil;
 
 /**
  * A specialized builder for creating equality-based delete file writers.
@@ -43,7 +44,9 @@ public interface EqualityDeleteWriteBuilder<B extends EqualityDeleteWriteBuilder
   B rowSchema(Schema rowSchema);
 
   /** Sets the equality field ids for the equality delete writer. */
-  B equalityFieldIds(List<Integer> fieldIds);
+  default B equalityFieldIds(List<Integer> fieldIds) {
+    return equalityFieldIds(ArrayUtil.toIntArray(fieldIds));
+  }
 
   /** Sets the equality field ids for the equality delete writer. */
   B equalityFieldIds(int... fieldIds);

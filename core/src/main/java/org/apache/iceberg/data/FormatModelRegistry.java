@@ -35,6 +35,7 @@ import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.io.WriteBuilder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -70,6 +71,8 @@ public final class FormatModelRegistry {
   private static final Map<Pair<FileFormat, String>, FormatModel<?>> FORMAT_MODELS =
       Maps.newConcurrentMap();
 
+  private FormatModelRegistry() {}
+
   /**
    * Registers an {@link FormatModel} in this registry.
    *
@@ -86,15 +89,15 @@ public final class FormatModelRegistry {
    * @throws IllegalArgumentException if a factory is already registered for the combination of
    *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
    */
-  @SuppressWarnings("CatchBlockLogException")
   public static void register(FormatModel<?> formatModel) {
     Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
-    if (FORMAT_MODELS.containsKey(key)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Object model factory %s clashes with %s. Both serve %s",
-              formatModel.getClass(), FORMAT_MODELS.get(key), key));
-    }
+    Preconditions.checkArgument(
+        !FORMAT_MODELS.containsKey(key),
+        "Cannot register %s: %s is registered for format=%s model=%s",
+        formatModel.getClass(),
+        FORMAT_MODELS.get(key).getClass(),
+        key.first(),
+        key.second());
 
     FORMAT_MODELS.put(key, formatModel);
   }
@@ -107,7 +110,7 @@ public final class FormatModelRegistry {
         DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
       } catch (NoSuchMethodException e) {
         // failing to register a factory is normal and does not require a stack trace
-        LOG.info("Unable to register {} for data files: {}", classToRegister, e.getMessage());
+        LOG.info("Unable to register {}: {}", classToRegister, e.getMessage());
       }
     }
   }
@@ -115,8 +118,6 @@ public final class FormatModelRegistry {
   static {
     registerSupportedFormats();
   }
-
-  private FormatModelRegistry() {}
 
   /**
    * Returns a reader builder for the specified file format and object model.
@@ -174,8 +175,7 @@ public final class FormatModelRegistry {
   public static <D> DataWriteBuilder<?, D> dataWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, D> writeBuilder =
-        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<?, D> writeBuilder = factory.dataBuilder(outputFile.encryptingOutputFile());
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
