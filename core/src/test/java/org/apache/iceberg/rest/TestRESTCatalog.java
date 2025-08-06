@@ -41,8 +41,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTransaction;
@@ -2696,6 +2699,115 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // simulate a legacy server that doesn't send back supported endpoints, thus the
     // client relies on the default endpoints
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
+  }
+
+  @Test
+  public void testFreshnessAwareTableLoading() throws IOException {
+    try (RESTCatalog catalog = setupFreshnessAwareCatalog(ImmutableMap.of())) {
+      if (requiresNamespaceCreate()) {
+        catalog.createNamespace(TABLE.namespace());
+      }
+
+      Schema expectedSchema =
+          new Schema(
+              required(1, "id", Types.IntegerType.get(), "unique ID"),
+              required(2, "data", Types.StringType.get()));
+
+      Table table = catalog.createTable(TABLE, expectedSchema);
+      Table load1 = catalog.loadTable(TABLE);
+      Table load2 = catalog.loadTable(TABLE);
+      Table load3 = catalog.loadTable(TABLE);
+      // These objects are equal by reference since they're served from cache
+      assertThat(table).isEqualTo(load1);
+      assertThat(load1).isEqualTo(load2);
+      assertThat(load2).isEqualTo(load3);
+      assertThat(load3.schema().asStruct())
+          .as("Schema should match")
+          .isEqualTo(expectedSchema.asStruct());
+
+      table
+          .newFastAppend()
+          .appendFile(
+              DataFiles.builder(PartitionSpec.unpartitioned())
+                  .withPath("/path/to/data-a.parquet")
+                  .withFileSizeInBytes(10)
+                  .withRecordCount(2)
+                  .build())
+          .commit();
+
+      Table updatedTable = catalog.loadTable(TABLE);
+      assertThat(updatedTable.snapshots()).containsExactlyInAnyOrderElementsOf(table.snapshots());
+
+      Table load4 = catalog.loadTable(TABLE);
+      Table load5 = catalog.loadTable(TABLE);
+      assertThat(updatedTable).isEqualTo(load4);
+      assertThat(load4).isEqualTo(load5);
+    }
+  }
+
+  @Test
+  public void testFreshnessAwareTableLoadingWithRefs() throws IOException {
+    try (RESTCatalog catalog =
+        setupFreshnessAwareCatalog(ImmutableMap.of("snapshot-loading-mode", "refs"))) {
+      if (requiresNamespaceCreate()) {
+        catalog.createNamespace(TABLE.namespace());
+      }
+      Table table = catalog.createTable(TABLE, SCHEMA);
+      Table load1 = catalog.loadTable(TABLE);
+      // Assert no caching when `refs` mode is enabled
+      assertThat(table).isNotEqualTo(load1);
+    }
+  }
+
+  private RESTCatalog setupFreshnessAwareCatalog(Map<String, String> catalogProperties) {
+    String createTablePath = String.format("v1/namespaces/%s/tables", TABLE.namespace().toString());
+    String tablePath = String.format(createTablePath + "/%s", TABLE.name());
+    AtomicInteger updateCount = new AtomicInteger(0);
+    AtomicReference<String> currentEtagValue = new AtomicReference<>();
+    ErrorResponse notModifiedErrorResponse = ErrorResponse.builder().responseCode(304).build();
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (createTablePath.equals(request.path()) && request.method() == HTTPMethod.POST) {
+              currentEtagValue.set("testEtag0");
+              responseHeaders.accept(
+                  Map.of(RESTTableOperations.ETAG_HEADER, currentEtagValue.get()));
+            } else if (tablePath.equals(request.path())) {
+              if (request.method() == HTTPMethod.GET) {
+                Set<HTTPHeaders.HTTPHeader> freshnessHeaders =
+                    request.headers().entries(RESTTableOperations.IF_NONE_MATCH_HEADER);
+                if (!freshnessHeaders.isEmpty()) {
+                  HTTPHeaders.HTTPHeader ifNoneMatchHeader =
+                      request
+                          .headers()
+                          .entries(RESTTableOperations.IF_NONE_MATCH_HEADER)
+                          .iterator()
+                          .next();
+                  if (ifNoneMatchHeader.value().equals(currentEtagValue.get())) {
+                    errorHandler.accept(notModifiedErrorResponse);
+                  }
+                }
+              } else if (request.method() == HTTPMethod.POST) {
+                currentEtagValue.set("testEtag" + updateCount.incrementAndGet());
+              }
+              responseHeaders.accept(
+                  Map.of(RESTTableOperations.ETAG_HEADER, currentEtagValue.get()));
+            }
+            Object body = roundTripSerialize(request.body(), "request");
+            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+            T response = super.execute(req, responseType, errorHandler, responseHeaders);
+            return roundTripSerialize(response, "response");
+          }
+        };
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", catalogProperties);
+    return catalog;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
