@@ -28,6 +28,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -51,8 +53,8 @@ import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -73,7 +75,6 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
-  private volatile boolean terminated;
 
   Coordinator(
       Catalog catalog,
@@ -91,7 +92,17 @@ class Coordinator extends Channel {
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
-    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
+    this.exec =
+        new ThreadPoolExecutor(
+            config.commitThreads(),
+            config.commitThreads(),
+            config.keepAliveTimeoutInMs(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            new ThreadFactoryBuilder()
+                .setDaemon(true)
+                .setNameFormat("iceberg-committer" + "-%d")
+                .build());
     this.commitState = new CommitState(config);
   }
 
@@ -221,10 +232,6 @@ class Coordinator extends Channel {
             .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
-    if (terminated) {
-      throw new ConnectException("Coordinator is terminated, commit aborted");
-    }
-
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
@@ -304,10 +311,7 @@ class Coordinator extends Channel {
   }
 
   void terminate() {
-    this.terminated = true;
-
     exec.shutdownNow();
-
     // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
@@ -316,5 +320,11 @@ class Coordinator extends Channel {
     } catch (InterruptedException e) {
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
+  }
+
+  @Override
+  public void stop() {
+    terminate();
+    super.stop();
   }
 }

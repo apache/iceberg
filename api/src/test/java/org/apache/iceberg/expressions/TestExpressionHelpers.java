@@ -47,7 +47,9 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -56,6 +58,56 @@ import org.junit.jupiter.api.Test;
 
 public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);
+
+  @Test
+  public void testMillisLiteral() {
+    long now = System.currentTimeMillis();
+    Literal<Long> millis = Expressions.millis(now);
+    assertThat(millis.value()).isEqualTo(now * 1000L);
+    assertThat(millis.to(Types.TimestampNanoType.withZone()).value()).isEqualTo(now * 1_000_000L);
+  }
+
+  @Test
+  public void testMicrosLiteal() {
+    long ts = 1510842668000000L;
+    Literal<Long> micros = Expressions.micros(ts);
+    assertThat(micros.value()).isEqualTo(ts);
+    assertThat(micros.to(Types.TimestampNanoType.withZone()).value()).isEqualTo(ts * 1000L);
+  }
+
+  @Test
+  public void testNanosLiteral() {
+    long ts = 1510842668000000001L;
+    Literal<Long> nanos = Expressions.nanos(ts);
+    assertThat(nanos.value()).isEqualTo(ts);
+    assertThat(nanos.to(Types.TimestampType.withoutZone()).value()).isEqualTo(1510842668000000L);
+  }
+
+  @Test
+  public void testMixedTimestampLiterals() {
+    long now = System.currentTimeMillis();
+    Schema schema = new Schema(NestedField.required(1, "ts", Types.TimestampType.withoutZone()));
+
+    // all 3 timestamp values represent the same time and will be deduplicated
+    Expression expr =
+        Expressions.in(
+            "ts",
+            List.of(
+                Expressions.millis(now),
+                Expressions.micros(now * 1000),
+                Expressions.nanos(now * 1_000_000)));
+
+    Expression bound = Binder.bind(schema.asStruct(), expr);
+
+    // duplicates are replaced with a single value and in is converted to equals
+    assertThat(bound).isInstanceOf(BoundPredicate.class);
+    BoundPredicate<?> predicate = (BoundPredicate<?>) bound;
+    assertThat(predicate.isLiteralPredicate()).isTrue();
+    assertThat(predicate.asLiteralPredicate().op()).isEqualTo(Expression.Operation.EQ);
+    assertThat(predicate.asLiteralPredicate().ref().type())
+        .isEqualTo(Types.TimestampType.withoutZone());
+    assertThat(predicate.asLiteralPredicate().literal().value()).isEqualTo(now * 1000);
+  }
 
   @Test
   public void testSimplifyOr() {

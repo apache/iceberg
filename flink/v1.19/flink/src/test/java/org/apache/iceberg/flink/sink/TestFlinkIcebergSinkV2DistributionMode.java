@@ -53,7 +53,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -484,7 +483,6 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
 
   /** Test migration from Map stats to Sketch stats */
   @TestTemplate
-  @Disabled("issue-11815: flaky test")
   public void testRangeDistributionStatisticsMigration() throws Exception {
     table
         .updateProperties()
@@ -492,13 +490,13 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         .commit();
     table.replaceSortOrder().asc("id").commit();
 
-    int numOfCheckpoints = 4;
+    int numOfCheckpoints = 6;
     List<List<Row>> rowsPerCheckpoint = Lists.newArrayListWithCapacity(numOfCheckpoints);
     for (int checkpointId = 0; checkpointId < numOfCheckpoints; ++checkpointId) {
       // checkpointId 2 would emit 11_000 records which is larger than
       // the OPERATOR_SKETCH_SWITCH_THRESHOLD of 10_000.
       // This should trigger the stats migration.
-      int maxId = checkpointId < 1 ? 1_000 : 11_000;
+      int maxId = checkpointId < 2 ? 1_000 : 11_000;
       List<Row> rows = Lists.newArrayListWithCapacity(maxId);
       for (int j = 0; j < maxId; ++j) {
         // fixed value "a" for the data (possible partition column)

@@ -1127,6 +1127,93 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
+  public void testNestedDirectoryStructurePreservation() throws Exception {
+    String sourceTableLocation = newTableLocation();
+    Table sourceTable = createTableWithSnapshots(sourceTableLocation, 1);
+
+    // Create position delete files with same names in different nested directories
+    // This simulates the scenario tested in
+    // TestRewriteTablePathUtil.testStagingPathPreservesDirectoryStructure
+    List<Pair<CharSequence, Long>> deletes1 =
+        Lists.newArrayList(
+            Pair.of(
+                sourceTable
+                    .currentSnapshot()
+                    .addedDataFiles(sourceTable.io())
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    List<Pair<CharSequence, Long>> deletes2 =
+        Lists.newArrayList(
+            Pair.of(
+                sourceTable
+                    .currentSnapshot()
+                    .addedDataFiles(sourceTable.io())
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    // Create delete files with same name in different nested paths (hash1/ and hash2/)
+    File file1 =
+        new File(removePrefix(sourceTable.location() + "/data/hash1/delete_0_0_0.parquet"));
+    File file2 =
+        new File(removePrefix(sourceTable.location() + "/data/hash2/delete_0_0_0.parquet"));
+
+    DeleteFile positionDeletes1 =
+        FileHelpers.writeDeleteFile(
+                sourceTable, sourceTable.io().newOutputFile(file1.toURI().toString()), deletes1)
+            .first();
+
+    DeleteFile positionDeletes2 =
+        FileHelpers.writeDeleteFile(
+                sourceTable, sourceTable.io().newOutputFile(file2.toURI().toString()), deletes2)
+            .first();
+
+    sourceTable.newRowDelta().addDeletes(positionDeletes1).commit();
+    sourceTable.newRowDelta().addDeletes(positionDeletes2).commit();
+
+    // Perform rewrite with staging location to test directory structure preservation
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+
+    // Copy the files and verify structure is preserved
+    copyTableFiles(result);
+
+    // Read the file paths from the rewritten result to verify directory structure
+    List<Tuple2<String, String>> filePaths = readPathPairList(result.fileListLocation());
+
+    // Find the delete files in the result
+    List<Tuple2<String, String>> deleteFilePaths =
+        filePaths.stream()
+            .filter(pair -> pair._2().contains("delete_0_0_0.parquet"))
+            .collect(Collectors.toList());
+
+    // Should have 2 delete files with different paths
+    assertThat(deleteFilePaths).hasSize(2);
+
+    // Verify that the directory structure is preserved in target paths
+    assertThat(deleteFilePaths)
+        .anyMatch(pair -> pair._2().contains("/hash1/delete_0_0_0.parquet"))
+        .anyMatch(pair -> pair._2().contains("/hash2/delete_0_0_0.parquet"));
+
+    // Verify that the files have different target paths (no conflicts)
+    String targetPath1 = deleteFilePaths.get(0)._2();
+    String targetPath2 = deleteFilePaths.get(1)._2();
+    assertThat(targetPath1).isNotEqualTo(targetPath2);
+
+    // Verify both target paths start with the target table location
+    assertThat(targetPath1).startsWith(targetTableLocation());
+    assertThat(targetPath2).startsWith(targetTableLocation());
+  }
+
+  @Test
   public void testFullRewriteUpdatesAllManifestLengthsInManifestList(
       @TempDir Path rootTargetLocation) throws Exception {
     String location = newTableLocation();
