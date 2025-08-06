@@ -19,18 +19,22 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.io.IOException;
+import org.apache.comet.CometConf;
 import org.apache.comet.CometSchemaImporter;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
+import org.apache.comet.parquet.ParquetColumnSpec;
+import org.apache.comet.parquet.RowGroupReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
 import org.apache.comet.shaded.arrow.memory.RootAllocator;
+import org.apache.iceberg.parquet.CometTypeUtils;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.PageReader;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -42,23 +46,28 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
 
   private final ColumnDescriptor descriptor;
   private final DataType sparkType;
+  private final int fieldId;
 
   // The delegated ColumnReader from Comet side
   private AbstractColumnReader delegate;
   private boolean initialized = false;
   private int batchSize = DEFAULT_BATCH_SIZE;
   private CometSchemaImporter importer;
+  private ParquetColumnSpec spec;
 
-  CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
+  CometColumnReader(DataType sparkType, ColumnDescriptor descriptor, int fieldId) {
     this.sparkType = sparkType;
     this.descriptor = descriptor;
+    this.fieldId = fieldId;
   }
 
   CometColumnReader(Types.NestedField field) {
     DataType dataType = SparkSchemaUtil.convert(field.type());
     StructField structField = new StructField(field.name(), dataType, false, Metadata.empty());
     this.sparkType = dataType;
-    this.descriptor = TypeUtil.convertToParquet(structField);
+    this.descriptor =
+        CometTypeUtils.buildColumnDescriptor(TypeUtil.convertToParquetSpec(structField));
+    this.fieldId = field.fieldId();
   }
 
   public AbstractColumnReader delegate() {
@@ -92,7 +101,26 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
     }
 
     this.importer = new CometSchemaImporter(new RootAllocator());
-    this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
+
+    spec = CometTypeUtils.descriptorToParquetColumnSpec(descriptor);
+
+    boolean useLegacyTime =
+        Boolean.parseBoolean(
+            SQLConf.get()
+                .getConfString(
+                    CometConf.COMET_EXCEPTION_ON_LEGACY_DATE_TIMESTAMP().key(), "false"));
+    boolean useLazyMaterialization =
+        Boolean.parseBoolean(
+            SQLConf.get().getConfString(CometConf.COMET_USE_LAZY_MATERIALIZATION().key(), "false"));
+    this.delegate =
+        Utils.getColumnReader(
+            sparkType,
+            spec,
+            importer,
+            batchSize,
+            true, // Comet sets this to true for native execution
+            useLazyMaterialization,
+            useLegacyTime);
     this.initialized = true;
   }
 
@@ -111,9 +139,9 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
    * <p>NOTE: this should be called before reading a new Parquet column chunk, and after {@link
    * CometColumnReader#reset} is called.
    */
-  public void setPageReader(PageReader pageReader) throws IOException {
+  public void setPageReader(RowGroupReader pageStore) throws IOException {
     Preconditions.checkState(initialized, "Invalid state: 'reset' should be called first");
-    ((ColumnReader) delegate).setPageReader(pageReader);
+    ((ColumnReader) delegate).setRowGroupReader(pageStore, spec);
   }
 
   @Override
