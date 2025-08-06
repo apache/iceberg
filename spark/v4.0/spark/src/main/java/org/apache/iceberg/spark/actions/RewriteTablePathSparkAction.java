@@ -479,7 +479,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
-  public static class ManifestsRewriteResult {
+  private static class ManifestsRewriteResult {
     private final RewriteContentFileResult contentFileResult;
     private final Map<String, Long> rewrittenManifests;
 
@@ -566,7 +566,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return manifestFile -> {
       switch (manifestFile.content()) {
         case DATA:
-          Pair<Long, RewriteResult<DataFile>> dataFileResult =
+          Pair<Long, RewriteResult<DataFile>> dataManifestResult =
               writeDataManifest(
                   manifestFile,
                   table,
@@ -577,10 +577,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   targetPrefix);
           return Tuple3.apply(
               manifestFile.path(),
-              dataFileResult.first(),
-              new RewriteContentFileResult().appendDataFile(dataFileResult.second()));
+              dataManifestResult.first(),
+              new RewriteContentFileResult().appendDataFile(dataManifestResult.second()));
         case DELETES:
-          Pair<Long, RewriteResult<DeleteFile>> deleteFileResult =
+          Pair<Long, RewriteResult<DeleteFile>> deleteManifestResult =
               writeDeleteManifest(
                   manifestFile,
                   table,
@@ -591,8 +591,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   targetPrefix);
           return Tuple3.apply(
               manifestFile.path(),
-              deleteFileResult.first(),
-              new RewriteContentFileResult().appendDeleteFile(deleteFileResult.second()));
+              deleteManifestResult.first(),
+              new RewriteContentFileResult().appendDeleteFile(deleteManifestResult.second()));
         default:
           throw new UnsupportedOperationException(
               "Unsupported manifest type: " + manifestFile.content());
