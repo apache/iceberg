@@ -29,28 +29,24 @@ import org.apache.comet.parquet.FileReader;
 import org.apache.comet.parquet.ParquetColumnSpec;
 import org.apache.comet.parquet.ReadOptions;
 import org.apache.comet.parquet.RowGroupReader;
+import org.apache.comet.parquet.WrappedInputFile;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
 
 public class CometVectorizedParquetReader<T> extends CloseableGroup
     implements CloseableIterable<T> {
@@ -183,8 +179,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
 
         FileReader fileReader =
             new FileReader(
-                ((HadoopInputFile) file).getPath(),
-                new Configuration(((HadoopInputFile) file).getConf()),
+                new WrappedInputFile(file),
                 cometOptions,
                 properties,
                 start,
@@ -197,62 +192,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         List<ParquetColumnSpec> specs = Lists.newArrayList();
 
         for (ColumnDescriptor descriptor : columnDescriptors) {
-          String[] path = descriptor.getPath();
-          PrimitiveType primitiveType = descriptor.getPrimitiveType();
-          String physicalType = primitiveType.getPrimitiveTypeName().name();
-
-          int typeLength =
-              primitiveType.getPrimitiveTypeName()
-                      == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
-                  ? primitiveType.getTypeLength()
-                  : 0;
-
-          boolean isRepeated = primitiveType.getRepetition() == Type.Repetition.REPEATED;
-
-          // ToDo: extract this into a Util method
-          String logicalTypeName = null;
-          Map<String, String> logicalTypeParams = Maps.newHashMap();
-          LogicalTypeAnnotation logicalType = primitiveType.getLogicalTypeAnnotation();
-
-          if (logicalType != null) {
-            logicalTypeName = logicalType.getClass().getSimpleName();
-
-            // Handle specific logical types
-            if (logicalType instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
-                  (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("precision", String.valueOf(decimal.getPrecision()));
-              logicalTypeParams.put("scale", String.valueOf(decimal.getScale()));
-            } else if (logicalType
-                instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestamp =
-                  (LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(timestamp.isAdjustedToUTC()));
-              logicalTypeParams.put("unit", timestamp.getUnit().name());
-            } else if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.TimeLogicalTypeAnnotation time =
-                  (LogicalTypeAnnotation.TimeLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(time.isAdjustedToUTC()));
-              logicalTypeParams.put("unit", time.getUnit().name());
-            } else if (logicalType instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.IntLogicalTypeAnnotation intType =
-                  (LogicalTypeAnnotation.IntLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isSigned", String.valueOf(intType.isSigned()));
-              logicalTypeParams.put("bitWidth", String.valueOf(intType.getBitWidth()));
-            }
-          }
-
-          ParquetColumnSpec spec =
-              new ParquetColumnSpec(
-                  1, // ToDo: pass in the correct id
-                  path,
-                  physicalType,
-                  typeLength,
-                  isRepeated,
-                  descriptor.getMaxDefinitionLevel(),
-                  descriptor.getMaxRepetitionLevel(),
-                  logicalTypeName,
-                  logicalTypeParams);
+          ParquetColumnSpec spec = CometTypeUtils.descriptorToParquetColumnSpec(descriptor);
           specs.add(spec);
         }
 

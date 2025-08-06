@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.comet.CometConf;
 import org.apache.comet.CometSchemaImporter;
 import org.apache.comet.parquet.AbstractColumnReader;
@@ -29,15 +28,12 @@ import org.apache.comet.parquet.RowGroupReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
 import org.apache.comet.shaded.arrow.memory.RootAllocator;
+import org.apache.iceberg.parquet.CometTypeUtils;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
@@ -69,7 +65,8 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
     DataType dataType = SparkSchemaUtil.convert(field.type());
     StructField structField = new StructField(field.name(), dataType, false, Metadata.empty());
     this.sparkType = dataType;
-    this.descriptor = TypeUtil.convertToParquet(structField);
+    this.descriptor =
+        CometTypeUtils.buildColumnDescriptor(TypeUtil.convertToParquetSpec(structField));
     this.fieldId = field.fieldId();
   }
 
@@ -105,58 +102,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
 
     this.importer = new CometSchemaImporter(new RootAllocator());
 
-    String[] path = descriptor.getPath();
-    PrimitiveType primitiveType = descriptor.getPrimitiveType();
-    String physicalType = primitiveType.getPrimitiveTypeName().name();
-
-    // ToDo: extract this into a Util method
-    String logicalTypeName = null;
-    Map<String, String> logicalTypeParams = Maps.newHashMap();
-    LogicalTypeAnnotation logicalType = primitiveType.getLogicalTypeAnnotation();
-
-    if (logicalType != null) {
-      logicalTypeName = logicalType.getClass().getSimpleName();
-
-      // Handle specific logical types
-      if (logicalType instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
-        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
-            (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) logicalType;
-        logicalTypeParams.put("precision", String.valueOf(decimal.getPrecision()));
-        logicalTypeParams.put("scale", String.valueOf(decimal.getScale()));
-      } else if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestamp =
-            (LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType;
-        logicalTypeParams.put("isAdjustedToUTC", String.valueOf(timestamp.isAdjustedToUTC()));
-        logicalTypeParams.put("unit", timestamp.getUnit().name());
-      } else if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-        LogicalTypeAnnotation.TimeLogicalTypeAnnotation time =
-            (LogicalTypeAnnotation.TimeLogicalTypeAnnotation) logicalType;
-        logicalTypeParams.put("isAdjustedToUTC", String.valueOf(time.isAdjustedToUTC()));
-        logicalTypeParams.put("unit", time.getUnit().name());
-      } else if (logicalType instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation) {
-        LogicalTypeAnnotation.IntLogicalTypeAnnotation intType =
-            (LogicalTypeAnnotation.IntLogicalTypeAnnotation) logicalType;
-        logicalTypeParams.put("isSigned", String.valueOf(intType.isSigned()));
-        logicalTypeParams.put("bitWidth", String.valueOf(intType.getBitWidth()));
-      }
-    }
-
-    int typeLength =
-        primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
-            ? primitiveType.getTypeLength()
-            : 0;
-    boolean isRepeated = primitiveType.getRepetition() == Type.Repetition.REPEATED;
-    spec =
-        new ParquetColumnSpec(
-            fieldId,
-            path,
-            physicalType,
-            typeLength,
-            isRepeated,
-            descriptor.getMaxDefinitionLevel(),
-            descriptor.getMaxRepetitionLevel(),
-            logicalTypeName,
-            logicalTypeParams);
+    spec = CometTypeUtils.descriptorToParquetColumnSpec(descriptor);
 
     boolean useLegacyTime =
         Boolean.parseBoolean(
@@ -165,7 +111,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
                     CometConf.COMET_EXCEPTION_ON_LEGACY_DATE_TIMESTAMP().key(), "false"));
     boolean useLazyMaterialization =
         Boolean.parseBoolean(
-            SQLConf.get().getConfString(CometConf.COMET_USE_LAZY_MATERIALIZATION().key(), "true"));
+            SQLConf.get().getConfString(CometConf.COMET_USE_LAZY_MATERIALIZATION().key(), "false"));
     this.delegate =
         Utils.getColumnReader(
             sparkType,
