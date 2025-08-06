@@ -1,0 +1,532 @@
+# Iceberg REST Catalog Endpoint Analysis
+
+## Endpoints to Analyze
+
+### Namespace Operations
+- [x] **V1_NAMESPACES** - `/v1/{prefix}/namespaces` - List namespaces
+- [x] **V1_NAMESPACE** - `/v1/{prefix}/namespaces/{namespace}` - Namespace operations (GET/HEAD/POST/DELETE)
+- [x] **V1_NAMESPACE_PROPERTIES** - `/v1/{prefix}/namespaces/{namespace}/properties` - Namespace properties operations
+
+### Table Operations
+- [x] **V1_TABLES** - `/v1/{prefix}/namespaces/{namespace}/tables` - List tables
+- [x] **V1_TABLE** - `/v1/{prefix}/namespaces/{namespace}/tables/{table}` - Table operations (GET/HEAD/POST/DELETE)
+- [x] **V1_TABLE_CREDENTIALS** - `/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials` - Table credentials
+- [x] **V1_TABLE_REGISTER** - `/v1/{prefix}/namespaces/{namespace}/register` - Register existing table
+- [x] **V1_TABLE_METRICS** - `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` - Table metrics
+- [x] **V1_TABLE_RENAME** - `/v1/{prefix}/tables/rename` - Rename table
+
+### View Operations
+- [x] **V1_VIEWS** - `/v1/{prefix}/namespaces/{namespace}/views` - List views
+- [x] **V1_VIEW** - `/v1/{prefix}/namespaces/{namespace}/views/{view}` - View operations (GET/HEAD/POST/DELETE)
+- [x] **V1_VIEW_RENAME** - `/v1/{prefix}/views/rename` - Rename view
+
+### Transaction Operations
+- [x] **V1_TRANSACTIONS_COMMIT** - `/v1/{prefix}/transactions/commit` - Commit transaction
+
+### Scan Planning Operations
+- [x] **V1_TABLE_SCAN_PLAN_SUBMIT** - `/v1/{prefix}/tables/{table}/plan` - Submit scan plan
+- [x] **V1_TABLE_SCAN_PLAN** - `/v1/{prefix}/tables/{table}/plan/{plan-id}` - Get scan plan
+- [x] **V1_TABLE_SCAN_PLAN_TASKS** - `/v1/{prefix}/tables/{table}/tasks` - Get scan tasks
+
+### Configuration Operations
+- [x] **config()** - `/v1/config` - Get configuration
+- [x] **tokens()** - `/v1/oauth/tokens` - OAuth tokens
+
+## Analysis Template for Each Endpoint
+
+For each endpoint, analyze:
+1. **HTTP Methods Supported**
+2. **Request/Response Types**
+3. **Database Operations** (queries, updates, deletes)
+4. **File Operations** (reads, writes, deletes)
+5. **JDBC Catalog Implementation Details**
+6. **Error Handling**
+
+## Summary Table
+
+| Endpoint | URL | HTTP Method | Purpose | Database Operations | File Operations |
+|----------|-----|-------------|---------|-------------------|-----------------|
+| **V1_NAMESPACES** | `/v1/{prefix}/namespaces` | GET | List namespaces | 2 SELECT queries (iceberg_tables + iceberg_namespace_properties) | None |
+| **V1_NAMESPACES** | `/v1/{prefix}/namespaces` | POST | Create namespace | 1 INSERT query (iceberg_namespace_properties) | None |
+| **V1_NAMESPACE** | `/v1/{prefix}/namespaces/{namespace}` | HEAD | Check namespace exists | 2 SELECT queries (iceberg_tables + iceberg_namespace_properties) | None |
+| **V1_NAMESPACE** | `/v1/{prefix}/namespaces/{namespace}` | GET | Load namespace metadata | 1 SELECT query (iceberg_namespace_properties) | None |
+| **V1_NAMESPACE** | `/v1/{prefix}/namespaces/{namespace}` | DELETE | Drop namespace | 1 DELETE query (iceberg_namespace_properties) | None |
+| **V1_NAMESPACE_PROPERTIES** | `/v1/{prefix}/namespaces/{namespace}/properties` | POST | Update namespace properties | Multiple INSERT/UPDATE queries (iceberg_namespace_properties) | None |
+| **V1_TABLES** | `/v1/{prefix}/namespaces/{namespace}/tables` | GET | List tables | 1 SELECT query (iceberg_tables) | None |
+| **V1_TABLE** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}` | HEAD | Check table exists | 1 SELECT query (iceberg_tables) | None |
+| **V1_TABLE** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}` | GET | Load table metadata | 1 SELECT query (iceberg_tables) + 1 metadata file read | 1 metadata file (read) |
+| **V1_TABLE** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}` | POST | Update table metadata | 1 SELECT + 1 UPDATE query (iceberg_tables) + metadata file operations | 1 metadata file (read + write) |
+| **V1_TABLE** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}` | DELETE | Drop table | 1 DELETE query (iceberg_tables) | **purge=false:** None (metadata only)<br>**purge=true:** All data files + metadata files deleted |
+| **V1_TABLE_RENAME** | `/v1/{prefix}/tables/rename` | POST | Rename table | 1 UPDATE query (iceberg_tables) | None |
+| **V1_TABLES** | `/v1/{prefix}/namespaces/{namespace}/tables` | POST | Create table | 1 INSERT query (iceberg_tables) + metadata file write | 1 metadata file (write) |
+| **V1_TABLE_REGISTER** | `/v1/{prefix}/namespaces/{namespace}/register` | POST | Register existing table | 1 INSERT query (iceberg_tables) + metadata file read | 1 metadata file (read) |
+| **V1_TABLE_METRICS** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` | POST | Report table metrics | None (no-op) | None |
+| **V1_TABLE_CREDENTIALS** | `/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials` | GET | Get table credentials | None (not implemented) | None |
+| **V1_VIEWS** | `/v1/{prefix}/namespaces/{namespace}/views` | GET | List views | 1 SELECT query (iceberg_tables) | None |
+| **V1_VIEWS** | `/v1/{prefix}/namespaces/{namespace}/views` | POST | Create view | 1 INSERT query (iceberg_tables) + metadata file write | 1 metadata file (write) |
+| **V1_VIEW** | `/v1/{prefix}/namespaces/{namespace}/views/{view}` | HEAD | Check view exists | 1 SELECT query (iceberg_tables) | None |
+| **V1_VIEW** | `/v1/{prefix}/namespaces/{namespace}/views/{view}` | GET | Load view metadata | 1 SELECT query (iceberg_tables) + metadata file read | 1 metadata file (read) |
+| **V1_VIEW** | `/v1/{prefix}/namespaces/{namespace}/views/{view}` | POST | Update view metadata | 1 SELECT + 1 UPDATE query (iceberg_tables) + metadata file operations | 1 metadata file (read + write) |
+| **V1_VIEW** | `/v1/{prefix}/namespaces/{namespace}/views/{view}` | DELETE | Drop view | 1 DELETE query (iceberg_tables) | None |
+| **V1_VIEW_RENAME** | `/v1/{prefix}/views/rename` | POST | Rename view | 1 UPDATE query (iceberg_tables) | None |
+| **V1_TRANSACTIONS_COMMIT** | `/v1/{prefix}/transactions/commit` | POST | Commit transaction | **Phase 1:** Multiple SELECT validation queries<br>**Phase 2:** Multiple INSERT/UPDATE/DELETE queries per table | **Per table:** Read current metadata + Write new metadata + Cleanup old files<br>**Data cleanup:** Expire snapshots + Remove orphan files + Cleanup old metadata |
+| **V1_TABLE_SCAN_PLAN_SUBMIT** | `/v1/{prefix}/tables/{table}/plan` | POST | Submit scan plan | None (not implemented) | None |
+| **V1_TABLE_SCAN_PLAN** | `/v1/{prefix}/tables/{table}/plan/{plan-id}` | GET | Get scan plan | None (not implemented) | None |
+| **V1_TABLE_SCAN_PLAN** | `/v1/{prefix}/tables/{table}/plan/{plan-id}` | DELETE | Delete scan plan | None (not implemented) | None |
+| **V1_TABLE_SCAN_PLAN_TASKS** | `/v1/{prefix}/tables/{table}/tasks` | POST | Get scan tasks | None (not implemented) | None |
+| **config()** | `/v1/config` | GET | Get configuration | None | None |
+| **tokens()** | `/v1/oauth/tokens` | POST | OAuth tokens | None | None |
+
+## Detailed Analysis
+
+### V1_TABLE - `/v1/{prefix}/namespaces/{namespace}/tables/{table}`
+
+#### HEAD - Table Exists
+- **Handler:** `CatalogHandlers.tableExists()`
+- **JDBC Implementation:** `JdbcUtil.tableExists()`
+- **Database Operations:**
+  - **Query:** `V1_GET_TABLE_SQL` - SELECT * FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND (iceberg_type = 'TABLE' OR iceberg_type IS NULL)
+- **File Operations:** None
+- **Response:** 200 if exists, 404 if not
+
+#### GET - Load Table
+- **Handler:** `CatalogHandlers.loadTable()`
+- **JDBC Implementation:** `JdbcUtil.loadTable()` + `JdbcTableOperations.doRefresh()`
+- **Database Operations:**
+  - **Query:** `V1_GET_TABLE_SQL` - Get table metadata location
+- **File Operations:** Read table metadata file from metadata_location
+- **Response:** `LoadTableResponse` with table metadata
+
+#### POST - Update Table
+- **Handler:** `CatalogHandlers.updateTable()`
+- **JDBC Implementation:** `JdbcTableOperations.doCommit()`
+- **Database Operations:**
+  - **Query 1:** `V1_GET_TABLE_SQL` - Load current table metadata location
+  - **Query 2:** `V1_DO_COMMIT_SQL` - Update table metadata location
+- **File Operations:** Read current + write new table metadata file
+- **Response:** `LoadTableResponse` with updated table metadata
+
+#### DELETE - Drop Table
+- **Handler:** `CatalogHandlers.dropTable()`
+- **JDBC Implementation:** `JdbcCatalog.dropTable()`
+- **Database Operations:**
+  - **Query:** `DROP_TABLE_SQL` - DELETE FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND (iceberg_type = 'TABLE' OR iceberg_type IS NULL)
+- **File Operations:**
+  - **purge=false (default):** Only removes database record, leaves all files intact
+  - **purge=true:** Deletes all data files and metadata files from storage
+    - **Data Files:** All Parquet/ORC/Avro files in table directory
+    - **Metadata Files:** All `.metadata.json` files in metadata directory
+    - **Directory Cleanup:** Removes entire table directory structure
+- **Purge Parameter Handling:**
+  - **Request Body:** `DropTableRequest` contains `purge` boolean field
+  - **Validation:** Catalog validates table exists before attempting drop
+  - **File System Access:** When purge=true, catalog uses FileIO to delete files
+  - **Atomicity:** Database record deletion and file cleanup are not atomic (database first, then files)
+- **Response:** 200 if dropped, 404 if not exists
+
+### V1_TABLES - `/v1/{prefix}/namespaces/{namespace}/tables`
+
+#### GET - List Tables
+- **Handler:** `CatalogHandlers.listTables()`
+- **JDBC Implementation:** `JdbcCatalog.listTables()`
+- **Database Operations:**
+  - **Query:** `V1_LIST_TABLE_SQL` or `V0_LIST_TABLE_SQL` - SELECT * FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND (iceberg_type = 'TABLE' OR iceberg_type IS NULL)
+- **File Operations:** None
+- **Response:** `ListTablesResponse` with list of table identifiers
+
+#### POST - Create Table
+- **Handler:** `CatalogHandlers.createTable()`
+- **JDBC Implementation:** `JdbcCatalog.buildTable().create()`
+- **Database Operations:**
+  - **Query:** `V1_DO_COMMIT_CREATE_SQL` - INSERT INTO iceberg_tables (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location, iceberg_type) VALUES (?,?,?,?,null,?)
+- **File Operations:** Write initial metadata file
+- **Response:** `LoadTableResponse` with table metadata
+
+### V1_TABLE_REGISTER - `/v1/{prefix}/namespaces/{namespace}/register`
+
+#### POST - Register Existing Table
+- **Handler:** `CatalogHandlers.registerTable()`
+- **JDBC Implementation:** `BaseMetastoreCatalog.registerTable()`
+- **Database Operations:**
+  - **Query:** `V1_DO_COMMIT_CREATE_SQL` - INSERT INTO iceberg_tables
+- **File Operations:** Read existing metadata file at provided location
+- **Response:** `LoadTableResponse` with table metadata
+
+### V1_TABLE_METRICS - `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics`
+
+#### POST - Report Metrics
+- **Handler:** `RESTCatalogAdapter.handleRequest()` - no-op
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Empty (200 OK)
+
+### V1_TABLE_CREDENTIALS - `/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials`
+
+#### GET - Get Table Credentials
+- **Handler:** Not implemented in current codebase
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Not implemented
+
+### V1_VIEWS - `/v1/{prefix}/namespaces/{namespace}/views`
+
+#### GET - List Views
+- **Handler:** `CatalogHandlers.listViews()`
+- **JDBC Implementation:** `JdbcCatalog.listViews()`
+- **Database Operations:**
+  - **Query:** `LIST_VIEW_SQL` - SELECT * FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND iceberg_type = 'VIEW'
+- **File Operations:** None
+- **Response:** `ListTablesResponse` with list of view identifiers
+
+#### POST - Create View
+- **Handler:** `CatalogHandlers.createView()`
+- **JDBC Implementation:** `JdbcCatalog.buildView().create()`
+- **Database Operations:**
+  - **Query:** `V1_DO_COMMIT_VIEW_SQL` - INSERT INTO iceberg_tables with iceberg_type = 'VIEW'
+- **File Operations:** Write view metadata file
+- **Response:** `LoadViewResponse` with view metadata
+
+### V1_VIEW - `/v1/{prefix}/namespaces/{namespace}/views/{view}`
+
+#### HEAD - View Exists
+- **Handler:** `CatalogHandlers.viewExists()`
+- **JDBC Implementation:** `JdbcUtil.viewExists()`
+- **Database Operations:**
+  - **Query:** `GET_VIEW_SQL` - SELECT * FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND iceberg_type = 'VIEW'
+- **File Operations:** None
+- **Response:** 200 if exists, 404 if not
+
+#### GET - Load View
+- **Handler:** `CatalogHandlers.loadView()`
+- **JDBC Implementation:** `JdbcUtil.loadView()` + `JdbcViewOperations.doRefresh()`
+- **Database Operations:**
+  - **Query:** `GET_VIEW_SQL` - Get view metadata location
+- **File Operations:** Read view metadata file
+- **Response:** `LoadViewResponse` with view metadata
+
+#### POST - Update View
+- **Handler:** `CatalogHandlers.updateView()`
+- **JDBC Implementation:** `JdbcViewOperations.doCommit()`
+- **Database Operations:**
+  - **Query 1:** `GET_VIEW_SQL` - Load current view metadata location
+  - **Query 2:** `V1_DO_COMMIT_VIEW_SQL` - Update view metadata location
+- **File Operations:** Read current + write new view metadata file
+- **Response:** `LoadViewResponse` with updated view metadata
+
+#### DELETE - Drop View
+- **Handler:** `CatalogHandlers.dropView()`
+- **JDBC Implementation:** `JdbcCatalog.dropView()`
+- **Database Operations:**
+  - **Query:** `DROP_VIEW_SQL` - DELETE FROM iceberg_tables WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND iceberg_type = 'VIEW'
+- **File Operations:** None
+- **Response:** 200 if dropped, 404 if not exists
+
+### V1_VIEW_RENAME - `/v1/{prefix}/views/rename`
+
+#### POST - Rename View
+- **Handler:** `CatalogHandlers.renameView()`
+- **JDBC Implementation:** `JdbcCatalog.renameView()`
+- **Database Operations:**
+  - **Query:** `RENAME_VIEW_SQL` - UPDATE iceberg_tables SET table_namespace = ?, table_name = ? WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND iceberg_type = 'VIEW'
+- **File Operations:** None
+- **Response:** Empty (200 OK)
+
+### V1_TRANSACTIONS_COMMIT - `/v1/{prefix}/transactions/commit`
+
+#### POST - Commit Transaction
+- **Handler:** `RESTCatalogAdapter.commitTransaction()`
+- **JDBC Implementation:** Multiple catalog operations executed atomically
+- **Database Operations:**
+  - **Phase 1 - Validation:** Multiple SELECT queries to validate table existence and current metadata locations
+  - **Phase 2 - Commit:** Multiple INSERT/UPDATE queries based on transaction contents:
+    - For table creates: `V1_DO_COMMIT_CREATE_SQL` - INSERT INTO iceberg_tables
+    - For table updates: `V1_DO_COMMIT_SQL` - UPDATE iceberg_tables SET metadata_location = ?, previous_metadata_location = ?
+    - For table drops: `DROP_TABLE_SQL` - DELETE FROM iceberg_tables
+    - For view operations: Similar queries with iceberg_type = 'VIEW'
+- **File Operations:**
+  - **For each table in transaction:**
+    - **Read:** Load current metadata file from existing metadata_location
+    - **Write:** Write new metadata file with updated schema/partitioning/snapshots
+    - **Cleanup:** Optionally delete old metadata files (based on retention policy)
+  - **Metadata File Operations:**
+    - **Create:** Write new `.metadata.json` file with incremented version number
+    - **Update:** Read current metadata, apply changes, write new version
+    - **Delete:** Remove metadata files for dropped tables (if purge=true)
+  - **Data File Operations:**
+    - **Expire Snapshots:** Delete orphaned data files from expired snapshots
+    - **Remove Orphan Files:** Delete data files no longer referenced by any snapshot
+    - **Cleanup:** Remove old metadata files beyond retention policy
+- **Atomicity:** All operations succeed or all fail (database transaction + file system operations)
+- **Response:** Empty (200 OK) if successful, error if any operation fails
+
+### V1_TABLE_SCAN_PLAN_SUBMIT - `/v1/{prefix}/tables/{table}/plan`
+
+#### POST - Submit Scan Plan
+- **Handler:** Not implemented in current codebase
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Not implemented
+
+### V1_TABLE_SCAN_PLAN - `/v1/{prefix}/tables/{table}/plan/{plan-id}`
+
+#### GET - Get Scan Plan
+- **Handler:** Not implemented in current codebase
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Not implemented
+
+#### DELETE - Delete Scan Plan
+- **Handler:** Not implemented in current codebase
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Not implemented
+
+### V1_TABLE_SCAN_PLAN_TASKS - `/v1/{prefix}/tables/{table}/tasks`
+
+#### POST - Get Scan Tasks
+- **Handler:** Not implemented in current codebase
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** Not implemented
+
+### config() - `/v1/config`
+
+#### GET - Get Configuration
+- **Handler:** `RESTCatalogAdapter.handleRequest()` - builds ConfigResponse
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** `ConfigResponse` with available endpoints
+
+### tokens() - `/v1/oauth/tokens`
+
+#### POST - OAuth Tokens
+- **Handler:** `RESTCatalogAdapter.handleOAuthRequest()`
+- **Database Operations:** None
+- **File Operations:** None
+- **Response:** `OAuthTokenResponse` with token information
+
+## Data File Access Analysis for REST Catalog with JDBC Backend
+
+### **How Delete Table Accesses Data Files:**
+
+#### **1. REST Endpoint Flow:**
+- **Endpoint:** `DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}`
+- **Handler:** `CatalogHandlers.dropTable()` → `catalog.dropTable(ident, false)`
+- **JDBC Implementation:** `JdbcCatalog.dropTable(identifier, purge)`
+
+#### **2. JDBC Catalog Data Access:**
+```java
+// JdbcCatalog.dropTable() - lines 286-320
+public boolean dropTable(TableIdentifier identifier, boolean purge) {
+  TableOperations ops = newTableOps(identifier);
+  TableMetadata lastMetadata = null;
+
+  if (purge) {
+    try {
+      lastMetadata = ops.current();  // Loads metadata to get file locations
+    } catch (NotFoundException e) {
+      LOG.warn("Failed to load table metadata for table: {}, continuing drop without purge", identifier, e);
+    }
+  }
+
+  // Delete database record
+  int deletedRecords = execute(DROP_TABLE_SQL, catalogName, namespace, tableName);
+
+  if (purge && lastMetadata != null) {
+    CatalogUtil.dropTableData(ops.io(), lastMetadata);  // This is where data files are accessed
+  }
+}
+```
+
+#### **3. Data File Deletion Process:**
+```java
+// CatalogUtil.dropTableData() - lines 99-154
+public static void dropTableData(FileIO io, TableMetadata metadata) {
+  Set<String> manifestListsToDelete = Sets.newHashSet();
+  Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
+
+  // Collect all manifest files from all snapshots
+  for (Snapshot snapshot : metadata.snapshots()) {
+    Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
+    if (snapshot.manifestListLocation() != null) {
+      manifestListsToDelete.add(snapshot.manifestListLocation());
+    }
+  }
+
+  boolean gcEnabled = PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
+
+  if (gcEnabled) {
+    // This is where data files are actually deleted
+    deleteFiles(io, manifestsToDelete);
+  }
+
+  // Delete metadata files
+  deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
+  deleteFiles(io, manifestListsToDelete, "manifest list", true);
+  deleteFiles(io, Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file), "previous metadata", true);
+  deleteFiles(io, Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path), "statistics", true);
+  deleteFiles(io, Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path), "partition statistics", true);
+  deleteFile(io, metadata.metadataFileLocation(), "metadata");
+}
+```
+
+#### **4. Data File Deletion Implementation:**
+```java
+// CatalogUtil.deleteFiles() - lines 164-207
+private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
+  Map<String, Boolean> deletedFiles = new MapMaker().concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE).weakKeys().makeMap();
+
+  Tasks.foreach(allManifests)
+      .noRetry()
+      .suppressFailureWhenFinished()
+      .executeWith(ThreadPools.getWorkerPool())
+      .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
+      .run(manifest -> {
+        try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
+          List<String> pathsToDelete = Lists.newArrayList();
+          for (ManifestEntry<?> entry : reader.entries()) {
+            String path = entry.file().location().intern();
+            Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
+            if (alreadyDeleted == null || !alreadyDeleted) {
+              pathsToDelete.add(path);  // This collects data file paths
+            }
+          }
+
+          String type = reader.isDeleteManifestReader() ? "delete" : "data";
+          deleteFiles(io, pathsToDelete, type, false);  // This deletes the actual data files
+        }
+      });
+}
+```
+
+### **Additional Data File Access Points:**
+
+#### **1. Purge Table Endpoint:**
+- **Endpoint:** `DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}?purge=true`
+- **Handler:** `CatalogHandlers.purgeTable()` → `catalog.dropTable(ident, true)`
+- **Data Access:** Same as dropTable with purge=true
+
+#### **2. Transaction Commit with Cleanup:**
+- **Endpoint:** `POST /v1/{prefix}/transactions/commit`
+- **Data Access:** When transaction includes cleanup operations (expire snapshots, remove orphan files)
+- **Implementation:** Uses same `CatalogUtil.dropTableData()` mechanism for cleanup
+
+### **Key Findings:**
+
+1. **Data files are only accessed during deletion/cleanup operations**
+2. **The REST catalog itself never creates or modifies data files**
+3. **Data file access requires:**
+   - `purge=true` parameter for table deletion
+   - `GC_ENABLED=true` table property for data file deletion
+   - Valid metadata files to locate data files
+4. **FileIO instance is used for all file operations** (both metadata and data files)
+5. **Data file deletion is done through manifest files** - the catalog reads manifest files to find data file locations, then deletes them
+
+## **Purge Parameter and GC_ENABLED Property Details**
+
+### **Where `purge=true` is Defined:**
+
+#### **1. REST API Level:**
+- **Client Side:** `RESTSessionCatalog.purgeTable()` method sets `purgeRequested=true` in query parameters
+- **Server Side:** `RESTCatalogAdapter` checks `PropertyUtil.propertyAsBoolean(vars, "purgeRequested", false)`
+- **Handler Selection:**
+  - If `purgeRequested=true` → calls `CatalogHandlers.purgeTable()` → `catalog.dropTable(ident, true)`
+  - If `purgeRequested=false` → calls `CatalogHandlers.dropTable()` → `catalog.dropTable(ident, false)`
+
+#### **2. Catalog Interface Level:**
+```java
+// Catalog.java - lines 298-306
+boolean dropTable(TableIdentifier identifier, boolean purge);
+```
+- **purge=false (default):** Only removes database record, leaves all files intact
+- **purge=true:** Deletes all data and metadata files
+
+#### **3. REST Client Usage:**
+```java
+// RESTSessionCatalog.purgeTable() - lines 314-330
+public boolean purgeTable(SessionContext context, TableIdentifier identifier) {
+  client.delete(
+      paths.table(identifier),
+      ImmutableMap.of("purgeRequested", "true"),  // This sets the purge parameter
+      null,
+      Map.of(),
+      ErrorHandlers.tableErrorHandler());
+  return true;
+}
+```
+
+### **Where `GC_ENABLED=true` is Defined:**
+
+#### **1. Table Property Definition:**
+```java
+// TableProperties.java - lines 345-346
+public static final String GC_ENABLED = "gc.enabled";
+public static final boolean GC_ENABLED_DEFAULT = true;
+```
+
+#### **2. Usage in Data Deletion:**
+```java
+// CatalogUtil.dropTableData() - lines 119-125
+boolean gcEnabled = PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
+
+if (gcEnabled) {
+  // This is where data files are actually deleted
+  deleteFiles(io, manifestsToDelete);
+}
+```
+
+#### **3. Table Property Setting:**
+- **Default Value:** `true` (data files are deleted by default)
+- **Can be disabled:** Set `gc.enabled=false` in table properties
+- **Common Usage:** Disabled for shared tables or when external cleanup is preferred
+
+### **How They Work Together:**
+
+#### **1. Table Deletion Flow:**
+1. **REST Request:** `DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}?purgeRequested=true`
+2. **Server Processing:** `RESTCatalogAdapter` detects `purgeRequested=true`
+3. **Handler Call:** `CatalogHandlers.purgeTable()` → `catalog.dropTable(ident, true)`
+4. **JDBC Implementation:** `JdbcCatalog.dropTable(identifier, purge=true)`
+5. **Data Deletion Check:** `CatalogUtil.dropTableData()` checks `GC_ENABLED` property
+6. **File Deletion:** If `GC_ENABLED=true`, deletes all data files; if `false`, skips data file deletion
+
+#### **2. Property Hierarchy:**
+- **purge parameter:** Controls whether to attempt file deletion at all
+- **GC_ENABLED property:** Controls whether data files are actually deleted (when purge=true)
+
+#### **3. Safety Mechanisms:**
+- **purge=false:** Never touches data files (safest option)
+- **purge=true + GC_ENABLED=false:** Deletes metadata but preserves data files
+- **purge=true + GC_ENABLED=true:** Deletes both metadata and data files (most destructive)
+
+### **Common Configurations:**
+
+1. **Safe Drop (Default):** `purge=false` - Only removes database record
+2. **Metadata Only Drop:** `purge=true` + `gc.enabled=false` - Removes metadata, preserves data
+3. **Complete Drop:** `purge=true` + `gc.enabled=true` - Removes everything
+
+## Key Insights
+
+1. **Database Tables Used:**
+   - `iceberg_tables` - Stores table/view metadata locations and types
+   - `iceberg_namespace_properties` - Stores namespace properties
+
+2. **File Operations:**
+   - **Metadata Files:** All table/view operations read/write `.metadata.json` files
+   - **Data Files:** Only touched during purge operations (drop with purge=true)
+
+3. **Schema Versioning:**
+   - **V0 Schema:** No explicit view support, iceberg_type column is NULL for tables
+   - **V1 Schema:** Explicit view support with iceberg_type = 'TABLE' or 'VIEW'
+
+4. **Not Implemented Endpoints:**
+   - Table credentials endpoint
+   - Scan planning endpoints (submit, get, delete, tasks)
+
+5. **Transaction Support:**
+   - Multi-table atomic commits supported
+   - Complex operations involving multiple database and file operations
+
+6. **Error Handling:**
+   - Consistent exception mapping to HTTP status codes
+   - Proper validation of namespace/table existence before operations

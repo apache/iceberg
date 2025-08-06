@@ -41,6 +41,9 @@ public class RESTCatalogServer {
   public static final String REST_PORT = "rest.port";
   static final int REST_PORT_DEFAULT = 8181;
 
+  public static final String CATALOG_NAME = "catalog.name";
+  static final String CATALOG_NAME_DEFAULT = "rest_backend";
+
   private Server httpServer;
   private final Map<String, String> config;
 
@@ -92,9 +95,13 @@ public class RESTCatalogServer {
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
+    // Get catalog name from environment or use default
+    String catalogName = PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
+    LOG.info("Using catalog name: {}", catalogName);
+
     LOG.info("Creating catalog with properties: {}", catalogProperties);
     return new CatalogContext(
-        CatalogUtil.buildIcebergCatalog("rest_backend", catalogProperties, new Configuration()),
+        CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration()),
         catalogProperties);
   }
 

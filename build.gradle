@@ -158,7 +158,7 @@ subprojects {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
     }
-    
+
     tasks.named("revapiAnalyze").configure {
       dependsOn(":iceberg-common:jar")
     }
@@ -1037,6 +1037,7 @@ project(':iceberg-open-api') {
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
+    testFixturesImplementation libs.assertj.core
 
     testFixturesImplementation libs.slf4j.api
     testFixturesImplementation libs.slf4j.simple
