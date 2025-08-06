@@ -435,7 +435,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         rewrittenManifestLengths,
         sourcePrefix,
         targetPrefix,
-        stagingDir,
         outputPath);
 
     // add the manifest list copy plan itself to the result

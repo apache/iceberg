@@ -287,7 +287,6 @@ public class RewriteTablePathUtil {
    * @param rewrittenManifestLengths rewritten manifest files and their sizes
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
-   * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
    */
   public static void rewriteManifestList(
@@ -297,7 +296,6 @@ public class RewriteTablePathUtil {
       Map<String, Long> rewrittenManifestLengths,
       String sourcePrefix,
       String targetPrefix,
-      String stagingDir,
       String outputPath) {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
