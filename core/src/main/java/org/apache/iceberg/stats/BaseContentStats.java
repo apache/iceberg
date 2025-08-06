@@ -38,11 +38,12 @@ import org.apache.iceberg.types.Types;
 public class BaseContentStats implements ContentStats, StructLike, Serializable {
 
   private final List<Statistic> statistics;
-  private final Map<Integer, Statistic> statisticsById = Maps.newLinkedHashMap();
+  private final Map<Integer, Statistic> statisticsById;
   private long recordCount = -1L;
 
   public BaseContentStats(Types.StructType projection) {
     this.statistics = Lists.newArrayListWithCapacity(projection.fields().size());
+    this.statisticsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
@@ -55,13 +56,17 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
                   ? structType.field("upper_bound").type()
                   : null;
       statistics.add(
-          BaseStatistic.builder().columnId(Integer.parseInt(field.name())).type(type).build());
+          BaseStatistic.builder()
+              .columnId(StatsUtil.fieldIdFor(field.fieldId()))
+              .type(type)
+              .build());
     }
   }
 
   private BaseContentStats(long recordCount, List<Statistic> statistics) {
     this.recordCount = recordCount;
     this.statistics = Lists.newArrayList(statistics);
+    this.statisticsById = Maps.newLinkedHashMapWithExpectedSize(statistics.size());
   }
 
   @Override
