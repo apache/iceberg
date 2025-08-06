@@ -19,38 +19,27 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
-import org.apache.comet.parquet.FileReader;
-import org.apache.comet.parquet.ParquetColumnSpec;
-import org.apache.comet.parquet.ReadOptions;
-import org.apache.comet.parquet.RowGroupReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
 
 public class CometVectorizedParquetReader<T> extends CloseableGroup
     implements CloseableIterable<T> {
@@ -143,7 +132,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
-    private final FileReader cometReader;
+    private final CometBridge.FileReaderWrapper cometReader;
 
     FileIterator(
         ReadConf conf,
@@ -152,6 +141,12 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         Long length,
         ByteBuffer fileEncryptionKey,
         ByteBuffer fileAADPrefix) {
+      if (!CometBridge.isCometAvailable()) {
+        throw new IllegalStateException(
+            "Comet is not available in the classpath. "
+                + "Please ensure the comet-spark jar is in the classpath.");
+      }
+
       this.shouldSkip = conf.shouldSkip();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
@@ -170,7 +165,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
               fileAADPrefix);
     }
 
-    private FileReader newCometReader(
+    private CometBridge.FileReaderWrapper newCometReader(
         InputFile file,
         MessageType projection,
         Map<String, String> properties,
@@ -178,13 +173,13 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         Long length,
         ByteBuffer fileEncryptionKey,
         ByteBuffer fileAADPrefix) {
+      CometBridge.FileReaderWrapper fileReader = null;
       try {
-        ReadOptions cometOptions = ReadOptions.builder(new Configuration()).build();
+        Object cometOptions = CometBridge.createReadOptions(new Configuration());
 
-        FileReader fileReader =
-            new FileReader(
-                ((HadoopInputFile) file).getPath(),
-                new Configuration(((HadoopInputFile) file).getConf()),
+        fileReader =
+            CometBridge.FileReaderWrapper.create(
+                file,
                 cometOptions,
                 properties,
                 start,
@@ -194,72 +189,26 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
 
         List<ColumnDescriptor> columnDescriptors = projection.getColumns();
 
-        List<ParquetColumnSpec> specs = Lists.newArrayList();
+        List<Object> specs = Lists.newArrayList();
 
         for (ColumnDescriptor descriptor : columnDescriptors) {
-          String[] path = descriptor.getPath();
-          PrimitiveType primitiveType = descriptor.getPrimitiveType();
-          String physicalType = primitiveType.getPrimitiveTypeName().name();
-
-          int typeLength =
-              primitiveType.getPrimitiveTypeName()
-                      == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
-                  ? primitiveType.getTypeLength()
-                  : 0;
-
-          boolean isRepeated = primitiveType.getRepetition() == Type.Repetition.REPEATED;
-
-          // ToDo: extract this into a Util method
-          String logicalTypeName = null;
-          Map<String, String> logicalTypeParams = Maps.newHashMap();
-          LogicalTypeAnnotation logicalType = primitiveType.getLogicalTypeAnnotation();
-
-          if (logicalType != null) {
-            logicalTypeName = logicalType.getClass().getSimpleName();
-
-            // Handle specific logical types
-            if (logicalType instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
-                  (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("precision", String.valueOf(decimal.getPrecision()));
-              logicalTypeParams.put("scale", String.valueOf(decimal.getScale()));
-            } else if (logicalType
-                instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestamp =
-                  (LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(timestamp.isAdjustedToUTC()));
-              logicalTypeParams.put("unit", timestamp.getUnit().name());
-            } else if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.TimeLogicalTypeAnnotation time =
-                  (LogicalTypeAnnotation.TimeLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isAdjustedToUTC", String.valueOf(time.isAdjustedToUTC()));
-              logicalTypeParams.put("unit", time.getUnit().name());
-            } else if (logicalType instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation) {
-              LogicalTypeAnnotation.IntLogicalTypeAnnotation intType =
-                  (LogicalTypeAnnotation.IntLogicalTypeAnnotation) logicalType;
-              logicalTypeParams.put("isSigned", String.valueOf(intType.isSigned()));
-              logicalTypeParams.put("bitWidth", String.valueOf(intType.getBitWidth()));
-            }
-          }
-
-          ParquetColumnSpec spec =
-              new ParquetColumnSpec(
-                  1, // ToDo: pass in the correct id
-                  path,
-                  physicalType,
-                  typeLength,
-                  isRepeated,
-                  descriptor.getMaxDefinitionLevel(),
-                  descriptor.getMaxRepetitionLevel(),
-                  logicalTypeName,
-                  logicalTypeParams);
+          Object spec = CometBridge.createParquetColumnSpec(descriptor);
           specs.add(spec);
         }
 
         fileReader.setRequestedSchemaFromSpecs(specs);
         return fileReader;
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to open Parquet file: " + file.location(), e);
+      } catch (Exception e) {
+        // Clean up the fileReader if it was created but configuration failed
+        if (fileReader != null) {
+          try {
+            fileReader.close();
+          } catch (Exception closeException) {
+            // Log the close exception but don't mask the original exception
+            e.addSuppressed(closeException);
+          }
+        }
+        throw CometIOException.fromException("Failed to open Parquet file: " + file.location(), e);
       }
     }
 
@@ -292,24 +241,41 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
     private void advance() {
       while (shouldSkip[nextRowGroup]) {
         nextRowGroup += 1;
-        cometReader.skipNextRowGroup();
+        try {
+          cometReader.skipNextRowGroup();
+        } catch (Exception e) {
+          throw CometIOException.fromException("Failed to skip row group", e);
+        }
       }
-      RowGroupReader pages;
+      CometBridge.RowGroupReaderWrapper pages;
       try {
         pages = cometReader.readNextRowGroup();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
+      } catch (Exception e) {
+        throw CometIOException.fromException("Failed to read row group", e);
       }
 
-      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
-      nextRowGroupStart += pages.getRowCount();
+      try {
+        CometPageReadStore pageReadStore = new CometPageReadStore(pages.getRowGroupReader());
+        model.setRowGroupInfo(pageReadStore, columnChunkMetadata.get(nextRowGroup));
+      } catch (Exception e) {
+        throw CometIOException.fromException("Failed to read row group info", e);
+      }
+      try {
+        nextRowGroupStart += pages.getRowCount();
+      } catch (Exception e) {
+        throw CometIOException.fromException("Failed to get row count", e);
+      }
       nextRowGroup += 1;
     }
 
     @Override
     public void close() throws IOException {
       model.close();
-      cometReader.close();
+      try {
+        cometReader.close();
+      } catch (Exception e) {
+        throw new IOException("Failed to close Comet reader", e);
+      }
     }
   }
 }
