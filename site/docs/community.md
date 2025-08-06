@@ -85,7 +85,7 @@ Hosts are required to ensure that:
 
 The community maintains two calendar feeds:
 
-* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
+* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: A shared calendar for all Iceberg development syncs, including the triweekly community sync, subproject syncs for Python, Rust, and Go, the Iceberg Catalog Community Sync, and other ad hoc syncs the community may want to schedule or discuss.
 * [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
 
 ## Community Guidelines
