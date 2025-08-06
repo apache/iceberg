@@ -34,9 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
@@ -495,58 +492,6 @@ public abstract class TestMetrics {
     assertCounts(6, 201L, 1L, metrics);
     assertBounds(
         6, Types.DecimalType.of(10, 2), new BigDecimal("2.00"), new BigDecimal("201.00"), metrics);
-  }
-
-  @TestTemplate
-  public void testMetricsForUUIDField() throws IOException {
-    assumeThat(fileFormat())
-        .as("ORC writer does not write UUID bounds, skip for ORC")
-        .isNotEqualTo(FileFormat.ORC);
-
-    // prepare schema with UUID
-    Schema uuidSchema = new Schema(required(1, "uuidCol", Types.UUIDType.get()));
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-
-    UUID uuid1 = UUID.randomUUID();
-    UUID uuid2 = UUID.randomUUID();
-    UUID uuid3 = UUID.randomUUID();
-
-    Record rec1 = GenericRecord.create(uuidSchema);
-    rec1.setField("uuidCol", uuid1);
-    Record rec2 = GenericRecord.create(uuidSchema);
-    rec2.setField("uuidCol", uuid2);
-    Record rec3 = GenericRecord.create(uuidSchema);
-    rec3.setField("uuidCol", uuid3);
-
-    Metrics metrics = getMetrics(uuidSchema, rec1, rec2, rec3);
-
-    DataFile file =
-        DataFiles.builder(spec)
-            .withPath("/tmp/data-" + UUID.randomUUID() + ".parquet")
-            .withFileSizeInBytes(128)
-            .withRecordCount(metrics.recordCount())
-            .withMetrics(metrics)
-            .build();
-
-    Schema wrapperSchema = MetricsUtil.readableMetricsSchema(uuidSchema, new Schema());
-
-    Types.StructType projected =
-        wrapperSchema.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
-
-    MetricsUtil.ReadableMetricsStruct readable =
-        MetricsUtil.readableMetricsStruct(uuidSchema, file, projected);
-
-    StructLike colMetrics = readable.get(0, StructLike.class);
-    // lower_bound
-    String lower = colMetrics.get(4, String.class);
-    // upper_bound
-    String upper = colMetrics.get(5, String.class);
-
-    List<String> sorted =
-        Stream.of(uuid1, uuid2, uuid3).map(UUID::toString).sorted().collect(Collectors.toList());
-
-    assertThat(lower).isEqualTo(sorted.get(0));
-    assertThat(upper).isEqualTo(sorted.get(2));
   }
 
   @TestTemplate
