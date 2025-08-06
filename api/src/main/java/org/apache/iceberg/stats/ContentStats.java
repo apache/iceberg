@@ -21,8 +21,6 @@ package org.apache.iceberg.stats;
 import java.util.List;
 import org.apache.iceberg.StructLike;
 
-// TODO: Add an API that projects only single stats fields
-// e.g. project only lowerBound for columnX
 public interface ContentStats extends StructLike {
 
   List<Statistic> statistics();

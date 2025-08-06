@@ -20,6 +20,7 @@ package org.apache.iceberg.stats;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 
 public class TestStatsUtil {
@@ -27,22 +28,39 @@ public class TestStatsUtil {
   @Test
   public void statsIdsForTableColumns() {
     int offset = 0;
-    for (int i = 0; i < 7_084_500; i++) {
-      long fieldId = StatsUtil.statsFieldIdFor(i);
+    // 100_000 + 200 * 7_084_500 = 1_417_000_000, which is the starting range for reserved columns
+    for (int id = 0; id < 7_084_500; id++) {
+      int statsFieldId = StatsUtil.statsFieldIdFor(id);
       int expected = StatsUtil.DATA_SPACE_FIELD_ID_START + offset;
-      assertThat(fieldId).as("at pos %s", i).isEqualTo(expected);
+      assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
       offset = offset + StatsUtil.RESERVED_FIELD_IDS;
+      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(id);
+    }
+  }
+
+  @Test
+  public void statsIdsOverflowForTableColumns() {
+    for (int i = 0; i < 100; i++) {
+      int id =
+          ThreadLocalRandom.current()
+              .nextInt(StatsUtil.METADATA_SPACE_FIELD_ID_START, StatsUtil.RESERVED_FIELD_IDS_START);
+      int statsFieldId = StatsUtil.statsFieldIdFor(id);
+      int expected = -1;
+      assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
+      assertThat(StatsUtil.fieldIdFor(id)).as("at pos %s", id).isEqualTo(expected);
+      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(expected);
     }
   }
 
   @Test
   public void statsIdsForReservedColumns() {
     int offset = 0;
-    for (int i = StatsUtil.RESERVED_FIELD_IDS_START; i < Integer.MAX_VALUE; i++) {
-      long fieldId = StatsUtil.statsFieldIdFor(i);
+    for (int id = StatsUtil.RESERVED_FIELD_IDS_START; id < Integer.MAX_VALUE; id++) {
+      int statsFieldId = StatsUtil.statsFieldIdFor(id);
       int expected = StatsUtil.METADATA_SPACE_FIELD_ID_START + offset;
-      assertThat(fieldId).isEqualTo(expected);
+      assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
       offset = offset + StatsUtil.RESERVED_FIELD_IDS;
+      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(id);
     }
   }
 }
