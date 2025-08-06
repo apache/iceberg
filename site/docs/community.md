@@ -24,7 +24,7 @@ We're glad that you're interested in joining the Apache Iceberg community! Read 
 
 ## Join the Discussion
 
-Community discussions happen across various mailing lists, on apache-iceberg Slack workspace, and on specific GitHub issues.
+Community discussions happen across various mailing lists, on the apache-iceberg Slack workspace, and on specific GitHub issues.
 
 ### Mailing Lists
 
@@ -87,6 +87,8 @@ The community maintains two calendar feeds:
 
 * [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
 * [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
+
+Additional community-run meetups can be found on the [unofficial Apache Iceberg™ and Ecosystem Events Luma calendar](https://lu.ma/apache-iceberg).
 
 ## Community Guidelines
 
