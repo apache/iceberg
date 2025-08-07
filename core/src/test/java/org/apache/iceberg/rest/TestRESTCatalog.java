@@ -148,8 +148,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Consumer<Map<String, String>> responseHeaders) {
             // this doesn't use a Mockito spy because this is used for catalog tests, which have
             // different method calls
-            if (!"v1/oauth/tokens".equals(request.path())) {
-              if ("v1/config".equals(request.path())) {
+            if (!ResourcePaths.tokens().equals(request.path())) {
+              if (ResourcePaths.config().equals(request.path())) {
                 assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
               } else {
                 assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
@@ -294,7 +294,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Class<T> responseType,
               Consumer<ErrorResponse> errorHandler,
               Consumer<Map<String, String>> responseHeaders) {
-            if ("v1/config".equals(request.path())) {
+            if (ResourcePaths.config().equals(request.path())) {
               return castResponse(
                   responseType,
                   ConfigResponse.builder()
@@ -387,7 +387,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // the bearer token should be used for all interactions
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -417,14 +417,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, "v1/oauth/tokens", emptyHeaders),
+            reqMatcher(HTTPMethod.POST, ResourcePaths.tokens(), emptyHeaders),
             eq(OAuthTokenResponse.class),
             any(),
             any());
     // no token or credential for config
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -470,7 +470,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // no token or credential for config
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -515,7 +515,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the bearer token for config
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -576,7 +576,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the client credential token for config
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -639,7 +639,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the client credential token for config
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -815,7 +815,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -1206,6 +1206,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Map<String, String> expectedTableHeaders,
       String oauth2ServerUri) {
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + catalogToken);
+    Namespace namespace = Namespace.of("ns");
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
@@ -1223,7 +1224,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.doAnswer(addTableConfig)
         .when(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, "v1/namespaces/ns/tables", expectedContextHeaders),
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.tables(namespace), expectedContextHeaders),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1274,7 +1275,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -1289,7 +1290,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // create table request
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, "v1/namespaces/ns/tables", expectedContextHeaders),
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.tables(namespace), expectedContextHeaders),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1388,7 +1389,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // use the client credential token for config
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+                      reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
                       eq(ConfigResponse.class),
                       any(),
                       any());
@@ -1508,7 +1509,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // use the client credential token for config
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+                      reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
                       eq(ConfigResponse.class),
                       any(),
                       any());
@@ -1614,7 +1615,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -1690,7 +1691,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -1796,7 +1797,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // use the client credential token for config
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+                      reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
                       eq(ConfigResponse.class),
                       any(),
                       any());
@@ -1896,7 +1897,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // use the client credential token for config
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+                      reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
                       eq(ConfigResponse.class),
                       any(),
                       any());
@@ -1962,7 +1963,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -2014,7 +2015,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -2189,14 +2190,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            reqMatcher(HTTPMethod.POST, "v1/namespaces", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.namespaces(), Map.of(), Map.of()),
             eq(CreateNamespaceResponse.class),
             any(),
             any());
@@ -2235,7 +2236,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
     String namespaceName = "newdb";
     String tableName = "newtable";
-    catalog.createNamespace(Namespace.of(namespaceName));
+    Namespace namespace = Namespace.of(namespaceName);
+    catalog.createNamespace(namespace);
 
     // create several tables under namespace for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
@@ -2243,22 +2245,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createTable(tableIdentifier, SCHEMA);
     }
 
-    assertThat(catalog.listTables(Namespace.of(namespaceName))).hasSize(numberOfItems);
+    assertThat(catalog.listTables(namespace)).hasSize(numberOfItems);
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            reqMatcher(
-                HTTPMethod.POST,
-                String.format("v1/namespaces/%s/tables", namespaceName),
-                Map.of(),
-                Map.of()),
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.tables(namespace), Map.of(), Map.of()),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -2546,17 +2544,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of());
 
-    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+    Namespace namespace = Namespace.of("non-existing");
+    assertThat(catalog.namespaceExists(namespace)).isFalse();
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.HEAD, "v1/namespaces/non-existing", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.HEAD, RESOURCE_PATHS.namespace(namespace), Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -2582,7 +2581,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   Class<T> responseType,
                   Consumer<ErrorResponse> errorHandler,
                   Consumer<Map<String, String>> responseHeaders) {
-                if ("v1/config".equals(request.path())) {
+                if (ResourcePaths.config().equals(request.path())) {
                   return castResponse(responseType, configResponse);
                 }
 
@@ -2594,11 +2593,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of());
 
-    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+    Namespace namespace = Namespace.of("non-existing");
+    assertThat(catalog.namespaceExists(namespace)).isFalse();
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -2606,7 +2606,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verifies that the namespace is loaded via a GET instead of HEAD (V1_NAMESPACE_EXISTS)
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/namespaces/non-existing", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.namespace(namespace), Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -2630,7 +2630,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -2660,7 +2660,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   Class<T> responseType,
                   Consumer<ErrorResponse> errorHandler,
                   Consumer<Map<String, String>> responseHeaders) {
-                if ("v1/config".equals(request.path())) {
+                if (ResourcePaths.config().equals(request.path())) {
                   return castResponse(responseType, configResponse);
                 }
 
@@ -2676,7 +2676,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config(), Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
