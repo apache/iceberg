@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -260,6 +261,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
   private final SinkTaskContext context;
+  private Catalog catalog;
 
   public IcebergSinkConfig(Map<String, String> originalProps, SinkTaskContext context) {
     super(CONFIG_DEF, originalProps);
@@ -286,6 +288,30 @@ public class IcebergSinkConfig extends AbstractConfig {
     validate();
 
     this.context = context;
+  }
+
+  public Catalog loadCatalog() {
+    synchronized (this) {
+      if (null == catalog) {
+        catalog = CatalogUtils.loadCatalog(this);
+      }
+    }
+    return catalog;
+  }
+
+  public void closeCatalog() {
+    synchronized (this) {
+      if (catalog != null) {
+        if (catalog instanceof AutoCloseable) {
+          try {
+            ((AutoCloseable) catalog).close();
+          } catch (Exception e) {
+            LOG.warn("An error occurred closing catalog instance, ignoring...", e);
+          }
+        }
+        catalog = null;
+      }
+    }
   }
 
   private void validate() {

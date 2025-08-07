@@ -66,8 +66,9 @@ public class TestIcebergWriterFactory {
 
     SinkRecord record = mock(SinkRecord.class);
     when(record.value()).thenReturn(ImmutableMap.of("id", 123, "data", "foo2"));
+    when(config.loadCatalog()).thenReturn(catalog);
 
-    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+    IcebergWriterFactory factory = new IcebergWriterFactory(config);
     factory.autoCreateTable("foo1.foo2.foo3.bar", record);
 
     ArgumentCaptor<TableIdentifier> identCaptor = ArgumentCaptor.forClass(TableIdentifier.class);

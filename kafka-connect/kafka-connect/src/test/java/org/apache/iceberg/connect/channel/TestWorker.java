@@ -62,6 +62,7 @@ public class TestWorker extends ChannelTestBase {
           .thenReturn(consumerGroupMetadata);
 
       SinkTaskContext context = mock(SinkTaskContext.class);
+      when(config.context()).thenReturn(context);
       TopicPartition topicPartition = new TopicPartition(SRC_TOPIC_NAME, 0);
       when(context.assignment()).thenReturn(ImmutableSet.of(topicPartition));
 
@@ -80,7 +81,7 @@ public class TestWorker extends ChannelTestBase {
       SinkWriter sinkWriter = mock(SinkWriter.class);
       when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
 
-      Worker worker = new Worker(config, clientFactory, sinkWriter, context);
+      Worker worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
 
       // init consumer after subscribe()

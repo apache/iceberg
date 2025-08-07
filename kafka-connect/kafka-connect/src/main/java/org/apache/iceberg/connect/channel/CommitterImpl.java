@@ -22,8 +22,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.connect.CatalogUtils;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -45,7 +43,6 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private Catalog catalog;
   private IcebergSinkConfig config;
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
@@ -115,16 +112,7 @@ public class CommitterImpl implements Committer {
     Set<TopicPartition> oldAssignment = context.assignment().stream().collect(Collectors.toSet());
     oldAssignment.removeAll(closedPartitions);
     if (oldAssignment.isEmpty()) {
-      if (catalog != null) {
-        if (catalog instanceof AutoCloseable) {
-          try {
-            ((AutoCloseable) catalog).close();
-          } catch (Exception e) {
-            LOG.warn("An error occurred closing catalog instance, ignoring...", e);
-          }
-        }
-        catalog = null;
-      }
+      config.closeCatalog();
     }
     LOG.info(
         "Seeking to last committed offsets for worker {}-{}.",
@@ -146,7 +134,6 @@ public class CommitterImpl implements Committer {
   public void configure(IcebergSinkConfig icebergSinkConfig) {
     this.config = icebergSinkConfig;
     this.context = icebergSinkConfig.context();
-    this.catalog = CatalogUtils.loadCatalog(icebergSinkConfig);
     this.clientFactory = new KafkaClientFactory(icebergSinkConfig.kafkaProps());
   }
 
@@ -162,8 +149,8 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker");
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
-      worker = new Worker(config, clientFactory, sinkWriter, context);
+      SinkWriter sinkWriter = new SinkWriter(config);
+      worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
     }
   }
@@ -172,7 +159,7 @@ public class CommitterImpl implements Committer {
     if (null == this.coordinatorThread) {
       LOG.info("Task elected leader, starting commit coordinator");
       Coordinator coordinator =
-          new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+          new Coordinator(config, membersWhenWorkerIsCoordinator, clientFactory);
       coordinatorThread = new CoordinatorThread(coordinator);
       coordinatorThread.start();
     }
