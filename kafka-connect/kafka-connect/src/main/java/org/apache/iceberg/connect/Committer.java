@@ -48,7 +48,7 @@ public interface Committer {
   @Deprecated
   void stop();
 
-  default void close(Collection<TopicPartition> closedPartitions) {
+  default void close(Collection<TopicPartition> closedPartitions, boolean taskStopped) {
     // Default implementation calls the deprecated method. Implementations may override this.
     stop();
   }

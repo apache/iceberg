@@ -56,12 +56,12 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    committer.close(partitions);
+    committer.close(partitions, false);
   }
 
   private void close() {
     if (committer != null) {
-      committer.close(context.assignment());
+      committer.close(context.assignment(), true);
       committer = null;
     }
 
