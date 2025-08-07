@@ -141,13 +141,16 @@ public class CommitterImpl implements Committer {
     // Connect never calls close on a task with empty partition so empty partition means the task
     // has stopped. Stopping coordinator if it was started on this task.
     if (closedPartitions.isEmpty()) {
-      LOG.info("Task stopped. Stooping coordinator if started.");
+      LOG.info(
+          "Worker {}-{} stopped. Stooping coordinator if started.",
+          config.connectorName(),
+          config.taskId());
       stopCoordinator();
       return;
     }
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
-          "Committer {}-{} either lost the leader partition or was stopped. If this task is the elected coordinator, it will now shut down.",
+          "Committer {}-{} either lost the leader partition. Stopping coordinator.",
           config.connectorName(),
           config.taskId());
       stopCoordinator();
