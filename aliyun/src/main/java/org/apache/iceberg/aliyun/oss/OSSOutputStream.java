@@ -73,7 +73,6 @@ public class OSSOutputStream extends PositionOutputStream {
   private static File newStagingFile(String ossStagingDirectory) {
     try {
       File stagingFile = File.createTempFile("oss-file-io-", ".tmp", new File(ossStagingDirectory));
-      stagingFile.deleteOnExit();
       return stagingFile;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
