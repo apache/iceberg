@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.actions.FileURI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ public class FileUriKeySelector implements KeySelector<String, String> {
   @Override
   public String getKey(String value) throws Exception {
     try {
-      FileURI fileUri = new FileURI(value, equalSchemes, equalAuthorities);
+      FileURI fileUri = new FileURI(new Path(value).toUri(), equalSchemes, equalAuthorities);
       return fileUri.getPath();
     } catch (Exception e) {
       LOG.error("Uri convert to FileURI error! Uri is {}.", value, e);

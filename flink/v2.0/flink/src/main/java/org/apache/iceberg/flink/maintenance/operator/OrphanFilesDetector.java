@@ -31,6 +31,7 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -114,14 +115,21 @@ public class OrphanFilesDetector extends KeyedCoProcessFunction<String, String, 
     List<FileURI> foundInTablesList = Lists.newArrayList();
     foundInTable
         .keys()
-        .forEach(uri -> foundInTablesList.add(new FileURI(uri, equalSchemes, equalAuthorities)));
+        .forEach(
+            uri ->
+                foundInTablesList.add(
+                    new FileURI(new Path(uri).toUri(), equalSchemes, equalAuthorities)));
 
     if (foundInFileSystem.value() != null) {
       if (foundInTablesList.isEmpty()) {
-        FileURI fileURI = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
+        FileURI fileURI =
+            new FileURI(
+                new Path(foundInFileSystem.value()).toUri(), equalSchemes, equalAuthorities);
         out.collect(fileURI.getUriAsString());
       } else {
-        FileURI actual = new FileURI(foundInFileSystem.value(), equalSchemes, equalAuthorities);
+        FileURI actual =
+            new FileURI(
+                new Path(foundInFileSystem.value()).toUri(), equalSchemes, equalAuthorities);
         if (hasMismatch(actual, foundInTablesList)) {
           if (prefixMismatchMode == DeleteOrphanFiles.PrefixMismatchMode.DELETE) {
             out.collect(foundInFileSystem.value());
