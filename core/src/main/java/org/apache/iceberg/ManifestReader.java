@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,7 +128,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (specsById != null) {
       this.spec = specsById.get(specId);
     } else {
-      this.spec = readPartitionSpec(file);
+      if (FileFormat.fromFileName(file.location()) == FileFormat.PARQUET) {
+        // We don't want to have to rely on touching footer information to read the partition spec
+        throw new UnsupportedOperationException("Reading partition spec from Parquet manifest files is not supported");
+      } else {
+        this.spec = readPartitionSpec(file);
+      }
     }
 
     this.fileSchema = new Schema(DataFile.getType(spec.rawPartitionType()).fields());
@@ -147,7 +153,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
-    Map<String, String> metadata;
+    Map<String, String> metadata = Collections.emptyMap();
     FileFormat manifestFormat = FileFormat.fromFileName(inputFile.location());
 
     try {
@@ -156,11 +162,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
               .build()) {
 
-        if (headerReader instanceof HasMetadata) {
-          metadata = ((HasMetadata) headerReader).getMetadata();
-        } else {
-          throw new RuntimeException(
-              "Reader does not support metadata reading: " + headerReader.getClass().getName());
+        if (manifestFormat == FileFormat.AVRO) {
+          metadata = ((AvroIterable) headerReader).getMetadata();
         }
       }
     } catch (IOException e) {

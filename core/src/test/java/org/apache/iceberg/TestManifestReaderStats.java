@@ -59,7 +59,7 @@ public class TestManifestReaderStats extends TestBase {
   @TestTemplate
   public void testReadIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
@@ -70,7 +70,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 3))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
@@ -81,7 +81,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 3))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
     }
@@ -91,7 +91,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithFilterAndSelectIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .select(ImmutableList.of("file_path"))
             .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
@@ -104,7 +104,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithFilterAndSelectDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .select(ImmutableList.of("file_path"))
             .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
@@ -116,7 +116,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithFilterAndSelectRecordCountDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .select(ImmutableList.of("file_path", "record_count"))
             .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
@@ -128,7 +128,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .select(ImmutableList.of("file_path", "value_counts"))
             .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
@@ -143,7 +143,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .project(new Schema(ImmutableList.of(DataFile.FILE_PATH, DataFile.VALUE_COUNTS)))) {
       DataFile entry = reader.iterator().next();
 
@@ -162,7 +162,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO).select(ImmutableList.of("file_path"))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).select(ImmutableList.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       DataFile dataFile = entry.file();
@@ -185,7 +185,7 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithSelectCertainStatNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO)
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
             .select(ImmutableList.of("file_path", "value_counts"))) {
       DataFile dataFile = reader.iterator().next();
 

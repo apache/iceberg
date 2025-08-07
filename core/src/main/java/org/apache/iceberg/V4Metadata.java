@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
@@ -277,13 +278,22 @@ class V4Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
+  final static Types.StructType PLACEHOLDER_PARTITION_TYPE = Types.StructType.of(
+      optional(-1000, "UNPARTITIONED_PLACEHOLDER", Types.BooleanType.get()));
+
+  final static PartitionData PLACEHOLDER_PARTITION = new PartitionData(PLACEHOLDER_PARTITION_TYPE);
+
   static Types.StructType fileType(Types.StructType partitionType) {
+    Types.StructType writePartitionType = partitionType.fields().isEmpty() ?
+      PLACEHOLDER_PARTITION_TYPE :
+      partitionType;
+
     return Types.StructType.of(
         DataFile.CONTENT.asRequired(),
         DataFile.FILE_PATH,
         DataFile.FILE_FORMAT,
         required(
-            DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
+          DataFile.PARTITION_ID, DataFile.PARTITION_NAME, writePartitionType, DataFile.PARTITION_DOC),
         DataFile.RECORD_COUNT,
         DataFile.FILE_SIZE,
         DataFile.COLUMN_SIZES,
@@ -460,7 +470,7 @@ class V4Metadata {
         case 2:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 3:
-          return wrapped.partition();
+          return wrapped.partition() != null ? wrapped.partition() : PLACEHOLDER_PARTITION;
         case 4:
           return wrapped.recordCount();
         case 5:

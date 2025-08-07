@@ -59,6 +59,6 @@ public class TestTimestampPartitions extends TestBase {
         table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id),
         files(dataFile),
-        statuses(ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED), table.specs());
   }
 }

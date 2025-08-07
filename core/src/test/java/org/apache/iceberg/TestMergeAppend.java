@@ -761,7 +761,7 @@ public class TestMergeAppend extends TestBase {
         newManifest,
         ids(snapshotId, snapshotId, baseId),
         files(FILE_C, FILE_D, FILE_B),
-        statuses(Status.ADDED, Status.ADDED, Status.EXISTING));
+        statuses(Status.ADDED, Status.ADDED, Status.EXISTING), table.specs());
   }
 
   @TestTemplate

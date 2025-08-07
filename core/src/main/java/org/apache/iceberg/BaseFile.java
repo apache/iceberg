@@ -531,7 +531,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   public List<Long> splitOffsets() {
     if (hasWellDefinedOffsets()) {
-      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+      // We want to use this as a re-usable container so we can't have an immutable list here
+      // Fixes Find Files TestFindFiles
+      return ArrayUtil.toLongList(splitOffsets);
     }
 
     return null;

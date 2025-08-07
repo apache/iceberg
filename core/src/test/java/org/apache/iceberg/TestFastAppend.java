@@ -496,7 +496,8 @@ public class TestFastAppend extends TestBase {
         manifests.get(0),
         ids(snapshot.snapshotId(), snapshot.snapshotId()),
         files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED));
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
 
     // validate that the metadata summary is correct when using appendManifest
     assertThat(snapshot.summary())
