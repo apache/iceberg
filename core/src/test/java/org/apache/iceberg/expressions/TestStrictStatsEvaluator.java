@@ -85,40 +85,40 @@ public class TestStrictStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(1)
+                      .fieldId(1)
                       .type(Types.IntegerType.get())
                       .lowerBound(INT_MIN_VALUE)
                       .upperBound(INT_MAX_VALUE)
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(4).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(5).valueCount(50L).nullValueCount(10L).build())
+                  BaseStatistic.builder().fieldId(5).valueCount(50L).nullValueCount(10L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(6).valueCount(50L).nullValueCount(0L).build())
+                  BaseStatistic.builder().fieldId(6).valueCount(50L).nullValueCount(0L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(7)
+                      .fieldId(7)
                       .type(IntegerType.get())
                       .lowerBound(5)
                       .upperBound(5)
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(8).valueCount(50L).nanValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(8).valueCount(50L).nanValueCount(50L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(9).valueCount(50L).nanValueCount(10L).build())
+                  BaseStatistic.builder().fieldId(9).valueCount(50L).nanValueCount(10L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(10)
+                      .fieldId(10)
                       .valueCount(50L)
                       .nullValueCount(50L)
                       .nanValueCount(0L)
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(11).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(11).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(12)
+                      .fieldId(12)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(Types.LongType.get())
@@ -127,17 +127,17 @@ public class TestStrictStatsEvaluator {
                       .build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(13)
+                      .fieldId(13)
                       .valueCount(50L)
                       .nullValueCount(1L)
                       .type(Types.DoubleType.get())
                       .lowerBound(Double.NaN)
                       .upperBound(Double.NaN)
                       .build())
-              .withStatistic(BaseStatistic.builder().columnId(14).valueCount(50L).build())
+              .withStatistic(BaseStatistic.builder().fieldId(14).valueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(17)
+                      .fieldId(17)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(IntegerType.get())
@@ -153,10 +153,10 @@ public class TestStrictStatsEvaluator {
           50,
           BaseContentStats.builder()
               .withStatistic(
-                  BaseStatistic.builder().columnId(4).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(5)
+                      .fieldId(5)
                       .valueCount(50L)
                       .nullValueCount(10L)
                       .type(StringType.get())
@@ -164,8 +164,8 @@ public class TestStrictStatsEvaluator {
                       .upperBound("eee")
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(6).valueCount(50L).nullValueCount(0L).build())
-              .withStatistic(BaseStatistic.builder().columnId(8).valueCount(50L).build())
+                  BaseStatistic.builder().fieldId(6).valueCount(50L).nullValueCount(0L).build())
+              .withStatistic(BaseStatistic.builder().fieldId(8).valueCount(50L).build())
               .build());
 
   private static final DataFile FILE_3 =
@@ -175,10 +175,10 @@ public class TestStrictStatsEvaluator {
           50,
           BaseContentStats.builder()
               .withStatistic(
-                  BaseStatistic.builder().columnId(4).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(5)
+                      .fieldId(5)
                       .valueCount(50L)
                       .nullValueCount(10L)
                       .type(StringType.get())
@@ -186,7 +186,7 @@ public class TestStrictStatsEvaluator {
                       .upperBound("bbb")
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(6).valueCount(50L).nullValueCount(0L).build())
+                  BaseStatistic.builder().fieldId(6).valueCount(50L).nullValueCount(0L).build())
               .build());
 
   @Test

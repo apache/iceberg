@@ -57,7 +57,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
                   : null;
       statistics.add(
           BaseStatistic.builder()
-              .columnId(StatsUtil.fieldIdFor(field.fieldId()))
+              .fieldId(StatsUtil.fieldIdFor(field.fieldId()))
               .type(type)
               .build());
     }
@@ -84,7 +84,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     if (statisticsById.isEmpty() && !statistics.isEmpty()) {
       statistics.stream()
           .filter(Objects::nonNull)
-          .forEach(stat -> statisticsById.put(stat.columnId(), stat));
+          .forEach(stat -> statisticsById.put(stat.fieldId(), stat));
     }
 
     return statisticsById.get(columnId);
@@ -138,7 +138,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
       BaseStatistic newStat = builder.build();
       statistics.set(pos, newStat);
-      statisticsById.put(newStat.columnId(), newStat);
+      statisticsById.put(newStat.fieldId(), newStat);
     } else {
       statistics.set(pos, (Statistic) value);
     }
@@ -182,7 +182,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     return builder()
         .withStatistics(
             stats.statistics().stream()
-                .filter(stat -> requestedColumnIds.contains(stat.columnId()))
+                .filter(stat -> requestedColumnIds.contains(stat.fieldId()))
                 .collect(Collectors.toList()))
         .recordCount(stats.recordCount());
   }

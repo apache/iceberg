@@ -85,28 +85,28 @@ public class TestInclusiveStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(1)
+                      .fieldId(1)
                       .type(Types.IntegerType.get())
                       .lowerBound(INT_MIN_VALUE)
                       .upperBound(INT_MAX_VALUE)
                       .build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(4).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(5).valueCount(50L).nullValueCount(10L).build())
+                  BaseStatistic.builder().fieldId(5).valueCount(50L).nullValueCount(10L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(6).valueCount(50L).nullValueCount(0L).build())
+                  BaseStatistic.builder().fieldId(6).valueCount(50L).nullValueCount(0L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(7).valueCount(50L).nanValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(7).valueCount(50L).nanValueCount(50L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(8).valueCount(50L).nanValueCount(10L).build())
+                  BaseStatistic.builder().fieldId(8).valueCount(50L).nanValueCount(10L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(9).valueCount(50L).nanValueCount(0L).build())
+                  BaseStatistic.builder().fieldId(9).valueCount(50L).nanValueCount(0L).build())
               .withStatistic(
-                  BaseStatistic.builder().columnId(10).valueCount(50L).nullValueCount(50L).build())
+                  BaseStatistic.builder().fieldId(10).valueCount(50L).nullValueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(11)
+                      .fieldId(11)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(Types.LongType.get())
@@ -115,17 +115,17 @@ public class TestInclusiveStatsEvaluator {
                       .build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(12)
+                      .fieldId(12)
                       .valueCount(50L)
                       .nullValueCount(1L)
                       .type(Types.DoubleType.get())
                       .lowerBound(Double.NaN)
                       .upperBound(Double.NaN)
                       .build())
-              .withStatistic(BaseStatistic.builder().columnId(13).valueCount(50L).build())
+              .withStatistic(BaseStatistic.builder().fieldId(13).valueCount(50L).build())
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(14)
+                      .fieldId(14)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(StringType.get())
@@ -142,7 +142,7 @@ public class TestInclusiveStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(3)
+                      .fieldId(3)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(StringType.get())
@@ -159,7 +159,7 @@ public class TestInclusiveStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(3)
+                      .fieldId(3)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(StringType.get())
@@ -176,7 +176,7 @@ public class TestInclusiveStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(3)
+                      .fieldId(3)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(StringType.get())
@@ -193,7 +193,7 @@ public class TestInclusiveStatsEvaluator {
           BaseContentStats.builder()
               .withStatistic(
                   BaseStatistic.builder()
-                      .columnId(3)
+                      .fieldId(3)
                       .valueCount(50L)
                       .nullValueCount(0L)
                       .type(StringType.get())
