@@ -203,6 +203,15 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
           SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
           assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
         });
+
+    withSQLConf(
+            ImmutableMap.of(
+                    SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
+                    SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+            () -> {
+              SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+              assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+            });
   }
 
   @TestTemplate
@@ -374,7 +383,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testCopyOnWriteDeleteWithDeleteFileCacheCacheDisabled() throws Exception {
+  public void testCopyOnWriteDeleteWithDeleteFileCacheDisabled() throws Exception {
     checkDeleteWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
   }
 
