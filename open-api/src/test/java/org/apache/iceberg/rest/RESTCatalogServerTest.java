@@ -25,36 +25,27 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
-public class TestRESTCatalogServer {
+public class RESTCatalogServerTest {
 
   @Test
-  public void testCatalogNameDefault() {
+  public void testCatalogNameDefault() throws Exception {
     Map<String, String> config = Maps.newHashMap();
-    new RESTCatalogServer(config);
+    RESTCatalogServer server = new RESTCatalogServer(config);
 
-    // Should use default catalog name when not specified
-    assertThat(RESTCatalogServer.CATALOG_NAME_DEFAULT).isEqualTo("rest_backend");
+    RESTCatalogServer.CatalogContext context = server.initializeBackendCatalog();
+
+    assertThat(context.catalog().name()).isEqualTo(RESTCatalogServer.CATALOG_NAME_DEFAULT);
   }
 
   @Test
-  public void testCatalogNameFromConfig() {
+  public void testCatalogNameFromConfig() throws Exception {
     Map<String, String> config = Maps.newHashMap();
-    config.put(RESTCatalogServer.CATALOG_NAME, "my_custom_catalog");
-    new RESTCatalogServer(config);
+    String customCatalogName = "my_custom_catalog";
+    config.put(RESTCatalogServer.CATALOG_NAME, customCatalogName);
 
-    // Should use the configured catalog name
-    assertThat(config.get(RESTCatalogServer.CATALOG_NAME)).isEqualTo("my_custom_catalog");
-  }
+    RESTCatalogServer server = new RESTCatalogServer(config);
+    RESTCatalogServer.CatalogContext context = server.initializeBackendCatalog();
 
-  @Test
-  public void testEnvironmentVariableMapping() {
-    // Test that CATALOG_NAME environment variable gets mapped correctly
-    // This follows the pattern in RCKUtils.environmentCatalogConfig()
-    String envVar = "CATALOG_NAME";
-
-    // The environment variable should be converted to the property name
-    assertThat(envVar.replaceFirst("CATALOG_", "").toLowerCase(Locale.ROOT)).isEqualTo("name");
-    // But the actual mapping in RCKUtils would be:
-    // CATALOG_NAME -> catalog.name
+    assertThat(context.catalog().name()).isEqualTo(customCatalogName);
   }
 }
