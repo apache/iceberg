@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -40,9 +39,7 @@ public class TestMetricsConfig {
                     required(3, "b", Types.IntegerType.get()))),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.limitSchema(schema, 1);
-
-    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4)))).isTrue();
+    assertThat(MetricsConfig.limitFieldIds(schema, 1)).isEqualTo(Set.of(4));
   }
 
   @Test
@@ -55,9 +52,7 @@ public class TestMetricsConfig {
                 Types.MapType.ofRequired(2, 3, Types.IntegerType.get(), Types.IntegerType.get())),
             required(4, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.limitSchema(schema, 2);
-
-    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(4, 2)))).isTrue();
+    assertThat(MetricsConfig.limitFieldIds(schema, 2)).isEqualTo(Set.of(4, 2));
   }
 
   @Test
@@ -73,8 +68,6 @@ public class TestMetricsConfig {
                         3, 4, Types.IntegerType.get(), Types.IntegerType.get()))),
             required(5, "top", Types.IntegerType.get()));
 
-    Schema subSchema = MetricsConfig.limitSchema(schema, 2);
-
-    assertThat(subSchema.sameSchema(TypeUtil.project(schema, Set.of(5, 3)))).isTrue();
+    assertThat(MetricsConfig.limitFieldIds(schema, 2)).isEqualTo(Set.of(5, 3));
   }
 }

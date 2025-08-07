@@ -156,10 +156,7 @@ public final class MetricsConfig implements Serializable {
           @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
-            if (shouldContinue()) {
-              fieldResult.get();
-            }
-
+            fieldResult.get();
             return null;
           }
 
@@ -204,12 +201,6 @@ public final class MetricsConfig implements Serializable {
         });
   }
 
-  static Schema limitSchema(Schema schema, int maxInferredDefaultColumns) {
-    Set<Integer> boundedFieldIds = limitFieldIds(schema, maxInferredDefaultColumns);
-
-    return TypeUtil.project(schema, boundedFieldIds);
-  }
-
   /**
    * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
    *
@@ -238,8 +229,7 @@ public final class MetricsConfig implements Serializable {
         // everywhere
         defaultMode = DEFAULT_MODE;
       } else {
-        Schema subSchema = limitSchema(schema, maxInferredDefaultColumns);
-        for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
+        for (Integer id : limitFieldIds(schema, maxInferredDefaultColumns)) {
           columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
         }
 
