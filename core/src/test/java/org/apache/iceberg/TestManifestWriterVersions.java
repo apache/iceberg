@@ -87,7 +87,7 @@ public class TestManifestWriterVersions {
       BaseContentStats.builder()
           .withStatistic(
               BaseStatistic.builder()
-                  .columnId(1)
+                  .fieldId(1)
                   .type(Types.IntegerType.get())
                   .columnSize(15L)
                   .valueCount(100L)
@@ -97,7 +97,7 @@ public class TestManifestWriterVersions {
                   .build())
           .withStatistic(
               BaseStatistic.builder()
-                  .columnId(2)
+                  .fieldId(2)
                   .type(Types.TimestampType.withZone())
                   .columnSize(122L)
                   .valueCount(100L)
@@ -105,7 +105,7 @@ public class TestManifestWriterVersions {
                   .build())
           .withStatistic(
               BaseStatistic.builder()
-                  .columnId(3)
+                  .fieldId(3)
                   .type(Types.StringType.get())
                   .columnSize(4021L)
                   .valueCount(100L)
@@ -113,7 +113,7 @@ public class TestManifestWriterVersions {
                   .build())
           .withStatistic(
               BaseStatistic.builder()
-                  .columnId(4)
+                  .fieldId(4)
                   .type(Types.StringType.get())
                   .columnSize(9411L)
                   .valueCount(100L)
@@ -121,7 +121,7 @@ public class TestManifestWriterVersions {
                   .build())
           .withStatistic(
               BaseStatistic.builder()
-                  .columnId(5)
+                  .fieldId(5)
                   .type(Types.DoubleType.get())
                   .columnSize(15L)
                   .valueCount(100L)
