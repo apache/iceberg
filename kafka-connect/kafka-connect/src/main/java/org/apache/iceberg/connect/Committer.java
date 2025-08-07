@@ -43,7 +43,7 @@ public interface Committer {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0. Use {@link #close(Collection)} instead.
+   * @deprecated Will be removed in 2.0.0. Use {@link #close(Collection, boolean)} instead.
    */
   @Deprecated
   void stop();
