@@ -20,7 +20,6 @@ package org.apache.iceberg.actions;
 
 import java.net.URI;
 import java.util.Map;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
@@ -31,20 +30,18 @@ public class FileURI {
   private String path;
   private String uriAsString;
 
-  public FileURI(
-      String uriAsString, Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-    URI uri = new Path(uriAsString).toUri();
-    this.scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
-    this.authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
-    this.path = uri.getPath();
-    this.uriAsString = uriAsString;
-  }
-
   public FileURI(String scheme, String authority, String path, String uriAsString) {
     this.scheme = scheme;
     this.authority = authority;
     this.path = path;
     this.uriAsString = uriAsString;
+  }
+
+  public FileURI(URI uri, Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
+    this.scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
+    this.authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
+    this.path = uri.getPath();
+    this.uriAsString = uri.toString();
   }
 
   public FileURI() {}

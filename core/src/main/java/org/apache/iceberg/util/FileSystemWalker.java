@@ -50,10 +50,11 @@ public class FileSystemWalker {
    * Recursively lists files in the specified directory that satisfy the given conditions. Use
    * {@link PartitionAwareHiddenPathFilter} to filter out hidden paths.
    *
-   * @param io File system interface supporting prefix operations
+   * @param io FileIO implementation interface supporting prefix operations
    * @param dir Base directory to start recursive listing
-   * @param specs Map of {@link PartitionSpec partition specs} for this table.
-   * @param filter Additional filter condition for files
+   * @param specs Map of {@link PartitionSpec partition specs} for this table. Used to prevent
+   *     partition directories from being filtered as hidden paths.
+   * @param filter File filter condition, only files satisfying this condition will be collected.
    * @param fileConsumer Consumer to accept matching file locations
    */
   public static void listDirRecursivelyWithFileIO(
@@ -78,8 +79,8 @@ public class FileSystemWalker {
   }
 
   /**
-   * Recursively traverses the specified directory using Hadoop API to collect file paths that meet
-   * the conditions.
+   * Recursively traverses the specified directory using Hadoop FileSystem API to collect file paths
+   * that meet the conditions.
    *
    * <p>This method provides depth control and subdirectory quantity limitation:
    *
@@ -91,9 +92,10 @@ public class FileSystemWalker {
    * </ul>
    *
    * @param dir The starting directory path to traverse
-   * @param specs Map of {@link PartitionSpec partition specs} for this table.
+   * @param specs Map of {@link PartitionSpec partition specs} for this table. Used to prevent *
+   *     partition directories from being filtered as hidden paths.
    * @param filter File filter condition, only files satisfying this condition will be collected
-   * @param conf Hadoop conf
+   * @param conf Hadoop's configuration used to load the FileSystem
    * @param maxDepth Maximum recursion depth limit
    * @param maxDirectSubDirs Upper limit of subdirectories that can be processed directly
    * @param directoryConsumer Consumer for collecting parameter for storing unprocessed directory

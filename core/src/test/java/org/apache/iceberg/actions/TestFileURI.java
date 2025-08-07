@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import java.util.Map;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
@@ -30,9 +31,15 @@ public class TestFileURI {
   @Test
   public void testSchemeMatchWithSameScheme() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
     FileURI uri2 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
 
     assertThat(uri1.schemeMatch(uri2)).isTrue();
   }
@@ -40,8 +47,13 @@ public class TestFileURI {
   @Test
   public void testSchemeMatchWithDifferentScheme() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
-    FileURI uri2 = new FileURI("file:///path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
+    FileURI uri2 =
+        new FileURI(
+            new Path("file:///path").toUri(), Collections.emptyMap(), Collections.emptyMap());
 
     assertThat(uri1.schemeMatch(uri2)).isFalse();
   }
@@ -49,8 +61,12 @@ public class TestFileURI {
   @Test
   public void testSchemeMatchWithEmptyScheme() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
-    FileURI uri2 = new FileURI("/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
+    FileURI uri2 =
+        new FileURI(new Path("/path").toUri(), Collections.emptyMap(), Collections.emptyMap());
 
     assertThat(uri1.schemeMatch(uri2)).isFalse();
   }
@@ -68,9 +84,15 @@ public class TestFileURI {
   @Test
   public void testAuthorityMatchWithSameAuthority() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
     FileURI uri2 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
 
     assertThat(uri1.authorityMatch(uri2)).isTrue();
   }
@@ -78,9 +100,15 @@ public class TestFileURI {
   @Test
   public void testAuthorityMatchWithDifferentAuthority() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode1/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode1/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
     FileURI uri2 =
-        new FileURI("hdfs://namenode2/path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode2/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
 
     assertThat(uri1.authorityMatch(uri2)).isFalse();
   }
@@ -88,8 +116,13 @@ public class TestFileURI {
   @Test
   public void testAuthorityMatchWithEmptyAuthority() {
     FileURI uri1 =
-        new FileURI("hdfs://namenode/path", Collections.emptyMap(), Collections.emptyMap());
-    FileURI uri2 = new FileURI("file:///path", Collections.emptyMap(), Collections.emptyMap());
+        new FileURI(
+            new Path("hdfs://namenode/path").toUri(),
+            Collections.emptyMap(),
+            Collections.emptyMap());
+    FileURI uri2 =
+        new FileURI(
+            new Path("file:///path").toUri(), Collections.emptyMap(), Collections.emptyMap());
 
     assertThat(uri1.authorityMatch(uri2)).isFalse();
   }
@@ -109,8 +142,10 @@ public class TestFileURI {
     Map<String, String> schemeMap = Maps.newHashMap();
     schemeMap.put("HDFS", "hdfs");
 
-    FileURI uri1 = new FileURI("HDFS://namenode/path", schemeMap, Collections.emptyMap());
-    FileURI uri2 = new FileURI("hdfs://namenode/path", schemeMap, Collections.emptyMap());
+    FileURI uri1 =
+        new FileURI(new Path("HDFS://namenode/path").toUri(), schemeMap, Collections.emptyMap());
+    FileURI uri2 =
+        new FileURI(new Path("hdfs://namenode/path").toUri(), schemeMap, Collections.emptyMap());
 
     assertThat(uri1.schemeMatch(uri2)).isTrue();
   }
@@ -120,8 +155,10 @@ public class TestFileURI {
     Map<String, String> authorityMap = Maps.newHashMap();
     authorityMap.put("OLD-NODE", "new-node");
 
-    FileURI uri1 = new FileURI("hdfs://OLD-NODE/path", Collections.emptyMap(), authorityMap);
-    FileURI uri2 = new FileURI("hdfs://new-node/path", Collections.emptyMap(), authorityMap);
+    FileURI uri1 =
+        new FileURI(new Path("hdfs://OLD-NODE/path").toUri(), Collections.emptyMap(), authorityMap);
+    FileURI uri2 =
+        new FileURI(new Path("hdfs://new-node/path").toUri(), Collections.emptyMap(), authorityMap);
 
     assertThat(uri1.authorityMatch(uri2)).isTrue();
   }

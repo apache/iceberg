@@ -174,25 +174,9 @@ public class TestFileSystemWalker {
   @ValueSource(booleans = {true, false})
   public void testListDirRecursivelyNotInclude(boolean useHadoop) {
     List<String> foundFiles = Lists.newArrayList();
-    List<String> remainingDirs = Lists.newArrayList();
     String path = basePath + "/normal_dir";
-    if (useHadoop) {
-      Predicate<FileStatus> fileFilter =
-          fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
-      FileSystemWalker.listDirRecursivelyWithHadoop(
-          path,
-          specs,
-          fileFilter,
-          hadoopConf,
-          Integer.MAX_VALUE, // maxDepth
-          Integer.MAX_VALUE, // maxDirectSubDirs
-          remainingDirs::add,
-          foundFiles::add);
-    } else {
-      Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
-      FileSystemWalker.listDirRecursivelyWithFileIO(
-          fileIO, path, specs, fileFilter, foundFiles::add);
-    }
+
+    listFilesRecursively(path, useHadoop, specs, foundFiles);
 
     assertThat(foundFiles).hasSize(2);
     assertThat(foundFiles)
@@ -224,13 +208,25 @@ public class TestFileSystemWalker {
     Files.createFile(fileInPartition1);
 
     List<String> foundFiles = Lists.newArrayList();
+    listFilesRecursively(basePath, useHadoop, partitionSpecs, foundFiles);
+
+    assertThat(foundFiles).contains("file:" + fileInPartition.toAbsolutePath());
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(foundFiles).doesNotContain("file:" + fileInPartition1.toAbsolutePath());
+  }
+
+  private void listFilesRecursively(
+      String path,
+      boolean useHadoop,
+      Map<Integer, PartitionSpec> partitionSpecs,
+      List<String> foundFiles) {
     List<String> remainingDirs = Lists.newArrayList();
 
     if (useHadoop) {
       Predicate<FileStatus> fileFilter =
           fileStatus -> fileStatus.getPath().getName().endsWith(".txt");
       FileSystemWalker.listDirRecursivelyWithHadoop(
-          basePath,
+          path,
           partitionSpecs,
           fileFilter,
           hadoopConf,
@@ -241,12 +237,9 @@ public class TestFileSystemWalker {
     } else {
       Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
       FileSystemWalker.listDirRecursivelyWithFileIO(
-          fileIO, basePath, partitionSpecs, fileFilter, foundFiles::add);
+          fileIO, path, partitionSpecs, fileFilter, foundFiles::add);
     }
 
     assertThat(remainingDirs).isEmpty();
-    assertThat(foundFiles).contains("file:" + fileInPartition.toAbsolutePath());
-    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
-    assertThat(foundFiles).doesNotContain("file:" + fileInPartition1.toAbsolutePath());
   }
 }
