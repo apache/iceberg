@@ -193,13 +193,13 @@ public class TestRewriteFiles extends TestBase {
     long pendingId = pending.snapshotId();
 
     validateManifestEntries(
-        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_C), statuses(ADDED));
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_C), statuses(ADDED), table.specs());
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
         ids(pendingId, baseSnapshotId),
         files(FILE_A, FILE_B),
-        statuses(DELETED, EXISTING));
+        statuses(DELETED, EXISTING), table.specs());
 
     // We should only get the 3 manifests that this test is expected to add.
     assertThat(listManifestFiles()).hasSize(3);
@@ -225,13 +225,13 @@ public class TestRewriteFiles extends TestBase {
     long pendingId = pending.snapshotId();
 
     validateManifestEntries(
-        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_C), statuses(ADDED));
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_C), statuses(ADDED), table.specs());
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
         ids(pendingId, baseSnapshotId),
         files(FILE_A, FILE_B),
-        statuses(DELETED, EXISTING));
+        statuses(DELETED, EXISTING), table.specs());
 
     // We should only get the 3 manifests that this test is expected to add.
     assertThat(listManifestFiles()).hasSize(3);
@@ -265,7 +265,7 @@ public class TestRewriteFiles extends TestBase {
         initialManifests.get(0),
         ids(baseSnapshotId, baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(ADDED, ADDED, ADDED));
+        statuses(ADDED, ADDED, ADDED), table.specs());
     validateDeleteManifest(
         initialManifests.get(1),
         dataSeqs(1L, 1L),
@@ -292,13 +292,13 @@ public class TestRewriteFiles extends TestBase {
 
     long pendingId = pending.snapshotId();
     validateManifestEntries(
-        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_D), statuses(ADDED));
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_D), statuses(ADDED), table.specs());
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
         ids(pendingId, baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(DELETED, EXISTING, EXISTING));
+        statuses(DELETED, EXISTING, EXISTING), table.specs());
 
     validateDeleteManifest(
         pending.allManifests(table.io()).get(2),
@@ -340,7 +340,7 @@ public class TestRewriteFiles extends TestBase {
         initialManifests.get(0),
         ids(baseSnapshotId, baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(ADDED, ADDED, ADDED));
+        statuses(ADDED, ADDED, ADDED), table.specs());
     validateDeleteManifest(
         initialManifests.get(1),
         dataSeqs(1L, 1L),
@@ -364,7 +364,7 @@ public class TestRewriteFiles extends TestBase {
 
     long pendingId = pending.snapshotId();
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
-    validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
+    validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED), table.specs());
     assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
         .allSatisfy(entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber));
     assertThat(newManifest.sequenceNumber()).isEqualTo(oldSequenceNumber + 1);
@@ -373,7 +373,7 @@ public class TestRewriteFiles extends TestBase {
         pending.allManifests(table.io()).get(1),
         ids(pendingId, baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(DELETED, EXISTING, EXISTING));
+        statuses(DELETED, EXISTING, EXISTING), table.specs());
 
     validateDeleteManifest(
         pending.allManifests(table.io()).get(2),
@@ -401,8 +401,8 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
-    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
-    validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED), table.specs());
+    validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED), table.specs());
 
     assertThatThrownBy(() -> commit(table, rewrite, branch))
         .isInstanceOf(CommitFailedException.class)
@@ -455,13 +455,13 @@ public class TestRewriteFiles extends TestBase {
         pending.allManifests(table.io()).get(0),
         ids(pending.snapshotId()),
         files(FILE_D),
-        statuses(ADDED));
+        statuses(ADDED), table.specs());
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
         ids(pending.snapshotId(), baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(DELETED, EXISTING, EXISTING));
+        statuses(DELETED, EXISTING, EXISTING), table.specs());
 
     validateDeleteManifest(
         pending.allManifests(table.io()).get(2),
@@ -497,8 +497,8 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
-    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
-    validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED), table.specs());
+    validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED), table.specs());
 
     commit(table, rewrite, branch);
 
@@ -548,13 +548,13 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
     ManifestFile manifest3 = pending.allManifests(table.io()).get(2);
 
-    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_D), statuses(ADDED));
+    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_D), statuses(ADDED), table.specs());
 
     validateManifestEntries(
         manifest2,
         ids(pending.snapshotId(), baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(DELETED, EXISTING, EXISTING));
+        statuses(DELETED, EXISTING, EXISTING), table.specs());
 
     validateDeleteManifest(
         manifest3,
@@ -604,7 +604,7 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
     ManifestFile manifest3 = pending.allManifests(table.io()).get(2);
 
-    validateManifestEntries(manifest1, ids(baseSnapshotId), files(FILE_A2), statuses(ADDED));
+    validateManifestEntries(manifest1, ids(baseSnapshotId), files(FILE_A2), statuses(ADDED), table.specs());
 
     validateDeleteManifest(
         manifest2,
@@ -659,7 +659,7 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
-    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+    validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED), table.specs());
 
     validateDeleteManifest(
         manifest2,
@@ -722,13 +722,13 @@ public class TestRewriteFiles extends TestBase {
     long pendingId = pending.snapshotId();
 
     validateManifestEntries(
-        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_B), statuses(ADDED));
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(FILE_B), statuses(ADDED), table.specs());
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
         ids(pendingId, latestSnapshot(table, branch).snapshotId()),
         files(FILE_A),
-        statuses(DELETED));
+        statuses(DELETED), table.specs());
 
     commit(table, rewrite, branch);
 

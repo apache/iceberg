@@ -68,7 +68,7 @@ public class TestRewriteManifests extends TestBase {
     assertThat(manifests).hasSize(1);
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -147,7 +147,7 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -167,9 +167,9 @@ public class TestRewriteManifests extends TestBase {
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING), table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -207,7 +207,7 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -260,9 +260,9 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING), table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.ADDED), table.specs());
   }
 
   @TestTemplate
@@ -284,9 +284,9 @@ public class TestRewriteManifests extends TestBase {
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING), table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -341,7 +341,7 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -371,9 +371,9 @@ public class TestRewriteManifests extends TestBase {
     assertThat(manifests).hasSize(2);
 
     validateManifestEntries(
-        manifests.get(0), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING), table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(1), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED), table.specs());
   }
 
   @TestTemplate
@@ -401,9 +401,9 @@ public class TestRewriteManifests extends TestBase {
     // last append should be the first in the list
 
     validateManifestEntries(
-        manifests.get(0), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(0), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED), table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -453,19 +453,19 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED), table.specs());
   }
 
   @TestTemplate
@@ -512,19 +512,19 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED), table.specs());
 
     // validate that any subsequent operation does not fail
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
@@ -702,19 +702,19 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED), table.specs());
   }
 
   @TestTemplate
@@ -762,19 +762,19 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(thirdSnapshotId, secondSnapshotId),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate
@@ -863,13 +863,13 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED), table.specs());
   }
 
   @TestTemplate
@@ -922,13 +922,13 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(secondSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING), table.specs());
   }
 
   @TestTemplate

@@ -39,7 +39,7 @@ import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T>, HasMetadata {
+public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
@@ -96,16 +96,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
-  }
-
-  @Override
-  public Map<String, String> getMetadata() {
-    // TODO Clean this up - Currently just open the file and reader the footer
-    try(ParquetReader.FileIterator reader = new FileIterator<>(init())) {
-      return reader.reader.getFileMetaData().getKeyValueMetaData();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {

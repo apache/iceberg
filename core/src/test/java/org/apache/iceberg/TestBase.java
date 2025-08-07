@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -332,7 +333,7 @@ public class TestBase {
       throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
-            FileFormat.AVRO.addExtension(
+            manifestExtension(
                 File.createTempFile("junit", null, temp.toFile()).toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
@@ -463,7 +464,7 @@ public class TestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -575,7 +576,7 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
 
@@ -762,11 +763,11 @@ public class TestBase {
   }
 
   static void validateManifestEntries(
-      ManifestFile manifest,
-      Iterator<Long> ids,
-      Iterator<DataFile> expectedFiles,
-      Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    ManifestFile manifest,
+    Iterator<Long> ids,
+    Iterator<DataFile> expectedFiles,
+    Iterator<ManifestEntry.Status> expectedStatuses, Map<Integer, PartitionSpec> specs) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, specs).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();

@@ -35,7 +35,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D>, HasMetadata {
+public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;
   private final DatumReader<D> reader;
   private final Long start;
@@ -62,7 +62,6 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     return metadataReader;
   }
 
-  @Override
   public Map<String, String> getMetadata() {
     if (metadata == null) {
       try (DataFileReader<D> reader = newFileReader()) {

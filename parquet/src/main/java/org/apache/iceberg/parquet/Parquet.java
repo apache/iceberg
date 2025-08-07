@@ -73,8 +73,10 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -1163,7 +1165,7 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
 
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
-    private Class<? extends StructLike> rootType = null;
+    private InternalReader<?> internalReader;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1225,10 +1227,6 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFuncWithSchema == null,
           "Cannot set reader function: 2-argument reader function already set");
-      Preconditions.checkArgument(
-        this.rootType == null || this.typeMap.isEmpty(),
-        "CONFLICT TODO FIX MESSAGE"
-      );
       this.readerFunc = newReaderFunction;
       return this;
     }
@@ -1242,10 +1240,11 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set 2-argument reader function: batched reader function already set");
       this.readerFuncWithSchema = newReaderFunction;
-      Preconditions.checkArgument(
-        this.rootType == null || this.typeMap.isEmpty(),
-        "CONFLICT TODO FIX MESSAGE"
-      );
+      return this;
+    }
+
+    public ReadBuilder createInternalReader(InternalReader<?> internalReader) {
+      this.internalReader = internalReader;
       return this;
     }
 
@@ -1292,12 +1291,13 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      this.rootType = rootClass;
+      typeMap.put(-1, rootClass);
       return this;
     }
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+      Preconditions.checkArgument(this.internalReader != null, "Cannot set Custom Type: InternalReader not set");
       this.typeMap.put(fieldId, structClass);
       return this;
     }
@@ -1328,7 +1328,7 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
+      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null || internalReader != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1376,10 +1376,17 @@ public class Parquet {
               caseSensitive,
               maxRecordsPerBatch);
         } else {
-          Function<MessageType, ParquetValueReader<?>> readBuilder =
+          Function<MessageType, ParquetValueReader<?>> readBuilder;
+          if (internalReader != null) {
+            internalReader.setCustomTypeMap(typeMap);
+            readBuilder = (fileType -> internalReader.create(schema, fileType));
+          } else {
+            readBuilder =
               readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc;
+                ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                : readerFunc;
+          }
+
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }

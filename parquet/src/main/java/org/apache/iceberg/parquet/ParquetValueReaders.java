@@ -191,9 +191,10 @@ public class ParquetValueReaders {
     return new TimestampInt96Reader(desc);
   }
 
+  @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> structLikeReader(
     List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
-    if (structClass.isInstance(Record.class)) {
+    if (structClass.equals(Record.class)) {
       return ((ParquetValueReader<T>) recordReader(readers, struct));
     } else {
       return new StructLikeReader<>(readers, struct, structClass);

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -53,6 +54,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 abstract class BaseParquetReaders<T> {
+  public static final int ROOT_ID = -1;
+
   protected BaseParquetReaders() {}
 
   protected ParquetValueReader<T> createReader(Schema expectedSchema, MessageType fileSchema) {
@@ -75,8 +78,15 @@ abstract class BaseParquetReaders<T> {
     }
   }
 
-  protected abstract ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+  protected abstract ParquetValueReader<T> createStructReader(List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+
+  // This method can be overridden to provide a custom implementation which also uses the fieldId of the struct like
+  // in the case of InternalReader which can read into a custom StructLike type.
+  protected ParquetValueReader<T> createStructReader(
+    List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, @Nullable Integer fieldId) {
+    // Fallback to the signature without fieldId if not overridden
+    return createStructReader(fieldReaders, structType);
+  }
 
   protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 
@@ -118,8 +128,8 @@ abstract class BaseParquetReaders<T> {
           newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReader));
         }
       }
-
-      return createStructReader(newFields, expected);
+      Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+      return createStructReader(newFields, expected, id);
     }
   }
 
@@ -216,14 +226,16 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      return struct(expected, message.asGroupType(), fieldReaders);
+      // We need to mark the root struct, otherwise our visitor can't differentiate between the root and nested structs.
+      return struct(expected, message.asGroupType().withId(ROOT_ID), fieldReaders);
     }
 
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       if (null == expected) {
-        return createStructReader(ImmutableList.of(), null);
+        Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+        return createStructReader(ImmutableList.of(), null, id);
       }
 
       // match the expected struct's order
@@ -252,7 +264,8 @@ abstract class BaseParquetReaders<T> {
         reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
-      return createStructReader(reorderedFields, expected);
+      Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+      return createStructReader(reorderedFields, expected, id);
     }
 
     private ParquetValueReader<?> defaultReader(
