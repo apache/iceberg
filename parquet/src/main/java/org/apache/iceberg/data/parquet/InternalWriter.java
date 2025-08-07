@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.parquet;
 
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -39,8 +40,9 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
 
   private InternalWriter() {}
 
-  public static <T extends StructLike> ParquetValueWriter<T> create(MessageType type) {
-    return create(null, type);
+  public static <T extends StructLike> ParquetValueWriter<T> createWriter(
+      Schema schema, MessageType type) {
+    return create(schema.asStruct(), type);
   }
 
   @SuppressWarnings("unchecked")
@@ -50,8 +52,9 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
   }
 
   @Override
-  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+  protected StructWriter<T> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
   }
 
   @Override

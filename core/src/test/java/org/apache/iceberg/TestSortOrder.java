@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -28,7 +29,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -70,8 +70,8 @@ public class TestSortOrder {
   @TempDir private File tableDir;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Parameter private int formatVersion;
@@ -341,6 +341,22 @@ public class TestSortOrder {
     assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.v").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported type for identity: variant");
+  }
+
+  @TestTemplate
+  public void testGeospatialUnsupported() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.required(5, "geog", Types.GeographyType.crs84()));
+
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geom").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geometry");
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("geog").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geography");
   }
 
   @Test

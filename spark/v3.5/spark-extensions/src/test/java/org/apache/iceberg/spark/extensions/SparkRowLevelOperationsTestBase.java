@@ -177,7 +177,19 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         SparkCatalog.class.getName(),
         ImmutableMap.of("type", "hadoop"),
         FileFormat.PARQUET,
-        RANDOM.nextBoolean(),
+        true,
+        WRITE_DISTRIBUTION_MODE_HASH,
+        true,
+        null,
+        LOCAL,
+        3
+      },
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        FileFormat.PARQUET,
+        false,
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
         null,
@@ -398,7 +410,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
       DataWriter<GenericRecord> dataWriter =
           Parquet.writeData(file)
               .forTable(table)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .createWriterFunc(GenericParquetWriter::create)
               .overwrite()
               .build();
 

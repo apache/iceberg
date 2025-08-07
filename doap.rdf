@@ -42,9 +42,9 @@
     <category rdf:resource="https://projects.apache.org/category/data-engineering" />
     <release>
       <Version>
-        <name>1.8.1</name>
-        <created>2025-02-28</created>
-        <revision>1.8.1</revision>
+        <name>1.9.2</name>
+        <created>2025-07-16</created>
+        <revision>1.9.2</revision>
       </Version>
     </release>
     <repository>

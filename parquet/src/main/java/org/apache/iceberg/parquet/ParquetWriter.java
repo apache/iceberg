@@ -46,6 +46,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private static final Metrics EMPTY_METRICS = new Metrics(0L, null, null, null, null);
 
+  private final Schema schema;
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
   private final ParquetProperties props;
@@ -84,6 +85,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       MetricsConfig metricsConfig,
       ParquetFileWriter.Mode writeMode,
       FileEncryptionProperties encryptionProperties) {
+    this.schema = schema;
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
     this.metadata = ImmutableMap.copyOf(metadata);
@@ -142,7 +144,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
+      return ParquetMetrics.metrics(
+          schema, parquetSchema, metricsConfig, writer.getFooter(), model.metrics());
     }
     return EMPTY_METRICS;
   }

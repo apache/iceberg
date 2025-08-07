@@ -104,9 +104,13 @@ public class CommitterImpl implements Committer {
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
     if (hasLeaderPartition(closedPartitions)) {
-      LOG.info("Committer lost leader partition. Stopping Coordinator.");
+      LOG.info(
+          "Committer {}-{} lost leader partition. Stopping Coordinator.",
+          config.connectorName(),
+          config.taskId());
       stopCoordinator();
     }
+    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
     stopWorker();
     Set<TopicPartition> oldAssignment = context.assignment().stream().collect(Collectors.toSet());
     oldAssignment.removeAll(closedPartitions);
@@ -122,6 +126,10 @@ public class CommitterImpl implements Committer {
         catalog = null;
       }
     }
+    LOG.info(
+        "Seeking to last committed offsets for worker {}-{}.",
+        config.connectorName(),
+        config.taskId());
     KafkaUtils.seekToLastCommittedOffsets(context);
   }
 

@@ -88,7 +88,7 @@ public class TestTimestampWithoutZone extends TestBase {
   @TempDir private Path temp;
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat fileFormat;
 
   @Parameter(index = 1)
   private boolean vectorized;
@@ -96,9 +96,9 @@ public class TestTimestampWithoutZone extends TestBase {
   @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false}
+      {FileFormat.PARQUET, false},
+      {FileFormat.PARQUET, true},
+      {FileFormat.AVRO, false}
     };
   }
 
@@ -115,8 +115,6 @@ public class TestTimestampWithoutZone extends TestBase {
 
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
-
-    FileFormat fileFormat = FileFormat.fromString(format);
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 

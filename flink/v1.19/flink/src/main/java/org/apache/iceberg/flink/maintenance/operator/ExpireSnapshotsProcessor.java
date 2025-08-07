@@ -52,6 +52,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   private final Long maxSnapshotAgeMs;
   private final Integer numSnapshots;
   private final Integer plannerPoolSize;
+  private final Boolean cleanExpiredMetadata;
   private transient ExecutorService plannerPool;
   private transient Table table;
 
@@ -59,13 +60,15 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
       TableLoader tableLoader,
       Long maxSnapshotAgeMs,
       Integer numSnapshots,
-      Integer plannerPoolSize) {
-    Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
+      Integer plannerPoolSize,
+      Boolean cleanExpiredMetadata) {
+    Preconditions.checkNotNull(tableLoader, "Table loader should not be null");
 
     this.tableLoader = tableLoader;
     this.maxSnapshotAgeMs = maxSnapshotAgeMs;
     this.numSnapshots = numSnapshots;
     this.plannerPoolSize = plannerPoolSize;
+    this.cleanExpiredMetadata = cleanExpiredMetadata;
   }
 
   @Override
@@ -74,7 +77,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
     this.table = tableLoader.loadTable();
     this.plannerPool =
         plannerPoolSize != null
-            ? ThreadPools.newWorkerPool(table.name() + "-table--planner", plannerPoolSize)
+            ? ThreadPools.newFixedThreadPool(table.name() + "-table--planner", plannerPoolSize)
             : ThreadPools.getWorkerPool();
   }
 
@@ -90,6 +93,10 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
 
       if (numSnapshots != null) {
         expireSnapshots = expireSnapshots.retainLast(numSnapshots);
+      }
+
+      if (cleanExpiredMetadata != null) {
+        expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
       }
 
       AtomicLong deleteFileCounter = new AtomicLong(0L);

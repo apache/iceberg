@@ -540,6 +540,12 @@ public class TypeUtil {
       case BINARY:
       case VARIANT:
         return 80;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // 80 bytes is an approximate size for a polygon or linestring with 4 to 5 coordinates.
+        // This is a reasonable estimate for the size of a geometry or geography object without
+        // additional details.
+        return 80;
       case UNKNOWN:
         // Consider Unknown as null
         return 0;

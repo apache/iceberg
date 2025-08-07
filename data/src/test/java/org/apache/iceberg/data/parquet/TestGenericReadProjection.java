@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.data.parquet;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.Files;
@@ -34,13 +32,12 @@ public class TestGenericReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File file = File.createTempFile("junit", ".parquet", tempDir);
-    assertThat(file.delete()).isTrue();
+    File file = new File(tempDir, "junit" + System.nanoTime() + ".parquet");
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
             .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       appender.add(record);
     }

@@ -36,26 +36,19 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
-import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
-import org.apache.iceberg.variants.VariantVisitor;
 import org.apache.iceberg.variants.Variants;
-import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
-import org.apache.parquet.schema.Types.GroupBuilder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -83,6 +76,12 @@ public class TestVariantWriters {
               "c", Variants.of("string")));
   private static final ByteBuffer EMPTY_OBJECT_BUFFER =
       VariantTestUtil.createObject(TEST_METADATA_BUFFER, ImmutableMap.of());
+  private static final ByteBuffer ARRAY_IN_OBJECT_BUFFER =
+      VariantTestUtil.createObject(
+          TEST_METADATA_BUFFER,
+          ImmutableMap.of(
+              "a", Variants.of(123456789),
+              "c", array(Variants.of("string"), Variants.of("iceberg"))));
 
   private static final VariantMetadata EMPTY_METADATA =
       Variants.metadata(VariantTestUtil.emptyMetadata());
@@ -93,6 +92,45 @@ public class TestVariantWriters {
       (VariantObject) Variants.value(TEST_METADATA, SIMILAR_OBJECT_BUFFER);
   private static final VariantObject EMPTY_OBJECT =
       (VariantObject) Variants.value(TEST_METADATA, EMPTY_OBJECT_BUFFER);
+  private static final VariantObject ARRAY_IN_OBJECT =
+      (VariantObject) Variants.value(TEST_METADATA, ARRAY_IN_OBJECT_BUFFER);
+
+  private static final ByteBuffer EMPTY_ARRAY_BUFFER = VariantTestUtil.createArray();
+  private static final ByteBuffer TEST_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"));
+  private static final ByteBuffer MIXED_TYPE_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"), Variants.of(34));
+  private static final ByteBuffer NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg")),
+          array(Variants.of("apple"), Variants.of("banana")));
+  private static final ByteBuffer MIXED_NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg"), Variants.of(34)),
+          array(Variants.of(34), Variants.ofNull()),
+          array(),
+          array(Variants.of("string"), Variants.of("iceberg")),
+          Variants.of(34));
+  private static final ByteBuffer OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(SIMILAR_OBJECT, SIMILAR_OBJECT);
+  private static final ByteBuffer MIXED_OBJECT_IN_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          SIMILAR_OBJECT, SIMILAR_OBJECT, Variants.of("iceberg"), Variants.of(34));
+
+  private static final VariantArray EMPTY_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, EMPTY_ARRAY_BUFFER);
+  private static final VariantArray TEST_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, TEST_ARRAY_BUFFER);
+  private static final VariantArray MIXED_TYPE_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_TYPE_ARRAY_BUFFER);
+  private static final VariantArray NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, NESTED_ARRAY_BUFFER);
+  private static final VariantArray MIXED_NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, MIXED_NESTED_ARRAY_BUFFER);
+  private static final VariantArray OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, OBJECT_IN_ARRAY_BUFFER);
+  private static final VariantArray MIXED_OBJECT_IN_ARRAY =
+      (VariantArray) Variants.value(TEST_METADATA, MIXED_OBJECT_IN_ARRAY_BUFFER);
 
   private static final Variant[] VARIANTS =
       new Variant[] {
@@ -114,6 +152,14 @@ public class TestVariantWriters {
         Variant.of(EMPTY_METADATA, EMPTY_OBJECT),
         Variant.of(TEST_METADATA, TEST_OBJECT),
         Variant.of(TEST_METADATA, SIMILAR_OBJECT),
+        Variant.of(TEST_METADATA, ARRAY_IN_OBJECT),
+        Variant.of(EMPTY_METADATA, EMPTY_ARRAY),
+        Variant.of(EMPTY_METADATA, TEST_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_TYPE_ARRAY),
+        Variant.of(EMPTY_METADATA, NESTED_ARRAY),
+        Variant.of(EMPTY_METADATA, MIXED_NESTED_ARRAY),
+        Variant.of(TEST_METADATA, OBJECT_IN_ARRAY),
+        Variant.of(TEST_METADATA, MIXED_OBJECT_IN_ARRAY),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
@@ -131,6 +177,16 @@ public class TestVariantWriters {
         Variant.of(
             EMPTY_METADATA, Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
         Variant.of(EMPTY_METADATA, Variants.of("iceberg")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTime("12:33:54.123456")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestamptzNanos("1957-11-07T12:33:54.123456789+00:00")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789")),
+        Variant.of(
+            EMPTY_METADATA, Variants.ofIsoTimestampntzNanos("1957-11-07T12:33:54.123456789")),
+        Variant.of(EMPTY_METADATA, Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56")),
       };
 
   @ParameterizedTest
@@ -148,7 +204,8 @@ public class TestVariantWriters {
   public void testShreddedValues(Variant variant) throws IOException {
     Record record = RECORD.copy("id", 1, "var", variant);
 
-    Record actual = writeAndRead((id, name) -> toParquetSchema(variant.value()), record);
+    Record actual =
+        writeAndRead((id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()), record);
 
     InternalTestHelpers.assertEquals(SCHEMA.asStruct(), record, actual);
   }
@@ -161,9 +218,10 @@ public class TestVariantWriters {
             .mapToObj(i -> RECORD.copy("id", i, "var", VARIANTS[i]))
             .collect(Collectors.toList());
 
-    List<Record> actual = writeAndRead((id, name) -> toParquetSchema(variant.value()), expected);
+    List<Record> actual =
+        writeAndRead((id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()), expected);
 
-    assertThat(actual.size()).isEqualTo(expected.size());
+    assertThat(actual).hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected.get(i), actual.get(i));
@@ -199,144 +257,12 @@ public class TestVariantWriters {
     }
   }
 
-  private Type toParquetSchema(VariantValue value) {
-    return VariantVisitor.visit(value, new ParquetSchemaProducer());
-  }
-
-  private static class ParquetSchemaProducer extends VariantVisitor<Type> {
-    @Override
-    public Type object(VariantObject object, List<String> names, List<Type> typedValues) {
-      if (object.numFields() < 1) {
-        // Parquet cannot write  typed_value group with no fields
-        return null;
-      }
-
-      List<GroupType> fields = Lists.newArrayList();
-      int index = 0;
-      for (String name : names) {
-        Type typedValue = typedValues.get(index);
-        fields.add(field(name, typedValue));
-        index += 1;
-      }
-
-      return objectFields(fields);
+  private static ValueArray array(VariantValue... values) {
+    ValueArray arr = Variants.array();
+    for (VariantValue value : values) {
+      arr.add(value);
     }
 
-    @Override
-    public Type array(VariantArray array, List<Type> elementResults) {
-      throw null;
-    }
-
-    @Override
-    public Type primitive(VariantPrimitive<?> primitive) {
-      switch (primitive.type()) {
-        case NULL:
-          return null;
-        case BOOLEAN_TRUE:
-        case BOOLEAN_FALSE:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BOOLEAN);
-        case INT8:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8));
-        case INT16:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16));
-        case INT32:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT32);
-        case INT64:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT64);
-        case FLOAT:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.FLOAT);
-        case DOUBLE:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.DOUBLE);
-        case DECIMAL4:
-          BigDecimal decimal4 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32,
-              LogicalTypeAnnotation.decimalType(decimal4.scale(), 9));
-        case DECIMAL8:
-          BigDecimal decimal8 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.decimalType(decimal8.scale(), 18));
-        case DECIMAL16:
-          BigDecimal decimal16 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.BINARY,
-              LogicalTypeAnnotation.decimalType(decimal16.scale(), 38));
-        case DATE:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.dateType());
-        case TIMESTAMPTZ:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case TIMESTAMPNTZ:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case BINARY:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BINARY);
-        case STRING:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType());
-      }
-
-      throw new UnsupportedOperationException("Unsupported shredding type: " + primitive.type());
-    }
-
-    private static GroupType objectFields(List<GroupType> fields) {
-      GroupBuilder<GroupType> builder =
-          org.apache.parquet.schema.Types.buildGroup(Type.Repetition.OPTIONAL);
-      for (GroupType field : fields) {
-        checkField(field);
-        builder.addField(field);
-      }
-
-      return builder.named("typed_value");
-    }
-
-    private static void checkField(GroupType fieldType) {
-      Preconditions.checkArgument(
-          fieldType.isRepetition(Type.Repetition.REQUIRED),
-          "Invalid field type repetition: %s should be REQUIRED",
-          fieldType.getRepetition());
-    }
-
-    private static GroupType field(String name, Type shreddedType) {
-      GroupBuilder<GroupType> builder =
-          org.apache.parquet.schema.Types.buildGroup(Type.Repetition.REQUIRED)
-              .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-              .named("value");
-
-      if (shreddedType != null) {
-        checkShreddedType(shreddedType);
-        builder.addField(shreddedType);
-      }
-
-      return builder.named(name);
-    }
-
-    private static void checkShreddedType(Type shreddedType) {
-      Preconditions.checkArgument(
-          shreddedType.getName().equals("typed_value"),
-          "Invalid shredded type name: %s should be typed_value",
-          shreddedType.getName());
-      Preconditions.checkArgument(
-          shreddedType.isRepetition(Type.Repetition.OPTIONAL),
-          "Invalid shredded type repetition: %s should be OPTIONAL",
-          shreddedType.getRepetition());
-    }
-
-    private static Type shreddedPrimitive(PrimitiveType.PrimitiveTypeName primitive) {
-      return org.apache.parquet.schema.Types.optional(primitive).named("typed_value");
-    }
-
-    private static Type shreddedPrimitive(
-        PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation) {
-      return org.apache.parquet.schema.Types.optional(primitive)
-          .as(annotation)
-          .named("typed_value");
-    }
+    return arr;
   }
 }

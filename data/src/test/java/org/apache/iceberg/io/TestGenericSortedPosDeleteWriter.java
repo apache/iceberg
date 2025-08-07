@@ -168,6 +168,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
   }
 
   @TestTemplate
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testSortedPosDeleteWithSchemaAndNullRow() throws IOException {
     List<Record> rowSet =
         Lists.newArrayList(createRow(0, "aaa"), createRow(1, "bbb"), createRow(2, "ccc"));

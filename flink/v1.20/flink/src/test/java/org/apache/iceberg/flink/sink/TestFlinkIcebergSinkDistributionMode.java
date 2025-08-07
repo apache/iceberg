@@ -85,15 +85,28 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   @Parameter(index = 2)
   private int writeParallelism;
 
-  @Parameters(name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}")
+  @Parameter(index = 3)
+  private boolean isTableSchema;
+
+  @Parameters(
+      name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}, isTableSchema = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {1, true, 1},
-      {1, false, 1},
-      {2, true, 2},
-      {2, false, 2},
-      {1, true, 2},
-      {1, false, 2},
+      // Remove after the deprecation of TableSchema - BEGIN
+      {1, true, 1, true},
+      {1, false, 1, true},
+      {2, true, 2, true},
+      {2, false, 2, true},
+      {1, true, 2, true},
+      {1, false, 2, true},
+      // Remove after the deprecation of TableSchema - END
+
+      {1, true, 1, false},
+      {1, false, 1, false},
+      {2, true, 2, false},
+      {2, false, 2, false},
+      {1, true, 2, false},
+      {1, false, 2, false},
     };
   }
 
@@ -122,7 +135,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
+    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, isTableSchema);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -137,7 +150,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE, isTableSchema);
 
     if (parallelism > 1) {
       if (partitioned) {
@@ -154,7 +167,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, null);
+    testWriteRow(parallelism, null, null, isTableSchema);
 
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
@@ -165,7 +178,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testPartitionWriteMode() throws Exception {
-    testWriteRow(parallelism, null, DistributionMode.HASH);
+    testWriteRow(parallelism, null, DistributionMode.HASH, isTableSchema);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -182,11 +195,17 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism)
-            .setAll(newProps);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+                .setAll(newProps)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+                .setAll(newProps);
 
     assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
@@ -194,7 +213,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   }
 
   @TestTemplate
-  public void testRangeDistributionWithoutSortOrderUnpartitioned() throws Exception {
+  public void testRangeDistributionWithoutSortOrderUnpartitioned() {
     assumeThat(partitioned).isFalse();
 
     table
@@ -208,10 +227,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism);
 
     // Range distribution requires either sort order or partition spec defined
     assertThatThrownBy(builder::append)
@@ -235,10 +259,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(writeParallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(writeParallelism);
 
     // sort based on partition columns
     builder.append();
@@ -273,10 +302,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     DataStream<Row> dataStream =
         env.addSource(createRangeDistributionBoundedSource(charRows), ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .table(table)
+                .tableLoader(tableLoader)
+                .writeParallelism(parallelism);
 
     // sort based on partition columns
     builder.append();
@@ -309,12 +343,22 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Map)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Map)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Map)
+          .append();
+    }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -370,12 +414,22 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createIntRows(numOfCheckpoints, 1_000)),
             ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Sketch)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Sketch)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Sketch)
+          .append();
+    }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();
@@ -421,13 +475,13 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .commit();
     table.replaceSortOrder().asc("id").commit();
 
-    int numOfCheckpoints = 4;
+    int numOfCheckpoints = 6;
     List<List<Row>> rowsPerCheckpoint = Lists.newArrayListWithCapacity(numOfCheckpoints);
     for (int checkpointId = 0; checkpointId < numOfCheckpoints; ++checkpointId) {
       // checkpointId 2 would emit 11_000 records which is larger than
       // the OPERATOR_SKETCH_SWITCH_THRESHOLD of 10_000.
       // This should trigger the stats migration.
-      int maxId = checkpointId < 1 ? 1_000 : 11_000;
+      int maxId = checkpointId < 2 ? 1_000 : 11_000;
       List<Row> rows = Lists.newArrayListWithCapacity(maxId);
       for (int j = 0; j < maxId; ++j) {
         // fixed value "a" for the data (possible partition column)
@@ -439,12 +493,22 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
     DataStream<Row> dataStream =
         env.addSource(createRangeDistributionBoundedSource(rowsPerCheckpoint), ROW_TYPE_INFO);
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(writeParallelism)
-        .rangeDistributionStatisticsType(StatisticsType.Auto)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Auto)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .rangeDistributionStatisticsType(StatisticsType.Auto)
+          .append();
+    }
+
     env.execute(getClass().getSimpleName());
 
     table.refresh();

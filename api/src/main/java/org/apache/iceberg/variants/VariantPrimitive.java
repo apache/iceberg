@@ -19,6 +19,7 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -36,10 +37,16 @@ public interface VariantPrimitive<T> extends VariantValue {
     switch (type()) {
       case DATE:
         return DateTimeUtil.daysToIsoDate((Integer) get());
+      case TIME:
+        return DateTimeUtil.microsToIsoTime((Long) get());
       case TIMESTAMPTZ:
         return DateTimeUtil.microsToIsoTimestamptz((Long) get());
       case TIMESTAMPNTZ:
         return DateTimeUtil.microsToIsoTimestamp((Long) get());
+      case TIMESTAMPTZ_NANOS:
+        return DateTimeUtil.nanosToIsoTimestamptz((Long) get());
+      case TIMESTAMPNTZ_NANOS:
+        return DateTimeUtil.nanosToIsoTimestamp((Long) get());
       case BINARY:
         return BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) get()));
       default:
@@ -49,5 +56,22 @@ public interface VariantPrimitive<T> extends VariantValue {
 
   static String asString(VariantPrimitive<?> primitive) {
     return "Variant(type=" + primitive.type() + ", value=" + primitive.valueAsString() + ")";
+  }
+
+  static int hash(VariantPrimitive<?> self) {
+    return Objects.hash(self.type(), self.get());
+  }
+
+  static boolean equals(VariantPrimitive<?> self, Object obj) {
+    if (self == obj) {
+      return true;
+    }
+
+    if (!(obj instanceof VariantPrimitive)) {
+      return false;
+    }
+
+    VariantPrimitive<?> other = (VariantPrimitive<?>) obj;
+    return Objects.equals(self.type(), other.type()) && Objects.equals(self.get(), other.get());
   }
 }

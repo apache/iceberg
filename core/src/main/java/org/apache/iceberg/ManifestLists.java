@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -33,13 +32,11 @@ class ManifestLists {
 
   static List<ManifestFile> read(InputFile manifestList) {
     try (CloseableIterable<ManifestFile> files =
-        Avro.read(manifestList)
-            .rename("manifest_file", GenericManifestFile.class.getName())
-            .rename("partitions", GenericPartitionFieldSummary.class.getName())
-            .rename("r508", GenericPartitionFieldSummary.class.getName())
-            .classLoader(GenericManifestFile.class.getClassLoader())
+        InternalData.read(FileFormat.AVRO, manifestList)
+            .setRootType(GenericManifestFile.class)
+            .setCustomType(
+                ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
             .project(ManifestFile.schema())
-            .reuseContainers(false)
             .build()) {
 
       return Lists.newLinkedList(files);
@@ -55,7 +52,8 @@ class ManifestLists {
       OutputFile manifestListFile,
       long snapshotId,
       Long parentSnapshotId,
-      long sequenceNumber) {
+      long sequenceNumber,
+      Long firstRowId) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
@@ -68,7 +66,10 @@ class ManifestLists {
             manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
       case 3:
         return new ManifestListWriter.V3Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, firstRowId);
+      case 4:
+        return new ManifestListWriter.V4Writer(
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);

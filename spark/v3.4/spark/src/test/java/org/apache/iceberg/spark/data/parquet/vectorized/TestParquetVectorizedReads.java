@@ -20,7 +20,9 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -37,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -48,11 +50,9 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class TestParquetVectorizedReads extends AvroDataTest {
+public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
@@ -104,12 +104,12 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       Function<GenericData.Record, GenericData.Record> transform)
       throws IOException {
     // Write test data
-    Assume.assumeTrue(
-        "Parquet Avro cannot write non-string map keys",
-        null
-            == TypeUtil.find(
+    assumeThat(
+            TypeUtil.find(
                 writeSchema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+        .as("Parquet Avro cannot write non-string map keys")
+        .isNull();
 
     Iterable<GenericData.Record> expected =
         generateData(writeSchema, numRecords, seed, nullPercentage, transform);
@@ -181,7 +181,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         numRowsRead += batch.numRows();
         TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
-      Assert.assertEquals(expectedSize, numRowsRead);
+      assertThat(numRowsRead).isEqualTo(expectedSize);
     }
   }
 

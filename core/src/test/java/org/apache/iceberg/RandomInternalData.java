@@ -88,6 +88,11 @@ public class RandomInternalData {
     }
 
     @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
+    }
+
+    @Override
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = RandomUtil.generatePrimitive(primitive, random);
 

@@ -44,34 +44,7 @@ SELECT * FROM prod.db.table.files;
 | 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
 | 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
 
-## Querying with DataFrames
-
-To load a table as a DataFrame, use `table`:
-
-```scala
-val df = spark.table("prod.db.table")
-```
-
-### Catalogs with DataFrameReader
-
-Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
-the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
-variable can take a number of forms as listed below:
-
-*  `file:///path/to/table`: loads a HadoopTable at given path
-*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
-*  `catalog.tablename`: loads `tablename` from the specified catalog.
-*  `namespace.tablename`: loads `namespace.tablename` from current catalog
-*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
-*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
-
-The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
-
-
-### Time travel
-
-#### SQL
-
+### Time travel Queries with SQL
 Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
 
@@ -145,7 +118,32 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
-#### DataFrame
+
+## Querying with DataFrames
+
+To load a table as a DataFrame, use `table`:
+
+```scala
+val df = spark.table("prod.db.table")
+```
+
+### Catalogs with DataFrameReader
+
+Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
+the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
+variable can take a number of forms as listed below:
+
+*  `file:///path/to/table`: loads a HadoopTable at given path
+*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
+*  `catalog.tablename`: loads `tablename` from the specified catalog.
+*  `namespace.tablename`: loads `namespace.tablename` from current catalog
+*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
+*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
+
+The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+
+
+### Time travel Queries with DataFrame
 
 To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
 
@@ -301,6 +299,16 @@ SELECT * FROM prod.db.table.entries;
 | -- | -- | -- | -- | -- | -- |
 | 2 | 57897183625154 | 0 | 0 | {"content":0,"file_path":"s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet","file_format":"PARQUET","spec_id":0,"record_count":15,"file_size_in_bytes":473,"column_sizes":{1:103},"value_counts":{1:15},"null_value_counts":{1:0},"nan_value_counts":{},"lower_bounds":{1:},"upper_bounds":{1:},"key_metadata":null,"split_offsets":[4],"equality_ids":null,"sort_order_id":0} | {"c1":{"column_size":103,"value_count":15,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3}} |
 
+Note:
+
+1. The columns in the `entries` table correspond to the [manifest entry fields](../../spec.md#manifest-entry-fields):
+    - `status`: Used to track additions and deletions
+    - `snapshot_id`: The ID of the snapshot in which the file was added or removed
+    - `sequence_number`: Used for ordering changes across snapshots
+    - `file_sequence_number`: Indicates when the file was added
+    - `data_file`: A struct containing metadata about the data file, see the [data file fields](../../spec.md#data-file-fields)
+2. The `readable_metrics` column provides a human-readable map of extended column-level metrics derived from the `data_file` column, making it easier to inspect and debug file-level statistics.
+
 ### Files
 
 To show a table's current files:
@@ -319,9 +327,10 @@ SELECT * FROM prod.db.table.files;
 
 !!! info
     Content refers to type of content stored by the data file:
-      * 0  Data
-      * 1  Position Deletes
-      * 2  Equality Deletes
+
+      - 0 - Data
+      - 1 - Position Deletes
+      - 2 - Equality Deletes
 
 To show only data files or delete files, query `prod.db.table.data_files` and `prod.db.table.delete_files` respectively.
 To show all files, data files and delete files across all tracked snapshots, query `prod.db.table.all_files`, `prod.db.table.all_data_files` and `prod.db.table.all_delete_files` respectively.

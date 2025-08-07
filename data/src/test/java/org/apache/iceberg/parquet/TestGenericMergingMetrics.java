@@ -34,7 +34,7 @@ public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
     FileAppender<Record> appender =
         new GenericAppenderFactory(SCHEMA)
             .newAppender(
-                Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);
+                Files.localOutput(new File(tempDir, "junit" + System.nanoTime())), fileFormat);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);
     }

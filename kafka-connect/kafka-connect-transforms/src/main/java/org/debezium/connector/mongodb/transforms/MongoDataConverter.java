@@ -53,17 +53,18 @@ public class MongoDataConverter {
   }
 
   public Struct convertRecord(
-      Entry<String, BsonValue> keyvalueforStruct, Schema schema, Struct struct) {
-    convertFieldValue(keyvalueforStruct, struct, schema);
+      Entry<String, BsonValue> keyValueForStruct, Schema schema, Struct struct) {
+    convertFieldValue(keyValueForStruct, struct, schema);
     return struct;
   }
 
+  @SuppressWarnings("JavaUtilDate")
   public void convertFieldValue(
-      Entry<String, BsonValue> keyvalueforStruct, Struct struct, Schema schema) {
+      Entry<String, BsonValue> keyValueForStruct, Struct struct, Schema schema) {
     Object colValue = null;
 
-    String key = keyvalueforStruct.getKey();
-    BsonType type = keyvalueforStruct.getValue().getBsonType();
+    String key = keyValueForStruct.getKey();
+    BsonType type = keyValueForStruct.getValue().getBsonType();
 
     switch (type) {
       case NULL:
@@ -71,47 +72,47 @@ public class MongoDataConverter {
         break;
 
       case STRING:
-        colValue = keyvalueforStruct.getValue().asString().getValue().toString();
+        colValue = keyValueForStruct.getValue().asString().getValue().toString();
         break;
 
       case OBJECT_ID:
-        colValue = keyvalueforStruct.getValue().asObjectId().getValue().toString();
+        colValue = keyValueForStruct.getValue().asObjectId().getValue().toString();
         break;
 
       case DOUBLE:
-        colValue = keyvalueforStruct.getValue().asDouble().getValue();
+        colValue = keyValueForStruct.getValue().asDouble().getValue();
         break;
 
       case BINARY:
-        colValue = keyvalueforStruct.getValue().asBinary().getData();
+        colValue = keyValueForStruct.getValue().asBinary().getData();
         break;
 
       case INT32:
-        colValue = keyvalueforStruct.getValue().asInt32().getValue();
+        colValue = keyValueForStruct.getValue().asInt32().getValue();
         break;
 
       case INT64:
-        colValue = keyvalueforStruct.getValue().asInt64().getValue();
+        colValue = keyValueForStruct.getValue().asInt64().getValue();
         break;
 
       case BOOLEAN:
-        colValue = keyvalueforStruct.getValue().asBoolean().getValue();
+        colValue = keyValueForStruct.getValue().asBoolean().getValue();
         break;
 
       case DATE_TIME:
-        colValue = new Date(keyvalueforStruct.getValue().asDateTime().getValue());
+        colValue = new Date(keyValueForStruct.getValue().asDateTime().getValue());
         break;
 
       case JAVASCRIPT:
-        colValue = keyvalueforStruct.getValue().asJavaScript().getCode();
+        colValue = keyValueForStruct.getValue().asJavaScript().getCode();
         break;
 
       case JAVASCRIPT_WITH_SCOPE:
         Struct jsStruct = new Struct(schema.field(key).schema());
         Struct jsScopeStruct = new Struct(schema.field(key).schema().field("scope").schema());
-        jsStruct.put("code", keyvalueforStruct.getValue().asJavaScriptWithScope().getCode());
+        jsStruct.put("code", keyValueForStruct.getValue().asJavaScriptWithScope().getCode());
         BsonDocument jwsDoc =
-            keyvalueforStruct.getValue().asJavaScriptWithScope().getScope().asDocument();
+            keyValueForStruct.getValue().asJavaScriptWithScope().getScope().asDocument();
 
         for (Entry<String, BsonValue> jwsDocKey : jwsDoc.entrySet()) {
           convertFieldValue(jwsDocKey, jsScopeStruct, schema.field(key).schema());
@@ -123,17 +124,17 @@ public class MongoDataConverter {
 
       case REGULAR_EXPRESSION:
         Struct regexStruct = new Struct(schema.field(key).schema());
-        regexStruct.put("regex", keyvalueforStruct.getValue().asRegularExpression().getPattern());
-        regexStruct.put("options", keyvalueforStruct.getValue().asRegularExpression().getOptions());
+        regexStruct.put("regex", keyValueForStruct.getValue().asRegularExpression().getPattern());
+        regexStruct.put("options", keyValueForStruct.getValue().asRegularExpression().getOptions());
         colValue = regexStruct;
         break;
 
       case TIMESTAMP:
-        colValue = new Date(1000L * keyvalueforStruct.getValue().asTimestamp().getTime());
+        colValue = new Date(1000L * keyValueForStruct.getValue().asTimestamp().getTime());
         break;
 
       case DECIMAL128:
-        colValue = keyvalueforStruct.getValue().asDecimal128().getValue().toString();
+        colValue = keyValueForStruct.getValue().asDecimal128().getValue().toString();
         break;
 
       case DOCUMENT:
@@ -143,7 +144,7 @@ public class MongoDataConverter {
         }
         Schema documentSchema = field.schema();
         Struct documentStruct = new Struct(documentSchema);
-        BsonDocument docs = keyvalueforStruct.getValue().asDocument();
+        BsonDocument docs = keyValueForStruct.getValue().asDocument();
 
         for (Entry<String, BsonValue> doc : docs.entrySet()) {
           convertFieldValue(doc, documentStruct, documentSchema);
@@ -153,7 +154,7 @@ public class MongoDataConverter {
         break;
 
       case ARRAY:
-        if (keyvalueforStruct.getValue().asArray().isEmpty()) {
+        if (keyValueForStruct.getValue().asArray().isEmpty()) {
           switch (arrayEncoding) {
             case ARRAY:
               colValue = Lists.newArrayList();
@@ -166,8 +167,8 @@ public class MongoDataConverter {
         } else {
           switch (arrayEncoding) {
             case ARRAY:
-              BsonType valueType = keyvalueforStruct.getValue().asArray().get(0).getBsonType();
-              List<BsonValue> arrValues = keyvalueforStruct.getValue().asArray().getValues();
+              BsonType valueType = keyValueForStruct.getValue().asArray().get(0).getBsonType();
+              List<BsonValue> arrValues = keyValueForStruct.getValue().asArray().getValues();
               List<Object> list = Lists.newArrayList();
 
               arrValues.forEach(
@@ -183,7 +184,7 @@ public class MongoDataConverter {
               colValue = list;
               break;
             case DOCUMENT:
-              final BsonArray array = keyvalueforStruct.getValue().asArray();
+              final BsonArray array = keyValueForStruct.getValue().asArray();
               final Map<String, BsonValue> convertedArray = Maps.newHashMap();
               final Schema arraySchema = schema.field(key).schema();
               final Struct arrayStruct = new Struct(arraySchema);
@@ -206,11 +207,11 @@ public class MongoDataConverter {
       default:
         return;
     }
-    struct.put(key, keyvalueforStruct.getValue().isNull() ? null : colValue);
+    struct.put(key, keyValueForStruct.getValue().isNull() ? null : colValue);
   }
 
   // TODO FIX Cyclomatic Complexity is 30 (max allowed is 12). [CyclomaticComplexity]
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "JavaUtilDate"})
   private void convertFieldValue(
       Schema valueSchema, BsonType valueType, BsonValue arrValue, List<Object> list) {
     if (arrValue.getBsonType() == BsonType.STRING && valueType == BsonType.STRING) {
@@ -272,9 +273,9 @@ public class MongoDataConverter {
     return "_" + index;
   }
 
-  public void addFieldSchema(Entry<String, BsonValue> keyValuesforSchema, SchemaBuilder builder) {
-    String key = (String) keyValuesforSchema.getKey();
-    BsonType type = keyValuesforSchema.getValue().getBsonType();
+  public void addFieldSchema(Entry<String, BsonValue> keyValuesForSchema, SchemaBuilder builder) {
+    String key = keyValuesForSchema.getKey();
+    BsonType type = keyValuesForSchema.getValue().getBsonType();
 
     switch (type) {
       case NULL:
@@ -311,19 +312,19 @@ public class MongoDataConverter {
         break;
 
       case JAVASCRIPT_WITH_SCOPE:
-        SchemaBuilder jswithscope = SchemaBuilder.struct().name(builder.name() + "." + key);
-        jswithscope.field("code", Schema.OPTIONAL_STRING_SCHEMA);
-        SchemaBuilder scope = SchemaBuilder.struct().name(jswithscope.name() + ".scope").optional();
+        SchemaBuilder jsWithScope = SchemaBuilder.struct().name(builder.name() + "." + key);
+        jsWithScope.field("code", Schema.OPTIONAL_STRING_SCHEMA);
+        SchemaBuilder scope = SchemaBuilder.struct().name(jsWithScope.name() + ".scope").optional();
         BsonDocument jwsDocument =
-            keyValuesforSchema.getValue().asJavaScriptWithScope().getScope().asDocument();
+            keyValuesForSchema.getValue().asJavaScriptWithScope().getScope().asDocument();
 
         for (Entry<String, BsonValue> jwsDocumentKey : jwsDocument.entrySet()) {
           addFieldSchema(jwsDocumentKey, scope);
         }
 
         Schema scopeBuild = scope.build();
-        jswithscope.field("scope", scopeBuild).build();
-        builder.field(key, jswithscope);
+        jsWithScope.field("scope", scopeBuild).build();
+        builder.field(key, jsWithScope);
         break;
 
       case REGULAR_EXPRESSION:
@@ -336,7 +337,7 @@ public class MongoDataConverter {
       case DOCUMENT:
         SchemaBuilder builderDoc =
             SchemaBuilder.struct().name(builder.name() + "." + key).optional();
-        BsonDocument docs = keyValuesforSchema.getValue().asDocument();
+        BsonDocument docs = keyValuesForSchema.getValue().asDocument();
 
         for (Entry<String, BsonValue> doc : docs.entrySet()) {
           addFieldSchema(doc, builderDoc);
@@ -345,7 +346,7 @@ public class MongoDataConverter {
         break;
 
       case ARRAY:
-        if (keyValuesforSchema.getValue().asArray().isEmpty()) {
+        if (keyValuesForSchema.getValue().asArray().isEmpty()) {
           switch (arrayEncoding) {
             case ARRAY:
               builder.field(
@@ -359,9 +360,9 @@ public class MongoDataConverter {
         } else {
           switch (arrayEncoding) {
             case ARRAY:
-              BsonArray value = keyValuesforSchema.getValue().asArray();
+              BsonArray value = keyValuesForSchema.getValue().asArray();
               BsonType valueType = value.get(0).getBsonType();
-              testType(builder, key, keyValuesforSchema.getValue(), valueType);
+              testType(builder, key, keyValuesForSchema.getValue(), valueType);
               builder.field(
                   key,
                   SchemaBuilder.array(subSchema(builder, key, valueType, value))
@@ -369,7 +370,7 @@ public class MongoDataConverter {
                       .build());
               break;
             case DOCUMENT:
-              final BsonArray array = keyValuesforSchema.getValue().asArray();
+              final BsonArray array = keyValuesForSchema.getValue().asArray();
               final SchemaBuilder arrayStructBuilder =
                   SchemaBuilder.struct().name(builder.name() + "." + key).optional();
               final Map<String, BsonValue> convertedArray = Maps.newHashMap();

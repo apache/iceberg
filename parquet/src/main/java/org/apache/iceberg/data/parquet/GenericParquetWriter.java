@@ -26,11 +26,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -42,13 +44,14 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
 
   private GenericParquetWriter() {}
 
-  public static ParquetValueWriter<Record> buildWriter(MessageType type) {
-    return INSTANCE.createWriter(type);
+  public static ParquetValueWriter<Record> create(Schema schema, MessageType type) {
+    return INSTANCE.createWriter(schema.asStruct(), type);
   }
 
   @Override
-  protected StructWriter<Record> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+  protected StructWriter<Record> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
   }
 
   @Override

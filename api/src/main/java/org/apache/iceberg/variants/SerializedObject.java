@@ -224,6 +224,16 @@ class SerializedObject implements VariantObject, SerializedValue {
   }
 
   @Override
+  public int hashCode() {
+    return VariantObject.hash(this);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return VariantObject.equals(this, obj);
+  }
+
+  @Override
   public String toString() {
     return VariantObject.asString(this);
   }

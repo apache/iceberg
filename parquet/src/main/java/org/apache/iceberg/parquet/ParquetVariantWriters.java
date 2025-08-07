@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -31,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantValue;
@@ -97,6 +99,17 @@ class ParquetVariantWriters {
         builder.build());
   }
 
+  @SuppressWarnings("unchecked")
+  public static ParquetValueWriter<VariantValue> array(
+      int repeatedDefinitionLevel,
+      int repeatedRepetitionLevel,
+      ParquetValueWriter<?> elementWriter) {
+    return new ArrayWriter(
+        repeatedDefinitionLevel,
+        repeatedRepetitionLevel,
+        (ParquetValueWriter<VariantValue>) elementWriter);
+  }
+
   private static class VariantWriter implements ParquetValueWriter<Variant> {
     private final ParquetValueWriter<VariantMetadata> metadataWriter;
     private final ParquetValueWriter<VariantValue> valueWriter;
@@ -157,7 +170,7 @@ class ParquetVariantWriters {
 
     private void ensureCapacity(int requiredSize) {
       if (reusedBuffer.capacity() < requiredSize) {
-        int newCapacity = capacityFor(requiredSize);
+        int newCapacity = IOUtil.capacityFor(requiredSize);
         this.reusedBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
       } else {
         reusedBuffer.limit(requiredSize);
@@ -359,6 +372,55 @@ class ParquetVariantWriters {
     }
   }
 
+  private static class ArrayWriter implements TypedWriter {
+    private final int definitionLevel;
+    private final int repetitionLevel;
+    private final ParquetValueWriter<VariantValue> writer;
+    private final List<TripleWriter<?>> children;
+
+    protected ArrayWriter(
+        int definitionLevel, int repetitionLevel, ParquetValueWriter<VariantValue> writer) {
+      this.definitionLevel = definitionLevel;
+      this.repetitionLevel = repetitionLevel;
+      this.writer = writer;
+      this.children = writer.columns();
+    }
+
+    @Override
+    public Set<PhysicalType> types() {
+      return Set.of(PhysicalType.ARRAY);
+    }
+
+    @Override
+    public void write(int parentRepetition, VariantValue value) {
+      VariantArray arr = value.asArray();
+      if (arr.numElements() == 0) {
+        writeNull(writer, parentRepetition, definitionLevel);
+      } else {
+        for (int i = 0; i < arr.numElements(); i++) {
+          VariantValue element = arr.get(i);
+
+          int rl = repetitionLevel;
+          if (i == 0) {
+            rl = parentRepetition;
+          }
+
+          writer.write(rl, element);
+        }
+      }
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      writer.setColumnStore(columnStore);
+    }
+  }
+
   private static void writeNull(
       ParquetValueWriter<?> writer, int repetitionLevel, int definitionLevel) {
     for (TripleWriter<?> column : writer.columns()) {
@@ -373,14 +435,5 @@ class ParquetVariantWriters {
   private static List<TripleWriter<?>> children(Iterable<ParquetValueWriter<?>> writers) {
     return ImmutableList.copyOf(
         Iterables.concat(Iterables.transform(writers, ParquetValueWriter::columns)));
-  }
-
-  private static final double LN2 = Math.log(2);
-
-  private static int capacityFor(int valueSize) {
-    // find the power of 2 size that fits the value
-    int nextPow2 = (int) Math.ceil(Math.log(valueSize) / LN2);
-    // return a capacity that is 2 the next power of 2 size up to the max
-    return Math.min(1 << (nextPow2 + 1), Integer.MAX_VALUE - 1);
   }
 }

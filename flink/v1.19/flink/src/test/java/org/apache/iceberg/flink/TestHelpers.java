@@ -59,6 +59,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
@@ -131,7 +132,7 @@ public class TestHelpers {
         .collect(Collectors.toList());
   }
 
-  private static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
+  public static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
     DataStructureConverter<RowData, Row> converter =
@@ -187,11 +188,38 @@ public class TestHelpers {
       types.add(field.type());
     }
 
-    for (int i = 0; i < types.size(); i += 1) {
-      LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-      Object expected = expectedRecord.get(i, Object.class);
-      Object actual = FlinkRowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
-      assertEquals(types.get(i), logicalType, expected, actual);
+    if (expectedRecord instanceof Record) {
+      Record expected = (Record) expectedRecord;
+      Types.StructType expectedType = expected.struct();
+      int pos = 0;
+      for (Types.NestedField field : structType.fields()) {
+        Types.NestedField expectedField = expectedType.field(field.fieldId());
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
+        Object actualValue =
+            FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
+        if (expectedField != null) {
+          assertEquals(
+              field.type(), logicalType, expected.getField(expectedField.name()), actualValue);
+        } else {
+          // convert the initial value to generic because that is the data model used to generate
+          // the expected records
+          assertEquals(
+              field.type(),
+              logicalType,
+              GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
+              actualValue);
+        }
+        pos += 1;
+      }
+
+    } else {
+      for (int i = 0; i < types.size(); i += 1) {
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
+        Object expected = expectedRecord.get(i, Object.class);
+        Object actual =
+            FlinkRowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+        assertEquals(types.get(i), logicalType, expected, actual);
+      }
     }
   }
 
@@ -239,6 +267,25 @@ public class TestHelpers {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
+        } else {
+          assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
+        }
+        break;
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           assertThat(expected)
               .as("Should expect a OffsetDataTime")
               .isInstanceOf(OffsetDateTime.class);

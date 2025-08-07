@@ -27,6 +27,7 @@ import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -55,6 +56,7 @@ public class ADLSFileIO implements DelegateFileIO {
   private AzureProperties azureProperties;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
+  private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -90,7 +92,7 @@ public class ADLSFileIO implements DelegateFileIO {
     // now as it is not a required operation for Iceberg.
     try {
       fileClient(path).delete();
-    } catch (DataLakeStorageException e) {
+    } catch (RuntimeException e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
   }
@@ -111,6 +113,9 @@ public class ADLSFileIO implements DelegateFileIO {
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
+    Optional.ofNullable(vendedAdlsCredentialProvider)
+        .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
+        .ifPresent(clientBuilder::addPolicy);
     azureProperties.applyClientConfiguration(location.host(), clientBuilder);
 
     return clientBuilder.buildClient();
@@ -126,6 +131,9 @@ public class ADLSFileIO implements DelegateFileIO {
     this.properties = SerializableMap.copyOf(props);
     this.azureProperties = new AzureProperties(properties);
     initMetrics(properties);
+    this.azureProperties
+        .vendedAdlsCredentialProvider()
+        .ifPresent(provider -> this.vendedAdlsCredentialProvider = provider);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -211,5 +219,14 @@ public class ADLSFileIO implements DelegateFileIO {
         throw e;
       }
     }
+  }
+
+  @Override
+  public void close() {
+    if (vendedAdlsCredentialProvider != null) {
+      vendedAdlsCredentialProvider.close();
+    }
+
+    DelegateFileIO.super.close();
   }
 }

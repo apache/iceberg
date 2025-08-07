@@ -32,24 +32,78 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
 enum Timestamps implements Transform<Long, Integer> {
-  MICROS_TO_YEAR(ChronoUnit.YEARS, "year", MicrosToYears.INSTANCE),
-  MICROS_TO_MONTH(ChronoUnit.MONTHS, "month", MicrosToMonths.INSTANCE),
-  MICROS_TO_DAY(ChronoUnit.DAYS, "day", MicrosToDays.INSTANCE),
-  MICROS_TO_HOUR(ChronoUnit.HOURS, "hour", MicrosToHours.INSTANCE),
+  MICROS_TO_YEAR(ChronoUnit.YEARS, "year", TimestampUnit.MICROS),
+  MICROS_TO_MONTH(ChronoUnit.MONTHS, "month", TimestampUnit.MICROS),
+  MICROS_TO_DAY(ChronoUnit.DAYS, "day", TimestampUnit.MICROS),
+  MICROS_TO_HOUR(ChronoUnit.HOURS, "hour", TimestampUnit.MICROS),
 
-  NANOS_TO_YEAR(ChronoUnit.YEARS, "year", NanosToYears.INSTANCE),
-  NANOS_TO_MONTH(ChronoUnit.MONTHS, "month", NanosToMonths.INSTANCE),
-  NANOS_TO_DAY(ChronoUnit.DAYS, "day", NanosToDays.INSTANCE),
-  NANOS_TO_HOUR(ChronoUnit.HOURS, "hour", NanosToHours.INSTANCE);
+  NANOS_TO_YEAR(ChronoUnit.YEARS, "year", TimestampUnit.NANOS),
+  NANOS_TO_MONTH(ChronoUnit.MONTHS, "month", TimestampUnit.NANOS),
+  NANOS_TO_DAY(ChronoUnit.DAYS, "day", TimestampUnit.NANOS),
+  NANOS_TO_HOUR(ChronoUnit.HOURS, "hour", TimestampUnit.NANOS);
+
+  enum TimestampUnit {
+    MICROS,
+    NANOS
+  }
+
+  @Immutable
+  static class Apply implements SerializableFunction<Long, Integer> {
+    private final ChronoUnit granularity;
+    private final TimestampUnit timestampUnit;
+
+    Apply(ChronoUnit granularity, TimestampUnit timestampUnit) {
+      this.granularity = granularity;
+      this.timestampUnit = timestampUnit;
+    }
+
+    @Override
+    public Integer apply(Long timestamp) {
+      if (timestamp == null) {
+        return null;
+      }
+
+      switch (timestampUnit) {
+        case MICROS:
+          switch (granularity) {
+            case YEARS:
+              return DateTimeUtil.microsToYears(timestamp);
+            case MONTHS:
+              return DateTimeUtil.microsToMonths(timestamp);
+            case DAYS:
+              return DateTimeUtil.microsToDays(timestamp);
+            case HOURS:
+              return DateTimeUtil.microsToHours(timestamp);
+            default:
+              throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+          }
+        case NANOS:
+          switch (granularity) {
+            case YEARS:
+              return DateTimeUtil.nanosToYears(timestamp);
+            case MONTHS:
+              return DateTimeUtil.nanosToMonths(timestamp);
+            case DAYS:
+              return DateTimeUtil.nanosToDays(timestamp);
+            case HOURS:
+              return DateTimeUtil.nanosToHours(timestamp);
+            default:
+              throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+          }
+        default:
+          throw new UnsupportedOperationException("Unsupported time unit: " + timestampUnit);
+      }
+    }
+  }
 
   private final ChronoUnit granularity;
   private final String name;
-  private final SerializableFunction<Long, Integer> apply;
+  private final Apply apply;
 
-  Timestamps(ChronoUnit granularity, String name, SerializableFunction<Long, Integer> apply) {
+  Timestamps(ChronoUnit granularity, String name, TimestampUnit timestampUnit) {
     this.name = name;
     this.granularity = granularity;
-    this.apply = apply;
+    this.apply = new Apply(granularity, timestampUnit);
   }
 
   /**
@@ -184,117 +238,5 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public String dedupName() {
     return "time";
-  }
-
-  @Immutable
-  static class MicrosToYears implements SerializableFunction<Long, Integer> {
-    static final MicrosToYears INSTANCE = new MicrosToYears();
-
-    @Override
-    public Integer apply(Long micros) {
-      if (micros == null) {
-        return null;
-      }
-
-      return DateTimeUtil.microsToYears(micros);
-    }
-  }
-
-  @Immutable
-  static class MicrosToMonths implements SerializableFunction<Long, Integer> {
-    static final MicrosToMonths INSTANCE = new MicrosToMonths();
-
-    @Override
-    public Integer apply(Long micros) {
-      if (micros == null) {
-        return null;
-      }
-
-      return DateTimeUtil.microsToMonths(micros);
-    }
-  }
-
-  @Immutable
-  static class MicrosToDays implements SerializableFunction<Long, Integer> {
-    static final MicrosToDays INSTANCE = new MicrosToDays();
-
-    @Override
-    public Integer apply(Long micros) {
-      if (micros == null) {
-        return null;
-      }
-
-      return DateTimeUtil.microsToDays(micros);
-    }
-  }
-
-  @Immutable
-  static class MicrosToHours implements SerializableFunction<Long, Integer> {
-    static final MicrosToHours INSTANCE = new MicrosToHours();
-
-    @Override
-    public Integer apply(Long micros) {
-      if (micros == null) {
-        return null;
-      }
-
-      return DateTimeUtil.microsToHours(micros);
-    }
-  }
-
-  @Immutable
-  static class NanosToYears implements SerializableFunction<Long, Integer> {
-    static final NanosToYears INSTANCE = new NanosToYears();
-
-    @Override
-    public Integer apply(Long nanos) {
-      if (nanos == null) {
-        return null;
-      }
-
-      return DateTimeUtil.nanosToYears(nanos);
-    }
-  }
-
-  @Immutable
-  static class NanosToMonths implements SerializableFunction<Long, Integer> {
-    static final NanosToMonths INSTANCE = new NanosToMonths();
-
-    @Override
-    public Integer apply(Long nanos) {
-      if (nanos == null) {
-        return null;
-      }
-
-      return DateTimeUtil.nanosToMonths(nanos);
-    }
-  }
-
-  @Immutable
-  static class NanosToDays implements SerializableFunction<Long, Integer> {
-    static final NanosToDays INSTANCE = new NanosToDays();
-
-    @Override
-    public Integer apply(Long nanos) {
-      if (nanos == null) {
-        return null;
-      }
-
-      return DateTimeUtil.nanosToDays(nanos);
-    }
-  }
-
-  @Immutable
-  static class NanosToHours implements SerializableFunction<Long, Integer> {
-    static final NanosToHours INSTANCE = new NanosToHours();
-
-    @Override
-    public Integer apply(Long nanos) {
-      if (nanos == null) {
-        return null;
-      }
-
-      return DateTimeUtil.nanosToHours(nanos);
-    }
   }
 }

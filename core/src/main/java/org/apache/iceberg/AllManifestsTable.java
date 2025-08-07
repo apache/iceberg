@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
@@ -192,13 +191,11 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       try (CloseableIterable<ManifestFile> manifests =
-          Avro.read(io.newInputFile(manifestListLocation))
-              .rename("manifest_file", GenericManifestFile.class.getName())
-              .rename("partitions", GenericPartitionFieldSummary.class.getName())
-              .rename("r508", GenericPartitionFieldSummary.class.getName())
+          InternalData.read(FileFormat.AVRO, io.newInputFile(manifestListLocation))
+              .setRootType(GenericManifestFile.class)
+              .setCustomType(
+                  ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
               .project(ManifestFile.schema())
-              .classLoader(GenericManifestFile.class.getClassLoader())
-              .reuseContainers(false)
               .build()) {
 
         CloseableIterable<StructLike> rowIterable =

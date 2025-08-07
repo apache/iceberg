@@ -215,13 +215,17 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-The following properties can be set if using the Hive catalog:
+### REST catalog
 
-* `uri`: The Hive metastore's thrift URI. (Required)
-* `clients`: The Hive metastore client pool size, default value is 2. (Optional)
-* `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
-* `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwritten with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
-* `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values.
+This creates an iceberg catalog named `rest_catalog` that can be configured using `'catalog-type'='rest'`, which loads tables from a REST catalog:
+
+```sql
+CREATE CATALOG rest_catalog WITH (
+  'type'='iceberg',
+  'catalog-type'='rest',
+  'uri'='https://localhost/'
+);
+```
 
 ##  Creating a table
 
@@ -370,31 +374,35 @@ Flink types are converted to Iceberg types according to the following table:
 
 Iceberg types are converted to Flink types according to the following table:
 
-| Iceberg                    | Flink                 |
-| -------------------------- | --------------------- |
-| boolean                    | boolean               |
-| struct                     | row                   |
-| list                       | array                 |
-| map                        | map                   |
-| integer                    | integer               |
-| long                       | bigint                |
-| float                      | float                 |
-| double                     | double                |
-| date                       | date                  |
-| time                       | time                  |
-| timestamp without timezone | timestamp(6)          |
-| timestamp with timezone    | timestamp_ltz(6)      |
-| string                     | varchar(2147483647)   |
-| uuid                       | binary(16)            |
-| fixed(N)                   | binary(N)             |
-| binary                     | varbinary(2147483647) |
-| decimal(P, S)              | decimal(P, S)         |
+| Iceberg                    | Flink                 | Notes         |
+| -------------------------- | --------------------- | ------------- |
+| boolean                    | boolean               |               |
+| struct                     | row                   |               |
+| list                       | array                 |               |
+| map                        | map                   |               |
+| integer                    | integer               |               |
+| long                       | bigint                |               |
+| float                      | float                 |               |
+| double                     | double                |               |
+| date                       | date                  |               |
+| time                       | time                  |               |
+| timestamp without timezone | timestamp(6)          |               |
+| timestamp with timezone    | timestamp_ltz(6)      |               |
+| string                     | varchar(2147483647)   |               |
+| uuid                       | binary(16)            |               |
+| fixed(N)                   | binary(N)             |               |
+| binary                     | varbinary(2147483647) |               |
+| decimal(P, S)              | decimal(P, S)         |               |
+| nanosecond timestamp       | timestamp(9)          |               |
+| nanosecond timestamp with timezone | timestamp_ltz(9) |            |
+| unknown                    | null                  |               |
+| variant                    |                       | Not supported |
+| geometry                   |                       | Not supported |
+| geography                  |                       | Not supported |
 
 ## Future improvements
 
-There are some features that are do not yet supported in the current Flink Iceberg integration work:
+There are some features that are not yet supported in the current Flink Iceberg integration:
 
-* Don't support creating iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
-* Don't support creating iceberg table with computed column.
-* Don't support creating iceberg table with watermark.
-* Don't support adding columns, removing columns, renaming columns, changing columns. [FLINK-19062](https://issues.apache.org/jira/browse/FLINK-19062) is tracking this.
+* Creation of Iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
+* Creation of Iceberg table with computed column.

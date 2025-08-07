@@ -199,7 +199,7 @@ Only append and dynamic overwrite snapshots can be successfully published.
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod |
+| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
 
 #### Output
 
@@ -271,6 +271,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
+| `clean_expired_metadata` |   | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
@@ -317,6 +318,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
 | `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
+| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
 #### Output
 
@@ -370,6 +372,11 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
 ```
 
+List all the files that are candidates for removal using prefix listing.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_listing => true);
+```
+
 ### `rewrite_data_files`
 
 Iceberg tracks each data file in a table. More data files leads to more metadata stored in manifest files, and small data files causes an unnecessary amount of metadata and less efficient queries from file open costs.
@@ -400,7 +407,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
 | `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
 | `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
-| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
+| `min-input-files` | 5 | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files) |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
@@ -481,7 +488,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Argument Name | Required? | Type | Description                                                   |
 |---------------|-----------|------|---------------------------------------------------------------|
 | `table`       | ✔️  | string | Name of the table to update                                   |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
@@ -489,7 +496,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
 
 #### Examples
 
@@ -498,9 +505,9 @@ Rewrite the manifests in table `db.sample` and align manifest files with table p
 CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
-Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
+Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false);
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
 
 ### `rewrite_position_delete_files`
@@ -516,6 +523,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 |---------------|-----------|------|----------------------------------|
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
+| `where`       | ️   | string | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
@@ -533,6 +541,7 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 #### Output
 
@@ -595,9 +604,6 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
-!!! warning
-    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
-
 #### Output
 
 | Output Name | Type | Description |
@@ -640,9 +646,6 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
-
-!!! warning
-    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
@@ -689,9 +692,6 @@ will then treat these files as if they are part of the set of files  owned by Ic
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
-
-!!! warning
-    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
@@ -976,6 +976,38 @@ Collect statistics of the snapshot with id `snap1` of table `my_table` for colum
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
 ```
 
+## Partition Statistics
+
+### `compute_partition_stats`
+
+This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile` 
+until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`. 
+It performs a full compute if the previous partition statistics file does not exist. It also registers the 
+`PartitionStatisticsFile` to the table metadata.
+
+| Argument Name | Required? | Type          | Description                                                                    |
+|---------------|-----------|---------------|--------------------------------------------------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                                                              |
+| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
+
+#### Output
+
+| Output Name       | Type   | Description                                              |
+|-------------------|--------|----------------------------------------------------------|
+| `partition_statistics_file` | string | Path to the partition stats file created from by command |
+
+#### Examples
+
+Collect partition statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats('my_table');
+```
+
+Collect partition statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
+```
+
 ## Table Replication
 
 The `rewrite_table_path` procedure prepares an Iceberg table for copying to another location.
@@ -1038,8 +1070,8 @@ It will produce a new set of metadata in the default staging location under the 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "hdfs://nn:8020/path/to/source_table",
-    target_prefix => "s3a://bucket/prefix/db.db/my_table"
+    source_prefix => 'hdfs://nn:8020/path/to/source_table',
+    target_prefix => 's3a://bucket/prefix/db.db/my_table'
 );
 ```
 
@@ -1049,11 +1081,11 @@ with new metadata files written to an explicit staging location.
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "s3a://bucketOne/prefix/db.db/my_table",
-    target_prefix => "s3a://bucketTwo/prefix/db.db/my_table",
-    start_version => "v2.metadata.json",
-    end_version => "v20.metadata.json",
-    staging_location => "s3a://bucketStaging/my_table"  
+    source_prefix => 's3a://bucketOne/prefix/db.db/my_table',
+    target_prefix => 's3a://bucketTwo/prefix/db.db/my_table',
+    start_version => 'v2.metadata.json',
+    end_version => 'v20.metadata.json',
+    staging_location => 's3a://bucketStaging/my_table'  
 );
 ```
 

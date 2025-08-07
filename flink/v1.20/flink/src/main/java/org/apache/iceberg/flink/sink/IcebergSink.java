@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -31,9 +25,13 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.SupportsConcurrentExecutionAttempts;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
@@ -53,26 +51,42 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.FlinkMaintenanceConfig;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
+import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
+import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
+import org.apache.iceberg.flink.maintenance.operator.LockFactoryBuilder;
+import org.apache.iceberg.flink.maintenance.operator.TableChange;
+import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
+import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -125,7 +139,8 @@ public class IcebergSink
         SupportsPreWriteTopology<RowData>,
         SupportsCommitter<IcebergCommittable>,
         SupportsPreCommitTopology<WriteResult, IcebergCommittable>,
-        SupportsPostCommitTopology<IcebergCommittable> {
+        SupportsPostCommitTopology<IcebergCommittable>,
+        SupportsConcurrentExecutionAttempts {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSink.class);
   private final TableLoader tableLoader;
   private final Map<String, String> snapshotProperties;
@@ -135,16 +150,18 @@ public class IcebergSink
   private final RowType flinkRowType;
   private final SerializableSupplier<Table> tableSupplier;
   private final transient FlinkWriteConf flinkWriteConf;
-  private final List<Integer> equalityFieldIds;
+  private final Set<Integer> equalityFieldIds;
   private final boolean upsertMode;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
   private final String branch;
   private final boolean overwriteMode;
   private final int workerPoolSize;
+  private final boolean compactMode;
+  private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
-  private final List<String> equalityFieldColumns = null;
+  private final Set<String> equalityFieldColumns = null;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -155,9 +172,10 @@ public class IcebergSink
       RowType flinkRowType,
       SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
-      List<Integer> equalityFieldIds,
+      Set<Integer> equalityFieldIds,
       String branch,
-      boolean overwriteMode) {
+      boolean overwriteMode,
+      FlinkMaintenanceConfig flinkMaintenanceConfig) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -177,6 +195,8 @@ public class IcebergSink
     // This is used to separate files generated by different sinks writing the same table.
     // Also used to generate the aggregator operator name
     this.sinkId = UUID.randomUUID().toString();
+    this.compactMode = flinkWriteConf.compactMode();
+    this.flinkMaintenanceConfig = flinkMaintenanceConfig;
   }
 
   @Override
@@ -205,7 +225,14 @@ public class IcebergSink
     IcebergFilesCommitterMetrics metrics =
         new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
     return new IcebergCommitter(
-        tableLoader, branch, snapshotProperties, overwriteMode, workerPoolSize, sinkId, metrics);
+        tableLoader,
+        branch,
+        snapshotProperties,
+        overwriteMode,
+        workerPoolSize,
+        sinkId,
+        metrics,
+        compactMode);
   }
 
   @Override
@@ -216,7 +243,43 @@ public class IcebergSink
   @Override
   public void addPostCommitTopology(
       DataStream<CommittableMessage<IcebergCommittable>> committables) {
-    // TODO Support small file compaction
+
+    if (!compactMode) {
+      return;
+    }
+
+    String suffix = defaultSuffix(uidSuffix, table.name());
+    String postCommitUid = String.format("Sink post-commit : %s", suffix);
+
+    SingleOutputStreamOperator<TableChange> tableChangeStream =
+        committables
+            .global()
+            .process(new CommittableToTableChangeConverter(table.io(), table.name(), table.specs()))
+            .uid(postCommitUid)
+            .forceNonParallel();
+    try {
+      RewriteDataFilesConfig rewriteDataFilesConfig =
+          flinkMaintenanceConfig.createRewriteDataFilesConfig();
+      RewriteDataFiles.Builder rewriteBuilder =
+          RewriteDataFiles.builder().config(rewriteDataFilesConfig);
+
+      LockConfig lockConfig = flinkMaintenanceConfig.createLockConfig();
+      TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(lockConfig, table.name());
+      String tableMaintenanceUid = String.format("TableMaintenance : %s", suffix);
+      TableMaintenance.Builder builder =
+          TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
+              .uidSuffix(tableMaintenanceUid)
+              .add(rewriteBuilder);
+
+      builder
+          .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
+          .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
+          .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
+          .parallelism(flinkMaintenanceConfig.parallelism())
+          .append();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create tableMaintenance ", e);
+    }
   }
 
   @Override
@@ -259,7 +322,8 @@ public class IcebergSink
     private TableLoader tableLoader;
     private String uidSuffix = "";
     private Function<String, DataStream<RowData>> inputCreator = null;
-    private TableSchema tableSchema;
+    @Deprecated private TableSchema tableSchema;
+    private ResolvedSchema resolvedSchema;
     private SerializableTable table;
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
@@ -273,6 +337,13 @@ public class IcebergSink
       return this;
     }
 
+    /**
+     * Clean up after removing {@link IcebergSink#forRow(DataStream, TableSchema)}
+     *
+     * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #forRow(DataStream,
+     *     ResolvedSchema)} instead.
+     */
+    @Deprecated
     private Builder forRow(DataStream<Row> input, TableSchema inputTableSchema) {
       RowType rowType = (RowType) inputTableSchema.toRowDataType().getLogicalType();
       DataType[] fieldDataTypes = inputTableSchema.getFieldDataTypes();
@@ -282,6 +353,17 @@ public class IcebergSink
       return forMapperOutputType(
               input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
           .tableSchema(inputTableSchema);
+    }
+
+    private Builder forRow(DataStream<Row> input, ResolvedSchema inputResolvedSchema) {
+      RowType rowType = (RowType) inputResolvedSchema.toSinkRowDataType().getLogicalType();
+      DataType[] fieldDataTypes = inputResolvedSchema.getColumnDataTypes().toArray(DataType[]::new);
+
+      DataFormatConverters.RowConverter rowConverter =
+          new DataFormatConverters.RowConverter(fieldDataTypes);
+      return forMapperOutputType(
+              input, rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType))
+          .resolvedSchema(inputResolvedSchema);
     }
 
     private <T> Builder forMapperOutputType(
@@ -362,6 +444,12 @@ public class IcebergSink
     }
 
     @Override
+    public Builder resolvedSchema(ResolvedSchema newResolvedSchema) {
+      this.resolvedSchema = newResolvedSchema;
+      return this;
+    }
+
+    @Override
     public Builder overwrite(boolean newOverwrite) {
       writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
@@ -375,19 +463,73 @@ public class IcebergSink
 
     /**
      * Configure the write {@link DistributionMode} that the IcebergSink will use. Currently, flink
-     * support {@link DistributionMode#NONE} and {@link DistributionMode#HASH}.
+     * support {@link DistributionMode#NONE} and {@link DistributionMode#HASH} and {@link
+     * DistributionMode#RANGE}
      *
      * @param mode to specify the write distribution mode.
      * @return {@link IcebergSink.Builder} to connect the iceberg table.
      */
     @Override
     public Builder distributionMode(DistributionMode mode) {
-      Preconditions.checkArgument(
-          !DistributionMode.RANGE.equals(mode),
-          "Flink does not support 'range' write distribution mode now.");
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
       }
+      return this;
+    }
+
+    /**
+     * Range distribution needs to collect statistics about data distribution to properly shuffle
+     * the records in relatively balanced way. In general, low cardinality should use {@link
+     * StatisticsType#Map} and high cardinality should use {@link StatisticsType#Sketch} Refer to
+     * {@link StatisticsType} Javadoc for more details.
+     *
+     * <p>Default is {@link StatisticsType#Auto} where initially Map statistics is used. But if
+     * cardinality is higher than the threshold (currently 10K) as defined in {@code
+     * SketchUtil#OPERATOR_SKETCH_SWITCH_THRESHOLD}, statistics collection automatically switches to
+     * the sketch reservoir sampling.
+     *
+     * <p>Explicit set the statistics type if the default behavior doesn't work.
+     *
+     * @param type to specify the statistics type for range distribution.
+     * @return {@link IcebergSink.Builder} to connect the iceberg table.
+     */
+    public IcebergSink.Builder rangeDistributionStatisticsType(StatisticsType type) {
+      if (type != null) {
+        writeOptions.put(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE.key(), type.name());
+      }
+      return this;
+    }
+
+    /**
+     * If sort order contains partition columns, each sort key would map to one partition and data
+     * file. This relative weight can avoid placing too many small files for sort keys with low
+     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * each key has a base weight of `2%` of the targeted traffic weight per writer task.
+     *
+     * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
+     * contains events from now up to 180 days ago. With event time, traffic weight distribution
+     * across different days typically has a long tail pattern. Current day contains the most
+     * traffic. The older days (long tail) contain less and less traffic. Assume writer parallelism
+     * is `10`. The total weight across all 180 days is `10,000`. Target traffic weight per writer
+     * task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`. Normally,
+     * the range partitioner would put all the oldest 150 days in one writer task. That writer task
+     * would write to 150 small files (one per day). Keeping 150 open files can potentially consume
+     * large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
+     * can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+     * base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
+     * avoid placing more than `50` data files (one per day) on one writer task no matter how small
+     * they are.
+     *
+     * <p>This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
+     * {@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
+     * partition columns. Otherwise, too many partitions and small files may be generated during
+     * write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.
+     *
+     * <p>Default is {@code 0.0%}.
+     */
+    public Builder rangeDistributionSortKeyBaseWeight(double weight) {
+      writeOptions.put(
+          FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key(), Double.toString(weight));
       return this;
     }
 
@@ -498,7 +640,7 @@ public class IcebergSink
       boolean overwriteMode = flinkWriteConf.overwriteMode();
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      List<Integer> equalityFieldIds =
+      Set<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       if (flinkWriteConf.upsertMode()) {
@@ -512,25 +654,32 @@ public class IcebergSink
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
-                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
+                    + "should be included in equality fields: '%s'",
+                table.schema().findColumnName(partitionField.sourceId()),
                 partitionField,
                 equalityFieldColumns);
           }
         }
       }
 
+      FlinkMaintenanceConfig flinkMaintenanceConfig =
+          new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
       return new IcebergSink(
           tableLoader,
           table,
           snapshotSummary,
           uidSuffix,
-          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
-          toFlinkRowType(table.schema(), tableSchema),
+          SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, table),
+          resolvedSchema != null
+              ? toFlinkRowType(table.schema(), resolvedSchema)
+              : toFlinkRowType(table.schema(), tableSchema),
           tableSupplier,
           flinkWriteConf,
           equalityFieldIds,
           flinkWriteConf.branch(),
-          overwriteMode);
+          overwriteMode,
+          flinkMaintenanceConfig);
     }
 
     /**
@@ -552,11 +701,13 @@ public class IcebergSink
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
       // The following parallelism will be propagated to all of the above operators.
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
-      }
+      rowDataDataStreamSink.setParallelism(sink.resolveWriterParallelism(rowDataInput));
       return rowDataDataStreamSink;
     }
+  }
+
+  private String operatorName(String suffix) {
+    return uidSuffix != null ? suffix + "-" + uidSuffix : suffix;
   }
 
   private static String defaultSuffix(String uidSuffix, String defaultSuffix) {
@@ -583,6 +734,13 @@ public class IcebergSink
     return (SerializableTable) SerializableTable.copyOf(table);
   }
 
+  /**
+   * Clean up after removing {@link Builder#tableSchema}
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0. Use {@link #toFlinkRowType(Schema,
+   *     ResolvedSchema)} instead.
+   */
+  @Deprecated
   private static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
@@ -600,115 +758,158 @@ public class IcebergSink
     }
   }
 
-  /**
-   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
-   * write.
-   *
-   * @param table The table to get the table level settings
-   * @param format The FileFormat to use
-   * @param conf The write configuration
-   * @return The properties to use for writing
-   */
-  private static Map<String, String> writeProperties(
-      Table table, FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
+  private static RowType toFlinkRowType(Schema schema, ResolvedSchema requestedSchema) {
+    if (requestedSchema != null) {
+      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
+      // iceberg schema.
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
+      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will
+      // be promoted to iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT
+      // (backend by 1 'byte'), we will read 4 bytes rather than 1 byte, it will mess up the byte
+      // array in BinaryRowData. So here we must use flink schema.
+      return (RowType) requestedSchema.toSinkRowDataType().getLogicalType();
+    } else {
+      return FlinkSchemaUtil.convert(schema);
     }
-
-    return writeProperties;
   }
 
   private DataStream<RowData> distributeDataStream(DataStream<RowData> input) {
     DistributionMode mode = flinkWriteConf.distributionMode();
     Schema schema = table.schema();
     PartitionSpec spec = table.spec();
+    SortOrder sortOrder = table.sortOrder();
+
     LOG.info("Write distribution mode is '{}'", mode.modeName());
     switch (mode) {
       case NONE:
-        if (equalityFieldIds.isEmpty()) {
-          return input;
-        } else {
-          LOG.info("Distribute rows by equality fields, because there are equality fields set");
-          return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-        }
-
+        return distributeDataStreamByNoneDistributionMode(input, schema);
       case HASH:
-        if (equalityFieldIds.isEmpty()) {
-          if (table.spec().isUnpartitioned()) {
-            LOG.warn(
-                "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                    + "and table is unpartitioned");
-            return input;
-          } else {
-            if (BucketPartitionerUtil.hasOneBucketField(spec)) {
-              return input.partitionCustom(
-                  new BucketPartitioner(spec),
-                  new BucketPartitionKeySelector(spec, schema, flinkRowType));
-            } else {
-              return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
-            }
-          }
-        } else {
-          if (spec.isUnpartitioned()) {
-            LOG.info(
-                "Distribute rows by equality fields, because there are equality fields set "
-                    + "and table is unpartitioned");
-            return input.keyBy(
-                new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-          } else {
-            for (PartitionField partitionField : spec.fields()) {
-              Preconditions.checkState(
-                  equalityFieldIds.contains(partitionField.sourceId()),
-                  "In 'hash' distribution mode with equality fields set, partition field '%s' "
-                      + "should be included in equality fields: '%s'",
-                  partitionField,
-                  equalityFieldColumns);
-            }
-            return input.keyBy(new PartitionKeySelector(spec, schema, flinkRowType));
-          }
-        }
-
+        return distributeDataStreamByHashDistributionMode(input, schema, spec);
       case RANGE:
-        if (equalityFieldIds.isEmpty()) {
-          LOG.warn(
-              "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                  + "and {}=range is not supported yet in flink",
-              WRITE_DISTRIBUTION_MODE);
-          return input;
-        } else {
-          LOG.info(
-              "Distribute rows by equality fields, because there are equality fields set "
-                  + "and{}=range is not supported yet in flink",
-              WRITE_DISTRIBUTION_MODE);
-          return input.keyBy(new EqualityFieldKeySelector(schema, flinkRowType, equalityFieldIds));
-        }
-
+        return distributeDataStreamByRangeDistributionMode(input, schema, spec, sortOrder);
       default:
         throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
     }
+  }
+
+  private DataStream<RowData> distributeDataStreamByNoneDistributionMode(
+      DataStream<RowData> input, Schema iSchema) {
+    if (equalityFieldIds.isEmpty()) {
+      return input;
+    } else {
+      LOG.info("Distribute rows by equality fields, because there are equality fields set");
+      return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+    }
+  }
+
+  private DataStream<RowData> distributeDataStreamByHashDistributionMode(
+      DataStream<RowData> input, Schema iSchema, PartitionSpec partitionSpec) {
+    if (equalityFieldIds.isEmpty()) {
+      if (partitionSpec.isUnpartitioned()) {
+        LOG.warn(
+            "Fallback to use 'none' distribution mode, because there are no equality fields set "
+                + "and table is unpartitioned");
+        return input;
+      } else {
+        return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+      }
+    } else {
+      if (partitionSpec.isUnpartitioned()) {
+        LOG.info(
+            "Distribute rows by equality fields, because there are equality fields set "
+                + "and table is unpartitioned");
+        return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+      } else {
+        for (PartitionField partitionField : partitionSpec.fields()) {
+          Preconditions.checkState(
+              equalityFieldIds.contains(partitionField.sourceId()),
+              "In 'hash' distribution mode with equality fields set, source column '%s' of partition field '%s' "
+                  + "should be included in equality fields: '%s'",
+              table.schema().findColumnName(partitionField.sourceId()),
+              partitionField,
+              equalityFieldColumns);
+        }
+        return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+      }
+    }
+  }
+
+  private int resolveWriterParallelism(DataStream<RowData> input) {
+    // if the writeParallelism is not specified, we set the default to the input parallelism to
+    // encourage chaining.
+    return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
+  }
+
+  private DataStream<RowData> distributeDataStreamByRangeDistributionMode(
+      DataStream<RowData> input,
+      Schema iSchema,
+      PartitionSpec partitionSpec,
+      SortOrder sortOrderParam) {
+
+    int writerParallelism = resolveWriterParallelism(input);
+
+    // needed because of checkStyle not allowing us to change the value of an argument
+    SortOrder sortOrder = sortOrderParam;
+
+    // Ideally, exception should be thrown in the combination of range distribution and
+    // equality fields. Primary key case should use hash distribution mode.
+    // Keep the current behavior of falling back to keyBy for backward compatibility.
+    if (!equalityFieldIds.isEmpty()) {
+      LOG.warn(
+          "Hash distribute rows by equality fields, even though {}=range is set. "
+              + "Range distribution for primary keys are not always safe in "
+              + "Flink streaming writer.",
+          WRITE_DISTRIBUTION_MODE);
+      return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+    }
+
+    // range distribute by partition key or sort key if table has an SortOrder
+    Preconditions.checkState(
+        sortOrder.isSorted() || partitionSpec.isPartitioned(),
+        "Invalid write distribution mode: range. Need to define sort order or partition spec.");
+    if (sortOrder.isUnsorted()) {
+      sortOrder = Partitioning.sortOrderFor(partitionSpec);
+      LOG.info("Construct sort order from partition spec");
+    }
+
+    LOG.info("Range distribute rows by sort order: {}", sortOrder);
+    StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+        new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
+    StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
+    SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
+        input
+            .transform(
+                operatorName("range-shuffle"),
+                statisticsOrRecordTypeInformation,
+                new DataStatisticsOperatorFactory(
+                    iSchema,
+                    sortOrder,
+                    writerParallelism,
+                    statisticsType,
+                    flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
+            // Set the parallelism same as input operator to encourage chaining
+            .setParallelism(input.getParallelism());
+
+    if (uidSuffix != null) {
+      shuffleStream = shuffleStream.uid("shuffle-" + uidSuffix);
+    }
+
+    return shuffleStream
+        .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
+        .flatMap(
+            (FlatMapFunction<StatisticsOrRecord, RowData>)
+                (statisticsOrRecord, out) -> {
+                  if (statisticsOrRecord.hasRecord()) {
+                    out.collect(statisticsOrRecord.record());
+                  }
+                })
+        // Set slot sharing group and the parallelism same as writerParallelism to
+        // promote operator chaining with the downstream writer operator
+        .slotSharingGroup("shuffle-partition-custom-group")
+        .setParallelism(writerParallelism)
+        .returns(RowData.class);
   }
 
   /**
@@ -736,9 +937,25 @@ public class IcebergSink
    * @param input the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
    * @return {@link Builder} to connect the iceberg table.
+   * @deprecated Use {@link #forRow(DataStream, ResolvedSchema)} instead.
    */
+  @Deprecated
   public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
     return new Builder().forRow(input, tableSchema);
+  }
+
+  /**
+   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into
+   * iceberg table. We use {@link RowData} inside the sink connector, so users need to provide a
+   * {@link ResolvedSchema} for builder to convert those {@link Row}s to a {@link RowData}
+   * DataStream.
+   *
+   * @param input the source input data stream with {@link Row}s.
+   * @param resolvedSchema defines the {@link TypeInformation} for input data.
+   * @return {@link Builder} to connect the iceberg table.
+   */
+  public static Builder forRow(DataStream<Row> input, ResolvedSchema resolvedSchema) {
+    return new Builder().forRow(input, resolvedSchema);
   }
 
   /**

@@ -26,16 +26,16 @@ def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getPro
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
-if (flinkVersions.contains("1.18")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.18"))
-}
-
 if (flinkVersions.contains("1.19")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.19"))
 }
 
 if (flinkVersions.contains("1.20")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.20"))
+}
+
+if (flinkVersions.contains("2.0")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.0"))
 }
 
 if (sparkVersions.contains("3.4")) {
@@ -46,6 +46,11 @@ if (sparkVersions.contains("3.4")) {
 if (sparkVersions.contains("3.5")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.5_${scalaVersion}"))
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
+}
+
+if (sparkVersions.contains("4.0")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-4.0_2.13"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-4.0_2.13"))
 }
 
 configure(jmhProjects) {
@@ -61,6 +66,7 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
+    jvmArgs = ['-Xmx32g']
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]

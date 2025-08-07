@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.apache.spark.sql.functions.col;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
@@ -63,6 +64,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -105,6 +107,8 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Function2;
 import scala.Option;
 import scala.Some;
@@ -120,6 +124,7 @@ import scala.runtime.AbstractPartialFunction;
  * https://github.com/apache/iceberg/blob/apache-iceberg-0.8.0-incubating/spark/src/main/scala/org/apache/iceberg/spark/SparkTableUtil.scala
  */
 public class SparkTableUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkTableUtil.class);
 
   private static final String DUPLICATE_FILE_MESSAGE =
       "Cannot complete import because data files "
@@ -292,34 +297,26 @@ public class SparkTableUtil {
       SerializableConfiguration conf,
       MetricsConfig metricsConfig,
       NameMapping mapping,
-      int parallelism) {
-    return TableMigrationUtil.listPartition(
-        partition.values,
-        partition.uri,
-        partition.format,
-        spec,
-        conf.get(),
-        metricsConfig,
-        mapping,
-        parallelism);
-  }
-
-  private static List<DataFile> listPartition(
-      SparkPartition partition,
-      PartitionSpec spec,
-      SerializableConfiguration conf,
-      MetricsConfig metricsConfig,
-      NameMapping mapping,
+      boolean ignoreMissingFiles,
       ExecutorService service) {
-    return TableMigrationUtil.listPartition(
-        partition.values,
-        partition.uri,
-        partition.format,
-        spec,
-        conf.get(),
-        metricsConfig,
-        mapping,
-        service);
+    try {
+      return TableMigrationUtil.listPartition(
+          partition.values,
+          partition.uri,
+          partition.format,
+          spec,
+          conf.get(),
+          metricsConfig,
+          mapping,
+          service);
+    } catch (RuntimeException e) {
+      if (ignoreMissingFiles && e.getCause() instanceof FileNotFoundException) {
+        LOG.warn("Ignoring FileNotFoundException when listing partition of {}", partition, e);
+        return Collections.emptyList();
+      } else {
+        throw e;
+      }
+    }
   }
 
   private static SparkPartition toSparkPartition(
@@ -528,6 +525,45 @@ public class SparkTableUtil {
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
       ExecutorService service) {
+    importSparkTable(
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        partitionFilter,
+        checkDuplicateFiles,
+        false,
+        service);
+  }
+
+  /**
+   * Import files from an existing Spark table to an Iceberg table.
+   *
+   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
+   * the original and target table and thus is not thread-safe.
+   *
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
+   * @param partitionFilter only import partitions whose values match those in the map, can be
+   *     partially defined
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
+   *     #listPartition} for the Spark partitions
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
+   */
+  public static void importSparkTable(
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
+      ExecutorService service) {
     SessionCatalog catalog = spark.sessionState().catalog();
 
     String db =
@@ -564,6 +600,7 @@ public class SparkTableUtil {
               spec,
               stagingDir,
               checkDuplicateFiles,
+              ignoreMissingFiles,
               service);
         }
       }
@@ -750,6 +787,34 @@ public class SparkTableUtil {
       String stagingDir,
       boolean checkDuplicateFiles,
       ExecutorService service) {
+    importSparkPartitions(
+        spark, partitions, targetTable, spec, stagingDir, checkDuplicateFiles, false, service);
+  }
+
+  /**
+   * Import files from given partitions to an Iceberg table.
+   *
+   * @param spark a Spark session
+   * @param partitions partitions to import
+   * @param targetTable an Iceberg table where to import the data
+   * @param spec a partition spec
+   * @param stagingDir a staging directory to store temporary manifest files
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
+   *     #listPartition} for the Spark partitions
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
+   */
+  public static void importSparkPartitions(
+      SparkSession spark,
+      List<SparkPartition> partitions,
+      Table targetTable,
+      PartitionSpec spec,
+      String stagingDir,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
+      ExecutorService service) {
     Configuration conf = spark.sessionState().newHadoopConf();
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
     int listingParallelism =
@@ -777,6 +842,7 @@ public class SparkTableUtil {
                             serializableConf,
                             metricsConfig,
                             nameMapping,
+                            ignoreMissingFiles,
                             service)
                         .iterator(),
             Encoders.javaSerialization(DataFile.class));
@@ -865,11 +931,15 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    Tasks.foreach(manifests)
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .run(item -> io.deleteFile(item.path()));
+    if (io instanceof SupportsBulkOperations) {
+      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
+    } else {
+      Tasks.foreach(manifests)
+          .executeWith(ThreadPools.getWorkerPool())
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .run(item -> io.deleteFile(item.path()));
+    }
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {

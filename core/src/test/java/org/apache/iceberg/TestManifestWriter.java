@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -36,11 +34,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestManifestWriter extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 250;
   private static final long SMALL_FILE_SIZE = 10L;
 
@@ -99,8 +92,7 @@ public class TestManifestWriter extends TestBase {
   @TestTemplate
   public void testWriteManifestWithSequenceNumber() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    File manifestFile = File.createTempFile("manifest", ".avro", temp.toFile());
-    assertThat(manifestFile.delete()).isTrue();
+    File manifestFile = temp.resolve("manifest" + System.nanoTime() + ".avro").toFile();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
@@ -398,12 +390,8 @@ public class TestManifestWriter extends TestBase {
   }
 
   private OutputFile newManifestFile() {
-    try {
-      return Files.localOutput(
-          FileFormat.AVRO.addExtension(
-              File.createTempFile("manifest", null, temp.toFile()).toString()));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return Files.localOutput(
+        FileFormat.AVRO.addExtension(
+            temp.resolve("manifest" + System.nanoTime()).toFile().toString()));
   }
 }

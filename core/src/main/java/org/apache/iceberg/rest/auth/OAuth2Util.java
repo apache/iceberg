@@ -132,6 +132,11 @@ public class OAuth2Util {
   }
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    return buildOptionalParam(properties, OAuth2Properties.CATALOG_SCOPE);
+  }
+
+  public static Map<String, String> buildOptionalParam(
+      Map<String, String> properties, String defaultScope) {
     // these are some options oauth params based on specification
     // for any new optional oauth param, define the constant and add the constant to this list
     Set<String> optionalParamKeys =
@@ -139,8 +144,7 @@ public class OAuth2Util {
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
     // add scope too,
     optionalParamBuilder.put(
-        OAuth2Properties.SCOPE,
-        properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE));
+        OAuth2Properties.SCOPE, properties.getOrDefault(OAuth2Properties.SCOPE, defaultScope));
     // add all other parameters
     for (String key : optionalParamKeys) {
       String value = properties.get(key);
@@ -441,7 +445,7 @@ public class OAuth2Util {
     JsonNode node;
     try {
       node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts.get(1)));
-    } catch (IOException e) {
+    } catch (IOException | IllegalArgumentException e) {
       return null;
     }
 

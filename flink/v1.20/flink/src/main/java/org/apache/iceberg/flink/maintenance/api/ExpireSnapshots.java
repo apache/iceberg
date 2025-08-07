@@ -46,6 +46,12 @@ public class ExpireSnapshots {
     private Integer numSnapshots = null;
     private Integer planningWorkerPoolSize;
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
+    private Boolean cleanExpiredMetadata = null;
+
+    @Override
+    String maintenanceTaskName() {
+      return "ExpireSnapshots";
+    }
 
     /**
      * The snapshots older than this age will be removed.
@@ -89,6 +95,18 @@ public class ExpireSnapshots {
       return this;
     }
 
+    /**
+     * Expires unused table metadata such as partition specs and schemas.
+     *
+     * @param newCleanExpiredMetadata remove unused partition specs, schemas, or other metadata when
+     *     true
+     * @return this for method chaining
+     */
+    public Builder cleanExpiredMetadata(boolean newCleanExpiredMetadata) {
+      this.cleanExpiredMetadata = newCleanExpiredMetadata;
+      return this;
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");
@@ -100,7 +118,8 @@ public class ExpireSnapshots {
                       tableLoader(),
                       maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
                       numSnapshots,
-                      planningWorkerPoolSize))
+                      planningWorkerPoolSize,
+                      cleanExpiredMetadata))
               .name(operatorName(EXECUTOR_OPERATOR_NAME))
               .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
@@ -113,7 +132,7 @@ public class ExpireSnapshots {
               operatorName(DELETE_FILES_OPERATOR_NAME),
               TypeInformation.of(Void.class),
               new DeleteFilesProcessor(
-                  index(), taskName(), tableLoader().loadTable(), deleteBatchSize))
+                  tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
           .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
           .setParallelism(parallelism());

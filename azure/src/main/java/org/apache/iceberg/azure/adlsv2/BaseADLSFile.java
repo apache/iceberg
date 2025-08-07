@@ -22,8 +22,12 @@ import com.azure.storage.file.datalake.DataLakeFileClient;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class BaseADLSFile {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseADLSFile.class);
+
   private final String location;
   private final DataLakeFileClient fileClient;
   private final AzureProperties azureProperties;
@@ -63,7 +67,12 @@ abstract class BaseADLSFile {
   }
 
   public boolean exists() {
-    return fileClient().exists();
+    try {
+      return fileClient().exists();
+    } catch (RuntimeException e) {
+      LOG.error("Failed to check if the file exists at path {}", location, e);
+      throw e;
+    }
   }
 
   @Override

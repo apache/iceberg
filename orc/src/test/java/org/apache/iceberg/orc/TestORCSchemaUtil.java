@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
@@ -54,11 +55,14 @@ public class TestORCSchemaUtil {
           required(25, "floatCol", Types.FloatType.get()),
           optional(30, "dateCol", Types.DateType.get()),
           required(32, "timeCol", Types.TimeType.get()),
-          required(34, "timestampCol", Types.TimestampType.withZone()),
+          required(34, "timestamptzCol", Types.TimestampType.withZone()),
+          required(35, "timestampCol", Types.TimestampType.withoutZone()),
+          required(36, "timestamptz9Col", Types.TimestampNanoType.withZone()),
+          required(37, "timestamp9Col", Types.TimestampNanoType.withoutZone()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-          required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
-          );
+          required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // spark's maximum precision
+          required(117, "variant", Types.VariantType.get()));
 
   @Test
   public void testRoundtripConversionPrimitive() {
@@ -533,14 +537,9 @@ public class TestORCSchemaUtil {
 
     // check the ID attribute on non-root TypeDescriptions
     if (first.getId() > 0 && second.getId() > 0) {
-      if (first.getAttributeValue(ICEBERG_ID_ATTRIBUTE) == null
-          || second.getAttributeValue(ICEBERG_ID_ATTRIBUTE) == null) {
-        return false;
-      }
-
-      if (!first
-          .getAttributeValue(ICEBERG_ID_ATTRIBUTE)
-          .equals(second.getAttributeValue(ICEBERG_ID_ATTRIBUTE))) {
+      if (!Objects.equals(
+          first.getAttributeValue(ICEBERG_ID_ATTRIBUTE),
+          second.getAttributeValue(ICEBERG_ID_ATTRIBUTE))) {
         return false;
       }
     }

@@ -32,6 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class VariantTestUtil {
+
+  private static final int MAX_SHORT_STRING_LENGTH = 63;
+
   private VariantTestUtil() {}
 
   public static void assertEqual(VariantMetadata expected, VariantMetadata actual) {
@@ -78,6 +81,24 @@ public class VariantTestUtil {
     }
   }
 
+  public static void assertVariantString(VariantValue actual, String expected) {
+    int expectedLength = expected.length();
+    assertThat(actual.type()).isEqualTo(PhysicalType.STRING);
+    assertThat(actual.asPrimitive().get()).isEqualTo(expected);
+    if (expectedLength <= MAX_SHORT_STRING_LENGTH) {
+      assertThat(actual.getClass()).isEqualTo(SerializedShortString.class);
+      assertThat(actual.asPrimitive().sizeInBytes()).isEqualTo(1 + expectedLength);
+    } else {
+      assertThat(actual.getClass()).isEqualTo(SerializedPrimitive.class);
+      assertThat(actual.asPrimitive().sizeInBytes()).isEqualTo(5 + expectedLength);
+    }
+  }
+
+  public static void assertVariantString(VariantValue actual, String expected, int offsetSize) {
+    assertVariantString(actual, expected);
+    assertThat(VariantUtil.sizeOf(actual.asPrimitive().sizeInBytes())).isEqualTo(offsetSize);
+  }
+
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
   }
@@ -105,6 +126,18 @@ public class VariantTestUtil {
     buffer.putInt(1, utf8.length);
     writeBufferAbsolute(buffer, 5, ByteBuffer.wrap(utf8));
     return SerializedPrimitive.from(buffer, buffer.get(0));
+  }
+
+  /** Creates a short string primitive of max 63 bytes to use only 1 header */
+  static SerializedShortString createShortString(String string) {
+    Preconditions.checkArgument(
+        string.length() <= MAX_SHORT_STRING_LENGTH,
+        "Short String length is " + string.length() + ",  should not be greater than 63");
+    byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
+    ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.put(0, VariantUtil.shortStringHeader(utf8.length));
+    writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
+    return SerializedShortString.from(buffer, buffer.get(0));
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
@@ -231,14 +264,14 @@ public class VariantTestUtil {
     return buffer;
   }
 
-  static ByteBuffer createArray(Serialized... values) {
+  public static ByteBuffer createArray(VariantValue... values) {
     int numElements = values.length;
     boolean isLarge = numElements > 0xFF;
 
     int dataSize = 0;
-    for (Serialized value : values) {
+    for (VariantValue value : values) {
       // TODO: produce size for every variant without serializing
-      dataSize += value.buffer().remaining();
+      dataSize += value.sizeInBytes();
     }
 
     // offset size is the size needed to store the length of the data section
@@ -260,13 +293,11 @@ public class VariantTestUtil {
     // write values and offsets
     int nextOffset = 0; // the first offset is always 0
     int index = 0;
-    for (Serialized value : values) {
+    for (VariantValue value : values) {
       // write the offset and value
       VariantUtil.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
-      // in a real implementation, the buffer should be passed to serialize
-      ByteBuffer valueBuffer = value.buffer();
-      int valueSize = writeBufferAbsolute(buffer, dataOffset + nextOffset, valueBuffer);
+      int valueSize = value.writeTo(buffer, dataOffset + nextOffset);
       // update next offset and index
       nextOffset += valueSize;
       index += 1;

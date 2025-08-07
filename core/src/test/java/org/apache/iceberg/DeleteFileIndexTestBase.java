@@ -24,9 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -49,8 +47,8 @@ public abstract class DeleteFileIndexTestBase<
     extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   static final DeleteFile FILE_A_EQ_1 =
@@ -452,11 +450,8 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableSequenceNumbers() throws IOException {
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue();
-
     Table unpartitioned =
-        TestTables.create(location, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+        TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     // add data, pos deletes, and eq deletes in the same sequence number
     // the position deletes will be applied to the data file, but the equality deletes will not
@@ -591,7 +586,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(5)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate
@@ -625,7 +622,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(SPEC, file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(SPEC, file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate

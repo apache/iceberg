@@ -21,29 +21,56 @@ package org.apache.iceberg.spark.sql;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 import static org.apache.spark.sql.functions.when;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Map;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestCreateTableAsSelect extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCreateTableAsSelect extends CatalogTestBase {
 
-  private final String sourceName;
+  @Parameter(index = 3)
+  private String sourceName;
 
-  public TestCreateTableAsSelect(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-    this.sourceName = tableName("source");
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, sourceName = {3}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        SparkCatalogConfig.HIVE.catalogName() + ".default.source"
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        SparkCatalogConfig.HADOOP.catalogName() + ".default.source"
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        "default.source"
+      }
+    };
+  }
 
+  @BeforeEach
+  public void createTableIfNotExists() {
     sql(
         "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
             + "USING iceberg PARTITIONED BY (truncate(id, 3))",
@@ -51,12 +78,12 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", sourceName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedCTAS() {
     sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", tableName, sourceName);
 
@@ -67,18 +94,17 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
     Table ctasTable = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        ctasTable.schema().asStruct());
-    Assert.assertEquals("Should be an unpartitioned table", 0, ctasTable.spec().fields().size());
+    assertThat(ctasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").isEmpty();
     assertEquals(
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedCTAS() {
     sql(
         "CREATE TABLE %s USING iceberg PARTITIONED BY (id) AS SELECT * FROM %s ORDER BY id",
@@ -93,18 +119,17 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
     Table ctasTable = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        ctasTable.schema().asStruct());
-    Assert.assertEquals("Should be partitioned by id", expectedSpec, ctasTable.spec());
+    assertThat(ctasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(ctasTable.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
     assertEquals(
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testCTASWriteDistributionModeNotRespected() {
     assertThatThrownBy(
             () ->
@@ -116,7 +141,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             "Incoming records violate the writer assumption that records are clustered by spec and by partition within each spec");
   }
 
-  @Test
+  @TestTemplate
   public void testRTAS() {
     sql(
         "CREATE TABLE %s USING iceberg TBLPROPERTIES ('prop1'='val1', 'prop2'='val2')"
@@ -146,11 +171,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     Table rtasTable = validationCatalog.loadTable(tableIdent);
 
     // the replacement table has a different schema and partition spec than the original
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        rtasTable.schema().asStruct());
-    Assert.assertEquals("Should be partitioned by part", expectedSpec, rtasTable.spec());
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(rtasTable.spec()).as("Should be partitioned by part").isEqualTo(expectedSpec);
 
     assertEquals(
         "Should have rows matching the source table",
@@ -160,18 +184,14 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    Assert.assertEquals(
-        "Table should have expected snapshots", 2, Iterables.size(rtasTable.snapshots()));
-
-    Assert.assertEquals(
-        "Should have updated table property", "newval1", rtasTable.properties().get("prop1"));
-    Assert.assertEquals(
-        "Should have preserved table property", "val2", rtasTable.properties().get("prop2"));
-    Assert.assertEquals(
-        "Should have new table property", "val3", rtasTable.properties().get("prop3"));
+    assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
+    assertThat(rtasTable.properties())
+        .containsEntry("prop1", "newval1")
+        .containsEntry("prop2", "val2")
+        .containsEntry("prop3", "val3");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateRTAS() {
     sql(
         "CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS "
@@ -208,11 +228,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     Table rtasTable = validationCatalog.loadTable(tableIdent);
 
     // the replacement table has a different schema and partition spec than the original
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        rtasTable.schema().asStruct());
-    Assert.assertEquals("Should be partitioned by part", expectedSpec, rtasTable.spec());
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(rtasTable.spec()).as("Should be partitioned by part").isEqualTo(expectedSpec);
 
     assertEquals(
         "Should have rows matching the source table",
@@ -222,11 +241,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    Assert.assertEquals(
-        "Table should have expected snapshots", 2, Iterables.size(rtasTable.snapshots()));
+    assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2Create() throws Exception {
     spark.table(sourceName).writeTo(tableName).using("iceberg").create();
 
@@ -237,18 +255,17 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
     Table ctasTable = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        ctasTable.schema().asStruct());
-    Assert.assertEquals("Should be an unpartitioned table", 0, ctasTable.spec().fields().size());
+    assertThat(ctasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(ctasTable.spec().fields()).as("Should be an unpartitioned table").isEmpty();
     assertEquals(
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2Replace() throws Exception {
     spark.table(sourceName).writeTo(tableName).using("iceberg").create();
 
@@ -281,11 +298,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     Table rtasTable = validationCatalog.loadTable(tableIdent);
 
     // the replacement table has a different schema and partition spec than the original
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        rtasTable.schema().asStruct());
-    Assert.assertEquals("Should be partitioned by part", expectedSpec, rtasTable.spec());
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(rtasTable.spec()).as("Should be partitioned by part").isEqualTo(expectedSpec);
 
     assertEquals(
         "Should have rows matching the source table",
@@ -295,11 +311,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    Assert.assertEquals(
-        "Table should have expected snapshots", 2, Iterables.size(rtasTable.snapshots()));
+    assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2CreateOrReplace() {
     spark
         .table(sourceName)
@@ -349,11 +364,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     Table rtasTable = validationCatalog.loadTable(tableIdent);
 
     // the replacement table has a different schema and partition spec than the original
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        rtasTable.schema().asStruct());
-    Assert.assertEquals("Should be partitioned by part", expectedSpec, rtasTable.spec());
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(rtasTable.spec()).as("Should be partitioned by part").isEqualTo(expectedSpec);
 
     assertEquals(
         "Should have rows matching the source table",
@@ -363,11 +377,10 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    Assert.assertEquals(
-        "Table should have expected snapshots", 2, Iterables.size(rtasTable.snapshots()));
+    assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateRTASWithPartitionSpecChanging() {
     sql(
         "CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS "
@@ -409,13 +422,12 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             .withSpecId(2) // The Spec is new
             .build();
 
-    Assert.assertEquals("Should be partitioned by part and id", expectedSpec, rtasTable.spec());
+    assertThat(rtasTable.spec()).as("Should be partitioned by part and id").isEqualTo(expectedSpec);
 
     // the replacement table has a different schema and partition spec than the original
-    Assert.assertEquals(
-        "Should have expected nullable schema",
-        expectedSchema.asStruct(),
-        rtasTable.schema().asStruct());
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
 
     assertEquals(
         "Should have rows matching the source table",
@@ -425,7 +437,6 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    Assert.assertEquals(
-        "Table should have expected snapshots", 2, Iterables.size(rtasTable.snapshots()));
+    assertThat(rtasTable.snapshots()).as("Table should have expected snapshots").hasSize(2);
   }
 }

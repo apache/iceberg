@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -31,6 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedObject {
@@ -182,10 +185,27 @@ public class TestSerializedObject {
     assertThat(actualInner.get("f").asPrimitive().get()).isEqualTo((byte) 3);
   }
 
-  @Test
-  public void testTwoByteOffsets() {
-    // a string larger than 255 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(300, random);
+  static Stream<Arguments> provideInputsForTestMultiByteOffsets() {
+    return Stream.of(
+        Arguments.of(
+            300,
+            2), // a big string larger than 255 bytes to push the value offset size above 1 byte to
+        // test TwoByteOffsets
+        Arguments.of(
+            70_000,
+            3), // a really-big string larger than 65535 bytes to push the value offset size above 2
+        // byte to test ThreeByteOffsets
+        Arguments.of(
+            16_800_000,
+            4) // a really very big string larger than 1677216 bytes to push the value offset size
+        // above 3 byte to test FourByteOffsets
+        );
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideInputsForTestMultiByteOffsets")
+  public void testMultiByteOffsets(int multiByteOffset, int offsetSize) {
+    String randomString = RandomUtil.generateString(multiByteOffset, random);
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
@@ -205,36 +225,7 @@ public class TestSerializedObject {
     assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
     assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
-    assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
-  }
-
-  @Test
-  public void testThreeByteOffsets() {
-    // a string larger than 65535 bytes to push the value offset size above 1 byte
-    String randomString = RandomUtil.generateString(70_000, random);
-    SerializedPrimitive reallyBigString = VariantTestUtil.createString(randomString);
-
-    // note that order doesn't matter. fields are sorted by name
-    Map<String, VariantValue> data =
-        ImmutableMap.of("really-big", reallyBigString, "a", I1, "b", I2, "c", I3);
-    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
-    ByteBuffer value = VariantTestUtil.createObject(meta, data);
-
-    VariantMetadata metadata = VariantMetadata.from(meta);
-    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
-
-    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numFields()).isEqualTo(4);
-
-    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
-    assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    VariantTestUtil.assertVariantString(object.get("big"), randomString, offsetSize);
   }
 
   @ParameterizedTest
@@ -262,6 +253,33 @@ public class TestSerializedObject {
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
     }
+  }
+
+  @Test
+  public void testShortStringsInVariantPrimitives() {
+    // note that order doesn't matter. fields are sorted by name
+    Map<String, VariantValue> data =
+        ImmutableMap.of(
+            "5-byte-header",
+            VariantTestUtil.createString("iceberg"),
+            "1-byte-header",
+            VariantTestUtil.createShortString("iceberg"));
+    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
+    ByteBuffer value = VariantTestUtil.createObject(meta, data);
+
+    VariantMetadata metadata = VariantMetadata.from(meta);
+    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
+
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numFields()).isEqualTo(2);
+
+    assertThat(object.get("5-byte-header").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("5-byte-header").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("5-byte-header").asPrimitive().sizeInBytes()).isEqualTo(5 + 7);
+
+    assertThat(object.get("1-byte-header").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("1-byte-header").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("1-byte-header").asPrimitive().sizeInBytes()).isEqualTo(1 + 7);
   }
 
   @ParameterizedTest

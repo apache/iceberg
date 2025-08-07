@@ -49,6 +49,12 @@
     <!-- Referencing guava classes should be allowed in classes within bundled-guava module -->
     <suppress files="org.apache.iceberg.GuavaClasses" id="BanUnrelocatedGuavaClasses"/>
 
+    <!-- Allow using Flink's shaded Curator dependency -->
+    <suppress files="org.apache.iceberg.flink.maintenance.api.ZkLockFactory" id="BanShadedClasses"/>
+
     <!-- Suppress checks for CometColumnReader -->
     <suppress files="org.apache.iceberg.spark.data.vectorized.CometColumnReader" checks="IllegalImport"/>
+
+    <!-- Suppress TestClassNamingConvention for main source files -->
+    <suppress files=".*[/\\]src[/\\]main[/\\].*" id="TestClassNamingConvention" />
 </suppressions>

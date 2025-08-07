@@ -75,7 +75,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.roaringbitmap'
     }
 
-    compileOnly "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:0.5.0"
+    compileOnly "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:${libs.versions.comet.get()}"
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
@@ -112,7 +112,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     }
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-    testImplementation libs.junit.vintage.engine
     // runtime dependencies for running REST Catalog based integration test
     testRuntimeOnly libs.jetty.servlet
   }
@@ -123,7 +122,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   tasks.withType(Test) {
     // Vectorized reads need more memory
-    maxHeapSize '2560m'
+    maxHeapSize '3160m'
   }
 }
 
@@ -184,12 +183,16 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
-    testImplementation libs.junit.vintage.engine
-    testImplementation "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:0.5.0"
+    testImplementation libs.awaitility
+    testImplementation "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:${libs.versions.comet.get()}"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
     antlr libs.antlr.antlr4
+  }
+
+  test {
+    useJUnitPlatform()
   }
 
   generateGrammarSource {
@@ -253,7 +256,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark34.get()}"
-    integrationImplementation libs.junit.vintage.engine
+    integrationImplementation libs.junit.jupiter
+    integrationImplementation libs.junit.platform.launcher
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -315,6 +319,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform()
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')

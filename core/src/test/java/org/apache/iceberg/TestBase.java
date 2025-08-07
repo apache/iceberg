@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -198,8 +199,8 @@ public class TestBase {
   public TestTables.TestTable table = null;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Parameter protected int formatVersion;
@@ -331,7 +332,7 @@ public class TestBase {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(
-                File.createTempFile("junit", null, temp.toFile()).toString()));
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
@@ -384,6 +385,9 @@ public class TestBase {
         break;
       case 3:
         manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
+        break;
+      case 4:
+        manifestEntrySchema = V4Metadata.entrySchema(table.spec().partitionType());
         break;
       default:
         throw new IllegalArgumentException(
@@ -651,13 +655,19 @@ public class TestBase {
     }
   }
 
+  protected DataFile newDataFile(StructLike partition) {
+    return newDataFileBuilder(table).withPartition(partition).build();
+  }
+
   protected DataFile newDataFile(String partitionPath) {
+    return newDataFileBuilder(table).withPartitionPath(partitionPath).build();
+  }
+
+  private static DataFiles.Builder newDataFileBuilder(Table table) {
     return DataFiles.builder(table.spec())
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath(partitionPath)
-        .withRecordCount(1)
-        .build();
+        .withRecordCount(1);
   }
 
   protected DeleteFile fileADeletes() {

@@ -174,6 +174,9 @@ public class TableProperties {
   public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
       "write.parquet.bloom-filter-enabled.column.";
 
+  public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
+      "write.parquet.stats-enabled.column.";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
@@ -250,14 +253,14 @@ public class TableProperties {
   public static final boolean WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT = true;
 
   /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
   /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
@@ -388,6 +391,4 @@ public class TableProperties {
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
-
-  public static final String ROW_LINEAGE = "row-lineage";
 }

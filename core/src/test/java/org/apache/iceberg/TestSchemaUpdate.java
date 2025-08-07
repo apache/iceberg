@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -364,7 +365,11 @@ public class TestSchemaUpdate {
             Types.FixedType.ofLength(4),
             Types.DecimalType.of(9, 2),
             Types.DecimalType.of(9, 3),
-            Types.DecimalType.of(18, 2));
+            Types.DecimalType.of(18, 2),
+            Types.GeometryType.crs84(),
+            Types.GeometryType.of("srid:3857"),
+            Types.GeographyType.crs84(),
+            Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
 
     for (Type.PrimitiveType fromType : primitives) {
       for (Type.PrimitiveType toType : primitives) {
@@ -772,6 +777,22 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add column, name already exists: ID");
+  }
+
+  @Test
+  public void testAddMultipleRequiredColumnCaseInsensitive() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .caseSensitive(false)
+                    .allowIncompatibleChanges()
+                    .addRequiredColumn("data", Types.StringType.get())
+                    .addRequiredColumn("DATA", Types.StringType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot build lower case index: data and DATA collide");
   }
 
   @Test

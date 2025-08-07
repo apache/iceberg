@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -57,6 +58,7 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -188,8 +190,7 @@ public class TestParquet {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.toFile();
-    assertThat(testFile.delete()).isTrue();
+    File testFile = new File(temp.toFile(), "test" + System.nanoTime() + ".parquet");
 
     ParquetWriter<GenericRecord> writer =
         AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(testFile.toURI()))
@@ -217,6 +218,50 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  @Test
+  public void testColumnStatisticsEnabled() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "true")
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    InputFile inputFile = Files.localInput(file);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean emptyStats = column.getStatistics().isEmpty();
+          if (column.getPath().toDotString().equals("int_field")) {
+            assertThat(emptyStats).as("int_field has statistics").isEqualTo(false);
+          } else if (column.getPath().toDotString().equals("string_field")) {
+            assertThat(emptyStats).as("string_field has statistics").isEqualTo(true);
+          }
+        }
+      }
+    }
   }
 
   private Pair<File, Long> generateFile(

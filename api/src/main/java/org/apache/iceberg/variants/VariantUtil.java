@@ -164,6 +164,10 @@ class VariantUtil {
     }
   }
 
+  static byte metadataHeader(boolean isSorted, int offsetSize) {
+    return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
+  }
+
   static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << Primitives.PRIMITIVE_TYPE_SHIFT);
   }
@@ -175,6 +179,10 @@ class VariantUtil {
 
   static byte arrayHeader(boolean isLarge, int offsetSize) {
     return (byte) ((isLarge ? 0b10000 : 0) | (offsetSize - 1) << 2 | 0b11);
+  }
+
+  static byte shortStringHeader(int length) {
+    return (byte) ((length << 2) | BASIC_TYPE_SHORT_STRING);
   }
 
   static BasicType basicType(int header) {

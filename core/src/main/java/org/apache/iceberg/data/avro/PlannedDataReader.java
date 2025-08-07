@@ -126,6 +126,12 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
     }
 
     @Override
+    public ValueReader<?> variant(
+        Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return ValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {

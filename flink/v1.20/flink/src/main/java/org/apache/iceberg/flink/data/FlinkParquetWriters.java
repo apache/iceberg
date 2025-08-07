@@ -31,6 +31,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
@@ -87,16 +88,22 @@ public class FlinkParquetWriters {
     @Override
     public ParquetValueWriter<?> struct(
         RowType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
-      List<Type> fields = struct.getFields();
       List<RowField> flinkFields = sStruct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<LogicalType> flinkTypes = Lists.newArrayList();
-      for (int i = 0; i < fields.size(); i += 1) {
-        writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        flinkTypes.add(flinkFields.get(i).getType());
+      int[] fieldIndexes = new int[fieldWriters.size()];
+      int fieldIndex = 0;
+      for (int i = 0; i < flinkFields.size(); i += 1) {
+        LogicalType flinkType = flinkFields.get(i).getType();
+        if (!flinkType.is(LogicalTypeRoot.NULL)) {
+          writers.add(newOption(struct.getType(fieldIndex), fieldWriters.get(fieldIndex)));
+          flinkTypes.add(flinkType);
+          fieldIndexes[fieldIndex] = i;
+          fieldIndex += 1;
+        }
       }
 
-      return new RowDataWriter(writers, flinkTypes);
+      return new RowDataWriter(fieldIndexes, writers, flinkTypes);
     }
 
     @Override
@@ -584,11 +591,12 @@ public class FlinkParquetWriters {
   private static class RowDataWriter extends ParquetValueWriters.StructWriter<RowData> {
     private final RowData.FieldGetter[] fieldGetter;
 
-    RowDataWriter(List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
+    RowDataWriter(
+        int[] fieldIndexes, List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
       fieldGetter = new RowData.FieldGetter[types.size()];
       for (int i = 0; i < types.size(); i += 1) {
-        fieldGetter[i] = FlinkRowData.createFieldGetter(types.get(i), i);
+        fieldGetter[i] = FlinkRowData.createFieldGetter(types.get(i), fieldIndexes[i]);
       }
     }
 

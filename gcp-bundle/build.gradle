@@ -26,6 +26,8 @@ project(":iceberg-gcp-bundle") {
   dependencies {
     implementation platform(libs.google.libraries.bom)
     implementation "com.google.cloud:google-cloud-storage"
+    implementation "com.google.cloud:google-cloud-bigquery"
+    implementation "com.google.cloud:google-cloud-core"
   }
 
   shadowJar {

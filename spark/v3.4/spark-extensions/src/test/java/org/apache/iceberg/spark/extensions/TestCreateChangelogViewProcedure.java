@@ -18,31 +18,31 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.junit.Assert.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.apache.spark.sql.types.StructField;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
   private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
-  public TestCreateChangelogViewProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
@@ -62,7 +62,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testCustomizedViewName() {
     createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -92,10 +92,52 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         "cdc_view");
 
     long rowCount = sql("select * from %s", "cdc_view").stream().count();
-    Assert.assertEquals(2, rowCount);
+    assertThat(rowCount).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
+  public void testNonStandardColumnNames() {
+    sql("CREATE TABLE %s (`the id` INT, `the.data` STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD `the.data`", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql(
+        "CALL %s.system.create_changelog_view("
+            + "table => '%s',"
+            + "options => map('%s','%s','%s','%s'),"
+            + "changelog_view => '%s')",
+        catalogName,
+        tableName,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        snap1.snapshotId(),
+        SparkReadOptions.END_SNAPSHOT_ID,
+        snap2.snapshotId(),
+        "cdc_view");
+
+    var df = spark.sql("select * from cdc_view");
+    var fieldNames =
+        Arrays.stream(df.schema().fields()).map(StructField::name).collect(Collectors.toList());
+
+    assertThat(fieldNames)
+        .containsExactly(
+            "the id", "the.data", "_change_type", "_change_ordinal", "_commit_snapshot_id");
+
+    assertThat(df.collectAsList()).hasSize(2);
+  }
+
+  @TestTemplate
   public void testNoSnapshotIdInput() {
     createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -126,7 +168,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testOnlyStartSnapshotIdInput() {
     createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -155,7 +197,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testOnlyEndTimestampIdInput() {
     createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -180,7 +222,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampsBasedQuery() {
     createTableWithTwoColumns();
     long beginning = System.currentTimeMillis();
@@ -240,7 +282,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testOnlyStartTimestampInput() {
     createTableWithTwoColumns();
     long beginning = System.currentTimeMillis();
@@ -286,7 +328,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testOnlyEndTimestampInput() {
     createTableWithTwoColumns();
 
@@ -313,7 +355,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testStartTimeStampEndSnapshotId() {
     createTableWithTwoColumns();
 
@@ -350,7 +392,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testStartSnapshotIdEndTimestamp() {
     createTableWithTwoColumns();
 
@@ -383,7 +425,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdate() {
     createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
@@ -414,7 +456,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithIdentifierField() {
     createTableWithIdentifierField();
 
@@ -442,7 +484,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithFilter() {
     createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
@@ -474,7 +516,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithMultipleIdentifierColumns() {
     createTableWithThreeColumns();
 
@@ -506,7 +548,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveCarryOvers() {
     createTableWithThreeColumns();
 
@@ -540,7 +582,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveCarryOversWithoutUpdatedRows() {
     createTableWithThreeColumns();
 
@@ -572,7 +614,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testNetChangesWithRemoveCarryOvers() {
     // partitioned by id
     createTableWithThreeColumns();
@@ -625,15 +667,15 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, data", viewName));
   }
 
-  @Test
+  @TestTemplate
   public void testNetChangesWithComputeUpdates() {
     createTableWithTwoColumns();
-    assertThrows(
-        "Should fail because net_changes is not supported with computing updates",
-        IllegalArgumentException.class,
-        () ->
-            sql(
-                "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
-                catalogName, tableName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
+                    catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Not support net changes with update images");
   }
 }

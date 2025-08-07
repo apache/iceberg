@@ -18,23 +18,21 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
-import java.util.Map;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
-  @Test
+  @TestTemplate
   public void testSparkCatalogTable() throws Exception {
     spark.conf().set("spark.sql.catalog.mycat", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.mycat.type", "hadoop");
@@ -42,29 +40,28 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("mycat");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table");
-    Map<String, String> options = Maps.newHashMap();
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
-    spark.sql("INSERT INTO mycat.default.table VALUES (1,1,1)");
+    sql("INSERT INTO mycat.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(results.orphanFileLocations())
+        .as("trash file should be removed")
+        .contains("file:" + location + trashFile);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkCatalogNamedHadoopTable() throws Exception {
     spark.conf().set("spark.sql.catalog.hadoop", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hadoop.type", "hadoop");
@@ -72,29 +69,28 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hadoop");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table");
-    Map<String, String> options = Maps.newHashMap();
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
-    spark.sql("INSERT INTO hadoop.default.table VALUES (1,1,1)");
+    sql("INSERT INTO hadoop.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(results.orphanFileLocations())
+        .as("trash file should be removed")
+        .contains("file:" + location + trashFile);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkCatalogNamedHiveTable() throws Exception {
     spark.conf().set("spark.sql.catalog.hive", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hive.type", "hadoop");
@@ -102,29 +98,28 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hive");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table");
-    Map<String, String> options = Maps.newHashMap();
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
-    spark.sql("INSERT INTO hive.default.table VALUES (1,1,1)");
+    sql("INSERT INTO hive.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(results.orphanFileLocations())
+        .as("trash file should be removed")
+        .contains("file:" + location + trashFile);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkSessionCatalogHadoopTable() throws Exception {
     spark
         .conf()
@@ -135,29 +130,28 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table");
-    Map<String, String> options = Maps.newHashMap();
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
-    spark.sql("INSERT INTO default.table VALUES (1,1,1)");
+    sql("INSERT INTO default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(results.orphanFileLocations())
+        .as("trash file should be removed")
+        .contains("file:" + location + trashFile);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkSessionCatalogHiveTable() throws Exception {
     spark
         .conf()
@@ -168,30 +162,29 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     String[] database = {"default"};
     Identifier id = Identifier.of(database, "sessioncattest");
-    Map<String, String> options = Maps.newHashMap();
     Transform[] transforms = {};
     cat.dropTable(id);
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
-    spark.sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
+    sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
 
     String location = table.table().location().replaceFirst("file:", "");
-    new File(location + "/data/trashfile").createNewFile();
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
         SparkActions.get()
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(results.orphanFileLocations())
+        .as("trash file should be removed")
+        .contains("file:" + location + trashFile);
   }
 
-  @After
-  public void resetSparkSessionCatalog() throws Exception {
+  @AfterEach
+  public void resetSparkSessionCatalog() {
     spark.conf().unset("spark.sql.catalog.spark_catalog");
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
     spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");

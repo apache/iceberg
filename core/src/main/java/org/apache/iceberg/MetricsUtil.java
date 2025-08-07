@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class MetricsUtil {
@@ -54,7 +55,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
-        metrics.upperBounds());
+        metrics.upperBounds(),
+        metrics.originalTypes());
   }
 
   /**
@@ -72,7 +74,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
-        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
   private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
@@ -101,11 +104,25 @@ public class MetricsUtil {
       return Maps.newHashMap();
     }
 
+    Map<Integer, Integer> parents = TypeUtil.indexParents(inputSchema.asStruct());
+
     return fieldMetrics
+        .filter(metrics -> !inMapOrList(inputSchema, parents, metrics.id()))
         .filter(
             metrics ->
                 metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
+  }
+
+  private static boolean inMapOrList(Schema schema, Map<Integer, Integer> parents, int id) {
+    Integer current = id;
+    while ((current = parents.get(current)) != null) {
+      if (schema.findField(current).type().typeId() != Type.TypeID.STRUCT) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /** Extract MetricsMode for the given field id from metrics config. */

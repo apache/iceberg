@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -61,6 +62,8 @@ public class GCPProperties implements Serializable {
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
 
+  private final Map<String, String> allProperties;
+
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
@@ -80,10 +83,13 @@ public class GCPProperties implements Serializable {
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  public GCPProperties() {}
+  public GCPProperties() {
+    this.allProperties = ImmutableMap.of();
+  }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
+    this.allProperties = ImmutableMap.copyOf(properties);
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
@@ -178,5 +184,9 @@ public class GCPProperties implements Serializable {
 
   public boolean oauth2RefreshCredentialsEnabled() {
     return gcsOauth2RefreshCredentialsEnabled;
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
   }
 }

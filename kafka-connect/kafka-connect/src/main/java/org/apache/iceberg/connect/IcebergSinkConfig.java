@@ -93,6 +93,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
+  private static final String TASK_ID = "task.id";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
@@ -105,10 +106,11 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final String COMMITTER_IMPL_DEFAULT =
       "org.apache.iceberg.connect.channel.CommitterImpl";
 
-  public static final String COMMITER_IMPL_CONFIG_PREFIX = "iceberg.committer.";
-
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
+
+  private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
+      "iceberg.coordinator-executor-keep-alive-timeout-ms";
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
@@ -240,6 +242,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         COMMITTER_IMPL_DEFAULT,
         Importance.HIGH,
         COMMITTER_IMPL_DOC);
+    configDef.define(
+        COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS,
+        ConfigDef.Type.LONG,
+        120000L,
+        Importance.LOW,
+        "config to control coordinator executor keep alive time");
     return configDef;
   }
 
@@ -310,6 +318,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return originalProps.get(NAME_PROP);
   }
 
+  public String taskId() {
+    return originalProps.get(TASK_ID);
+  }
+
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
@@ -361,6 +373,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String tablesDefaultPartitionBy() {
     return getString(TABLES_DEFAULT_PARTITION_BY);
+  }
+
+  public long keepAliveTimeoutInMs() {
+    return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
   }
 
   public TableSinkConfig tableConfig(String tableName) {

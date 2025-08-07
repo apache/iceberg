@@ -32,10 +32,12 @@ import java.time.temporal.ChronoUnit;
 import javax.net.ssl.SSLException;
 import org.apache.hc.client5.http.HttpRequestRetryStrategy;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.utils.DateUtils;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -197,15 +199,26 @@ public class TestExponentialHttpRequestRetryStrategy {
         .isBetween(4000L, 5000L);
   }
 
-  @Test
-  public void testRetryBadGateway() {
-    BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
-    assertThat(retryStrategy.retryRequest(response502, 3, null)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503})
+  public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
-  @Test
-  public void testRetryGatewayTimeout() {
-    BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
-    assertThat(retryStrategy.retryRequest(response504, 3, null)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {500, 502, 504})
+  public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503, 500, 502, 504, 408})
+  public void testRetryHappensWithIdempotentMethods(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("GET", "/"));
+    assertThat(retryStrategy.retryRequest(response, 3, context)).isTrue();
   }
 }

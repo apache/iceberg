@@ -23,6 +23,46 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
+**Date:** July 10, 2025, **Company**: BladePipe
+**Author**: [BladePipe](https://www.bladepipe.com)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Making Sense of Apache Iceberg Statistics](https://www.ryft.io/blog/making-sense-of-apache-iceberg-statistics)
+**Date:** July 9, 2025, **Company**: Ryft
+**Author**: [Guy Yasoor](https://www.linkedin.com/in/guy-yasoor/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Writing to Apache Iceberg on S3 using Kafka Connect with Glue catalog](https://rmoff.net/2025/07/04/writing-to-apache-iceberg-on-s3-using-kafka-connect-with-glue-catalog/)
+**Date**: July 4th, 2025, **Company**: Confluent
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Writing to Apache Iceberg on S3 using Flink SQL with Glue catalog](https://rmoff.net/2025/06/24/writing-to-apache-iceberg-on-s3-using-flink-sql-with-glue-catalog/)
+**Date**: June 24th, 2025, **Company**: Confluent
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Querying Apache Iceberg with Sub-Second Performance](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance)
+**Date:** June 11, 2025, **Company**: Firebolt
+**Author**: [Lorenz Hübschle](https://www.linkedin.com/in/lorenzhs)
+
+<!-- markdown-link-check-disable-next-line -->
+### [What Are Apache Iceberg Tables? Benefits and challenges](https://www.redpanda.com/blog/apache-iceberg-tables-benefits-challenges)
+**Date:** May 21, 2025, **Company**: Redpanda
+**Author**: [Redpanda](https://redpanda.com)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Real-Time Analytics on Apache Iceberg with Tinybird](https://www.tinybird.co/blog-posts/real-time-analytics-on-apache-iceberg-with-tinybird)
+**Date:** May 20, 2025, **Company**: Tinybird
+**Author**: [Alberto Romeu](https://www.linkedin.com/in/alrocar/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [How to Load Data into Apache Iceberg: A Step-by-Step Tutorial](https://estuary.dev/blog/loading-data-into-apache-iceberg/)
+**Date**: March 20, 2025, **Company**: Estuary
+**Author**: [Dani Pálma](https://www.linkedin.com/in/danthelion)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Building a Data Lake with Debezium and Apache Iceberg](https://medium.com/@ismail-simsek/building-a-data-lake-with-debezium-and-apache-iceberg-part-1-25124daf2a95)
 **Date**: November 15th, 2024, **Company**: Memiiso Community
 

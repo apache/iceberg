@@ -141,7 +141,7 @@ class SparkBatch implements Batch {
   }
 
   private OrcBatchReadConf orcBatchReadConf() {
-    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -180,7 +180,10 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsCometBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType() && !field.type().typeId().equals(Type.TypeID.UUID);
+    return field.type().isPrimitiveType()
+        && !field.type().typeId().equals(Type.TypeID.UUID)
+        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
+        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   }
 
   // conditions for using ORC batch reads:

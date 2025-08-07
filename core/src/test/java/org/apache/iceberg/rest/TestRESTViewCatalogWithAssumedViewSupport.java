@@ -21,6 +21,8 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
 
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.CatalogProperties;
@@ -66,7 +68,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -94,6 +96,12 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
             "catalog-default-key1",
             CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
-            "catalog-default-key2"));
+            "catalog-default-key2",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+            "catalog-default-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+            "catalog-override-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+            "catalog-override-key4"));
   }
 }

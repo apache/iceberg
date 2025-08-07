@@ -25,7 +25,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.data.parquet.InternalWriter;
@@ -35,7 +35,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestInternalParquet extends DataTest {
+public class TestInternalParquet extends DataTestBase {
   @Override
   protected boolean supportsDefaultValues() {
     return true;
@@ -48,6 +48,11 @@ public class TestInternalParquet extends DataTest {
 
   @Override
   protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
     return true;
   }
 
@@ -75,7 +80,7 @@ public class TestInternalParquet extends DataTest {
     try (DataWriter<StructLike> dataWriter =
         Parquet.writeData(outputFile)
             .schema(writeSchema)
-            .createWriterFunc(InternalWriter::create)
+            .createWriterFunc(InternalWriter::createWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {

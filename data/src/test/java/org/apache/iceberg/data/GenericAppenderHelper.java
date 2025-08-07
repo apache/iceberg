@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg.data;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -35,7 +34,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.junit.rules.TemporaryFolder;
 
 /** Helper for appending {@link DataFile} to a table or appending {@link Record}s to a table. */
 public class GenericAppenderHelper {
@@ -48,25 +46,11 @@ public class GenericAppenderHelper {
   private final Path temp;
   private final Configuration conf;
 
-  @Deprecated
-  public GenericAppenderHelper(
-      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf) {
-    this.table = table;
-    this.fileFormat = fileFormat;
-    this.temp = tmp.getRoot().toPath();
-    this.conf = conf;
-  }
-
   public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
     this.temp = temp;
     this.conf = conf;
-  }
-
-  @Deprecated
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
-    this(table, fileFormat, tmp, null);
   }
 
   public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp) {
@@ -109,15 +93,14 @@ public class GenericAppenderHelper {
 
   public DataFile writeFile(List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = File.createTempFile("junit", null, temp.toFile());
-    assertThat(file.delete()).isTrue();
+    File file = temp.resolve("generic-appender-test-" + UUID.randomUUID().toString()).toFile();
     return appendToLocalFile(table, file, fileFormat, null, records, conf);
   }
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = File.createTempFile("junit", null, temp.toFile());
-    assertThat(file.delete()).isTrue();
+    File file =
+        temp.resolve("generic-appender-partition-test-" + UUID.randomUUID().toString()).toFile();
     return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }
 

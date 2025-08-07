@@ -21,24 +21,25 @@ package org.apache.iceberg.flink;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
+import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
-import org.apache.flink.table.utils.TableSchemaUtils;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.flink.source.IcebergTableSource;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -60,7 +61,11 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> tableProps = resolvedCatalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(resolvedCatalogTable.getSchema());
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -74,7 +79,8 @@ public class FlinkDynamicTableFactory
               objectIdentifier.getObjectName());
     }
 
-    return new IcebergTableSource(tableLoader, tableSchema, tableProps, context.getConfiguration());
+    return new IcebergTableSource(
+        tableLoader, resolvedSchema, tableProps, context.getConfiguration());
   }
 
   @Override
@@ -82,7 +88,11 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> writeProps = resolvedCatalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(resolvedCatalogTable.getSchema());
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -96,7 +106,8 @@ public class FlinkDynamicTableFactory
               objectIdentifier.getObjectName());
     }
 
-    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration(), writeProps);
+    return new IcebergTableSink(
+        tableLoader, resolvedSchema, context.getConfiguration(), writeProps);
   }
 
   @Override
