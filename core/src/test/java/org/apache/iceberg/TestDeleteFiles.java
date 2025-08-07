@@ -66,7 +66,7 @@ public class TestDeleteFiles extends TestBase {
                   .recordCount(5L)
                   .withStatistic(
                       BaseStatistic.builder()
-                          .columnId(1)
+                          .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
                           .nullValueCount(0L)
@@ -75,7 +75,7 @@ public class TestDeleteFiles extends TestBase {
                           .build())
                   .withStatistic(
                       BaseStatistic.builder()
-                          .columnId(2)
+                          .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
                           .nullValueCount(0L)
@@ -103,7 +103,7 @@ public class TestDeleteFiles extends TestBase {
                   .recordCount(7L)
                   .withStatistic(
                       BaseStatistic.builder()
-                          .columnId(1)
+                          .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
                           .nullValueCount(0L)
@@ -112,7 +112,7 @@ public class TestDeleteFiles extends TestBase {
                           .build())
                   .withStatistic(
                       BaseStatistic.builder()
-                          .columnId(2)
+                          .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
                           .nullValueCount(0L)

@@ -22,7 +22,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 public interface Statistic extends StructLike {
-  int columnId();
+  int fieldId();
 
   Type type();
 

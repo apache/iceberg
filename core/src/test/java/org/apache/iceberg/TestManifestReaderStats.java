@@ -55,7 +55,7 @@ public class TestManifestReaderStats extends TestBase {
   private static final Statistic STAT =
       BaseStatistic.builder()
           .type(Types.IntegerType.get())
-          .columnId(1)
+          .fieldId(1)
           .valueCount(3L)
           .nullValueCount(0L)
           .nanValueCount(1L)

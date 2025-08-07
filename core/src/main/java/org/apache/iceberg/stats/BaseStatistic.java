@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 public class BaseStatistic implements Statistic, StructLike, Serializable {
-  private final transient int columnId;
+  private final transient int fieldId;
   private final transient Type type;
   private final Long columnSize;
   private final Long valueCount;
@@ -36,7 +36,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
   private final Object upperBound;
 
   BaseStatistic(
-      int columnId,
+      int fieldId,
       Type type,
       Long columnSize,
       Long valueCount,
@@ -44,7 +44,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
       Long nanValueCount,
       Object lowerBound,
       Object upperBound) {
-    this.columnId = columnId;
+    this.fieldId = fieldId;
     this.type = type;
     this.columnSize = columnSize;
     this.valueCount = valueCount;
@@ -55,8 +55,8 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
   }
 
   @Override
-  public int columnId() {
-    return columnId;
+  public int fieldId() {
+    return fieldId;
   }
 
   @Override
@@ -127,7 +127,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
   @Override
   public String toString() {
     return new StringJoiner(", ", BaseStatistic.class.getSimpleName() + "[", "]")
-        .add("columnId=" + columnId)
+        .add("fieldId=" + fieldId)
         .add("type=" + type)
         .add("columnSize=" + columnSize)
         .add("valueCount=" + valueCount)
@@ -145,7 +145,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
     }
 
     BaseStatistic that = (BaseStatistic) o;
-    return columnId == that.columnId
+    return fieldId == that.fieldId
         && Objects.equals(type, that.type)
         && Objects.equals(columnSize, that.columnSize)
         && Objects.equals(valueCount, that.valueCount)
@@ -158,7 +158,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
   @Override
   public int hashCode() {
     return Objects.hash(
-        columnId,
+        fieldId,
         type,
         columnSize,
         valueCount,
@@ -180,13 +180,13 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
         .nanValueCount(value.nanValueCount())
         .nullValueCount(value.nullValueCount())
         .type(value.type())
-        .columnId(value.columnId())
+        .fieldId(value.fieldId())
         .lowerBound(value.lowerBound())
         .upperBound(value.upperBound());
   }
 
   public static class Builder {
-    private int columnId;
+    private int fieldId;
     private Type type;
     private Long columnSize;
     private Long valueCount;
@@ -232,14 +232,14 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
       return this;
     }
 
-    public Builder columnId(int newColumnId) {
-      this.columnId = newColumnId;
+    public Builder fieldId(int newFieldId) {
+      this.fieldId = newFieldId;
       return this;
     }
 
     public BaseStatistic build() {
       return new BaseStatistic(
-          columnId,
+          fieldId,
           type,
           columnSize,
           valueCount,
