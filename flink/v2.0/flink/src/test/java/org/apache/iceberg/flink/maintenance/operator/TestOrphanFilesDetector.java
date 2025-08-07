@@ -27,6 +27,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedTwoInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -232,9 +233,9 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
     return ProcessFunctionTestHarnesses.forKeyedCoProcessFunction(
         new OrphanFilesDetector(prefixMismatchMode, EQUAL_SCHEMES, EQUAL_AUTHORITIES),
         (KeySelector<String, String>)
-            t -> new FileURI(t, EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
+            t -> new FileURI(new Path(t).toUri(), EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
         (KeySelector<String, String>)
-            t -> new FileURI(t, EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
+            t -> new FileURI(new Path(t).toUri(), EQUAL_SCHEMES, EQUAL_AUTHORITIES).getPath(),
         BasicTypeInfo.STRING_TYPE_INFO);
   }
 
