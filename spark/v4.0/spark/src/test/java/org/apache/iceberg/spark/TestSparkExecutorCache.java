@@ -205,13 +205,13 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         });
 
     withSQLConf(
-            ImmutableMap.of(
-                    SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
-                    SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
-            () -> {
-              SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
-              assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
-            });
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
   }
 
   @TestTemplate
