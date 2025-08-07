@@ -383,17 +383,16 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testCopyOnWriteDeleteWithDeleteFileCacheDisabled() throws Exception {
+  public void testCopyOnWriteDeleteWithDeleteFileCacheDisabled() {
     checkDeleteWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
   }
 
   @TestTemplate
-  public void testMergeOnReadDeleteWithDeleteFileCacheDisabled() throws Exception {
+  public void testMergeOnReadDeleteWithDeleteFileCacheDisabled() {
     checkDeleteWithDeleteFilesCacheDisabled(MERGE_ON_READ);
   }
 
-  private void checkDeleteWithDeleteFilesCacheDisabled(RowLevelOperationMode mode)
-      throws Exception {
+  private void checkDeleteWithDeleteFilesCacheDisabled(RowLevelOperationMode mode) {
     withSQLConf(
         ImmutableMap.of(
             SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
@@ -459,7 +458,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             assertEquals(
                 "Should have expected rows",
                 ImmutableList.of(row(-1, "hr"), row(-1, "hr")),
-                sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
+                sql("SELECT * FROM %s", targetTableName));
           } catch (Exception e) {
             throw new RuntimeException(e);
           }
@@ -510,7 +509,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             assertEquals(
                 "Should have expected rows",
                 ImmutableList.of(row(100, "hr"), row(100, "hr")),
-                sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
+                sql("SELECT * FROM %s", targetTableName));
           } catch (Exception e) {
             throw new RuntimeException(e);
           }
