@@ -63,13 +63,14 @@ Expiring old snapshots removes them from metadata, so they are no longer availab
 
 ### Remove old metadata files
 
-Iceberg keeps track of table metadata using JSON files. Each change to a table produces a new metadata file to provide atomicity. 
+Iceberg keeps track of table metadata using JSON files. Each change to a table produces a new metadata file to provide atomicity.
 
-Old metadata files are kept for history by default. Tables with frequent commits, like those written by streaming jobs, may need to regularly clean metadata files to reduce metadata overhead.
+Old metadata files are kept for history by default. Tables with frequent commits, like those written by streaming jobs, may need to regularly clean metadata files.
 
-Each metadata file tracks the older metadata files in the `metadata-log` field.  The number of metadata files being tracked is defined by `write.metadata.previous-versions-max` (default is 100).
+Each metadata file tracks the older metadata files in the `metadata-log` field.  The number of metadata files being tracked is defined by `write.metadata.previous-versions-max`.
 
-To automatically delete older metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files as tracked (up to `write.metadata.previous-versions-max`), and will delete the oldest metadata file every time a new one is created.
+To automatically delete older metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files as tracked (up to `write.metadata.previous-versions-max`), and will delete the oldest metadata file every time a new one is created. 
+Note that this will only delete metadata files that are **tracked** in the metadata log and will not delete orphaned metadata files.
 
 Untracked metadata files are also deleted as part of [orphan file deletion](#delete-orphan-files).
 
