@@ -136,28 +136,27 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    if (!isInitialized.get()) {
-      LOG.warn("Unexpected close() call without resource initialization");
+    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
+    stopWorker();
+    // Connect never calls close on a task with empty partition so empty partition means the task
+    // has stopped. Stopping coordinator if it was started on this task.
+    if (closedPartitions.isEmpty()) {
+      LOG.info("Task stopped. Stooping coordinator if started.");
+      stopCoordinator();
       return;
     }
-    // Empty closed partition means the task has been stopped by the connect framework as connect
-    // framework never calls close with empty partitions
-    if (closedPartitions.isEmpty() || hasLeaderPartition(closedPartitions)) {
+    if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
           "Committer {}-{} either lost the leader partition or was stopped. If this task is the elected coordinator, it will now shut down.",
           config.connectorName(),
           config.taskId());
       stopCoordinator();
     }
-    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
-    stopWorker();
-    if (!closedPartitions.isEmpty()) {
-      LOG.info(
-          "Seeking to last committed offsets for worker {}-{}.",
-          config.connectorName(),
-          config.taskId());
-      KafkaUtils.seekToLastCommittedOffsets(context);
-    }
+    LOG.info(
+        "Seeking to last committed offsets for worker {}-{}.",
+        config.connectorName(),
+        config.taskId());
+    KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
   @Override
