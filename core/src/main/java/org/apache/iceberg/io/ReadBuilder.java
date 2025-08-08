@@ -1,0 +1,118 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.io;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.mapping.NameMapping;
+
+/**
+ * Builder interface for creating file readers across supported data file formats. The {@link
+ * FormatModel} implementations provides appropriate {@link ReadBuilder} instances
+ *
+ * <p>The {@link ReadBuilder} follows the builder pattern to configure and create {@link
+ * CloseableIterable} instances that read data from source files. Configuration options include
+ * schema projection, predicate filtering, record batching, and encryption settings.
+ *
+ * <p>This interface is directly exposed to users for parameterizing readers.
+ *
+ * @param <B> the concrete builder type for method chaining
+ * @param <D> the output data type produced by the reader
+ */
+public interface ReadBuilder<B extends ReadBuilder<B, D>, D> {
+  /**
+   * Restricts the read to the given range: [start, start + length).
+   *
+   * @param start the start position for this read
+   * @param length the length of the range this read should scan
+   */
+  B split(long start, long length);
+
+  /** Set the projection schema. */
+  B project(Schema schema);
+
+  /**
+   * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
+   * must respect this setting.
+   *
+   * @param caseSensitive indicates if filtering is case-sensitive
+   */
+  B caseSensitive(boolean caseSensitive);
+
+  /**
+   * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
+   * records. Some readers might not be able to filter some part of the exception. In this case the
+   * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
+   * apply the filter again. The default implementation sets the filter to be case-sensitive.
+   *
+   * @param filter the filter to set
+   */
+  B filter(Expression filter);
+
+  /**
+   * Sets configuration key/value pairs for the reader. Reader builders should ignore configuration
+   * keys not known for them.
+   */
+  B set(String key, String value);
+
+  /**
+   * Sets multiple configuration key/value pairs for the reader. Reader builders should ignore
+   * configuration keys not known for them.
+   */
+  @SuppressWarnings("unchecked")
+  default B set(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return self();
+  }
+
+  /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
+  B reuseContainers();
+
+  /** Sets the batch size for vectorized readers. */
+  B recordsPerBatch(int numRowsPerBatch);
+
+  /**
+   * Contains the values in the result objects which are coming from metadata and not coming from
+   * the data files themselves. The keys of the map are the column ids, the values are the constant
+   * values to be used in the result.
+   */
+  B constantValues(Map<Integer, ?> constantValues);
+
+  /** Sets a mapping from external schema names to Iceberg type IDs. */
+  B nameMapping(NameMapping nameMapping);
+
+  /**
+   * Sets the file encryption key used for reading the file. If the reader does not support
+   * encryption, then an exception should be thrown.
+   */
+  B fileEncryptionKey(ByteBuffer encryptionKey);
+
+  /**
+   * Sets the additional authentication data (AAD) prefix for decryption. If the reader does not
+   * support decryption, then an exception should be thrown.
+   */
+  B fileAADPrefix(ByteBuffer aadPrefix);
+
+  /** Builds the reader. */
+  CloseableIterable<D> build();
+
+  B self();
+}
