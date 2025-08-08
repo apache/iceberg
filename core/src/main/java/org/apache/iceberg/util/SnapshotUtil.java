@@ -310,24 +310,25 @@ public class SnapshotUtil {
   }
 
   public static CloseableIterable<DataFile> newFilesBetween(
-      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
+      Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
 
     List<Snapshot> snapshots = Lists.newArrayList();
     Snapshot lastSnapshot = null;
-    for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
+    for (Snapshot currentSnapshot : ancestorsOf(endSnapshotId, lookup)) {
       lastSnapshot = currentSnapshot;
-      if (Objects.equals(currentSnapshot.snapshotId(), baseSnapshotId)) {
+      if (Objects.equals(currentSnapshot.snapshotId(), startSnapshotId)) {
         break;
       }
+
       snapshots.add(currentSnapshot);
     }
 
     if (lastSnapshot != null) {
       ValidationException.check(
-          Objects.equals(lastSnapshot.snapshotId(), baseSnapshotId)
-              || Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
+          Objects.equals(lastSnapshot.snapshotId(), startSnapshotId)
+              || Objects.equals(lastSnapshot.parentId(), startSnapshotId),
           "Cannot determine history between read snapshot %s and the last known ancestor %s",
-          baseSnapshotId,
+          startSnapshotId,
           lastSnapshot.snapshotId());
     }
 

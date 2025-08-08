@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
@@ -30,8 +31,6 @@ import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.WapUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Cherry-picks or fast-forwards the current state to a snapshot.
@@ -46,8 +45,6 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
-
-  private static final Logger LOG = LoggerFactory.getLogger(CherryPickOperation.class);
 
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -230,7 +227,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
               newFile.partition());
         }
       } catch (IOException ioe) {
-        LOG.warn("Failed to close task iterable", ioe);
+        throw new UncheckedIOException("Failed to validate replaced partitions", ioe);
       }
     }
   }
