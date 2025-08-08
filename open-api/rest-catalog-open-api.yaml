@@ -2511,7 +2511,7 @@ components:
         format-version:
           type: integer
           minimum: 1
-          maximum: 2
+          maximum: 3
         table-uuid:
           type: string
         location:
