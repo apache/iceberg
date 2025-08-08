@@ -46,6 +46,7 @@ class ContentFileParser {
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
   private static final String FIRST_ROW_ID = "first-row-id";
+  private static final String SCHEMA_ID = "schema_id";
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
@@ -168,6 +169,7 @@ class ContentFileParser {
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
     Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
     Long firstRowId = JsonUtil.getLongOrNull(FIRST_ROW_ID, jsonNode);
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, jsonNode);
     String referencedDataFile = JsonUtil.getStringOrNull(REFERENCED_DATA_FILE, jsonNode);
     Long contentOffset = JsonUtil.getLongOrNull(CONTENT_OFFSET, jsonNode);
     Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
@@ -179,6 +181,7 @@ class ContentFileParser {
           fileFormat,
           partitionData,
           fileSizeInBytes,
+          schemaId,
           metrics,
           keyMetadata,
           splitOffsets,
