@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,6 +30,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
@@ -467,8 +469,35 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds
-      // are ["a", "b"].
+      int id = ref.fieldId();
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+        return ROWS_MUST_MATCH;
+      }
+      String prefix = (String) lit.value();
+      Comparator<CharSequence> comparator = Comparators.charSequences();
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        CharSequence lower = Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
+        if ( (lower == null) || (lower.length() < prefix.length()) ) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+        int cmp = comparator.compare(lower.subSequence(0, prefix.length()), prefix);
+        if (cmp == 0) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+
+        // lower doesn't match with the prefix, so checking with the upper
+        if (upperBounds != null && upperBounds.containsKey(id)) {
+          CharSequence upper = Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
+          if ( (upper == null) || (upper.length() < prefix.length()) ) {
+            return ROWS_MIGHT_NOT_MATCH;
+          }
+          cmp = comparator.compare(upper.subSequence(0, prefix.length()), prefix);
+          // upper also does not match with the prefix, so predicate doesn't match strictly
+          if (cmp != 0) {
+            return ROWS_MUST_MATCH;
+          }
+        }
+      }
       return ROWS_MIGHT_NOT_MATCH;
     }
 

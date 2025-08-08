@@ -32,6 +32,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -48,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestStrictMetricsEvaluator {
@@ -146,9 +148,11 @@ public class TestStrictMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb"),
+                  3, toByteBuffer(StringType.get(), "aa")),
           // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee")));
+          ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee"),
+                  3, toByteBuffer(StringType.get(), "dC")));
 
   private static final DataFile FILE_3 =
       new TestDataFile(
@@ -168,9 +172,27 @@ public class TestStrictMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb"),
+                  3, toByteBuffer(StringType.get(), "1str1")),
           // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb"),
+                  3, toByteBuffer(StringType.get(), "3str3")));
+
+  private static final DataFile FILE_5 =
+          new TestDataFile(
+                  "file_4.avro",
+                  Row.of(),
+                  50,
+                  // any value counts, including nulls
+                  ImmutableMap.of(3, 50L),
+                  // null value counts
+                  ImmutableMap.of(3, 0L),
+                  // nan value counts
+                  null,
+                  // lower bounds
+                  ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+                  // upper bounds
+                  ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
 
   @Test
   public void testAllNulls() {
@@ -683,5 +705,63 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
+  }
+
+  @Test
+  public void testStringNotStartsWith() {
+
+    boolean shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a"), true).eval(FILE);
+    assertThat(shouldRead).as("Should read: no stats").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "x"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: no stats").isTrue();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aa"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aaa"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "1s"), true).eval(FILE_3);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "1str1x"), true)
+                    .eval(FILE_3);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aB"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "dWX"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "5"), true).eval(FILE_3);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "3str3x"), true)
+                    .eval(FILE_3);
+    assertThat(shouldRead).as("Should read: range matches").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abc"), true).eval(FILE_5);
+    assertThat(shouldRead).as("Should not read: all strings start with prefix").isFalse();
+
+    shouldRead =
+            new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abcd"), true).eval(FILE_5);
+    assertThat(shouldRead).as("Should not read: lower shorter than prefix, cannot match").isFalse();
   }
 }
