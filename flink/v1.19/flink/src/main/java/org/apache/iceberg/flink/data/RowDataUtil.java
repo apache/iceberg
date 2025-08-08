@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -34,6 +35,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 
 public class RowDataUtil {
 
@@ -67,6 +69,8 @@ public class RowDataUtil {
         return (int) ((Long) value / 1000);
       case TIMESTAMP: // TimestampData
         return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
+      case UUID:
+        return UUIDUtil.convert((UUID) value);
       default:
     }
     return value;

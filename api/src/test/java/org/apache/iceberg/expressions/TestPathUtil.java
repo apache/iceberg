@@ -27,7 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
-public class TestPathParsing {
+@SuppressWarnings({"AvoidEscapedUnicodeCharacters", "IllegalTokenText"})
+public class TestPathUtil {
 
   @Test
   public void testSimplePath() {
@@ -66,6 +67,60 @@ public class TestPathParsing {
   @ParameterizedTest
   @FieldSource("INVALID_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
-    assertThatThrownBy(() -> PathUtil.parse(path)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> PathUtil.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
+  }
+
+  private static final String[][] NORMALIZED_PATHS =
+      new String[][] {
+        new String[] {"$", "$"},
+        new String[] {"$.a", "$['a']"}, // RFC 9535 example
+        new String[] {"$.a.b.c", "$['a']['b']['c']"},
+        new String[] {"$.\u2603", "$['☃']"},
+        new String[] {"$.a\uD834\uDD1Eb.x", "$['a\uD834\uDD1Eb']['x']"},
+      };
+
+  @ParameterizedTest
+  @FieldSource("NORMALIZED_PATHS")
+  public void testNormalizedPath(String shortPath, String normalizedPath) {
+    assertThat(PathUtil.toNormalizedPath(PathUtil.parse(shortPath))).isEqualTo(normalizedPath);
+  }
+
+  private static final Object[][] NORMALIZED_FIELD_LISTS =
+      new Object[][] {
+        new Object[] {List.of(), "$"},
+        new Object[] {List.of("a.b", "c"), "$['a.b']['c']"},
+        new Object[] {List.of("a", "b", "c"), "$['a']['b']['c']"},
+        new Object[] {List.of("a", "\u2603", "c"), "$['a']['\u2603']['c']"},
+        new Object[] {List.of("a\uD834\uDD1Eb", "c"), "$['a\uD834\uDD1Eb']['c']"},
+        new Object[] {List.of("a'b\n", "\u000Cc"), "$['a\\'b\\n']['\\fc']"},
+        new Object[] {List.of("a'b\u000B\n", "\u000Cc"), "$['a\\'b\\u000b\\n']['\\fc']"},
+      };
+
+  @ParameterizedTest
+  @FieldSource("NORMALIZED_FIELD_LISTS")
+  public void testNormalizedFieldLists(List<String> fields, String normalizedPath) {
+    assertThat(PathUtil.toNormalizedPath(fields)).isEqualTo(normalizedPath);
+  }
+
+  private static final String[][] ESCAPE_CASES =
+      new String[][] {
+        new String[] {"\u000B", "\\u000b"}, // RFC 9535 example
+        new String[] {"\b", "\\b"},
+        new String[] {"\t", "\\t"},
+        new String[] {"\f", "\\f"},
+        new String[] {"\n", "\\n"},
+        new String[] {"\r", "\\r"},
+        new String[] {"'", "\\'"},
+        new String[] {"\\", "\\\\"},
+        new String[] {"a\\b", "a\\\\b"},
+        new String[] {"a\\b'", "a\\\\b\\'"},
+      };
+
+  @ParameterizedTest
+  @FieldSource("ESCAPE_CASES")
+  public void testPathEscaping(String name, String escaped) {
+    assertThat(PathUtil.rfc9535escape(name)).isEqualTo(escaped);
   }
 }

@@ -25,8 +25,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
@@ -35,34 +35,39 @@ class ParquetConversions {
   private ParquetConversions() {}
 
   @SuppressWarnings("unchecked")
-  static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
+  static <T> T convertValue(Type type, PrimitiveType parquetType, Object value) {
     switch (type.typeId()) {
       case BOOLEAN:
-        return (Literal<T>) Literal.of((Boolean) value);
       case INTEGER:
       case DATE:
-        return (Literal<T>) Literal.of((Integer) value);
-      case LONG:
       case TIME:
       case TIMESTAMP:
-        return (Literal<T>) Literal.of((Long) value);
+      case TIMESTAMP_NANO:
+      case LONG:
       case FLOAT:
-        return (Literal<T>) Literal.of((Float) value);
       case DOUBLE:
-        return (Literal<T>) Literal.of((Double) value);
+        return (T) value;
       case STRING:
-        Function<Object, Object> stringConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((CharSequence) stringConversion.apply(value));
+        return (T) ((Binary) value).toStringUsingUTF8();
       case UUID:
-        Function<Object, Object> uuidConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((UUID) uuidConversion.apply(value));
+        return (T) UUIDUtil.convert(((Binary) value).toByteBuffer());
       case FIXED:
       case BINARY:
-        Function<Object, Object> binaryConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((ByteBuffer) binaryConversion.apply(value));
+        return (T) ((Binary) value).toByteBuffer();
       case DECIMAL:
-        Function<Object, Object> decimalConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((BigDecimal) decimalConversion.apply(value));
+        int scale =
+            ((DecimalLogicalTypeAnnotation) parquetType.getLogicalTypeAnnotation()).getScale();
+        switch (parquetType.getPrimitiveTypeName()) {
+          case INT32:
+          case INT64:
+            return (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
+          case FIXED_LEN_BYTE_ARRAY:
+          case BINARY:
+            return (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
+          default:
+            throw new IllegalArgumentException(
+                "Unsupported primitive type for decimal: " + parquetType.getPrimitiveTypeName());
+        }
       default:
         throw new IllegalArgumentException("Unsupported primitive type: " + type);
     }

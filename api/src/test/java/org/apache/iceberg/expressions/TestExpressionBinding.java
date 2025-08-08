@@ -339,7 +339,7 @@ public class TestExpressionBinding {
     assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
     BoundExtract<?> boundExtract = (BoundExtract<?>) pred.term();
     assertThat(boundExtract.ref().fieldId()).isEqualTo(4);
-    assertThat(boundExtract.fullFieldName()).isEqualTo("event_id");
+    assertThat(boundExtract.path()).isEqualTo("$['event_id']");
     assertThat(boundExtract.type()).isEqualTo(Types.LongType.get());
   }
 
@@ -381,7 +381,8 @@ public class TestExpressionBinding {
   @FieldSource("UNSUPPORTED_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
     assertThatThrownBy(() -> Binder.bind(STRUCT, lessThan(extract("var", path, "long"), 100)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
   }
 
   @Test

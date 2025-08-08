@@ -47,6 +47,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -58,9 +59,11 @@ import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
@@ -76,15 +79,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
+  private static final String BASE_TABLE_LOCATION = "file:/tmp";
   protected static final Namespace NS = Namespace.of("newdb");
-  protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
+  protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "newtable");
   protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
+  protected static final TableIdentifier TBL = TableIdentifier.of("ns", "tbl");
 
   // Schema passed to create tables
   protected static final Schema SCHEMA =
@@ -188,6 +192,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  protected String baseTableLocation(TableIdentifier identifier) {
+    return BASE_TABLE_LOCATION + "/" + identifier.namespace() + "/" + identifier.name();
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -219,7 +227,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testCreateNamespaceWithProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -255,7 +263,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testSetNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -272,7 +280,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -298,7 +306,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateAndSetNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -325,7 +333,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testSetNamespacePropertiesNamespaceDoesNotExist() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -336,7 +344,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRemoveNamespaceProperties() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -357,7 +365,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRemoveNamespacePropertiesNamespaceDoesNotExist() {
-    Assumptions.assumeTrue(supportsNamespaceProperties());
+    assumeThat(supportsNamespaceProperties()).isTrue();
 
     C catalog = catalog();
 
@@ -387,6 +395,30 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.dropNamespace(NS))
         .as("Dropping a nonexistent namespace should return false")
         .isFalse();
+  }
+
+  @Test
+  public void testDropNonEmptyNamespace() {
+    C catalog = catalog();
+
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
+
+    catalog.createNamespace(NS);
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
+    catalog.buildTable(TABLE, SCHEMA).create();
+    assertThat(catalog.tableExists(TABLE)).as("Table should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog.dropNamespace(NS))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    catalog.dropTable(TABLE);
+    assertThat(catalog.tableExists(TABLE)).as("Table should not exist").isFalse();
+
+    assertThat(catalog.dropNamespace(NS))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
   }
 
   @Test
@@ -421,8 +453,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testListNestedNamespaces() {
-    Assumptions.assumeTrue(
-        supportsNestedNamespaces(), "Only valid when the catalog supports nested namespaces");
+    assumeThat(supportsNestedNamespaces())
+        .as("Only valid when the catalog supports nested namespaces")
+        .isTrue();
 
     C catalog = catalog();
 
@@ -467,7 +500,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
-    Assumptions.assumeTrue(supportsNamesWithSlashes());
+    assumeThat(supportsNamesWithSlashes()).isTrue();
 
     C catalog = catalog();
 
@@ -488,7 +521,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithDot() {
-    Assumptions.assumeTrue(supportsNamesWithDot());
+    assumeThat(supportsNamesWithDot()).isTrue();
 
     C catalog = catalog();
 
@@ -511,21 +544,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testBasicCreateTable() {
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
-
-    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
 
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident.namespace());
+      catalog.createNamespace(TBL.namespace());
     }
 
-    Table table = catalog.buildTable(ident, SCHEMA).create();
-    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    Table table = catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
 
     // validate table settings
     assertThat(table.name())
         .as("Table name should report its full name")
-        .isEqualTo(catalog.name() + "." + ident);
+        .isEqualTo(catalog.name() + "." + TBL);
     assertThat(table.schema().asStruct())
         .as("Schema should match expected ID assignment")
         .isEqualTo(TABLE_SCHEMA.asStruct());
@@ -537,7 +568,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
-    Assumptions.assumeTrue(supportsNamesWithSlashes());
+    assumeThat(supportsNamesWithSlashes()).isTrue();
 
     C catalog = catalog();
 
@@ -563,7 +594,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithDot() {
-    Assumptions.assumeTrue(supportsNamesWithDot());
+    assumeThat(supportsNamesWithDot()).isTrue();
 
     C catalog = catalog();
 
@@ -593,22 +624,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testBasicCreateTableThatAlreadyExists() {
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
-
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident.namespace());
+      catalog.createNamespace(TBL.namespace());
     }
 
-    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
 
-    catalog.buildTable(ident, SCHEMA).create();
-    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
 
-    assertThatThrownBy(() -> catalog.buildTable(ident, OTHER_SCHEMA).create())
+    assertThatThrownBy(() -> catalog.buildTable(TBL, OTHER_SCHEMA).create())
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("Table already exists: ns.table");
+        .hasMessageStartingWith("Table already exists: ns.tbl");
 
-    Table table = catalog.loadTable(ident);
+    Table table = catalog.loadTable(TBL);
     assertThat(table.schema().asStruct())
         .as("Schema should match original table schema")
         .isEqualTo(TABLE_SCHEMA.asStruct());
@@ -618,20 +647,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCompleteCreateTable() {
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
-
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident.namespace());
+      catalog.createNamespace(TBL.namespace());
     }
 
-    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
     Table table =
         catalog
-            .buildTable(ident, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .buildTable(TBL, SCHEMA)
+            .withLocation(baseTableLocation(TBL))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -640,8 +667,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     // validate table settings
     assertThat(table.name())
         .as("Table name should report its full name")
-        .isEqualTo(catalog.name() + "." + ident);
-    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+        .isEqualTo(catalog.name() + "." + TBL);
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
     assertThat(table.schema().asStruct())
         .as("Schema should match expected ID assignment")
         .isEqualTo(TABLE_SCHEMA.asStruct());
@@ -658,34 +685,225 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testDefaultTableProperties() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    Table table =
+        catalog()
+            .buildTable(TBL, SCHEMA)
+            .withProperty("default-key2", "catalog-overridden-key2")
+            .withProperty("prop1", "val1")
+            .create();
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testDefaultTablePropertiesCreateTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    catalog()
+        .buildTable(TBL, SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .createTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(TBL);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testDefaultTablePropertiesReplaceTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog.createTable(TBL, SCHEMA);
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    catalog()
+        .buildTable(TBL, OTHER_SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .replaceTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(TBL);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTableProperties() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    Table table =
+        catalog()
+            .buildTable(TBL, SCHEMA)
+            .withProperty("override-key4", "catalog-overridden-key4")
+            .withProperty("prop1", "val1")
+            .create();
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTablePropertiesCreateTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    catalog()
+        .buildTable(TBL, SCHEMA)
+        .withProperty("override-key4", "catalog-overridden-key4")
+        .withProperty("prop1", "val1")
+        .createTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(TBL);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTablePropertiesReplaceTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog.createTable(TBL, SCHEMA);
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    catalog()
+        .buildTable(TBL, OTHER_SCHEMA)
+        .withProperty("override-key4", "catalog-overridden-key4")
+        .withProperty("prop1", "val1")
+        .replaceTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(TBL);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(TBL)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testCreateTableWithDefaultColumnValue() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    Schema schemaWithDefault =
+        new Schema(
+            List.of(
+                required("colWithDefault")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withWriteDefault(Literal.of(10))
+                    .withInitialDefault(Literal.of(12))
+                    .build()));
+
+    catalog
+        .buildTable(TBL, schemaWithDefault)
+        .withLocation(baseTableLocation(TBL))
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+    assertThat(schemaWithDefault.asStruct()).isEqualTo(catalog.loadTable(TBL).schema().asStruct());
+  }
+
+  @Test
   public void testLoadTable() {
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
-
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident.namespace());
+      catalog.createNamespace(TBL.namespace());
     }
 
-    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
     catalog
-        .buildTable(ident, SCHEMA)
-        .withLocation("file:/tmp/ns/table")
+        .buildTable(TBL, SCHEMA)
+        .withLocation(baseTableLocation(TBL))
         .withPartitionSpec(SPEC)
         .withSortOrder(WRITE_ORDER)
         .withProperties(properties)
         .create();
-    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
 
-    Table table = catalog.loadTable(ident);
+    Table table = catalog.loadTable(TBL);
     // validate table settings
     assertThat(table.name())
         .as("Table name should report its full name")
-        .isEqualTo(catalog.name() + "." + ident);
-    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+        .isEqualTo(catalog.name() + "." + TBL);
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
     assertThat(table.schema().asStruct())
         .as("Schema should match expected ID assignment")
         .isEqualTo(TABLE_SCHEMA.asStruct());
@@ -700,11 +918,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadTableWithNonExistingNamespace() {
+    TableIdentifier ident = TableIdentifier.of("non-existing", "tbl");
+    assertThat(catalog().tableExists(ident)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog().loadTable(ident))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist: %s", ident);
+  }
+
+  @Test
   public void testLoadMetadataTable() {
     C catalog = catalog();
 
-    TableIdentifier tableIdent = TableIdentifier.of("ns", "table");
-    TableIdentifier metaIdent = TableIdentifier.of("ns", "table", "files");
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "tbl");
+    TableIdentifier metaIdent = TableIdentifier.of("ns", "tbl", "files");
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(tableIdent.namespace());
@@ -726,12 +953,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testLoadMissingTable() {
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
-
-    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
-    assertThatThrownBy(() -> catalog.loadTable(ident))
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: ns.table");
+        .hasMessageStartingWith("Table does not exist: ns.tbl");
   }
 
   @Test
@@ -787,7 +1012,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void renameTableNamespaceMissing() {
-    TableIdentifier from = TableIdentifier.of("ns", "table");
+    TableIdentifier from = TableIdentifier.of("ns", "tbl");
     TableIdentifier to = TableIdentifier.of("non_existing", "renamedTable");
 
     if (requiresNamespaceCreate()) {
@@ -989,6 +1214,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void listNamespacesWithEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support empty namespaces")
+        .isTrue();
     catalog().createNamespace(NS);
 
     assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
@@ -1105,9 +1333,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSchemaServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Schema update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Schema update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1243,8 +1471,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSpecServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(), "Spec update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Spec update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1426,6 +1655,66 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testRemoveUnusedSchemas(boolean withBranch) {
+    String branch = "test";
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .create();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    if (withBranch) {
+      table.manageSnapshots().createBranch(branch).commit();
+    }
+
+    table.updateSchema().addColumn("col_to_delete", Types.IntegerType.get()).commit();
+    table.updateSchema().deleteColumn("col_to_delete").commit();
+    table.updateSchema().addColumn("extra_col", Types.StringType.get()).commit();
+
+    assertThat(table.schemas().values()).as("Should have 3 total schemas").hasSize(3);
+
+    // Keeps the schema used by the single snapshot and the current schema.
+    // Doesn't remove snapshots.
+    table.expireSnapshots().cleanExpiredMetadata(true).commit();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(loaded.schemas().keySet())
+        .containsExactlyInAnyOrder(firstSnapshot.schemaId(), loaded.schema().schemaId());
+
+    table.updateSchema().addColumn("extra_col2", Types.LongType.get()).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    table
+        .expireSnapshots()
+        .expireOlderThan(table.currentSnapshot().timestampMillis())
+        .cleanExpiredMetadata(true)
+        .commit();
+
+    loaded = catalog.loadTable(TABLE);
+    if (withBranch) {
+      assertThat(loaded.snapshots())
+          .containsExactlyInAnyOrder(firstSnapshot, loaded.currentSnapshot());
+      assertThat(loaded.schemas().keySet())
+          .containsExactlyInAnyOrder(firstSnapshot.schemaId(), loaded.currentSnapshot().schemaId());
+    } else {
+      assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNull();
+      assertThat(loaded.schemas().keySet())
+          .containsExactlyInAnyOrder(loaded.currentSnapshot().schemaId());
+    }
+  }
+
   @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
@@ -1451,9 +1740,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testUpdateTableSortOrderServerSideRetry() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Sort order update recovery is only supported with server-side retry");
+    assumeThat(supportsServerSideRetry())
+        .as("Sort order update recovery is only supported with server-side retry")
+        .isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1707,7 +1996,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction create =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -1785,7 +2074,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
     assertFiles(table, FILE_A, anotherFile);
     assertFilePartitionSpec(table, FILE_A, initialSpecId);
@@ -1808,7 +2097,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction create =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -1851,7 +2140,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertFiles(table, FILE_A);
@@ -1940,7 +2229,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction createOrReplace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -1977,7 +2266,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertFiles(table, FILE_A);
@@ -2052,7 +2341,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction createOrReplace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2100,7 +2389,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should be replaced")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertUUIDsMatch(original, loaded);
@@ -2110,9 +2399,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testCreateOrReplaceTransactionConcurrentCreate() {
-    Assumptions.assumeTrue(
-        supportsServerSideRetry(),
-        "Conversion to replace transaction is not supported by REST catalog");
+    assumeThat(supportsServerSideRetry())
+        .as("Conversion to replace transaction is not supported by REST catalog")
+        .isTrue();
 
     C catalog = catalog();
 
@@ -2216,7 +2505,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction replace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2266,7 +2555,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should be replaced")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertUUIDsMatch(original, loaded);
@@ -2447,7 +2736,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionSchemaConflict() {
-    Assumptions.assumeTrue(supportsServerSideRetry(), "Schema conflicts are detected server-side");
+    assumeThat(supportsServerSideRetry()).as("Schema conflicts are detected server-side").isTrue();
 
     C catalog = catalog();
 
@@ -2567,7 +2856,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionPartitionSpecConflict() {
-    Assumptions.assumeTrue(supportsServerSideRetry(), "Spec conflicts are detected server-side");
+    assumeThat(supportsServerSideRetry()).as("Spec conflicts are detected server-side").isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -2779,7 +3068,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void tableCreationWithoutNamespace() {
-    Assumptions.assumeTrue(requiresNamespaceCreate());
+    assumeThat(requiresNamespaceCreate()).isTrue();
 
     assertThatThrownBy(
             () ->

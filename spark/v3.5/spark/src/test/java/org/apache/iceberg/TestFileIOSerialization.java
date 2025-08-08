@@ -83,9 +83,7 @@ public class TestFileIOSerialization {
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
-    assertThat(toMap(actualConf)).as("Conf pairs must match").isEqualTo(toMap(expectedConf));
-    assertThat(actualConf.get("k1")).as("Conf values must be present").isEqualTo("v1");
-    assertThat(actualConf.get("k2")).as("Conf values must be present").isEqualTo("v2");
+    assertThat(actualConf).containsExactlyInAnyOrderElementsOf(expectedConf);
   }
 
   @Test
@@ -97,9 +95,7 @@ public class TestFileIOSerialization {
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
-    assertThat(toMap(actualConf)).as("Conf pairs must match").isEqualTo(toMap(expectedConf));
-    assertThat(actualConf.get("k1")).as("Conf values must be present").isEqualTo("v1");
-    assertThat(actualConf.get("k2")).as("Conf values must be present").isEqualTo("v2");
+    assertThat(actualConf).containsExactlyInAnyOrderElementsOf(expectedConf);
   }
 
   private Map<String, String> toMap(Configuration conf) {

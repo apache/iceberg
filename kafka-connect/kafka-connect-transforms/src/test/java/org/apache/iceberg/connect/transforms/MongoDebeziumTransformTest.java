@@ -563,6 +563,8 @@ public class MongoDebeziumTransformTest {
             TimestampType.CREATE_TIME);
 
     MongoDebeziumTransform smt = getTransformer("array");
-    assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> smt.apply(record))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("malformed record topic");
   }
 }

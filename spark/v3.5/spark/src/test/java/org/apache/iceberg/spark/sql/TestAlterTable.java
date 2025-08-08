@@ -302,15 +302,15 @@ public class TestAlterTable extends CatalogTestBase {
   public void testSetTableProperties() {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('prop'='value')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should have the new table property")
-        .isEqualTo("value");
+        .containsEntry("prop", "value");
 
     sql("ALTER TABLE %s UNSET TBLPROPERTIES ('prop')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should not have the removed table property")
-        .isNull();
+        .doesNotContainKey("prop");
 
     String[] reservedProperties = new String[] {"sort-order", "identifier-fields"};
     for (String reservedProp : reservedProperties) {

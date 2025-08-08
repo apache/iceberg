@@ -45,7 +45,8 @@ public class TestORCFileIOProxies {
 
     // Cannot use the filesystem for any other operation
     assertThatThrownBy(() -> ifs.getFileStatus(new Path(localFile.location())))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
 
     // Cannot use the filesystem for any other path
     assertThatThrownBy(() -> ifs.open(new Path("/tmp/dummy")))
@@ -67,7 +68,8 @@ public class TestORCFileIOProxies {
     }
     // No other operation is supported
     assertThatThrownBy(() -> ofs.open(new Path(outputFile.location())))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
     // No other path is supported
     assertThatThrownBy(() -> ofs.create(new Path("/tmp/dummy")))
         .isInstanceOf(IllegalArgumentException.class)

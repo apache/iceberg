@@ -29,14 +29,17 @@ import static org.mockito.Mockito.withSettings;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -181,5 +184,40 @@ public class TestResolvingIO {
     doReturn(fileIOWithMixins).when(resolvingFileIO).implFromLocation(any());
     // being null is ok here as long as the code doesn't throw an exception
     assertThat(resolvingFileIO.newInputFile("/file")).isNull();
+  }
+
+  @Test
+  public void resolvingFileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO =
+        (ResolvingFileIO)
+            CatalogUtil.loadFileIO(
+                ResolvingFileIO.class.getName(),
+                ImmutableMap.of(),
+                new Configuration(),
+                storageCredentials);
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO).credentials())
+        .isEqualTo(storageCredentials)
+        .isEqualTo(resolvingFileIO.credentials());
+  }
+
+  @Test
+  public void resolvingFileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO =
+        (ResolvingFileIO)
+            CatalogUtil.loadFileIO(
+                ResolvingFileIO.class.getName(),
+                ImmutableMap.of(),
+                new Configuration(),
+                storageCredentials);
+
+    assertThat(TestHelpers.roundTripSerialize(resolvingFileIO).credentials())
+        .isEqualTo(storageCredentials)
+        .isEqualTo(resolvingFileIO.credentials());
   }
 }

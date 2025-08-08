@@ -43,8 +43,10 @@ public interface HTTPRequest {
 
   /**
    * Returns the base URI configured at the REST client level. The base URI is used to construct the
-   * full {@link #requestUri()}.
+   * full {@link #requestUri()}. May be null if the REST client does not have a base URI and the
+   * path is an absolute URI.
    */
+  @Nullable
   URI baseUri();
 
   /**
@@ -54,7 +56,7 @@ public interface HTTPRequest {
   @Value.Lazy
   default URI requestUri() {
     String fullPath;
-    if (path().startsWith("https://") || path().startsWith("http://")) {
+    if (hasAbsolutePath()) {
       // if path is an absolute URI, use it as is
       fullPath = path();
     } else {
@@ -126,5 +128,14 @@ public interface HTTPRequest {
           "Received a malformed path for a REST request: %s. Paths should not start with /",
           path());
     }
+
+    if (baseUri() == null && !hasAbsolutePath()) {
+      throw new RESTException(
+          "Received a request with a relative path and no base URI: %s", path());
+    }
+  }
+
+  private boolean hasAbsolutePath() {
+    return path().startsWith("https://") || path().startsWith("http://");
   }
 }

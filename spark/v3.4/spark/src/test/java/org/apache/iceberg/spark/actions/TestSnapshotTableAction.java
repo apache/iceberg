@@ -18,32 +18,31 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
-import java.util.Map;
+import java.nio.file.Files;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.spark.CatalogTestBase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSnapshotTableAction extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotTableAction extends CatalogTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
 
-  public TestSnapshotTableAction(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s PURGE", SOURCE_NAME);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithParallelTasks() throws IOException {
-    String location = temp.newFolder().toURI().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, location);
@@ -64,6 +63,6 @@ public class TestSnapshotTableAction extends SparkCatalogTestBase {
                   return thread;
                 }))
         .execute();
-    Assert.assertEquals(snapshotThreadsIndex.get(), 2);
+    assertThat(snapshotThreadsIndex.get()).isEqualTo(2);
   }
 }

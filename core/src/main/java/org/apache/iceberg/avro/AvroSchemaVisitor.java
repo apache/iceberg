@@ -25,6 +25,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public abstract class AvroSchemaVisitor<T> {
+  private static final String METADATA = "metadata";
+  private static final String VALUE = "value";
+
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
@@ -33,20 +36,29 @@ public abstract class AvroSchemaVisitor<T> {
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
 
-        visitor.recordLevels.push(name);
+        if (schema.getLogicalType() instanceof VariantLogicalType) {
+          Preconditions.checkArgument(
+              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-        List<Schema.Field> fields = schema.getFields();
-        List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
-        List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-        for (Schema.Field field : schema.getFields()) {
-          names.add(field.name());
-          T result = visitWithName(field.name(), field.schema(), visitor);
-          results.add(result);
+          return visitor.variant(
+              schema,
+              visit(schema.getField(METADATA).schema(), visitor),
+              visit(schema.getField(VALUE).schema(), visitor));
+        } else {
+          visitor.recordLevels.push(name);
+
+          List<Schema.Field> fields = schema.getFields();
+          List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
+          List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+          for (Schema.Field field : schema.getFields()) {
+            names.add(field.name());
+            T result = visitWithName(field.name(), field.schema(), visitor);
+            results.add(result);
+          }
+
+          visitor.recordLevels.pop();
+          return visitor.record(schema, names, results);
         }
-
-        visitor.recordLevels.pop();
-
-        return visitor.record(schema, names, results);
 
       case UNION:
         List<Schema> types = schema.getTypes();
@@ -101,6 +113,10 @@ public abstract class AvroSchemaVisitor<T> {
 
   public T map(Schema map, T value) {
     return null;
+  }
+
+  public T variant(Schema variant, T metadataResult, T valueResult) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public T primitive(Schema primitive) {

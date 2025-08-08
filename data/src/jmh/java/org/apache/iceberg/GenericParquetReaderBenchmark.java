@@ -40,7 +40,7 @@ public class GenericParquetReaderBenchmark extends ReaderBenchmark {
   protected FileAppender<Record> writer(File file, Schema schema) throws IOException {
     return Parquet.write(Files.localOutput(file))
         .schema(schema)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
+        .createWriterFunc(GenericParquetWriter::create)
         .build();
   }
 }

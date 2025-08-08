@@ -34,8 +34,8 @@ buildscript {
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.0'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.2.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:7.12.0'
   }
 }
@@ -95,6 +95,7 @@ gitProperties {
   failOnNoGitDirectory = true
   keys = ['git.branch', 'git.build.version', 'git.closest.tag.name','git.commit.id.abbrev', 'git.commit.id',
           'git.commit.message.short', 'git.commit.time', 'git.tags']
+  version = projectVersion
 }
 generateGitProperties.outputs.upToDateWhen { false }
 
@@ -200,6 +201,7 @@ subprojects {
 
     testImplementation libs.junit.jupiter
     testImplementation libs.junit.jupiter.engine
+    testImplementation libs.junit.platform.launcher
     testImplementation libs.slf4j.simple
     testImplementation libs.mockito.core
     testImplementation libs.mockito.inline
@@ -232,6 +234,8 @@ subprojects {
       events "failed"
       exceptionFormat "full"
     }
+
+    systemProperty 'project.version', project.version
   }
 
   plugins.withType(ScalaPlugin.class) {
@@ -321,6 +325,9 @@ project(':iceberg-api') {
 }
 
 project(':iceberg-common') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
@@ -470,6 +477,8 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:dynamodb")
     compileOnly("software.amazon.awssdk:lakeformation")
 
+    compileOnly(libs.analyticsaccelerator.s3)
+
     compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -525,6 +534,7 @@ project(':iceberg-aws') {
     recommend.set(true)
   }
   check.dependsOn('validateS3SignerSpec')
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-azure') {
@@ -545,6 +555,8 @@ project(':iceberg-azure') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.testcontainers
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 
   sourceSets {
@@ -614,7 +626,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark35.get()}") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'

@@ -70,6 +70,10 @@ public class FlinkValueReaders {
     return TimestampMicrosReader.INSTANCE;
   }
 
+  static ValueReader<TimestampData> timestampNanos() {
+    return TimestampNanosReader.INSTANCE;
+  }
+
   static ValueReader<DecimalData> decimal(
       ValueReader<byte[]> unscaledReader, int precision, int scale) {
     return new DecimalReader(unscaledReader, precision, scale);
@@ -176,13 +180,21 @@ public class FlinkValueReaders {
     @Override
     public TimestampData read(Decoder decoder, Object reuse) throws IOException {
       long micros = decoder.readLong();
-      long mills = micros / 1000;
-      int nanos = ((int) (micros % 1000)) * 1000;
-      if (nanos < 0) {
-        nanos += 1_000_000;
-        mills -= 1;
-      }
+      long mills = Math.floorDiv(micros, 1000);
+      int nanos = Math.floorMod(micros, 1000) * 1000;
       return TimestampData.fromEpochMillis(mills, nanos);
+    }
+  }
+
+  private static class TimestampNanosReader implements ValueReader<TimestampData> {
+    private static final TimestampNanosReader INSTANCE = new TimestampNanosReader();
+
+    @Override
+    public TimestampData read(Decoder decoder, Object reuse) throws IOException {
+      long nanos = decoder.readLong();
+      long mills = Math.floorDiv(nanos, 1_000_000);
+      int leftover = Math.floorMod(nanos, 1_000_000);
+      return TimestampData.fromEpochMillis(mills, leftover);
     }
   }
 

@@ -16,23 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.types;
+package org.apache.iceberg.io;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
+import java.util.List;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
-  private String typeAsString = null;
+/**
+ * This interface is intended as an extension for {@link FileIO} implementations to be able to
+ * provide and retrieve storage credentials
+ */
+public interface SupportsStorageCredentials {
 
-  /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
+  void setCredentials(List<StorageCredential> credentials);
 
-  PrimitiveHolder(String typeAsString) {
-    this.typeAsString = typeAsString;
-  }
-
-  Object readResolve() throws ObjectStreamException {
-    return Types.fromTypeName(typeAsString);
-  }
+  List<StorageCredential> credentials();
 }

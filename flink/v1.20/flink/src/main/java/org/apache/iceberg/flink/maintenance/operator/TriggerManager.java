@@ -189,6 +189,9 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
     this.recoveryLock = lockFactory.createRecoveryLock();
     if (context.isRestored()) {
       shouldRestoreTasks = true;
+    } else {
+      lock.unlock();
+      recoveryLock.unlock();
     }
   }
 

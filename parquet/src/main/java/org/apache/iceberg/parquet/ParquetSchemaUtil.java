@@ -38,8 +38,33 @@ public class ParquetSchemaUtil {
 
   private ParquetSchemaUtil() {}
 
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
+  }
+
+  /**
+   * Convert an Iceberg schema to Parquet.
+   *
+   * <p>Variant fields are converted by calling the {@link VariantShreddingFunction} with the
+   * variant's and field ID and name to produce the shredding type as a {@code typed_value} field.
+   * This field is added to the variant struct alongside the {@code metadata} and {@code value}
+   * fields.
+   *
+   * @param schema an Iceberg {@link Schema}
+   * @param name name for the Parquet schema
+   * @param variantShreddingFunc {@link VariantShreddingFunction} that produces a shredded type
+   * @return the schema converted to a Parquet {@link MessageType}
+   */
+  public static MessageType convert(
+      Schema schema, String name, VariantShreddingFunction variantShreddingFunc) {
+    return new TypeToMessageType(variantShreddingFunc).convert(schema, name);
   }
 
   /**

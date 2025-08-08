@@ -34,7 +34,6 @@ import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -261,16 +260,15 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkBinPackDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MIN_INPUT_FILES,
-                SparkBinPackDataRewriter.REWRITE_ALL,
-                SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
-                SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD));
+        .containsExactlyInAnyOrder(
+            SparkBinPackDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MIN_INPUT_FILES,
+            SparkBinPackDataRewriter.REWRITE_ALL,
+            SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD);
   }
 
   @Test
@@ -280,18 +278,17 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
-                SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MIN_INPUT_FILES,
-                SparkSortDataRewriter.REWRITE_ALL,
-                SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
-                SparkSortDataRewriter.DELETE_RATIO_THRESHOLD,
-                SparkSortDataRewriter.COMPRESSION_FACTOR));
+        .containsExactlyInAnyOrder(
+            SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+            SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MIN_INPUT_FILES,
+            SparkSortDataRewriter.REWRITE_ALL,
+            SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkSortDataRewriter.DELETE_RATIO_THRESHOLD,
+            SparkSortDataRewriter.COMPRESSION_FACTOR);
   }
 
   @Test
@@ -302,20 +299,19 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
-                SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MIN_INPUT_FILES,
-                SparkZOrderDataRewriter.REWRITE_ALL,
-                SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
-                SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD,
-                SparkZOrderDataRewriter.COMPRESSION_FACTOR,
-                SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
-                SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION));
+        .containsExactlyInAnyOrder(
+            SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+            SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MIN_INPUT_FILES,
+            SparkZOrderDataRewriter.REWRITE_ALL,
+            SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD,
+            SparkZOrderDataRewriter.COMPRESSION_FACTOR,
+            SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
+            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION);
   }
 
   @Test

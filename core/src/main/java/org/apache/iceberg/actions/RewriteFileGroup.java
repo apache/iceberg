@@ -38,6 +38,9 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
   private final int outputSpecId;
   private DataFileSet addedFiles = DataFileSet.create();
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0
+   */
   @Deprecated
   public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
     this(info, fileScanTasks, 0, 0L, 0L, 0);
@@ -48,14 +51,14 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
       List<FileScanTask> fileScanTasks,
       int outputSpecId,
       long writeMaxFileSize,
-      long splitSize,
+      long inputSplitSize,
       int expectedOutputFiles) {
-    super(info, fileScanTasks, writeMaxFileSize, splitSize, expectedOutputFiles);
+    super(info, fileScanTasks, writeMaxFileSize, inputSplitSize, expectedOutputFiles);
     this.outputSpecId = outputSpecId;
   }
 
   /**
-   * @deprecated use {@link #fileScanTasks()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #fileScanTasks()}
    */
   @Deprecated
   public List<FileScanTask> fileScans() {
@@ -103,7 +106,7 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
   }
 
   /**
-   * @deprecated use {@link #inputFilesSizeInBytes()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFilesSizeInBytes()}
    */
   @Deprecated
   public long sizeInBytes() {
@@ -111,7 +114,7 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
   }
 
   /**
-   * @deprecated use {@link #inputFileNum()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFileNum()}
    */
   @Deprecated
   public int numFiles() {

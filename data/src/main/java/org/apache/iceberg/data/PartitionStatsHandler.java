@@ -36,7 +36,6 @@ import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -53,7 +52,6 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.SnapshotUtil;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
@@ -63,30 +61,29 @@ public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}
 
-  public enum Column {
-    PARTITION(0),
-    SPEC_ID(1),
-    DATA_RECORD_COUNT(2),
-    DATA_FILE_COUNT(3),
-    TOTAL_DATA_FILE_SIZE_IN_BYTES(4),
-    POSITION_DELETE_RECORD_COUNT(5),
-    POSITION_DELETE_FILE_COUNT(6),
-    EQUALITY_DELETE_RECORD_COUNT(7),
-    EQUALITY_DELETE_FILE_COUNT(8),
-    TOTAL_RECORD_COUNT(9),
-    LAST_UPDATED_AT(10),
-    LAST_UPDATED_SNAPSHOT_ID(11);
-
-    private final int id;
-
-    Column(int id) {
-      this.id = id;
-    }
-
-    public int id() {
-      return id;
-    }
-  }
+  public static final int PARTITION_FIELD_ID = 0;
+  public static final String PARTITION_FIELD_NAME = "partition";
+  public static final NestedField SPEC_ID = NestedField.required(1, "spec_id", IntegerType.get());
+  public static final NestedField DATA_RECORD_COUNT =
+      NestedField.required(2, "data_record_count", LongType.get());
+  public static final NestedField DATA_FILE_COUNT =
+      NestedField.required(3, "data_file_count", IntegerType.get());
+  public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
+      NestedField.required(4, "total_data_file_size_in_bytes", LongType.get());
+  public static final NestedField POSITION_DELETE_RECORD_COUNT =
+      NestedField.optional(5, "position_delete_record_count", LongType.get());
+  public static final NestedField POSITION_DELETE_FILE_COUNT =
+      NestedField.optional(6, "position_delete_file_count", IntegerType.get());
+  public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
+      NestedField.optional(7, "equality_delete_record_count", LongType.get());
+  public static final NestedField EQUALITY_DELETE_FILE_COUNT =
+      NestedField.optional(8, "equality_delete_file_count", IntegerType.get());
+  public static final NestedField TOTAL_RECORD_COUNT =
+      NestedField.optional(9, "total_record_count", LongType.get());
+  public static final NestedField LAST_UPDATED_AT =
+      NestedField.optional(10, "last_updated_at", LongType.get());
+  public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
+      NestedField.optional(11, "last_updated_snapshot_id", LongType.get());
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
@@ -99,18 +96,18 @@ public class PartitionStatsHandler {
   public static Schema schema(StructType unifiedPartitionType) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     return new Schema(
-        NestedField.required(1, Column.PARTITION.name(), unifiedPartitionType),
-        NestedField.required(2, Column.SPEC_ID.name(), IntegerType.get()),
-        NestedField.required(3, Column.DATA_RECORD_COUNT.name(), LongType.get()),
-        NestedField.required(4, Column.DATA_FILE_COUNT.name(), IntegerType.get()),
-        NestedField.required(5, Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.name(), LongType.get()),
-        NestedField.optional(6, Column.POSITION_DELETE_RECORD_COUNT.name(), LongType.get()),
-        NestedField.optional(7, Column.POSITION_DELETE_FILE_COUNT.name(), IntegerType.get()),
-        NestedField.optional(8, Column.EQUALITY_DELETE_RECORD_COUNT.name(), LongType.get()),
-        NestedField.optional(9, Column.EQUALITY_DELETE_FILE_COUNT.name(), IntegerType.get()),
-        NestedField.optional(10, Column.TOTAL_RECORD_COUNT.name(), LongType.get()),
-        NestedField.optional(11, Column.LAST_UPDATED_AT.name(), LongType.get()),
-        NestedField.optional(12, Column.LAST_UPDATED_SNAPSHOT_ID.name(), LongType.get()));
+        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
+        SPEC_ID,
+        DATA_RECORD_COUNT,
+        DATA_FILE_COUNT,
+        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+        POSITION_DELETE_RECORD_COUNT,
+        POSITION_DELETE_FILE_COUNT,
+        EQUALITY_DELETE_RECORD_COUNT,
+        EQUALITY_DELETE_FILE_COUNT,
+        TOTAL_RECORD_COUNT,
+        LAST_UPDATED_AT,
+        LAST_UPDATED_SNAPSHOT_ID);
   }
 
   /**
@@ -121,29 +118,27 @@ public class PartitionStatsHandler {
    *     present.
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
-    return computeAndWriteStatsFile(table, SnapshotRef.MAIN_BRANCH);
-  }
-
-  /**
-   * Computes and writes the {@link PartitionStatisticsFile} for a given table and branch.
-   *
-   * @param table The {@link Table} for which the partition statistics is computed.
-   * @param branch A branch information to select the required snapshot.
-   * @return {@link PartitionStatisticsFile} for the given branch, or null if no statistics are
-   *     present.
-   */
-  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, String branch)
-      throws IOException {
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    if (currentSnapshot == null) {
-      Preconditions.checkArgument(
-          branch == null || branch.equals(SnapshotRef.MAIN_BRANCH),
-          "Couldn't find the snapshot for the branch %s",
-          branch);
+    if (table.currentSnapshot() == null) {
       return null;
     }
 
-    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, currentSnapshot);
+    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+  }
+
+  /**
+   * Computes and writes the {@link PartitionStatisticsFile} for a given table and snapshot.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
+   * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
+      throws IOException {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
+
+    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, snapshot);
     if (stats.isEmpty()) {
       return null;
     }
@@ -151,7 +146,7 @@ public class PartitionStatsHandler {
     StructType partitionType = Partitioning.partitionType(table);
     List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
     return writePartitionStatsFile(
-        table, currentSnapshot.snapshotId(), schema(partitionType), sortedStats);
+        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
 
   @VisibleForTesting
@@ -210,7 +205,7 @@ public class PartitionStatsHandler {
       case PARQUET:
         return Parquet.writeData(outputFile)
             .schema(dataSchema)
-            .createWriterFunc(InternalWriter::create)
+            .createWriterFunc(InternalWriter::createWriter)
             .withSpec(PartitionSpec.unpartitioned())
             .build();
       case AVRO:
@@ -254,31 +249,30 @@ public class PartitionStatsHandler {
   private static PartitionStats recordToPartitionStats(StructLike record) {
     PartitionStats stats =
         new PartitionStats(
-            record.get(Column.PARTITION.id(), StructLike.class),
-            record.get(Column.SPEC_ID.id(), Integer.class));
-    stats.set(Column.DATA_RECORD_COUNT.id(), record.get(Column.DATA_RECORD_COUNT.id(), Long.class));
-    stats.set(Column.DATA_FILE_COUNT.id(), record.get(Column.DATA_FILE_COUNT.id(), Integer.class));
+            record.get(PARTITION_FIELD_ID, StructLike.class),
+            record.get(SPEC_ID.fieldId(), Integer.class));
+    stats.set(DATA_RECORD_COUNT.fieldId(), record.get(DATA_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(DATA_FILE_COUNT.fieldId(), record.get(DATA_FILE_COUNT.fieldId(), Integer.class));
     stats.set(
-        Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.id(),
-        record.get(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.id(), Long.class));
+        TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(),
+        record.get(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), Long.class));
     stats.set(
-        Column.POSITION_DELETE_RECORD_COUNT.id(),
-        record.get(Column.POSITION_DELETE_RECORD_COUNT.id(), Long.class));
+        POSITION_DELETE_RECORD_COUNT.fieldId(),
+        record.get(POSITION_DELETE_RECORD_COUNT.fieldId(), Long.class));
     stats.set(
-        Column.POSITION_DELETE_FILE_COUNT.id(),
-        record.get(Column.POSITION_DELETE_FILE_COUNT.id(), Integer.class));
+        POSITION_DELETE_FILE_COUNT.fieldId(),
+        record.get(POSITION_DELETE_FILE_COUNT.fieldId(), Integer.class));
     stats.set(
-        Column.EQUALITY_DELETE_RECORD_COUNT.id(),
-        record.get(Column.EQUALITY_DELETE_RECORD_COUNT.id(), Long.class));
+        EQUALITY_DELETE_RECORD_COUNT.fieldId(),
+        record.get(EQUALITY_DELETE_RECORD_COUNT.fieldId(), Long.class));
     stats.set(
-        Column.EQUALITY_DELETE_FILE_COUNT.id(),
-        record.get(Column.EQUALITY_DELETE_FILE_COUNT.id(), Integer.class));
+        EQUALITY_DELETE_FILE_COUNT.fieldId(),
+        record.get(EQUALITY_DELETE_FILE_COUNT.fieldId(), Integer.class));
+    stats.set(TOTAL_RECORD_COUNT.fieldId(), record.get(TOTAL_RECORD_COUNT.fieldId(), Long.class));
+    stats.set(LAST_UPDATED_AT.fieldId(), record.get(LAST_UPDATED_AT.fieldId(), Long.class));
     stats.set(
-        Column.TOTAL_RECORD_COUNT.id(), record.get(Column.TOTAL_RECORD_COUNT.id(), Long.class));
-    stats.set(Column.LAST_UPDATED_AT.id(), record.get(Column.LAST_UPDATED_AT.id(), Long.class));
-    stats.set(
-        Column.LAST_UPDATED_SNAPSHOT_ID.id(),
-        record.get(Column.LAST_UPDATED_SNAPSHOT_ID.id(), Long.class));
+        LAST_UPDATED_SNAPSHOT_ID.fieldId(),
+        record.get(LAST_UPDATED_SNAPSHOT_ID.fieldId(), Long.class));
     return stats;
   }
 }

@@ -34,11 +34,13 @@ public class TestSerializedMetadata {
   private final Random random = new Random(872591);
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testEmptyVariantMetadata() {
     SerializedMetadata metadata = SerializedMetadata.EMPTY_V1_METADATA;
 
     assertThat(metadata.isSorted()).isFalse();
     assertThat(metadata.dictionarySize()).isEqualTo(0);
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> metadata.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
@@ -97,6 +99,7 @@ public class TestSerializedMetadata {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testReadString() {
     SerializedMetadata metadata =
         SerializedMetadata.from(
@@ -109,10 +112,12 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("c");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testMultibyteString() {
     SerializedMetadata metadata =
         SerializedMetadata.from(
@@ -125,10 +130,12 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("xyz");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testTwoByteOffsets() {
     SerializedMetadata metadata =
         SerializedMetadata.from(
@@ -142,6 +149,7 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("xyz");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
@@ -227,14 +235,18 @@ public class TestSerializedMetadata {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testMissingLength() {
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
         .isInstanceOf(IndexOutOfBoundsException.class);
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testLengthTooShort() {
     // missing the 4th length byte
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(
             () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
         .isInstanceOf(IndexOutOfBoundsException.class);

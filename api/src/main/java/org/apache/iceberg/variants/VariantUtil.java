@@ -164,6 +164,10 @@ class VariantUtil {
     }
   }
 
+  static byte metadataHeader(boolean isSorted, int offsetSize) {
+    return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
+  }
+
   static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << Primitives.PRIMITIVE_TYPE_SHIFT);
   }

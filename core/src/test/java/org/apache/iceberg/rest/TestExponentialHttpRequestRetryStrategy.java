@@ -197,15 +197,17 @@ public class TestExponentialHttpRequestRetryStrategy {
         .isBetween(4000L, 5000L);
   }
 
-  @Test
-  public void testRetryBadGateway() {
-    BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
-    assertThat(retryStrategy.retryRequest(response502, 3, null)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503})
+  public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
-  @Test
-  public void testRetryGatewayTimeout() {
-    BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
-    assertThat(retryStrategy.retryRequest(response504, 3, null)).isTrue();
+  @ParameterizedTest
+  @ValueSource(ints = {500, 502, 504})
+  public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
   }
 }

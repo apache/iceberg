@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -44,12 +45,8 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
-import org.apache.hc.core5.http.EntityDetails;
-import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -229,18 +226,6 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testDynamicHttpRequestInterceptorLoading() {
-    Map<String, String> properties = ImmutableMap.of("key", "val");
-
-    HttpRequestInterceptor interceptor =
-        HTTPClient.loadInterceptorDynamically(
-            TestHttpRequestInterceptor.class.getName(), properties);
-
-    assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
-    assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
-  }
-
-  @Test
   public void testSocketAndConnectionTimeoutSet() {
     long connectionTimeoutMs = 10L;
     int socketTimeoutMs = 10;
@@ -337,6 +322,19 @@ public class TestHTTPClient {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
+  }
+
+  @Test
+  public void testCloseChild() throws IOException {
+    AuthSession authSession = mock(AuthSession.class);
+    try (RESTClient child = restClient.withAuthSession(authSession)) {
+      assertThat(child).isNotNull().isNotSameAs(restClient);
+    }
+
+    verify(authSession, never().description("RESTClient should not close the AuthSession")).close();
+    assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
+        .as("Parent RESTClient should still be operational after child is closed")
+        .doesNotThrowAnyException();
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
@@ -483,18 +481,5 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
-  }
-
-  public static class TestHttpRequestInterceptor implements HttpRequestInterceptor {
-    private Map<String, String> properties;
-
-    public void initialize(Map<String, String> props) {
-      this.properties = props;
-    }
-
-    @Override
-    public void process(
-        org.apache.hc.core5.http.HttpRequest request, EntityDetails entity, HttpContext context)
-        throws HttpException, IOException {}
   }
 }

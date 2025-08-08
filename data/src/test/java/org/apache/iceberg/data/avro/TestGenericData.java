@@ -88,4 +88,19 @@ public class TestGenericData extends DataTest {
   protected boolean supportsDefaultValues() {
     return true;
   }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
 }

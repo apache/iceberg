@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
@@ -28,7 +27,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -40,6 +38,7 @@ import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 
 public class AwsClientProperties implements Serializable {
   /**
@@ -136,6 +135,21 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
+   * Configure an S3 CRT client region.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyClientRegionConfiguration)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
+    }
+  }
+
+  /**
    * Configure the credential provider for AWS clients.
    *
    * <p>Sample usage:
@@ -145,6 +159,21 @@ public class AwsClientProperties implements Serializable {
    * </pre>
    */
   public <T extends AwsClientBuilder> void applyClientCredentialConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
+    }
+  }
+
+  /**
+   * Configure the credential provider for S3 CRT clients.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyClientCredentialConfigurations(T builder) {
     if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
       builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     }
@@ -167,12 +196,9 @@ public class AwsClientProperties implements Serializable {
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
+      clientCredentialsProviderProperties.putAll(allProperties);
       clientCredentialsProviderProperties.put(
           VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
-      Optional.ofNullable(allProperties.get(OAuth2Properties.TOKEN))
-          .ifPresent(
-              token ->
-                  clientCredentialsProviderProperties.putIfAbsent(OAuth2Properties.TOKEN, token));
       return credentialsProvider(VendedCredentialsProvider.class.getName());
     }
 

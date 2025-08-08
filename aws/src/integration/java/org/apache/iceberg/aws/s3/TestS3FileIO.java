@@ -20,8 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -68,9 +66,11 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -79,6 +79,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.assertj.core.api.ObjectAssert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -340,21 +342,19 @@ public class TestS3FileIO {
             .collect(Collectors.toList());
 
     // Assert that the returned FileInfo instances match the expected values
-    assertEquals(2, fileInfoList.size());
-    assertTrue(
-        fileInfoList.stream()
-            .anyMatch(
-                fi ->
-                    fi.location().endsWith("file1.txt")
-                        && fi.size() == 1024
-                        && fi.createdAtMillis() > Instant.now().minusSeconds(120).toEpochMilli()));
-    assertTrue(
-        fileInfoList.stream()
-            .anyMatch(
-                fi ->
-                    fi.location().endsWith("file2.txt")
-                        && fi.size() == 2048
-                        && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli()));
+    assertThat(fileInfoList).hasSize(2);
+    assertThat(fileInfoList)
+        .anyMatch(
+            fi ->
+                fi.location().endsWith("file1.txt")
+                    && fi.size() == 1024
+                    && fi.createdAtMillis() > Instant.now().minusSeconds(120).toEpochMilli());
+    assertThat(fileInfoList)
+        .anyMatch(
+            fi ->
+                fi.location().endsWith("file2.txt")
+                    && fi.size() == 2048
+                    && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli());
   }
 
   /**
@@ -460,6 +460,29 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
   public void testS3FileIOJavaSerialization() throws IOException, ClassNotFoundException {
     FileIO testS3FileIO = new S3FileIO();
 
@@ -541,6 +564,164 @@ public class TestS3FileIO {
 
     assertThat(inputFile.getLength()).isEqualTo(manifest.length());
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
+  }
+
+  @Test
+  public void resolvingFileIOLoadWithStorageCredentials()
+      throws IOException, ClassNotFoundException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setCredentials(storageCredentials);
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after kryo serde
+    ResolvingFileIO io = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(io.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(io)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after java serde
+    io = TestHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(io.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(io)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
+  }
+
+  @Test
+  public void noStorageCredentialConfigured() {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of());
+    fileIO.initialize(
+        ImmutableMap.of(
+            "s3.access-key-id",
+            "keyIdFromProperties",
+            "s3.secret-access-key",
+            "accessKeyFromProperties",
+            "s3.session-token",
+            "sessionTokenFromProperties"));
+
+    ObjectAssert<S3FileIOProperties> s3FileIOProperties =
+        assertThat(fileIO)
+            .extracting("s3FileIOProperties")
+            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIOProperties.class));
+    s3FileIOProperties.extracting(S3FileIOProperties::accessKeyId).isEqualTo("keyIdFromProperties");
+    s3FileIOProperties
+        .extracting(S3FileIOProperties::secretAccessKey)
+        .isEqualTo("accessKeyFromProperties");
+    s3FileIOProperties
+        .extracting(S3FileIOProperties::sessionToken)
+        .isEqualTo("sessionTokenFromProperties");
+  }
+
+  @Test
+  public void singleStorageCredentialConfigured() {
+    StorageCredential s3Credential =
+        ImmutableStorageCredential.builder()
+            .prefix("s3://custom-uri")
+            .config(
+                ImmutableMap.of(
+                    "s3.access-key-id",
+                    "keyIdFromCredential",
+                    "s3.secret-access-key",
+                    "accessKeyFromCredential",
+                    "s3.session-token",
+                    "sessionTokenFromCredential"))
+            .build();
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(s3Credential));
+    fileIO.initialize(
+        ImmutableMap.of(
+            "s3.access-key-id",
+            "keyIdFromProperties",
+            "s3.secret-access-key",
+            "accessKeyFromProperties",
+            "s3.session-token",
+            "sessionTokenFromProperties"));
+
+    ObjectAssert<S3FileIOProperties> s3FileIOProperties =
+        assertThat(fileIO)
+            .extracting("s3FileIOProperties")
+            .asInstanceOf(InstanceOfAssertFactories.type(S3FileIOProperties.class));
+    s3FileIOProperties.extracting(S3FileIOProperties::accessKeyId).isEqualTo("keyIdFromCredential");
+    s3FileIOProperties
+        .extracting(S3FileIOProperties::secretAccessKey)
+        .isEqualTo("accessKeyFromCredential");
+    s3FileIOProperties
+        .extracting(S3FileIOProperties::sessionToken)
+        .isEqualTo("sessionTokenFromCredential");
+  }
+
+  @Test
+  public void multipleStorageCredentialsConfigured() {
+    StorageCredential s3Credential1 =
+        ImmutableStorageCredential.builder()
+            .prefix("s3://custom-uri/1")
+            .config(
+                ImmutableMap.of(
+                    "s3.access-key-id",
+                    "keyIdFromCredential1",
+                    "s3.secret-access-key",
+                    "accessKeyFromCredential1",
+                    "s3.session-token",
+                    "sessionTokenFromCredential1"))
+            .build();
+
+    StorageCredential s3Credential2 =
+        ImmutableStorageCredential.builder()
+            .prefix("s3://custom-uri/2")
+            .config(
+                ImmutableMap.of(
+                    "s3.access-key-id",
+                    "keyIdFromCredential2",
+                    "s3.secret-access-key",
+                    "accessKeyFromCredential2",
+                    "s3.session-token",
+                    "sessionTokenFromCredential2"))
+            .build();
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(s3Credential1, s3Credential2));
+    assertThatThrownBy(
+            () ->
+                fileIO.initialize(
+                    ImmutableMap.of(
+                        "s3.access-key-id",
+                        "keyIdFromProperties",
+                        "s3.secret-access-key",
+                        "accessKeyFromProperties",
+                        "s3.session-token",
+                        "sessionTokenFromProperties")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid S3 Credentials: only one S3 credential should exist");
   }
 
   private void createRandomObjects(String prefix, int count) {

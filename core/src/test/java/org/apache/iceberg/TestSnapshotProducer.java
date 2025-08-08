@@ -72,6 +72,6 @@ public class TestSnapshotProducer {
   private void assertManifestWriterCount(
       int workerPoolSize, int fileCount, int expectedManifestWriterCount, String errMsg) {
     int writerCount = SnapshotProducer.manifestWriterCount(workerPoolSize, fileCount);
-    assertThat(writerCount).withFailMessage(errMsg).isEqualTo(expectedManifestWriterCount);
+    assertThat(writerCount).as(errMsg).isEqualTo(expectedManifestWriterCount);
   }
 }

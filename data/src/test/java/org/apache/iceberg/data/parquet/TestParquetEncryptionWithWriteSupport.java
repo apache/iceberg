@@ -57,6 +57,21 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
   private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
   @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
     writeAndValidate(schema, expected);
@@ -77,7 +92,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
             .schema(schema)
             .withFileEncryptionKey(FILE_DEK)
             .withAADPrefix(AAD_PREFIX)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(fileSchema -> GenericParquetWriter.create(schema, fileSchema))
             .build()) {
       appender.addAll(expected);
     }

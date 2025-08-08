@@ -31,14 +31,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
@@ -49,6 +52,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -122,6 +126,11 @@ public class RewritePositionDeleteFilesSparkAction
 
     validateAndInitOptions();
 
+    if (TableUtil.formatVersion(table) >= 3 && !requiresRewriteToDVs()) {
+      LOG.info("v2 deletes in {} have already been rewritten to v3 DVs", table.name());
+      return EMPTY_RESULT;
+    }
+
     StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
@@ -136,6 +145,29 @@ public class RewritePositionDeleteFilesSparkAction
       return doExecuteWithPartialProgress(ctx, groupStream, commitManager());
     } else {
       return doExecute(ctx, groupStream, commitManager());
+    }
+  }
+
+  private boolean requiresRewriteToDVs() {
+    PositionDeletesBatchScan scan =
+        (PositionDeletesBatchScan)
+            MetadataTableUtils.createMetadataTableInstance(
+                    table, MetadataTableType.POSITION_DELETES)
+                .newBatchScan();
+    try (CloseableIterator<PositionDeletesScanTask> it =
+        CloseableIterable.filter(
+                CloseableIterable.transform(
+                    scan.baseTableFilter(filter)
+                        .caseSensitive(caseSensitive)
+                        .select(PositionDeletesTable.DELETE_FILE_PATH)
+                        .ignoreResiduals()
+                        .planFiles(),
+                    task -> (PositionDeletesScanTask) task),
+                t -> t.file().format() != FileFormat.PUFFIN)
+            .iterator()) {
+      return it.hasNext();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -160,7 +192,6 @@ public class RewritePositionDeleteFilesSparkAction
 
   private CloseableIterable<PositionDeletesScanTask> planFiles(Table deletesTable) {
     PositionDeletesBatchScan scan = (PositionDeletesBatchScan) deletesTable.newBatchScan();
-
     return CloseableIterable.transform(
         scan.baseTableFilter(filter).caseSensitive(caseSensitive).ignoreResiduals().planFiles(),
         task -> (PositionDeletesScanTask) task);
@@ -218,7 +249,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private RewritePositionDeletesCommitManager commitManager() {
-    return new RewritePositionDeletesCommitManager(table);
+    return new RewritePositionDeletesCommitManager(table, commitSummary());
   }
 
   private Result doExecute(
