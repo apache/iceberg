@@ -461,10 +461,10 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         actualIterator.forEachRemaining(actualList::add);
 
         assertThat(actualList)
-                .as("Comparison between files failed %s <-> %s", actual, expected)
-                .isNotEmpty()
-                .hasSameSizeAs(expectedList)
-                .hasSameElementsAs(expectedList);
+            .as("Comparison between files failed %s <-> %s", actual, expected)
+            .isNotEmpty()
+            .hasSameSizeAs(expectedList)
+            .hasSameElementsAs(expectedList);
       }
     }
   }
