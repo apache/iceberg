@@ -18,21 +18,26 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.s3.S3TestUtil.skipIfAnalyticsAcceleratorEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Random;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
@@ -44,6 +49,7 @@ public class TestS3InputStream {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   private final S3Client s3 = MinioUtil.createS3Client(MINIO);
+  private final S3AsyncClient s3Async = MinioUtil.createS3AsyncClient(MINIO);
   private final Random random = new Random(1);
 
   @BeforeEach
@@ -51,23 +57,37 @@ public class TestS3InputStream {
     createBucket("bucket");
   }
 
-  @Test
-  public void testRead() throws Exception {
-    testRead(s3);
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testRead(Map<String, String> aalProperties) throws Exception {
+    testRead(s3, s3Async, aalProperties);
   }
 
-  S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
+  SeekableInputStream newInputStream(
+      S3Client s3Client,
+      S3AsyncClient s3AsyncClient,
+      S3URI uri,
+      Map<String, String> aalProperties) {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
+    if (s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()) {
+      PrefixedS3Client client =
+          new PrefixedS3Client("s3", aalProperties, () -> s3Client, () -> s3AsyncClient);
+      return AnalyticsAcceleratorUtil.newStream(
+          S3InputFile.fromLocation(uri.location(), client, MetricsContext.nullMetrics()));
+    }
     return new S3InputStream(s3Client, uri);
   }
 
-  protected void testRead(S3Client s3Client) throws Exception {
+  protected void testRead(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, Map<String, String> aalProperties)
+      throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri, aalProperties)) {
       int readSize = 1024;
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -114,12 +134,18 @@ public class TestS3InputStream {
     assertThat(actual).isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
   }
 
-  @Test
-  public void testRangeRead() throws Exception {
-    testRangeRead(s3);
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testRangeRead(Map<String, String> aalProperties) throws Exception {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
+    skipIfAnalyticsAcceleratorEnabled(
+        s3FileIOProperties, "Analytics Accelerator Library does not support range reads");
+    testRangeRead(s3, s3Async, aalProperties);
   }
 
-  protected void testRangeRead(S3Client s3Client) throws Exception {
+  protected void testRangeRead(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, Map<String, String> aalProperties)
+      throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] expected = randomData(dataSize);
@@ -131,7 +157,8 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (RangeReadable in = newInputStream(s3Client, uri)) {
+    try (RangeReadable in =
+        (RangeReadable) newInputStream(s3Client, s3AsyncClient, uri, aalProperties)) {
       // first 1k
       position = 0;
       offset = 0;
@@ -160,28 +187,36 @@ public class TestS3InputStream {
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
   }
 
-  @Test
-  public void testClose() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testClose(Map<String, String> aalProperties) throws Exception {
+    final S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(aalProperties);
+    skipIfAnalyticsAcceleratorEnabled(
+        s3FileIOProperties,
+        "Analytics Accelerator Library has different exception handling when closed");
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = newInputStream(s3, uri);
+    SeekableInputStream closed = newInputStream(s3, s3Async, uri, aalProperties);
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("already closed");
   }
 
-  @Test
-  public void testSeek() throws Exception {
-    testSeek(s3);
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testSeek(Map<String, String> aalProperties) throws Exception {
+    testSeek(s3, s3Async, aalProperties);
   }
 
-  protected void testSeek(S3Client s3Client) throws Exception {
+  protected void testSeek(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, Map<String, String> aalProperties)
+      throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/seek.dat");
     byte[] expected = randomData(1024 * 1024);
 
     writeS3Data(uri, expected);
 
-    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, s3AsyncClient, uri, aalProperties)) {
       in.seek(expected.length / 2);
       byte[] actual = new byte[expected.length / 2];
       IOUtil.readFully(in, actual, 0, expected.length / 2);
@@ -216,5 +251,9 @@ public class TestS3InputStream {
 
   protected S3Client s3Client() {
     return s3;
+  }
+
+  protected S3AsyncClient s3AsyncClient() {
+    return s3Async;
   }
 }
