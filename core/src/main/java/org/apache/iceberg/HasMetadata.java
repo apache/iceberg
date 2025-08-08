@@ -16,10 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg;
 
 import java.util.Map;
 
+/**
+ * This is essentially a terrible workaround inorder to allow Manfiest Reader to get the metadata
+ * from Parquet iterables. We should not include this in the final patch.
+ */
 public interface HasMetadata {
-  Map<String, String> getMetadata();
+
+  Map<String, String> readMetadata();
 }

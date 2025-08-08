@@ -559,7 +559,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {
-    FileFormat manifestFormat = ops.current().formatVersion() <=3 ? FileFormat.AVRO : FileFormat.PARQUET;
+    FileFormat manifestFormat =
+        ops.current().formatVersion() <= 3 ? FileFormat.AVRO : FileFormat.PARQUET;
 
     String manifestFileLocation =
         ops.metadataFileLocation(

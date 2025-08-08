@@ -405,7 +405,7 @@ public class TestMergeAppend extends TestBase {
         dataSeqs(2L, 2L, 1L, 1L),
         fileSeqs(2L, 2L, 1L, 1L),
         ids(snapshotId, snapshotId, baseId, baseId),
-        concat(files(FILE_C, FILE_D), files(initialManifest)),
+        concat(files(FILE_C, FILE_D), files(initialManifest, table.specs())),
         statuses(Status.ADDED, Status.ADDED, Status.EXISTING, Status.EXISTING));
   }
 
@@ -561,7 +561,7 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendManifest(
                     writeManifest(
-                        "input-m0.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C))),
+                        "input-m0", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C))),
             branch);
 
     base = readMetadata();
@@ -761,7 +761,8 @@ public class TestMergeAppend extends TestBase {
         newManifest,
         ids(snapshotId, snapshotId, baseId),
         files(FILE_C, FILE_D, FILE_B),
-        statuses(Status.ADDED, Status.ADDED, Status.EXISTING), table.specs());
+        statuses(Status.ADDED, Status.ADDED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -863,7 +864,7 @@ public class TestMergeAppend extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(baseId, baseId),
-        files(initialManifest),
+        files(initialManifest, table.specs()),
         statuses(Status.ADDED, Status.ADDED));
   }
 
@@ -1030,7 +1031,7 @@ public class TestMergeAppend extends TestBase {
     validateManifest(
         newManifest,
         ids(pending.snapshotId(), baseId),
-        concat(files(FILE_B), files(initialManifest)));
+        concat(files(FILE_B), files(initialManifest, table.specs())));
 
     assertThatThrownBy(() -> commit(table, append, branch))
         .isInstanceOf(CommitFailedException.class)
@@ -1047,7 +1048,7 @@ public class TestMergeAppend extends TestBase {
         dataSeqs(1L),
         fileSeqs(1L),
         ids(baseId),
-        files(initialManifest),
+        files(initialManifest, table.specs()),
         statuses(Status.ADDED));
 
     assertThat(new File(newManifest.path())).doesNotExist();
@@ -1120,7 +1121,7 @@ public class TestMergeAppend extends TestBase {
     validateManifest(
         newManifest,
         ids(pending.snapshotId(), baseId),
-        concat(files(FILE_B), files(initialManifest)));
+        concat(files(FILE_B), files(initialManifest, table.specs())));
 
     V2Assert.assertEquals(
         "Snapshot sequence number should be 1", 1, latestSnapshot(table, branch).sequenceNumber());
@@ -1199,7 +1200,7 @@ public class TestMergeAppend extends TestBase {
 
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
-    ManifestFile manifest1 = writeManifestWithName("manifest-file-1.avro", FILE_A, FILE_B);
+    ManifestFile manifest1 = writeManifestWithName("manifest-file-1", FILE_A, FILE_B);
     Snapshot snap1 = commit(table, table.newAppend().appendManifest(manifest1), branch);
 
     long commitId1 = snap1.snapshotId();
@@ -1215,7 +1216,7 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
     assertThat(new File(manifest1.path())).exists();
 
-    ManifestFile manifest2 = writeManifestWithName("manifest-file-2.avro", FILE_C, FILE_D);
+    ManifestFile manifest2 = writeManifestWithName("manifest-file-2", FILE_C, FILE_D);
     Snapshot snap2 = commit(table, table.newAppend().appendManifest(manifest2), branch);
 
     long commitId2 = snap2.snapshotId();
@@ -1398,7 +1399,8 @@ public class TestMergeAppend extends TestBase {
     // field ids of manifest entries in two manifests with different specs of the same source field
     // should be different
     ManifestEntry<DataFile> entry =
-        ManifestFiles.read(committedSnapshot.allManifests(table.io()).get(0), FILE_IO)
+        ManifestFiles.read(
+                committedSnapshot.allManifests(table.io()).get(0), FILE_IO, table.specs())
             .entries()
             .iterator()
             .next();
@@ -1411,7 +1413,8 @@ public class TestMergeAppend extends TestBase {
     assertThat(field.name()).isEqualTo("data_bucket");
 
     entry =
-        ManifestFiles.read(committedSnapshot.allManifests(table.io()).get(1), FILE_IO)
+        ManifestFiles.read(
+                committedSnapshot.allManifests(table.io()).get(1), FILE_IO, table.specs())
             .entries()
             .iterator()
             .next();

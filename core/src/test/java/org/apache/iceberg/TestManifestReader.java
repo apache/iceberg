@@ -63,7 +63,8 @@ public class TestManifestReader extends TestBase {
   public void testReaderWithFilterWithoutSelect() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(Expressions.equal("id", 0))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .filterRows(Expressions.equal("id", 0))) {
       List<DataFile> files = Streams.stream(reader).collect(Collectors.toList());
 
       // note that all files are returned because the reader returns data files that may match, and

@@ -166,41 +166,42 @@ public class TestDeleteFrom extends CatalogTestBase {
   @TestTemplate
   public void testDeleteFromDatePartitionedTable() throws NoSuchTableException {
     sql(
-      "CREATE TABLE %s (id bigint, data string, date string) "
-        + "USING iceberg "
-        + "PARTITIONED BY (date)",
-      tableName);
+        "CREATE TABLE %s (id bigint, data string, date string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (date)",
+        tableName);
 
-    List<Object[]> records = Lists.newArrayList(
-      row(1L, "a", "2024-08-01"),
-      row(2L, "b", "2024-08-02"),
-      row(3L, "c", "2024-08-03"),
-      row(4L, "d", "2024-08-04"),
-      row(5L, "e", "2024-08-05")
-    );
+    List<Object[]> records =
+        Lists.newArrayList(
+            row(1L, "a", "2024-08-01"),
+            row(2L, "b", "2024-08-02"),
+            row(3L, "c", "2024-08-03"),
+            row(4L, "d", "2024-08-04"),
+            row(5L, "e", "2024-08-05"));
 
     for (Object[] record : records) {
-      sql("INSERT INTO %s (id, data, date) VALUES (%s, '%s', '%s')", tableName, record[0], record[1], record[2]);
+      sql(
+          "INSERT INTO %s (id, data, date) VALUES (%s, '%s', '%s')",
+          tableName, record[0], record[1], record[2]);
     }
 
     assertEquals(
-      "Should have all rows before delete",
-      records,
-      sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have all rows before delete",
+        records,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     sql("DELETE FROM %s WHERE to_date(date, 'yyyy-MM-dd') = DATE('2024-08-04')", tableName);
 
-    List<Object[]> expectedAfterDelete = Lists.newArrayList(
-      row(1L, "a", "2024-08-01"),
-      row(2L, "b", "2024-08-02"),
-      row(3L, "c", "2024-08-03"),
-      row(5L, "e", "2024-08-05")
-    );
+    List<Object[]> expectedAfterDelete =
+        Lists.newArrayList(
+            row(1L, "a", "2024-08-01"),
+            row(2L, "b", "2024-08-02"),
+            row(3L, "c", "2024-08-03"),
+            row(5L, "e", "2024-08-05"));
 
     assertEquals(
-      "Should have all rows except 2024-08-04 partition",
-      expectedAfterDelete,
-      sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have all rows except 2024-08-04 partition",
+        expectedAfterDelete,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
-
 }

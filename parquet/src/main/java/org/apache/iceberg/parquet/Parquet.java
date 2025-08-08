@@ -73,7 +73,6 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.data.parquet.InternalReader;
@@ -1297,7 +1296,8 @@ public class Parquet {
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
-      Preconditions.checkArgument(this.internalReader != null, "Cannot set Custom Type: InternalReader not set");
+      Preconditions.checkArgument(
+          this.internalReader != null, "Cannot set Custom Type: InternalReader not set");
       this.typeMap.put(fieldId, structClass);
       return this;
     }
@@ -1328,7 +1328,10 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null || internalReader != null) {
+      if (readerFunc != null
+          || readerFuncWithSchema != null
+          || batchedReaderFunc != null
+          || internalReader != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1382,9 +1385,9 @@ public class Parquet {
             readBuilder = (fileType -> internalReader.create(schema, fileType));
           } else {
             readBuilder =
-              readerFuncWithSchema != null
-                ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                : readerFunc;
+                readerFuncWithSchema != null
+                    ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                    : readerFunc;
           }
 
           return new org.apache.iceberg.parquet.ParquetReader<>(

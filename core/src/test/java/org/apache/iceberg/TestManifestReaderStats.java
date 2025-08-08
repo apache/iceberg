@@ -70,7 +70,8 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(Expressions.equal("id", 3))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
@@ -81,7 +82,8 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadIteratorWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).filterRows(Expressions.equal("id", 3))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
     }
@@ -162,7 +164,8 @@ public class TestManifestReaderStats extends TestBase {
   public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).select(ImmutableList.of("file_path"))) {
+        ManifestFiles.read(manifest, FILE_IO, table.specs())
+            .select(ImmutableList.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       DataFile dataFile = entry.file();
