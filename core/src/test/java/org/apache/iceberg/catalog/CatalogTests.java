@@ -2649,8 +2649,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // The table should remain unchanged after the failed replace attempt
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2686,8 +2685,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // The table should remain unchanged after the failed replace attempt
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2723,8 +2721,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // The table should remain unchanged after the failed replace attempt
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2801,8 +2798,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // Table state should remain unchanged after failed replace
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2839,8 +2835,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // Table state should remain unchanged after failed replace
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2917,8 +2912,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // Table state should remain unchanged after failed replace
     Table afterSecondAttempt = catalog.loadTable(TABLE);
@@ -2958,8 +2952,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
     // Table state should remain unchanged after failed replace
     Table afterSecondAttempt = catalog.loadTable(TABLE);
