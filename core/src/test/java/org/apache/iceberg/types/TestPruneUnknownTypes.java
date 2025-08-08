@@ -19,7 +19,7 @@
 package org.apache.iceberg.types;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import org.apache.iceberg.Schema;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,42 @@ public class TestPruneUnknownTypes {
   }
 
   @Test
-  public void testPruneNestedUnknown() {
+  public void testPruneTopLevelSolelyUnknown() {
+    Schema schema = new Schema(Types.NestedField.optional(2, "unk", Types.UnknownType.get()));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> PruneUnknownTypes.convert(schema))
+        .withMessage(
+            "StructType with solely UnknownTypes are not allowed: struct<2: unk: optional unknown>");
+  }
+
+  @Test
+  public void testPruneNestedWithAnUnknown() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "nested",
+                Types.StructType.of(
+                    Types.NestedField.optional(20, "unk", Types.UnknownType.get()),
+                    Types.NestedField.optional(21, "int", Types.IntegerType.get()))));
+
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "nested",
+                Types.StructType.of(
+                    Types.NestedField.optional(21, "int", Types.IntegerType.get()))));
+
+    Schema actualSchema = PruneUnknownTypes.convert(schema);
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testPruneNestedWithOneUnknown() {
     Schema schema =
         new Schema(
             Types.NestedField.optional(1, "int", Types.IntegerType.get()),
@@ -51,11 +86,10 @@ public class TestPruneUnknownTypes {
                 Types.StructType.of(
                     Types.NestedField.optional(20, "unk", Types.UnknownType.get()))));
 
-    Schema expectedSchema =
-        new Schema(Types.NestedField.optional(1, "int", Types.IntegerType.get()));
-
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
-    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> PruneUnknownTypes.convert(schema))
+        .withMessage(
+            "StructType with solely UnknownTypes are not allowed: struct<20: unk: optional unknown>");
   }
 
   @Test
@@ -98,41 +132,5 @@ public class TestPruneUnknownTypes {
 
     Schema actualSchema = PruneUnknownTypes.convert(schema);
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
-  }
-
-  @Test
-  public void testPruneListType() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
-            Types.NestedField.required(
-                2, "unk_list", Types.ListType.ofOptional(20, Types.UnknownType.get())),
-            Types.NestedField.required(
-                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
-
-    Schema expectedSchema =
-        new Schema(
-            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
-            Types.NestedField.required(
-                3, "lng_list", Types.ListType.ofOptional(30, Types.LongType.get())));
-
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
-    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
-  }
-
-  @Test
-  public void testPruneMapType() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.optional(1, "int", Types.IntegerType.get()),
-            Types.NestedField.optional(
-                2,
-                "map",
-                Types.MapType.ofOptional(
-                    20, 21, Types.IntegerType.get(), Types.UnknownType.get())));
-
-    assertThatThrownBy(() -> PruneUnknownTypes.convert(schema))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a map with a with an unknown value: 21");
   }
 }

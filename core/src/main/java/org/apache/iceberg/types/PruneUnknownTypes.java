@@ -91,11 +91,10 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
         }
       }
 
-      if (newFields.isEmpty()) {
-        return Types.UnknownType.get();
-      } else {
-        return Types.StructType.of(newFields);
-      }
+      Preconditions.checkArgument(
+          !newFields.isEmpty(), "StructType with solely UnknownTypes are not allowed: %s", struct);
+
+      return Types.StructType.of(newFields);
     } else {
       // Nothing changed, let's return the original
       return struct;
@@ -109,9 +108,10 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Type elementResult) {
-    if (elementResult.typeId().equals(Type.TypeID.UNKNOWN)) {
-      return Types.UnknownType.get();
-    }
+    Preconditions.checkArgument(
+        !elementResult.typeId().equals(Type.TypeID.UNKNOWN),
+        "Cannot create a map with a with an unknown: %s",
+        list.elementId());
 
     if (!list.elementType().equals(elementResult)) {
       if (list.isElementOptional()) {
@@ -127,8 +127,12 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type map(Types.MapType map, Type keyType, Type valueResult) {
     Preconditions.checkArgument(
+        !keyType.typeId().equals(Type.TypeID.UNKNOWN),
+        "Cannot create a map with a with an unknown: %s",
+        map.keyId());
+    Preconditions.checkArgument(
         !valueResult.typeId().equals(Type.TypeID.UNKNOWN),
-        "Cannot create a map with a with an unknown value: %s",
+        "Cannot create a map with a with an unknown: %s",
         map.valueId());
 
     if (!map.valueType().equals(valueResult)) {
