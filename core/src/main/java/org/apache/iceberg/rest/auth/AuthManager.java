@@ -63,6 +63,16 @@ public interface AuthManager extends AutoCloseable {
   AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties);
 
   /**
+   * Returns a new session targeting a table or view. This method is intended for components other
+   * that the catalog that need to access tables or views, such as request signer clients.
+   *
+   * <p>This method cannot return null.
+   */
+  default AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
+    return catalogSession(sharedClient, properties);
+  }
+
+  /**
    * Returns a session for a specific context.
    *
    * <p>If the context requires a specific {@link AuthSession}, this method should return a new

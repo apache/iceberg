@@ -22,22 +22,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
 
 public class InternalTestHelpers {
 
   private InternalTestHelpers() {}
 
-  public static void assertEquals(Types.StructType struct, StructLike expected, StructLike actual) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
-
-      Object expectedValue = expected.get(i, fieldType.typeId().javaClass());
-      Object actualValue = actual.get(i, fieldType.typeId().javaClass());
-
-      assertEquals(fieldType, expectedValue, actualValue);
+  public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+    Types.StructType expectedType = expected.struct();
+    for (Types.NestedField field : struct.fields()) {
+      Types.NestedField expectedField = expectedType.field(field.fieldId());
+      if (expectedField != null) {
+        assertEquals(
+            field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
+      } else {
+        assertEquals(field.type(), field.initialDefault(), actual.getField(field.name()));
+      }
     }
   }
 
@@ -82,6 +86,7 @@ public class InternalTestHelpers {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case UUID:
       case FIXED:
       case BINARY:
@@ -91,7 +96,7 @@ public class InternalTestHelpers {
       case STRUCT:
         assertThat(expected).as("Expected should be a StructLike").isInstanceOf(StructLike.class);
         assertThat(actual).as("Actual should be a StructLike").isInstanceOf(StructLike.class);
-        assertEquals(type.asStructType(), (StructLike) expected, (StructLike) actual);
+        assertEquals(type.asStructType(), (Record) expected, (Record) actual);
         break;
       case LIST:
         assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);
@@ -102,6 +107,12 @@ public class InternalTestHelpers {
         assertThat(expected).as("Expected should be a Map").isInstanceOf(Map.class);
         assertThat(actual).as("Actual should be a Map").isInstanceOf(Map.class);
         assertEquals(type.asMapType(), (Map<?, ?>) expected, (Map<?, ?>) actual);
+        break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Actual should be a Variant").isInstanceOf(Variant.class);
+        VariantTestUtil.assertEqual(((Variant) expected).metadata(), ((Variant) actual).metadata());
+        VariantTestUtil.assertEqual(((Variant) expected).value(), ((Variant) actual).value());
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);

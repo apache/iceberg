@@ -27,6 +27,18 @@ public class FieldMetrics<T> {
   private final T lowerBound;
   private final T upperBound;
 
+  public FieldMetrics(int id, long valueCount, long nullValueCount) {
+    this(id, valueCount, nullValueCount, -1L, null, null);
+  }
+
+  public FieldMetrics(int id, long valueCount, long nullValueCount, T lowerBound, T upperBound) {
+    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound);
+  }
+
+  public FieldMetrics(int id, long valueCount, long nullValueCount, long nanValueCount) {
+    this(id, valueCount, nullValueCount, nanValueCount, null, null);
+  }
+
   public FieldMetrics(
       int id,
       long valueCount,

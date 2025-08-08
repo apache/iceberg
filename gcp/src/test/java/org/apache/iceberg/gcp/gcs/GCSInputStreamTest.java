@@ -166,7 +166,9 @@ public class GCSInputStreamTest {
     SeekableInputStream closed =
         new GCSInputStream(storage, blobId, null, gcpProperties, MetricsContext.nullMetrics());
     closed.close();
-    assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> closed.seek(0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("already closed");
   }
 
   @Test

@@ -119,6 +119,9 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
           case "timestamp-micros":
             return FlinkValueWriters.timestampMicros();
 
+          case "timestamp-nanos":
+            return FlinkValueWriters.timestampNanos();
+
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
             return FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());

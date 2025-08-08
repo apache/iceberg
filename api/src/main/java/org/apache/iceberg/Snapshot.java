@@ -178,8 +178,7 @@ public interface Snapshot extends Serializable {
    * value were created in a snapshot that was added to the table (but not necessarily commited to
    * this branch) in the past.
    *
-   * @return the first row-id to be used in this snapshot or null if row lineage was not enabled
-   *     when the table was created.
+   * @return the first row-id to be used in this snapshot or null when row lineage is not supported
    */
   default Long firstRowId() {
     return null;
@@ -189,7 +188,7 @@ public interface Snapshot extends Serializable {
    * The total number of newly added rows in this snapshot. It should be the summation of {@link
    * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot.
    *
-   * <p>This field is optional but is required when row lineage is enabled.
+   * <p>This field is optional but is required when the table version supports row lineage.
    *
    * @return the total number of new rows in this snapshot or null if the value was not stored.
    */

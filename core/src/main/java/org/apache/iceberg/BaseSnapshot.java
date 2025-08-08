@@ -66,6 +66,17 @@ class BaseSnapshot implements Snapshot {
       String manifestList,
       Long firstRowId,
       Long addedRows) {
+    Preconditions.checkArgument(
+        firstRowId == null || firstRowId >= 0,
+        "Invalid first-row-id (cannot be negative): %s",
+        firstRowId);
+    Preconditions.checkArgument(
+        addedRows == null || addedRows >= 0,
+        "Invalid added-rows (cannot be negative): %s",
+        addedRows);
+    Preconditions.checkArgument(
+        firstRowId == null || addedRows != null,
+        "Invalid added-rows (required when first-row-id is set): null");
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -76,7 +87,7 @@ class BaseSnapshot implements Snapshot {
     this.manifestListLocation = manifestList;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
-    this.addedRows = addedRows;
+    this.addedRows = firstRowId != null ? addedRows : null;
   }
 
   BaseSnapshot(

@@ -19,19 +19,16 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.types.Type;
 
 public class BoundExtract<T> implements BoundTerm<T> {
   private final BoundReference<?> ref;
   private final String path;
-  private final String fullFieldName;
   private final Type type;
 
   BoundExtract(BoundReference<?> ref, String path, Type type) {
     this.ref = ref;
-    this.path = path;
-    this.fullFieldName = Joiner.on(".").join(PathUtil.parse(path));
+    this.path = PathUtil.toNormalizedPath(PathUtil.parse(path));
     this.type = type;
   }
 
@@ -42,10 +39,6 @@ public class BoundExtract<T> implements BoundTerm<T> {
 
   public String path() {
     return path;
-  }
-
-  String fullFieldName() {
-    return fullFieldName;
   }
 
   @Override

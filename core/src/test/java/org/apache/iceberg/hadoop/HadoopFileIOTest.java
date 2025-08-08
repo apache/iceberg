@@ -217,9 +217,7 @@ public class HadoopFileIOTest {
       assertThat(deserializedHadoopFileIO.conf().get("hadoop-conf-foo")).isNull();
 
       // make sure deserialized io can create input file
-      String inputFilePath =
-          Files.createTempDirectory(tempDir.toPath(), "junit").toFile().getAbsolutePath()
-              + "/test.parquet";
+      Files.createTempDirectory(tempDir.toPath(), "junit");
       deserializedHadoopFileIO.newInputFile(
           File.createTempFile("test", "parquet", tempDir).toString());
     }

@@ -653,12 +653,118 @@ public class TestTypeUtil {
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
+  @Test
+  public void testAssignIds() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Type actualSchema = TypeUtil.assignIds(schema.asStruct(), oldId -> oldId + 10);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(10, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(11)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(12, "B", Types.IntegerType.get())));
+
+    assertThat(actualSchema).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testAssignFreshIds() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Schema actualSchema = TypeUtil.assignFreshIds(schema, new AtomicInteger(10)::incrementAndGet);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(11, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(12)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(13, "B", Types.IntegerType.get())));
+
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testReassignDoc() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get()),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .build(),
+                required(2, "B", Types.IntegerType.get())));
+
+    Schema docSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get(), "a_doc"),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withDoc("c_doc")
+                    .build(),
+                required(2, "B", Types.IntegerType.get(), "b_doc")));
+
+    Schema actualSchema = TypeUtil.reassignDoc(schema, docSchema);
+    Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(0, "a", Types.IntegerType.get(), "a_doc"),
+                Types.NestedField.required("c")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
+                    .withDoc("c_doc")
+                    .build(),
+                required(2, "B", Types.IntegerType.get(), "b_doc")));
+
+    assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
   private static Stream<Arguments> testTypes() {
     return Stream.of(
         Arguments.of(Types.UnknownType.get()),
         Arguments.of(Types.VariantType.get()),
         Arguments.of(Types.TimestampNanoType.withoutZone()),
-        Arguments.of(Types.TimestampNanoType.withZone()));
+        Arguments.of(Types.TimestampNanoType.withZone()),
+        Arguments.of(Types.GeometryType.crs84()),
+        Arguments.of(Types.GeometryType.of("srid:3857")),
+        Arguments.of(Types.GeographyType.crs84()),
+        Arguments.of(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY)));
   }
 
   @ParameterizedTest

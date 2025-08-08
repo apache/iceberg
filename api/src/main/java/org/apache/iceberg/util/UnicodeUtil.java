@@ -65,17 +65,38 @@ public class UnicodeUtil {
   }
 
   /**
+   * Returns a valid String that is lower than the given input such that the number of unicode
+   * characters in the truncated String is lesser than or equal to length
+   */
+  public static String truncateStringMin(String input, int length) {
+    return truncateString(input, length).toString();
+  }
+
+  /**
    * Returns a valid unicode charsequence that is greater than the given input such that the number
    * of unicode characters in the truncated charSequence is lesser than or equal to length
    */
   public static Literal<CharSequence> truncateStringMax(Literal<CharSequence> input, int length) {
-    CharSequence inputCharSeq = input.value();
+    CharSequence truncated = internalTruncateMax(input.value(), length);
+    return truncated != null ? Literal.of(truncated) : null;
+  }
+
+  /**
+   * Returns a valid String that is greater than the given input such that the number of unicode
+   * characters in the truncated String is lesser than or equal to length
+   */
+  public static String truncateStringMax(String input, int length) {
+    CharSequence truncated = internalTruncateMax(input, length);
+    return truncated != null ? truncated.toString() : null;
+  }
+
+  private static CharSequence internalTruncateMax(CharSequence inputCharSeq, int length) {
     // Truncate the input to the specified truncate length.
     StringBuilder truncatedStringBuilder = new StringBuilder(truncateString(inputCharSeq, length));
 
     // No need to increment if the input length is under the truncate length
     if (inputCharSeq.length() == truncatedStringBuilder.length()) {
-      return input;
+      return inputCharSeq;
     }
 
     // Try incrementing the code points from the end
@@ -88,7 +109,7 @@ public class UnicodeUtil {
         truncatedStringBuilder.setLength(offsetByCodePoint);
         // Append next code point to the truncated substring
         truncatedStringBuilder.appendCodePoint(nextCodePoint);
-        return Literal.of(truncatedStringBuilder.toString());
+        return truncatedStringBuilder.toString();
       }
     }
     return null; // Cannot find a valid upper bound

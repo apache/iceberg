@@ -53,6 +53,7 @@ nav:
   - hive.md
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Daft: daft.md
+  - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
   - RisingWave: risingwave.md
   - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
   - Presto: https://prestodb.io/docs/current/connector/iceberg.html

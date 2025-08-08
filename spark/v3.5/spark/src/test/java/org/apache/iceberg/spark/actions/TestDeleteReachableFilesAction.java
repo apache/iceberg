@@ -53,7 +53,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -211,9 +210,8 @@ public class TestDeleteReachableFilesAction extends TestBase {
     // Verifies that the delete methods ran in the threads created by the provided ExecutorService
     // ThreadFactory
     assertThat(deleteThreads)
-        .isEqualTo(
-            Sets.newHashSet(
-                "remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3"));
+        .containsExactlyInAnyOrder(
+            "remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3");
 
     Lists.newArrayList(FILE_A, FILE_B, FILE_C, FILE_D)
         .forEach(

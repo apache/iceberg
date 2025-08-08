@@ -20,35 +20,32 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.TestBase;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.BeforeAll;
 
-public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
+public abstract class ExtensionsTestBase extends CatalogTestBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  public SparkExtensionsTestBase(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void startMetastoreAndSpark() {
-    SparkTestBase.metastore = new TestHiveMetastore();
+    TestBase.metastore = new TestHiveMetastore();
     metastore.start();
-    SparkTestBase.hiveConf = metastore.hiveConf();
+    TestBase.hiveConf = metastore.hiveConf();
 
-    SparkTestBase.spark =
+    TestBase.spark.close();
+
+    TestBase.spark =
         SparkSession.builder()
             .master("local[2]")
             .config("spark.testing", "true")
@@ -63,7 +60,9 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
             .enableHiveSupport()
             .getOrCreate();
 
-    SparkTestBase.catalog =
+    TestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+
+    TestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);

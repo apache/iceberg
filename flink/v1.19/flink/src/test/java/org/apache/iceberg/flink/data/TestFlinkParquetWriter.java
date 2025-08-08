@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -29,7 +28,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.RandomGenericData;
@@ -38,8 +36,10 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,14 +49,23 @@ public class TestFlinkParquetWriter extends DataTest {
 
   @TempDir private Path temp;
 
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
   private void writeAndValidate(Iterable<RowData> iterable, Schema schema) throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    OutputFile outputFile = new InMemoryOutputFile();
 
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
 
     try (FileAppender<RowData> writer =
-        Parquet.write(Files.localOutput(testFile))
+        Parquet.write(outputFile)
             .schema(schema)
             .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
             .build()) {
@@ -64,7 +73,7 @@ public class TestFlinkParquetWriter extends DataTest {
     }
 
     try (CloseableIterable<Record> reader =
-        Parquet.read(Files.localInput(testFile))
+        Parquet.read(outputFile.toInputFile())
             .project(schema)
             .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
             .build()) {

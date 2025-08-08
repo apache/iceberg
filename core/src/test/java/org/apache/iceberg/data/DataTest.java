@@ -28,12 +28,15 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -47,13 +50,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class DataTest {
 
+  private static final long FIRST_ROW_ID = 2_000L;
+  protected static final Map<Integer, Object> ID_TO_CONSTANT =
+      Map.of(
+          MetadataColumns.ROW_ID.fieldId(),
+          FIRST_ROW_ID,
+          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+          34L);
+
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
-  protected abstract void writeAndValidate(Schema schema, List<Record> data) throws IOException;
+  protected void writeAndValidate(Schema schema, List<Record> data) throws IOException {
+    throw new UnsupportedEncodingException(
+        "Cannot run test, writeAndValidate(Schema, List<Record>) is not implemented");
+  }
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     throw new UnsupportedEncodingException(
@@ -89,6 +104,88 @@ public abstract class DataTest {
           required(117, "time", Types.TimeType.get()));
 
   @TempDir protected Path temp;
+
+  private static final Type[] SIMPLE_TYPES =
+      new Type[] {
+        Types.UnknownType.get(),
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.DateType.get(),
+        Types.TimeType.get(),
+        Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
+        Types.TimestampNanoType.withZone(),
+        Types.TimestampNanoType.withoutZone(),
+        Types.StringType.get(),
+        Types.FixedType.ofLength(7),
+        Types.BinaryType.get(),
+        Types.DecimalType.of(9, 0),
+        Types.DecimalType.of(11, 2),
+        Types.DecimalType.of(38, 10),
+        Types.VariantType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeometryType.of("srid:3857"),
+        Types.GeographyType.crs84(),
+        Types.GeographyType.of("srid:4269"),
+        Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+      };
+
+  protected boolean supportsUnknown() {
+    return false;
+  }
+
+  protected boolean supportsTimestampNanos() {
+    return false;
+  }
+
+  protected boolean supportsVariant() {
+    return false;
+  }
+
+  protected boolean supportsGeospatial() {
+    return false;
+  }
+
+  protected boolean supportsRowLineage() {
+    return false;
+  }
+
+  @ParameterizedTest
+  @FieldSource("SIMPLE_TYPES")
+  public void testTypeSchema(Type type) throws IOException {
+    Assumptions.assumeThat(
+            supportsUnknown()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+        .as("unknown is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsTimestampNanos()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
+        .as("timestamp_ns is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsVariant()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+        .as("variant is not yet implemented")
+        .isTrue();
+    if (!supportsGeospatial()) {
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
+          .as("geometry is not yet implemented")
+          .isTrue();
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
+          .as("geography is not yet implemented")
+          .isTrue();
+    }
+
+    writeAndValidate(
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(2, "test_type", type),
+            required(3, "trailing_data", Types.StringType.get())));
+  }
 
   @Test
   public void testSimpleStruct() throws IOException {
@@ -515,5 +612,39 @@ public abstract class DataTest {
           // NullPointerException or IllegalArgumentException.
           () -> writeAndValidate(schema, ImmutableList.of(genericRecord)));
     }
+  }
+
+  @Test
+  public void testRowLineage() throws Exception {
+    Assumptions.assumeThat(supportsRowLineage())
+        .as("Row Lineage support is not implemented")
+        .isTrue();
+
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            MetadataColumns.ROW_ID,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+
+    GenericRecord record = GenericRecord.create(schema);
+
+    writeAndValidate(
+        schema,
+        List.of(
+            record.copy(Map.of("id", 1L, "data", "a")),
+            record.copy(Map.of("id", 2L, "data", "b")),
+            record.copy(
+                Map.of(
+                    "id",
+                    3L,
+                    "data",
+                    "c",
+                    "_row_id",
+                    1_000L,
+                    "_last_updated_sequence_number",
+                    33L)),
+            record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
+            record.copy(Map.of("id", 5L, "data", "e"))));
   }
 }

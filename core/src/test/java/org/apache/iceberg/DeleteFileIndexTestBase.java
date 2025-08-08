@@ -591,7 +591,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(5)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate
@@ -625,7 +627,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(SPEC, file1)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> group.add(SPEC, file1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Can't add files upon indexing");
   }
 
   @TestTemplate

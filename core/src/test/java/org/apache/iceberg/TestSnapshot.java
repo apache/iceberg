@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -31,10 +29,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshot extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testAppendFilesFromTable() {
@@ -119,8 +113,6 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
-
-    int specId = table.spec().specId();
 
     DataFile secondSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=aa");
     DeleteFile secondSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);

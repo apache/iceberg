@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -77,56 +76,16 @@ abstract class BaseParquetReaders<T> {
   }
 
   protected abstract ParquetValueReader<T> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
-  protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
-    return new GenericParquetReaders.FixedReader(desc);
-  }
+  protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 
-  protected ParquetValueReader<?> dateReader(ColumnDescriptor desc) {
-    return new GenericParquetReaders.DateReader(desc);
-  }
+  protected abstract ParquetValueReader<?> dateReader(ColumnDescriptor desc);
 
-  protected ParquetValueReader<?> timeReader(ColumnDescriptor desc) {
-    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
-    Preconditions.checkArgument(
-        time instanceof TimeLogicalTypeAnnotation, "Invalid time logical type: " + time);
+  protected abstract ParquetValueReader<?> timeReader(ColumnDescriptor desc);
 
-    LogicalTypeAnnotation.TimeUnit unit = ((TimeLogicalTypeAnnotation) time).getUnit();
-    switch (unit) {
-      case MICROS:
-        return new GenericParquetReaders.TimeReader(desc);
-      case MILLIS:
-        return new GenericParquetReaders.TimeMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
-    }
-  }
-
-  protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
-      return new GenericParquetReaders.TimestampInt96Reader(desc);
-    }
-
-    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
-    Preconditions.checkArgument(
-        timestamp instanceof TimestampLogicalTypeAnnotation,
-        "Invalid timestamp logical type: " + timestamp);
-
-    LogicalTypeAnnotation.TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
-    switch (unit) {
-      case MICROS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzReader(desc)
-            : new GenericParquetReaders.TimestampReader(desc);
-      case MILLIS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
-            : new GenericParquetReaders.TimestampMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
-    }
-  }
+  protected abstract ParquetValueReader<?> timestampReader(
+      ColumnDescriptor desc, boolean isAdjustedToUTC);
 
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return value;
@@ -150,7 +109,6 @@ abstract class BaseParquetReaders<T> {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields =
           Lists.newArrayListWithExpectedSize(fieldReaders.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         ParquetValueReader<?> fieldReader = fieldReaders.get(i);
@@ -158,11 +116,10 @@ abstract class BaseParquetReaders<T> {
           Type fieldType = fields.get(i);
           int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
           newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReader));
-          types.add(fieldType);
         }
       }
 
-      return createStructReader(types, newFields, expected);
+      return createStructReader(newFields, expected);
     }
   }
 
@@ -206,8 +163,7 @@ abstract class BaseParquetReaders<T> {
     @Override
     public Optional<ParquetValueReader<?>> visit(
         TimestampLogicalTypeAnnotation timestampLogicalType) {
-      return Optional.of(
-          timestampReader(desc, ((Types.TimestampType) expected).shouldAdjustToUTC()));
+      return Optional.of(timestampReader(desc, timestampLogicalType.isAdjustedToUTC()));
     }
 
     @Override
@@ -266,10 +222,12 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+      if (null == expected) {
+        return createStructReader(ImmutableList.of(), null);
+      }
+
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
-      Map<Integer, Type> typesById = Maps.newHashMap();
-      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         ParquetValueReader<?> fieldReader = fieldReaders.get(i);
@@ -278,55 +236,37 @@ abstract class BaseParquetReaders<T> {
           int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReader));
-          typesById.put(id, fieldType);
-          if (idToConstant.containsKey(id)) {
-            maxDefinitionLevelsById.put(id, fieldD);
-          }
         }
       }
 
-      List<Types.NestedField> expectedFields =
-          expected != null ? expected.fields() : ImmutableList.of();
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      List<Types.NestedField> expectedFields = expected.fields();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Defaulting to parent max definition level
-      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (idToConstant.containsKey(id)) {
-          // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
-          reorderedFields.add(
-              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
-        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
-        } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
-        } else if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else if (field.initialDefault() != null) {
-          reorderedFields.add(
-              ParquetValueReaders.constant(
-                  convertConstant(field.type(), field.initialDefault()),
-                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
-          types.add(typesById.get(id));
-        } else if (field.isOptional()) {
-          reorderedFields.add(ParquetValueReaders.nulls());
-          types.add(null);
-        } else {
-          throw new IllegalArgumentException(
-              String.format("Missing required field: %s", field.name()));
-        }
+        ParquetValueReader<?> reader =
+            ParquetValueReaders.replaceWithMetadataReader(
+                id, readersById.get(id), idToConstant, constantDefinitionLevel);
+        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
-      return createStructReader(types, reorderedFields, expected);
+      return createStructReader(reorderedFields, expected);
+    }
+
+    private ParquetValueReader<?> defaultReader(
+        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
+      if (reader != null) {
+        return reader;
+      } else if (field.initialDefault() != null) {
+        return ParquetValueReaders.constant(
+            convertConstant(field.type(), field.initialDefault()), constantDL);
+      } else if (field.isOptional()) {
+        return ParquetValueReaders.nulls();
+      }
+
+      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
     }
 
     @Override
@@ -431,7 +371,8 @@ abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> variant(Types.VariantType iVariant, ParquetValueReader<?> reader) {
+    public ParquetValueReader<?> variant(
+        Types.VariantType iVariant, GroupType variant, ParquetValueReader<?> reader) {
       return reader;
     }
 

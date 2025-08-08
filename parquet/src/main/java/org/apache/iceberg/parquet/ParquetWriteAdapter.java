@@ -23,11 +23,13 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.schema.MessageType;
 
 /**
  * Parquet writer that wraps around hadoop's {@link ParquetWriter}. It shouldn't be used in
@@ -60,7 +62,9 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
     // Note: Metrics reported by this method do not contain a full set of available metrics.
     // Specifically, it lacks metrics not included in Parquet file's footer (e.g. NaN count)
-    return ParquetUtil.footerMetrics(footer, Stream.empty(), metricsConfig);
+    MessageType messageType = footer.getFileMetaData().getSchema();
+    Schema schema = ParquetSchemaUtil.convert(messageType);
+    return ParquetMetrics.metrics(schema, messageType, metricsConfig, footer, Stream.empty());
   }
 
   @Override

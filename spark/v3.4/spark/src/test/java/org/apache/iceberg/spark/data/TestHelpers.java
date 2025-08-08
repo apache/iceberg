@@ -56,7 +56,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
@@ -852,7 +851,7 @@ public class TestHelpers {
   }
 
   public static Set<DeleteFile> deleteFiles(Table table) {
-    Set<DeleteFile> deleteFiles = Sets.newHashSet();
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
 
     for (FileScanTask task : table.newScan().planFiles()) {
       deleteFiles.addAll(task.deletes());
@@ -888,11 +887,14 @@ public class TestHelpers {
     file.put(3, 0); // specId
   }
 
+  // suppress the readable metrics and first-row-id that are not in manifest files
+  private static final Set<String> DERIVED_FIELDS = Set.of("readable_metrics", "first_row_id");
+
   public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
     StructField[] fields = metadataTable.schema().fields();
     return metadataTable.select(
         Stream.of(fields)
-            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .filter(f -> !DERIVED_FIELDS.contains(f.name()))
             .map(f -> new Column(f.name()))
             .toArray(Column[]::new));
   }

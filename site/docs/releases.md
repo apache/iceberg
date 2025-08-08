@@ -158,6 +158,24 @@ The 1.8.0 release contains bug fixes and new features. For full release notes vi
     - Sqllite JDBC to 3.48.0.0
     - Jackson to 2.18.2
 
+### 1.7.2 release
+
+Apache Iceberg 1.7.2 was released on March 19, 2025.
+
+The 1.7.2 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.7.2)
+
+* AWS
+    - Don't fetch credential from endpoint if properties contain a valid credential ([\#12504](https://github.com/apache/iceberg/pull/12504))
+* Core
+    - REST catalog doesn't return old history if we execute `CREATE OR REPLACE TABLE` statement ([\#11777](https://github.com/apache/iceberg/issues/11777))
+    - Retain current view version during expiration ([\#12084](https://github.com/apache/iceberg/pull/12084))
+    - Fix possible deadlock in ParallelIterable ([\#11781](https://github.com/apache/iceberg/pull/11781))
+* Spark
+    - Fix empty scan issue when start timestamp retrieves root snapshot and end timestamp is missing ([\#11967](https://github.com/apache/iceberg/pull/11967))
+* Hive
+    - HiveCatalog incorrectly uses FileIOTracker ([\#11783](https://github.com/apache/iceberg/issues/11783))
+    - Revert "Hive: close the fileIO client when closing the hive catalog" ([\#11858](https://github.com/apache/iceberg/pull/11858))
+
 ### 1.7.1 release
 
 Apache Iceberg 1.7.1 was released on December 6, 2024.

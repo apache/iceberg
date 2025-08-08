@@ -68,6 +68,16 @@ class SerializedShortString implements VariantPrimitive<String>, SerializedValue
   }
 
   @Override
+  public int hashCode() {
+    return VariantPrimitive.hash(this);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    return VariantPrimitive.equals(this, other);
+  }
+
+  @Override
   public String toString() {
     return VariantPrimitive.asString(this);
   }

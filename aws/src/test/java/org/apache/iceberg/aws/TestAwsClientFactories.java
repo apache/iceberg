@@ -28,6 +28,7 @@ import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.ThrowableAssert;
@@ -40,7 +41,9 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.internal.crt.DefaultS3CrtAsyncClient;
 
 public class TestAwsClientFactories {
 
@@ -53,6 +56,55 @@ public class TestAwsClientFactories {
     assertThat(AwsClientFactories.from(Maps.newHashMap()))
         .as("should load default when not configured")
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
+  }
+
+  @Test
+  public void testS3AsyncClientCrtEnabled() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        S3FileIOProperties.S3_CRT_ENABLED,
+                        "true",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @Test
+  public void testS3AsyncClientWithCrtDisabled() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        S3FileIOProperties.S3_CRT_ENABLED,
+                        "false",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isNotInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @Test
+  public void testS3AsyncClientDefaultIsCrt() {
+    assertThat(
+            AwsClientFactories.from(
+                    ImmutableMap.of(
+                        S3FileIOProperties.ACCESS_KEY_ID,
+                        "keyId",
+                        S3FileIOProperties.SECRET_ACCESS_KEY,
+                        "accessKey",
+                        AwsClientProperties.CLIENT_REGION,
+                        "us-east-1"))
+                .s3Async())
+        .isInstanceOf(DefaultS3CrtAsyncClient.class);
   }
 
   @Test
@@ -289,6 +341,11 @@ public class TestAwsClientFactories {
 
     @Override
     public S3Client s3() {
+      return null;
+    }
+
+    @Override
+    public S3AsyncClient s3Async() {
       return null;
     }
 

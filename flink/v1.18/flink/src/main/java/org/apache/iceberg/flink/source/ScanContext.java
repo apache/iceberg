@@ -557,7 +557,7 @@ public class ScanContext implements Serializable {
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
-          .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
+          .maxAllowedPlanningFailures(flinkReadConf.maxAllowedPlanningFailures())
           .watermarkColumn(flinkReadConf.watermarkColumn())
           .watermarkColumnTimeUnit(flinkReadConf.watermarkColumnTimeUnit());
     }

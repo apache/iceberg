@@ -52,7 +52,8 @@ public class TestClientPoolImpl {
         new MockClientPoolImpl(2, RetryableException.class, true, maxRetries)) {
       assertThatThrownBy(
               () -> mockClientPool.run(client -> client.succeedAfter(succeedAfterAttempts)))
-          .isInstanceOf(RetryableException.class);
+          .isInstanceOf(RetryableException.class)
+          .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(maxRetries);
     }
   }
@@ -62,7 +63,8 @@ public class TestClientPoolImpl {
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, true, 3)) {
       assertThatThrownBy(() -> mockClientPool.run(MockClient::failWithNonRetryable, true))
-          .isInstanceOf(NonRetryableException.class);
+          .isInstanceOf(NonRetryableException.class)
+          .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
     }
   }
@@ -72,7 +74,8 @@ public class TestClientPoolImpl {
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, false, 3)) {
       assertThatThrownBy(() -> mockClientPool.run(client -> client.succeedAfter(3)))
-          .isInstanceOf(RetryableException.class);
+          .isInstanceOf(RetryableException.class)
+          .hasMessage(null);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(0);
     }
   }

@@ -110,8 +110,8 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
-  static final String ROW_LINEAGE = "row-lineage";
   static final String NEXT_ROW_ID = "next-row-id";
+  static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -131,7 +131,7 @@ public class TableMetadataParser {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
+      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }
   }
 
@@ -215,12 +215,17 @@ public class TableMetadataParser {
     // write properties map
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
-    generator.writeNumberField(
-        CURRENT_SNAPSHOT_ID,
-        metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+    if (metadata.currentSnapshot() != null) {
+      generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
+    } else {
+      if (metadata.formatVersion() >= MIN_NULL_CURRENT_SNAPSHOT_VERSION) {
+        generator.writeNullField(CURRENT_SNAPSHOT_ID);
+      } else {
+        generator.writeNumberField(CURRENT_SNAPSHOT_ID, -1L);
+      }
+    }
 
-    if (metadata.rowLineageEnabled()) {
-      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
+    if (metadata.formatVersion() >= 3) {
       generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
     }
 
@@ -285,7 +290,7 @@ public class TableMetadataParser {
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read file: %s", file);
+      throw new RuntimeIOException(e, "Failed to read file: %s", file.location());
     }
   }
 
@@ -458,12 +463,10 @@ public class TableMetadataParser {
       currentSnapshotId = -1L;
     }
 
-    Boolean rowLineage = JsonUtil.getBoolOrNull(ROW_LINEAGE, node);
     long lastRowId;
-    if (rowLineage != null && rowLineage) {
+    if (formatVersion >= 3) {
       lastRowId = JsonUtil.getLong(NEXT_ROW_ID, node);
     } else {
-      rowLineage = TableMetadata.DEFAULT_ROW_LINEAGE;
       lastRowId = TableMetadata.INITIAL_ROW_ID;
     }
 
@@ -558,9 +561,8 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
-        ImmutableList.of() /* no changes from the file */,
-        rowLineage,
-        lastRowId);
+        lastRowId,
+        ImmutableList.of() /* no changes from the file */);
   }
 
   private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {

@@ -103,7 +103,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -116,7 +116,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -129,7 +129,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -142,7 +142,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
@@ -168,7 +168,7 @@ public class TestPartitionStatsUtil {
             1, // one position delete file
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(), // new snapshot from pos delete commit
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -181,7 +181,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -194,7 +194,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -207,7 +207,7 @@ public class TestPartitionStatsUtil {
             0,
             eqDelete.recordCount(),
             1, // one equality delete file
-            0L,
+            null,
             snapshot3.timestampMillis(), // new snapshot from equality delete commit
             snapshot3.snapshotId()));
   }
@@ -247,7 +247,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -260,7 +260,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
@@ -288,7 +288,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -301,7 +301,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -314,7 +314,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(), // new snapshot
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -327,7 +327,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(), // new snapshot
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -340,7 +340,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -353,7 +353,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -366,7 +366,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()));
   }
@@ -410,7 +410,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -423,7 +423,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
@@ -459,7 +459,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -472,7 +472,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -485,7 +485,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -498,7 +498,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -511,7 +511,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -524,7 +524,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()));
   }
@@ -572,7 +572,7 @@ public class TestPartitionStatsUtil {
             PartitionStats::positionDeleteFileCount,
             PartitionStats::equalityDeleteRecordCount,
             PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecordCount,
+            PartitionStats::totalRecords,
             PartitionStats::lastUpdatedAt,
             PartitionStats::lastUpdatedSnapshotId)
         .containsExactlyInAnyOrder(expectedValues);

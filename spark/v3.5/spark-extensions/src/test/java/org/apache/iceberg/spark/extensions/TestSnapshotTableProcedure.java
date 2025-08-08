@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -186,10 +187,8 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> props = table.properties();
-    assertThat(props).as("Should override user value").containsEntry("snapshot", "true");
     assertThat(props)
-        .as("Should override user value")
-        .containsEntry(TableProperties.GC_ENABLED, "false");
+        .contains(entry("snapshot", "true"), entry(TableProperties.GC_ENABLED, "false"));
   }
 
   @TestTemplate

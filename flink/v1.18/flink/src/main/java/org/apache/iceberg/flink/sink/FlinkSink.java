@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -656,8 +657,17 @@ public class FlinkSink {
 
           return shuffleStream
               .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
-              .filter(StatisticsOrRecord::hasRecord)
-              .map(StatisticsOrRecord::record);
+              .flatMap(
+                  (FlatMapFunction<StatisticsOrRecord, RowData>)
+                      (statisticsOrRecord, out) -> {
+                        if (statisticsOrRecord.hasRecord()) {
+                          out.collect(statisticsOrRecord.record());
+                        }
+                      })
+              // Set the parallelism same as writerParallelism to
+              // promote operator chaining with the downstream writer operator
+              .setParallelism(writerParallelism)
+              .returns(RowData.class);
 
         default:
           throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);

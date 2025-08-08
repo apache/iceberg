@@ -32,6 +32,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
@@ -42,6 +43,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.ScanTask;
@@ -69,13 +71,10 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
+public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
 
   private static final Map<String, String> CATALOG_PROPS =
       ImmutableMap.of(
@@ -89,8 +88,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
   private static final int DELETE_FILES_PER_PARTITION = 2;
   private static final int DELETE_FILE_SIZE = 10;
 
-  @Parameterized.Parameters(
-      name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
+  @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -101,19 +99,12 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  public TestRewritePositionDeleteFiles(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void cleanup() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testDatePartition() throws Exception {
     createTable("date");
     Date baseDate = Date.valueOf("2023-01-01");
@@ -121,14 +112,14 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testBooleanPartition() throws Exception {
     createTable("boolean");
     insertData(i -> i % 2 == 0, 2);
     testDanglingDelete(2);
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampPartition() throws Exception {
     createTable("timestamp");
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
@@ -136,7 +127,7 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampNtz() throws Exception {
     createTable("timestamp_ntz");
     LocalDateTime baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00").toLocalDateTime();
@@ -144,14 +135,14 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testBytePartition() throws Exception {
     createTable("byte");
     insertData(i -> i);
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testDecimalPartition() throws Exception {
     createTable("decimal(18, 10)");
     BigDecimal baseDecimal = new BigDecimal("1.0");
@@ -159,35 +150,35 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testBinaryPartition() throws Exception {
     createTable("binary");
     insertData(i -> java.nio.ByteBuffer.allocate(4).putInt(i).array());
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testCharPartition() throws Exception {
     createTable("char(10)");
     insertData(Object::toString);
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testVarcharPartition() throws Exception {
     createTable("varchar(10)");
     insertData(Object::toString);
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testIntPartition() throws Exception {
     createTable("int");
     insertData(i -> i);
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testDaysPartitionTransform() throws Exception {
     createTable("timestamp", PARTITION_COL, String.format("days(%s)", PARTITION_COL));
     Timestamp baseTimestamp = Timestamp.valueOf("2023-01-01 15:30:00");
@@ -195,14 +186,14 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
     testDanglingDelete();
   }
 
-  @Test
+  @TestTemplate
   public void testNullTransform() throws Exception {
     createTable("int");
     insertData(i -> i == 0 ? null : 1, 2);
     testDanglingDelete(2);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionColWithDot() throws Exception {
     String partitionColWithDot = "`partition.col`";
     createTable("int", partitionColWithDot, partitionColWithDot);
@@ -318,7 +309,8 @@ public class TestRewritePositionDeleteFiles extends SparkExtensionsTestBase {
           counter++;
           if (counter == deleteFileSize) {
             // Dump to file and reset variables
-            OutputFile output = Files.localOutput(temp.newFile());
+            OutputFile output =
+                Files.localOutput(temp.resolve(UUID.randomUUID().toString()).toFile());
             deleteFiles.add(writeDeleteFile(table, output, partition, deletes));
             counter = 0;
             deletes.clear();

@@ -874,7 +874,7 @@ public class ArrowReaderTest {
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(table.schema())
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build();
     try {
       appender.addAll(records);

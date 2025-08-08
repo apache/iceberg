@@ -64,6 +64,16 @@ public class TestFlinkParquetReader extends DataTest {
     return true;
   }
 
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
   @Test
   public void testBuildReader() {
     MessageType fileSchema =
@@ -212,7 +222,7 @@ public class TestFlinkParquetReader extends DataTest {
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(iterable);
     }

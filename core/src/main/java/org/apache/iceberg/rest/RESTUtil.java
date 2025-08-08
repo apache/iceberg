@@ -230,4 +230,8 @@ public class RESTUtil {
         RESTUtil.stripTrailingSlash(catalogUri),
         endpointPath.startsWith("/") ? endpointPath : "/" + endpointPath);
   }
+
+  public static Map<String, String> configHeaders(Map<String, String> properties) {
+    return RESTUtil.extractPrefixMap(properties, "header.");
+  }
 }

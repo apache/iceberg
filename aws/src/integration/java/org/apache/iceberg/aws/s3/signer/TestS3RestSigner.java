@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
 import java.net.URI;
 import java.nio.file.Path;
@@ -112,11 +113,6 @@ public class TestS3RestSigner {
 
   @AfterAll
   public static void afterClass() throws Exception {
-    assertThat(validatingSigner.icebergSigner.tokenRefreshExecutor())
-        .isInstanceOf(ScheduledThreadPoolExecutor.class);
-
-    ScheduledThreadPoolExecutor executor =
-        ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
     // token expiration is set to 10000s by the S3SignerServlet so there should be exactly one token
     // scheduled for refresh. Such a high token expiration value is explicitly selected to be much
     // larger than TestS3RestSigner would need to execute all tests.
@@ -124,16 +120,23 @@ public class TestS3RestSigner {
     // there aren't other token refreshes being scheduled after every sign request and after
     // TestS3RestSigner completes all tests, there should be only this single token in the queue
     // that is scheduled for refresh
-    assertThat(executor.getPoolSize()).isEqualTo(1);
-    assertThat(executor.getQueue())
-        .as("should only have a single token scheduled for refresh")
-        .hasSize(1);
-    assertThat(executor.getActiveCount())
-        .as("should not have any token being refreshed")
-        .isEqualTo(0);
-    assertThat(executor.getCompletedTaskCount())
-        .as("should not have any expired token that required a refresh")
-        .isEqualTo(0);
+    assertThat(validatingSigner.icebergSigner)
+        .extracting("authManager")
+        .extracting("refreshExecutor")
+        .asInstanceOf(type(ScheduledThreadPoolExecutor.class))
+        .satisfies(
+            executor -> {
+              assertThat(executor.getPoolSize()).isEqualTo(1);
+              assertThat(executor.getQueue())
+                  .as("should only have a single token scheduled for refresh")
+                  .hasSize(1);
+              assertThat(executor.getActiveCount())
+                  .as("should not have any token being refreshed")
+                  .isEqualTo(0);
+              assertThat(executor.getCompletedTaskCount())
+                  .as("should not have any expired token that required a refresh")
+                  .isEqualTo(0);
+            });
 
     if (null != httpServer) {
       httpServer.stop();

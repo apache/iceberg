@@ -82,13 +82,18 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   @Parameter(index = 1)
   private boolean partitioned;
 
-  @Parameters(name = "parallelism = {0}, partitioned = {1}")
+  @Parameter(index = 2)
+  private int writeParallelism;
+
+  @Parameters(name = "parallelism = {0}, partitioned = {1}, writeParallelism = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {1, true},
-      {1, false},
-      {2, true},
-      {2, false}
+      {1, true, 1},
+      {1, false, 1},
+      {2, true, 2},
+      {2, false, 2},
+      {1, true, 2},
+      {1, false, 2},
     };
   }
 
@@ -110,7 +115,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
                 MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
-            .setMaxParallelism(parallelism);
+            .setMaxParallelism(Math.max(parallelism, writeParallelism));
 
     this.tableLoader = CATALOG_EXTENSION.tableLoader();
   }
@@ -180,7 +185,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
             .tableLoader(tableLoader)
-            .writeParallelism(parallelism)
+            .writeParallelism(writeParallelism)
             .setAll(newProps);
 
     assertThatThrownBy(builder::append)
@@ -206,7 +211,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
             .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
+            .writeParallelism(writeParallelism);
 
     // Range distribution requires either sort order or partition spec defined
     assertThatThrownBy(builder::append)
@@ -233,7 +238,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
             .tableLoader(tableLoader)
-            .writeParallelism(parallelism);
+            .writeParallelism(writeParallelism);
 
     // sort based on partition columns
     builder.append();
@@ -307,7 +312,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Map)
         .append();
     env.execute(getClass().getSimpleName());
@@ -343,9 +348,9 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         List<DataFile> addedDataFiles =
             Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
         // each writer task should only write one file for non-partition sort column
-        assertThat(addedDataFiles).hasSize(parallelism);
+        assertThat(addedDataFiles).hasSize(writeParallelism);
         // verify there is no overlap in min-max stats range
-        if (parallelism == 2) {
+        if (parallelism > 1) {
           assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
         }
       }
@@ -368,7 +373,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Sketch)
         .append();
     env.execute(getClass().getSimpleName());
@@ -399,9 +404,9 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
       List<DataFile> addedDataFiles =
           Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
       // each writer task should only write one file for non-partition sort column
-      assertThat(addedDataFiles).hasSize(parallelism);
+      assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
-      if (parallelism == 2) {
+      if (writeParallelism > 2) {
         assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
       }
     }
@@ -437,7 +442,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
+        .writeParallelism(writeParallelism)
         .rangeDistributionStatisticsType(StatisticsType.Auto)
         .append();
     env.execute(getClass().getSimpleName());
@@ -469,9 +474,9 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
           Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
       // each writer task should only write one file for non-partition sort column
       // sometimes
-      assertThat(addedDataFiles).hasSize(parallelism);
+      assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
-      if (parallelism == 2) {
+      if (writeParallelism > 1) {
         assertIdColumnStatsNoRangeOverlap(addedDataFiles.get(0), addedDataFiles.get(1));
       }
     }

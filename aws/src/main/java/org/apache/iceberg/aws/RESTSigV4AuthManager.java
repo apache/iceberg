@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,7 +34,6 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
  *
  * <p>It takes a delegate AuthManager to handle double authentication cases, e.g. on top of OAuth2.
  */
-@SuppressWarnings("unused") // loaded by reflection
 public class RESTSigV4AuthManager implements AuthManager {
 
   private final Aws4Signer signer = Aws4Signer.create();
@@ -41,7 +41,7 @@ public class RESTSigV4AuthManager implements AuthManager {
 
   private Map<String, String> catalogProperties = Map.of();
 
-  public RESTSigV4AuthManager(String name, AuthManager delegate) {
+  public RESTSigV4AuthManager(String ignored, AuthManager delegate) {
     this.delegate = Preconditions.checkNotNull(delegate, "Invalid delegate: null");
   }
 
@@ -61,20 +61,33 @@ public class RESTSigV4AuthManager implements AuthManager {
   }
 
   @Override
-  public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
+  public RESTSigV4AuthSession contextualSession(
+      SessionCatalog.SessionContext context, AuthSession parent) {
+    Preconditions.checkState(
+        parent instanceof RESTSigV4AuthSession, "Parent session is not SigV4: %s", parent);
     AwsProperties contextProperties =
-        new AwsProperties(RESTUtil.merge(catalogProperties, context.properties()));
+        new AwsProperties(
+            RESTUtil.merge(
+                catalogProperties,
+                // Use both context properties and credentials to create the AwsProperties instance
+                RESTUtil.merge(
+                    Optional.ofNullable(context.properties()).orElseGet(Map::of),
+                    Optional.ofNullable(context.credentials()).orElseGet(Map::of))));
+    RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
     return new RESTSigV4AuthSession(
-        signer, delegate.contextualSession(context, parent), contextProperties);
+        signer, delegate.contextualSession(context, sigV4Parent.delegate()), contextProperties);
   }
 
   @Override
-  public AuthSession tableSession(
+  public RESTSigV4AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
+    Preconditions.checkState(
+        parent instanceof RESTSigV4AuthSession, "Parent session is not SigV4: %s", parent);
     AwsProperties tableProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, properties));
+    RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
     return new RESTSigV4AuthSession(
-        signer, delegate.tableSession(table, properties, parent), tableProperties);
+        signer, delegate.tableSession(table, properties, sigV4Parent.delegate()), tableProperties);
   }
 
   @Override

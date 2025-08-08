@@ -66,7 +66,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try (DataFileReader<D> reader = newFileReader()) {
         initMetadata(reader);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file);
+        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file.location());
       }
     }
     return metadata;
@@ -101,7 +101,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       return (DataFileReader<D>)
           DataFileReader.openReader(AvroIO.stream(file.newStream(), file.getLength()), reader);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open file: %s", file);
+      throw new RuntimeIOException(e, "Failed to open file: %s", file.location());
     }
   }
 

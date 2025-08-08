@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.BaseViewOperations;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewUtil;
 
 /**
@@ -330,7 +331,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  protected InMemoryViewOperations newViewOps(TableIdentifier identifier) {
+  protected ViewOperations newViewOps(TableIdentifier identifier) {
     return new InMemoryViewOperations(io, identifier);
   }
 

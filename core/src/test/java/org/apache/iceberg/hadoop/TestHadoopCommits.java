@@ -381,7 +381,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
     assertThatThrownBy(() -> spyOps.commit(tops.current(), meta1))
-        .isInstanceOf(CommitFailedException.class);
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Cannot commit changes based on stale table metadata");
 
     // Verifies that there is no temporary metadata.json files left on rename failures.
     Set<String> actual =

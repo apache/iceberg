@@ -16,19 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.data;
+package org.apache.iceberg.io;
 
-import java.io.File;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
+import java.io.Serializable;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.immutables.value.Value;
 
-public class TestFlinkAvroPlannedReaderWriter extends AbstractTestFlinkAvroReaderWriter {
+@Value.Immutable
+public interface StorageCredential extends Serializable {
 
-  @Override
-  protected Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema) {
-    return Avro.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createResolvingReader(FlinkPlannedAvroReader::create);
+  String prefix();
+
+  Map<String, String> config();
+
+  @Value.Check
+  default void validate() {
+    Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
+    Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
+  }
+
+  static StorageCredential create(String prefix, Map<String, String> config) {
+    return ImmutableStorageCredential.builder().prefix(prefix).config(config).build();
   }
 }
