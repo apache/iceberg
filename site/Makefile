@@ -15,11 +15,16 @@
 
 .PHONY: help
 help: # Show help for each of the Makefile recipes.
-	@grep -E '^[a-zA-Z0-9 -]+:.*#'  Makefile | sort | while read -r l; do printf "\033[1;32m$$(echo $$l | cut -f 1 -d':')\033[00m:$$(echo $$l | cut -f 2- -d'#')\n"; done
+	@grep -E '^[a-zA-Z0-9 -]+:.*#'  Makefile | sort | while read -r l; do printf "[1;32m$$(echo $$l | cut -f 1 -d':')[00m:$$(echo $$l | cut -f 2- -d'#')
+"; done
 
 .PHONY: serve
 serve: # Clean, build, and run the docs site locally.
 	dev/serve.sh
+
+.PHONY: serve-local
+serve-local: # Clean, build, and run the docs site locally using local docs.
+	dev/serve.sh --local
 
 .PHONY: build
 build: # Clean and build the docs site locally.
