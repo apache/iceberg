@@ -477,25 +477,24 @@ public class StrictMetricsEvaluator {
       Comparator<CharSequence> comparator = Comparators.charSequences();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         CharSequence lower = Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
-        if ( (lower == null) || (lower.length() < prefix.length()) ) {
+        if (lower == null || lower.length() < prefix.length()) {
           return ROWS_MIGHT_NOT_MATCH;
         }
         int cmp = comparator.compare(lower.subSequence(0, prefix.length()), prefix);
         if (cmp == 0) {
           return ROWS_MIGHT_NOT_MATCH;
         }
-
-        // lower doesn't match with the prefix, so checking with the upper
-        if (upperBounds != null && upperBounds.containsKey(id)) {
-          CharSequence upper = Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
-          if ( (upper == null) || (upper.length() < prefix.length()) ) {
-            return ROWS_MIGHT_NOT_MATCH;
-          }
-          cmp = comparator.compare(upper.subSequence(0, prefix.length()), prefix);
-          // upper also does not match with the prefix, so predicate doesn't match strictly
-          if (cmp != 0) {
-            return ROWS_MUST_MATCH;
-          }
+      }
+      // lower doesn't match with the prefix, so checking with the upper
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        CharSequence upper = Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
+        if (upper == null || upper.length() < prefix.length()) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+        int cmp = comparator.compare(upper.subSequence(0, prefix.length()), prefix);
+        // upper also does not match with the prefix, so predicate doesn't match strictly
+        if (cmp != 0) {
+          return ROWS_MUST_MATCH;
         }
       }
       return ROWS_MIGHT_NOT_MATCH;
