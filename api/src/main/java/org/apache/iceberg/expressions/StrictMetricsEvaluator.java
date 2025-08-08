@@ -470,13 +470,13 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
-        return ROWS_MUST_MATCH;
+      if (containsNullsOnly(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
       }
       String prefix = (String) lit.value();
       Comparator<CharSequence> comparator = Comparators.charSequences();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        CharSequence lower = Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
+        CharSequence lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
         if (lower == null || lower.length() < prefix.length()) {
           return ROWS_MIGHT_NOT_MATCH;
         }
@@ -487,7 +487,7 @@ public class StrictMetricsEvaluator {
       }
       // lower doesn't match with the prefix, so checking with the upper
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        CharSequence upper = Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
+        CharSequence upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
         if (upper == null || upper.length() < prefix.length()) {
           return ROWS_MIGHT_NOT_MATCH;
         }

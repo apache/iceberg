@@ -711,7 +711,6 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testStringNotStartsWith() {
-
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a"), true).eval(FILE);
     assertThat(shouldRead).as("Should read: no stats").isFalse();
