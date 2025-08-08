@@ -124,7 +124,9 @@ public class TestArrowReader {
           "uuid",
           "uuid_nullable",
           "decimal",
-          "decimal_nullable");
+          "decimal_nullable",
+          "fixed",
+          "fixed_nullable");
   @TempDir private File tempDir;
 
   private HadoopTables tables;
@@ -633,6 +635,26 @@ public class TestArrowReader {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (array, i) -> array.getDecimal(i, 9, 2));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("fixed"),
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (array, i) -> array.getBinary(i));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("fixed_nullable"),
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (array, i) -> array.getBinary(i));
   }
 
   private static void checkColumnarArrayValues(
@@ -698,7 +720,9 @@ public class TestArrowReader {
             Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
             Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
             Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
-            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)));
+            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(28, "fixed", Types.FixedType.ofLength(7)),
+            Types.NestedField.optional(29, "fixed_nullable", Types.FixedType.ofLength(7)));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
@@ -785,6 +809,11 @@ public class TestArrowReader {
             new Field(
                 "decimal_nullable",
                 new FieldType(true, new ArrowType.Decimal(9, 2, 128), null),
+                null),
+            new Field("fixed", new FieldType(false, new ArrowType.FixedSizeBinary(7), null), null),
+            new Field(
+                "fixed_nullable",
+                new FieldType(true, new ArrowType.FixedSizeBinary(7), null),
                 null));
     List<Field> filteredFields =
         allFields.stream()
@@ -828,6 +857,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
+      rec.setField("fixed", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
@@ -865,6 +896,8 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
+      rec.setField("fixed", "abcdefg".getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
@@ -945,6 +978,8 @@ public class TestArrowReader {
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
     assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "fixed", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "fixed_nullable", FixedSizeBinaryVector.class);
   }
 
   private void assertEqualsForField(
@@ -1185,6 +1220,24 @@ public class TestArrowReader {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
   }
 
   private static void checkVectorValues(

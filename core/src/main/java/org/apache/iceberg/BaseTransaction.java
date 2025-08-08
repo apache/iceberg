@@ -124,180 +124,130 @@ public class BaseTransaction implements Transaction {
     return ops;
   }
 
-  private void checkLastOperationCommitted(String operation) {
+  protected final <T extends PendingUpdate> T appendUpdate(T update) {
+    checkLastOperationCommitted(update.getClass());
+
+    if (update instanceof SnapshotUpdate) {
+      ((SnapshotUpdate) update).deleteWith(enqueueDelete);
+    }
+
+    if (update instanceof SnapshotProducer) {
+      ((SnapshotProducer) update).reportWith(reporter);
+    }
+
+    this.updates.add(update);
+    return update;
+  }
+
+  private void checkLastOperationCommitted(Class<? extends PendingUpdate> clazz) {
+    String operation =
+        clazz.getInterfaces().length > 0
+            ? clazz.getInterfaces()[0].getSimpleName()
+            : clazz.getSimpleName();
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot create new %s: last operation has not committed", operation);
-    this.hasLastOpCommitted = false;
+
+    // SnapshotManager handles its own commits internally
+    if (SnapshotManager.class != clazz) {
+      this.hasLastOpCommitted = false;
+    }
   }
 
   @Override
   public UpdateSchema updateSchema() {
-    checkLastOperationCommitted("UpdateSchema");
-    UpdateSchema schemaChange = new SchemaUpdate(transactionOps);
-    updates.add(schemaChange);
-    return schemaChange;
+    return appendUpdate(new SchemaUpdate(transactionOps));
   }
 
   @Override
   public UpdatePartitionSpec updateSpec() {
-    checkLastOperationCommitted("UpdateSpec");
-    UpdatePartitionSpec partitionSpecChange = new BaseUpdatePartitionSpec(transactionOps);
-    updates.add(partitionSpecChange);
-    return partitionSpecChange;
+    return appendUpdate(new BaseUpdatePartitionSpec(transactionOps));
   }
 
   @Override
   public UpdateProperties updateProperties() {
-    checkLastOperationCommitted("UpdateProperties");
-    UpdateProperties props = new PropertiesUpdate(transactionOps);
-    updates.add(props);
-    return props;
+    return appendUpdate(new PropertiesUpdate(transactionOps));
   }
 
   @Override
   public ReplaceSortOrder replaceSortOrder() {
-    checkLastOperationCommitted("ReplaceSortOrder");
-    ReplaceSortOrder replaceSortOrder = new BaseReplaceSortOrder(transactionOps);
-    updates.add(replaceSortOrder);
-    return replaceSortOrder;
+    return appendUpdate(new BaseReplaceSortOrder(transactionOps));
   }
 
   @Override
   public UpdateLocation updateLocation() {
-    checkLastOperationCommitted("UpdateLocation");
-    UpdateLocation setLocation = new SetLocation(transactionOps);
-    updates.add(setLocation);
-    return setLocation;
+    return appendUpdate(new SetLocation(transactionOps));
   }
 
   @Override
   public AppendFiles newAppend() {
-    checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new MergeAppend(tableName, transactionOps).reportWith(reporter);
-    append.deleteWith(enqueueDelete);
-    updates.add(append);
-    return append;
+    return appendUpdate(new MergeAppend(tableName, transactionOps));
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new FastAppend(tableName, transactionOps).reportWith(reporter);
-    updates.add(append);
-    return append;
+    return appendUpdate(new FastAppend(tableName, transactionOps));
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps).reportWith(reporter);
-    rewrite.deleteWith(enqueueDelete);
-    updates.add(rewrite);
-    return rewrite;
+    return appendUpdate(new BaseRewriteFiles(tableName, transactionOps));
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite =
-        new BaseRewriteManifests(tableName, transactionOps).reportWith(reporter);
-    rewrite.deleteWith(enqueueDelete);
-    updates.add(rewrite);
-    return rewrite;
+    return appendUpdate(new BaseRewriteManifests(tableName, transactionOps));
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite =
-        new BaseOverwriteFiles(tableName, transactionOps).reportWith(reporter);
-    overwrite.deleteWith(enqueueDelete);
-    updates.add(overwrite);
-    return overwrite;
+    return appendUpdate(new BaseOverwriteFiles(tableName, transactionOps));
   }
 
   @Override
   public RowDelta newRowDelta() {
-    checkLastOperationCommitted("RowDelta");
-    RowDelta delta = new BaseRowDelta(tableName, transactionOps).reportWith(reporter);
-    delta.deleteWith(enqueueDelete);
-    updates.add(delta);
-    return delta;
+    return appendUpdate(new BaseRowDelta(tableName, transactionOps));
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitions replacePartitions =
-        new BaseReplacePartitions(tableName, transactionOps).reportWith(reporter);
-    replacePartitions.deleteWith(enqueueDelete);
-    updates.add(replacePartitions);
-    return replacePartitions;
+    return appendUpdate(new BaseReplacePartitions(tableName, transactionOps));
   }
 
   @Override
   public DeleteFiles newDelete() {
-    checkLastOperationCommitted("DeleteFiles");
-    DeleteFiles delete = new StreamingDelete(tableName, transactionOps).reportWith(reporter);
-    delete.deleteWith(enqueueDelete);
-    updates.add(delete);
-    return delete;
+    return appendUpdate(new StreamingDelete(tableName, transactionOps));
   }
 
   @Override
   public UpdateStatistics updateStatistics() {
-    checkLastOperationCommitted("UpdateStatistics");
-    UpdateStatistics updateStatistics = new SetStatistics(transactionOps);
-    updates.add(updateStatistics);
-    return updateStatistics;
+    return appendUpdate(new SetStatistics(transactionOps));
   }
 
   @Override
   public UpdatePartitionStatistics updatePartitionStatistics() {
-    checkLastOperationCommitted("UpdatePartitionStatistics");
-    UpdatePartitionStatistics updatePartitionStatistics =
-        new SetPartitionStatistics(transactionOps);
-    updates.add(updatePartitionStatistics);
-    return updatePartitionStatistics;
+    return appendUpdate(new SetPartitionStatistics(transactionOps));
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    checkLastOperationCommitted("ExpireSnapshots");
-    ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
-    expire.deleteWith(enqueueDelete);
-    updates.add(expire);
-    return expire;
+    return appendUpdate(new RemoveSnapshots(transactionOps));
   }
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    SnapshotManager snapshotManager = new SnapshotManager(this);
-    updates.add(snapshotManager);
-    return snapshotManager;
+    return appendUpdate(new SnapshotManager(this));
   }
 
   CherryPickOperation cherryPick() {
-    checkLastOperationCommitted("CherryPick");
-    CherryPickOperation cherrypick =
-        new CherryPickOperation(tableName, transactionOps).reportWith(reporter);
-    updates.add(cherrypick);
-    return cherrypick;
+    return appendUpdate(new CherryPickOperation(tableName, transactionOps));
   }
 
   SetSnapshotOperation setBranchSnapshot() {
-    checkLastOperationCommitted("SetBranchSnapshot");
-    SetSnapshotOperation set = new SetSnapshotOperation(transactionOps);
-    updates.add(set);
-    return set;
+    return appendUpdate(new SetSnapshotOperation(transactionOps));
   }
 
   UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation() {
-    checkLastOperationCommitted("UpdateSnapshotReferencesOperation");
-    UpdateSnapshotReferencesOperation manageSnapshotRefOperation =
-        new UpdateSnapshotReferencesOperation(transactionOps);
-    updates.add(manageSnapshotRefOperation);
-    return manageSnapshotRefOperation;
+    return appendUpdate(new UpdateSnapshotReferencesOperation(transactionOps));
   }
 
   @Override

@@ -77,6 +77,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.TimestampType} (both with and without timezone), Arrow: {@link
  *       MinorType#TIMEMICRO}
  *   <li>Iceberg: {@link Types.BinaryType}, Arrow: {@link MinorType#VARBINARY}
+ *   <li>Iceberg: {@link Types.FixedType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
  *   <li>Iceberg: {@link Types.TimeType}, Arrow: {@link MinorType#TIMEMICRO}
  *   <li>Iceberg: {@link Types.UUIDType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}(16)
@@ -91,9 +92,8 @@ import org.slf4j.LoggerFactory;
  *   <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector type
  *       is int32 instead of the type as per the schema. See
  *       https://github.com/apache/iceberg/issues/2484.
- *   <li>Data types: {@link Types.ListType}, {@link Types.MapType}, {@link Types.StructType}, {@link
- *       Types.FixedType} and {@link Types.DecimalType} See
- *       https://github.com/apache/iceberg/issues/2485 and
+ *   <li>Data types: {@link Types.ListType}, {@link Types.MapType}, {@link Types.StructType}, and
+ *       {@link Types.DecimalType} See https://github.com/apache/iceberg/issues/2485 and
  *       https://github.com/apache/iceberg/issues/2486.
  *   <li>Delete files are not supported. See https://github.com/apache/iceberg/issues/2487.
  * </ul>
@@ -114,7 +114,8 @@ public class ArrowReader extends CloseableGroup {
           TypeID.DATE,
           TypeID.UUID,
           TypeID.TIME,
-          TypeID.DECIMAL);
+          TypeID.DECIMAL,
+          TypeID.FIXED);
 
   private final Schema schema;
   private final FileIO io;
