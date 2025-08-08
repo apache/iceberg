@@ -2649,18 +2649,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the original schema")
-        .isEqualTo(original.schema().asStruct());
-    assertThat(afterSecondReplace.spec().isUnpartitioned())
-        .as("Table should be unpartitioned")
-        .isTrue();
-    assertThat(afterSecondReplace.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // The table should remain unchanged after the failed replace attempt
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2692,14 +2686,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the original schema")
-        .isEqualTo(original.schema().asStruct());
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // The table should remain unchanged after the failed replace attempt
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2731,14 +2723,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the new schema")
-        .isEqualTo(REPLACE_SCHEMA.asStruct());
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // The table should remain unchanged after the failed replace attempt
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2811,14 +2801,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.spec().isUnpartitioned())
-        .as("Table should be unpartitioned")
-        .isTrue();
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // Table state should remain unchanged after failed replace
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2851,14 +2839,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.spec().fields())
-        .as("Table spec should match the new spec")
-        .isEqualTo(TABLE_SPEC.fields());
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // Table state should remain unchanged after failed replace
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2931,12 +2917,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // Table state should remain unchanged after failed replace
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @Test
@@ -2972,14 +2958,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
 
-    Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.sortOrder().fields())
-        .as("Table order should match the new order")
-        .isEqualTo(TABLE_WRITE_ORDER.fields());
-    assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    // Table state should remain unchanged after failed replace
+    Table afterSecondAttempt = catalog.loadTable(TABLE);
+    assertFiles(afterSecondAttempt, FILE_B);
   }
 
   @ParameterizedTest

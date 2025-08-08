@@ -39,6 +39,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -233,14 +234,15 @@ public class TestHiveCreateReplaceTable {
     table.updateProperties().set("another-prop", "another-value").commit();
 
     txn.updateProperties().set("prop", "value").commit();
-    txn.commitTransaction();
 
-    // the replace should still succeed
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class);
+
+    // The replace should not override concurrent modifications
     table = catalog.loadTable(TABLE_IDENTIFIER);
     assertThat(table.properties())
-        .as("Table props should be updated")
-        .doesNotContainKey("another-prop")
-        .containsEntry("prop", "value");
+        .containsEntry("another-prop", "another-value")
+        .doesNotContainKey("prop");
   }
 
   @Test

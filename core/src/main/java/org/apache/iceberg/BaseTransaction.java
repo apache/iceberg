@@ -323,11 +323,12 @@ public class BaseTransaction implements Transaction {
                   }
                 }
 
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                }
+                // Detect concurrent table metadata changes instead of silently overwriting them.
+                // If the base metadata has changed since this transaction started, let the commit
+                // detect the conflict and throw CommitFailedException so callers can decide how
+                // to proceed (e.g., rebuild metadata and retry).
+                // NOTE: data-level conflicts are still ignored as the replace operation rewrites
+                // all data files.
 
                 underlyingOps.commit(base, current);
               });
