@@ -48,6 +48,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.params.provider.Arguments;
@@ -632,6 +633,7 @@ public class TestHelpers {
     private final Map<Integer, Long> nanValueCounts;
     private final Map<Integer, ByteBuffer> lowerBounds;
     private final Map<Integer, ByteBuffer> upperBounds;
+    private final ContentStats stats;
 
     public TestDataFile(String path, StructLike partition, long recordCount) {
       this(path, partition, recordCount, null, null, null, null, null);
@@ -654,6 +656,19 @@ public class TestHelpers {
       this.nanValueCounts = nanValueCounts;
       this.lowerBounds = lowerBounds;
       this.upperBounds = upperBounds;
+      this.stats = null;
+    }
+
+    public TestDataFile(String path, StructLike partition, long recordCount, ContentStats stats) {
+      this.path = path;
+      this.partition = partition;
+      this.recordCount = recordCount;
+      this.valueCounts = null;
+      this.nullValueCounts = null;
+      this.nanValueCounts = null;
+      this.lowerBounds = null;
+      this.upperBounds = null;
+      this.stats = stats;
     }
 
     @Override
@@ -744,6 +759,11 @@ public class TestHelpers {
     @Override
     public List<Long> splitOffsets() {
       return null;
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return stats;
     }
   }
 
