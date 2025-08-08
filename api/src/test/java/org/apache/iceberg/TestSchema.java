@@ -135,33 +135,24 @@ public class TestSchema {
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "top", Types.UnknownType.get()),
-            Types.NestedField.optional(
-                3, "arr", Types.ListType.ofOptional(4, Types.UnknownType.get())),
             Types.NestedField.required(
                 5,
                 "struct",
                 Types.StructType.of(
                     Types.NestedField.optional(6, "inner_op", Types.UnknownType.get()),
                     Types.NestedField.optional(
-                        7,
-                        "inner_map",
-                        Types.MapType.ofOptional(
-                            8, 9, Types.StringType.get(), Types.UnknownType.get())),
-                    Types.NestedField.optional(
                         10,
                         "struct_arr",
                         Types.StructType.of(
-                            Types.NestedField.optional(11, "deep", Types.UnknownType.get()))))));
+                            Types.NestedField.optional(12, "deep", Types.UnknownType.get()))))));
 
     assertThatThrownBy(() -> Schema.checkCompatibility(schemaWithUnknown, 2))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Invalid schema for v%s:\n"
-                + "- Invalid type for top: %s is not supported until v%s\n"
-                + "- Invalid type for arr.element: %s is not supported until v%s\n"
-                + "- Invalid type for struct.inner_op: %s is not supported until v%s\n"
-                + "- Invalid type for struct.inner_map.value: %s is not supported until v%s\n"
-                + "- Invalid type for struct.struct_arr.deep: %s is not supported until v%s",
+            "Invalid schema for v2:\n"
+                + "- Invalid type for top: unknown is not supported until v3\n"
+                + "- Invalid type for struct.inner_op: unknown is not supported until v3\n"
+                + "- Invalid type for struct.struct_arr.deep: unknown is not supported until v3",
             2,
             Types.UnknownType.get(),
             MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
