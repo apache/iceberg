@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.SnapshotChanges.changesFrom;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -71,6 +73,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     ValidationException.check(
         cherrypickSnapshot != null, "Cannot cherry-pick unknown snapshot ID: %s", snapshotId);
 
+    SnapshotChanges changes = changesFrom(cherrypickSnapshot, io, specsById);
+
     if (cherrypickSnapshot.operation().equals(DataOperations.APPEND)) {
       // this property is set on target snapshot that will get published
       String wapId = WapUtil.validateWapPublish(current, snapshotId);
@@ -82,7 +86,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
       }
 
@@ -114,13 +118,13 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
       // copy adds from the picked snapshot
       this.replacedPartitions = PartitionSet.create(specsById);
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
-      for (DataFile deletedFile : cherrypickSnapshot.removedDataFiles(io)) {
+      for (DataFile deletedFile : changes.removedDataFiles()) {
         delete(deletedFile);
       }
 
