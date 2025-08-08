@@ -183,7 +183,8 @@ public class TestOverwrite extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -229,13 +230,15 @@ public class TestOverwrite extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId),
         files(FILE_10_TO_14),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
 
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -265,7 +268,8 @@ public class TestOverwrite extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId, overwriteId, baseId),
         files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.ADDED, Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.ADDED, Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate

@@ -193,13 +193,13 @@ public class ParquetValueReaders {
 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> structLikeReader(
-    List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
+      List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
     if (structClass.equals(Record.class)) {
       return ((ParquetValueReader<T>) recordReader(readers, struct));
     } else {
       return new StructLikeReader<>(readers, struct, structClass);
     }
-}
+  }
 
   public static ParquetValueReader<Record> recordReader(
       List<ParquetValueReader<?>> readers, Types.StructType struct) {
@@ -1148,16 +1148,15 @@ public class ParquetValueReaders {
     private final Types.StructType struct;
     private final DynConstructors.Ctor<T> ctor;
 
-    StructLikeReader(List<ParquetValueReader<?>> readers,
-                     Types.StructType struct,
-                     Class<T> structLikeClass) {
+    StructLikeReader(
+        List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structLikeClass) {
       super(readers);
       this.struct = struct;
       this.ctor =
-        DynConstructors.builder(StructLike.class)
-          .hiddenImpl(structLikeClass, Types.StructType.class)
-          .hiddenImpl(structLikeClass)
-          .build();
+          DynConstructors.builder(StructLike.class)
+              .hiddenImpl(structLikeClass, Types.StructType.class)
+              .hiddenImpl(structLikeClass)
+              .build();
     }
 
     @Override

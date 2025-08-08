@@ -131,13 +131,15 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(replaceId),
         files(FILE_E),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
 
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(replaceId, baseId),
         files(FILE_A, FILE_B),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -160,7 +162,8 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(replaceId, replaceId, baseId),
         files(FILE_E, FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.ADDED, Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -190,13 +193,15 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(0),
         ids(replaceId),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
 
     validateManifestEntries(
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(1),
         ids(replaceId),
         files(FILE_A),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -231,7 +236,8 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(0),
         ids(replaceId, replaceId),
         files(FILE_B, FILE_A),
-        statuses(Status.ADDED, Status.DELETED), table.specs());
+        statuses(Status.ADDED, Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -269,13 +275,15 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(replaceId),
         files(FILE_G),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
 
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(baseId, baseId),
         files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -307,12 +315,14 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(replaceId, replaceId),
         files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(replaceId),
         files(FILE_E),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -438,12 +448,14 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(id2),
         files(FILE_A),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -532,17 +544,20 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_A),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(id2),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(2),
         ids(id3),
         files(FILE_A),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -673,12 +688,14 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(id1),
         files(FILE_A),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateDeleteManifest(
         latestSnapshot(table, branch).allManifests(table.io()).get(2),
         dataSeqs(2L),
@@ -745,12 +762,14 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(finalId),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(finalId),
         files(FILE_B),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -809,17 +828,20 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(finalId),
         files(FILE_B),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(finalId),
         files(FILE_B),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(2),
         ids(baseId),
         files(FILE_A),
-        statuses(Status.ADDED), table.specs());
+        statuses(Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate

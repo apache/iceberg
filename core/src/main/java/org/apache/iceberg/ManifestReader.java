@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.data.HasMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -130,7 +129,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     } else {
       if (FileFormat.fromFileName(file.location()) == FileFormat.PARQUET) {
         // We don't want to have to rely on touching footer information to read the partition spec
-        throw new UnsupportedOperationException("Reading partition spec from Parquet manifest files is not supported");
+        throw new UnsupportedOperationException(
+            "Reading partition spec from Parquet manifest files is not supported");
       } else {
         this.spec = readPartitionSpec(file);
       }

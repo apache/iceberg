@@ -31,35 +31,39 @@ import org.apache.parquet.schema.MessageType;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
 
-
   private Class<? extends StructLike> rootType = Record.class;
   private Map<Integer, Class<? extends StructLike>> typesById = Map.of();
 
   public InternalReader() {}
 
   @Override
-  protected ParquetValueReader<T> createStructReader(List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     throw new UnsupportedOperationException(
-        "createStructReader(List<ParquetValueReader<?>>, StructType) is not supported because " +
-          "InternalReader needs the fieldId to determine the type of struct to return");
+        "createStructReader(List<ParquetValueReader<?>>, StructType) is not supported because "
+            + "InternalReader needs the fieldId to determine the type of struct to return");
   }
 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> create(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (ParquetValueReader<T>) new InternalReader<>().createReader(expectedSchema, fileSchema, idToConstant);
+    return (ParquetValueReader<T>)
+        new InternalReader<>().createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   @SuppressWarnings("unchecked")
-  public <T extends StructLike> ParquetValueReader<T> create(Schema expectedSchema, MessageType fileSchema) {
+  public <T extends StructLike> ParquetValueReader<T> create(
+      Schema expectedSchema, MessageType fileSchema) {
     return (ParquetValueReader<T>) createReader(expectedSchema, fileSchema);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
-    List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
-    return (ParquetValueReader<T>) ParquetValueReaders.structLikeReader(fieldReaders, structType, typesById.getOrDefault(fieldId, rootType));
+      List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
+    return (ParquetValueReader<T>)
+        ParquetValueReaders.structLikeReader(
+            fieldReaders, structType, typesById.getOrDefault(fieldId, rootType));
   }
 
   @Override

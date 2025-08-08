@@ -93,7 +93,7 @@ public class TestManifestWriter extends TestBase {
   @TestTemplate
   public void testWriteManifestWithSequenceNumber() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    File manifestFile = File.createTempFile("manifest", ".avro", temp.toFile());
+    File manifestFile = File.createTempFile("manifest", manifestExtension(""), temp.toFile());
     assertThat(manifestFile.delete()).isTrue();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
@@ -102,7 +102,8 @@ public class TestManifestWriter extends TestBase {
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
     assertThat(manifest.sequenceNumber()).isEqualTo(-1);
-    ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
+    ManifestReader<DataFile> manifestReader =
+        ManifestFiles.read(manifest, table.io(), table.specs());
     for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
       assertThat(entry.dataSequenceNumber()).isEqualTo(1000);
       assertThat(entry.fileSequenceNumber()).isEqualTo(ManifestWriter.UNASSIGNED_SEQ);
@@ -162,7 +163,7 @@ public class TestManifestWriter extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest.avro",
+            manifestExtension("manifest"),
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file1),
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file2));
 

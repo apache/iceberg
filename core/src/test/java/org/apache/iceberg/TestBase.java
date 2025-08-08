@@ -235,8 +235,8 @@ public class TestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
-                        && (Files.getFileExtension(name).equalsIgnoreCase("avro") ||
-                            Files.getFileExtension(name).equalsIgnoreCase("parquet"))));
+                        && (Files.getFileExtension(name).equalsIgnoreCase("avro")
+                            || Files.getFileExtension(name).equalsIgnoreCase("parquet"))));
   }
 
   List<File> listManifestLists(File tableDirToList) {
@@ -303,7 +303,7 @@ public class TestBase {
   @SuppressWarnings("unchecked")
   <F extends ContentFile<F>> ManifestFile writeManifest(
       Long snapshotId, String fileName, ManifestEntry<?>... entries) throws IOException {
-    File manifestFile = temp.resolve(fileName).toFile();
+    File manifestFile = temp.resolve(manifestExtension(fileName)).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -333,8 +333,7 @@ public class TestBase {
       throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
-            manifestExtension(
-                File.createTempFile("junit", null, temp.toFile()).toString()));
+            manifestExtension(File.createTempFile("junit", null, temp.toFile()).toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
@@ -348,7 +347,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve(name).toFile();
+    File manifestFile = temp.resolve(manifestExtension(name)).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -464,7 +463,8 @@ public class TestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -576,7 +576,8 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
 
@@ -602,7 +603,7 @@ public class TestBase {
       Iterator<DeleteFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry :
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
 
@@ -763,10 +764,11 @@ public class TestBase {
   }
 
   static void validateManifestEntries(
-    ManifestFile manifest,
-    Iterator<Long> ids,
-    Iterator<DataFile> expectedFiles,
-    Iterator<ManifestEntry.Status> expectedStatuses, Map<Integer, PartitionSpec> specs) {
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses,
+      Map<Integer, PartitionSpec> specs) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, specs).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
@@ -805,8 +807,8 @@ public class TestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, FILE_IO).iterator();
+  static Iterator<DataFile> files(ManifestFile manifest, Map<Integer, PartitionSpec> specs) {
+    return ManifestFiles.read(manifest, FILE_IO, specs).iterator();
   }
 
   static long recordCount(ContentFile<?>... files) {

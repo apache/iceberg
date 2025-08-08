@@ -78,12 +78,16 @@ abstract class BaseParquetReaders<T> {
     }
   }
 
-  protected abstract ParquetValueReader<T> createStructReader(List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+  protected abstract ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
-  // This method can be overridden to provide a custom implementation which also uses the fieldId of the struct like
+  // This method can be overridden to provide a custom implementation which also uses the fieldId of
+  // the struct like
   // in the case of InternalReader which can read into a custom StructLike type.
   protected ParquetValueReader<T> createStructReader(
-    List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, @Nullable Integer fieldId) {
+      List<ParquetValueReader<?>> fieldReaders,
+      Types.StructType structType,
+      @Nullable Integer fieldId) {
     // Fallback to the signature without fieldId if not overridden
     return createStructReader(fieldReaders, structType);
   }
@@ -226,7 +230,8 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      // We need to mark the root struct, otherwise our visitor can't differentiate between the root and nested structs.
+      // We need to mark the root struct, otherwise our visitor can't differentiate between the root
+      // and nested structs.
       return struct(expected, message.asGroupType().withId(ROOT_ID), fieldReaders);
     }
 

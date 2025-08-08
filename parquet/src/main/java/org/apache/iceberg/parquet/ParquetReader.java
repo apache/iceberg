@@ -19,10 +19,8 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.HasMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;

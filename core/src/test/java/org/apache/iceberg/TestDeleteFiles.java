@@ -105,7 +105,8 @@ public class TestDeleteFiles extends TestBase {
         delete1.allManifests(table.io()).get(0),
         ids(delete1.snapshotId(), append.snapshotId(), append.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING),
+        table.specs());
 
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(version()).isEqualTo(3);
@@ -114,7 +115,8 @@ public class TestDeleteFiles extends TestBase {
         delete2.allManifests(FILE_IO).get(0),
         ids(delete2.snapshotId(), append.snapshotId()),
         files(FILE_B, FILE_C),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -167,7 +169,8 @@ public class TestDeleteFiles extends TestBase {
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(firstDataFile, secondDataFile),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
 
     // delete the first data file
     Snapshot deleteSnapshot = commit(table, table.newDelete().deleteFile(firstDataFile), branch);
@@ -176,7 +179,8 @@ public class TestDeleteFiles extends TestBase {
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(firstDataFile, secondDataFile),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
 
     // delete the second data file using a row filter
     // the commit should succeed as there is only one live data file
@@ -188,7 +192,8 @@ public class TestDeleteFiles extends TestBase {
         finalSnapshot.allManifests(FILE_IO).get(0),
         ids(finalSnapshot.snapshotId()),
         files(secondDataFile),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -208,7 +213,8 @@ public class TestDeleteFiles extends TestBase {
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
 
     // delete the second one using a metrics filter (no partition filter)
     Snapshot deleteSnapshot =
@@ -220,7 +226,8 @@ public class TestDeleteFiles extends TestBase {
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
-        statuses(Status.EXISTING, Status.DELETED), table.specs());
+        statuses(Status.EXISTING, Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -240,7 +247,8 @@ public class TestDeleteFiles extends TestBase {
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
 
     // delete the second one using a filter that relies on metrics and partition data
     Expression partPredicate = Expressions.equal(Expressions.bucket("data", 16), 0);
@@ -253,7 +261,8 @@ public class TestDeleteFiles extends TestBase {
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
-        statuses(Status.EXISTING, Status.DELETED), table.specs());
+        statuses(Status.EXISTING, Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -317,7 +326,8 @@ public class TestDeleteFiles extends TestBase {
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -338,14 +348,16 @@ public class TestDeleteFiles extends TestBase {
         Iterables.getOnlyElement(testBranchTip.allManifests(FILE_IO)),
         ids(testBranchTip.snapshotId(), initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING),
+        table.specs());
 
     // Verify A on main
     validateManifestEntries(
         Iterables.getOnlyElement(delete2.allManifests(FILE_IO)),
         ids(initialSnapshot.snapshotId(), delete2.snapshotId(), delete2.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
-        statuses(Status.EXISTING, Status.DELETED, Status.DELETED), table.specs());
+        statuses(Status.EXISTING, Status.DELETED, Status.DELETED),
+        table.specs());
   }
 
   @TestTemplate
@@ -407,7 +419,8 @@ public class TestDeleteFiles extends TestBase {
         Iterables.getOnlyElement(delete.allManifests(FILE_IO)),
         ids(delete.snapshotId()),
         files(FILE_B),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
 
     assertThatThrownBy(
             () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
@@ -435,7 +448,8 @@ public class TestDeleteFiles extends TestBase {
         Iterables.getOnlyElement(delete1.allManifests(FILE_IO)),
         ids(delete1.snapshotId()),
         files(FILE_B),
-        statuses(Status.DELETED), table.specs());
+        statuses(Status.DELETED),
+        table.specs());
 
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();

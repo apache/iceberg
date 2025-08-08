@@ -278,22 +278,24 @@ class V4Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
-  final static Types.StructType PLACEHOLDER_PARTITION_TYPE = Types.StructType.of(
-      optional(-1000, "UNPARTITIONED_PLACEHOLDER", Types.BooleanType.get()));
+  static final Types.StructType PLACEHOLDER_PARTITION_TYPE =
+      Types.StructType.of(optional(-1000, "UNPARTITIONED_PLACEHOLDER", Types.BooleanType.get()));
 
-  final static PartitionData PLACEHOLDER_PARTITION = new PartitionData(PLACEHOLDER_PARTITION_TYPE);
+  static final PartitionData PLACEHOLDER_PARTITION = new PartitionData(PLACEHOLDER_PARTITION_TYPE);
 
   static Types.StructType fileType(Types.StructType partitionType) {
-    Types.StructType writePartitionType = partitionType.fields().isEmpty() ?
-      PLACEHOLDER_PARTITION_TYPE :
-      partitionType;
+    Types.StructType writePartitionType =
+        partitionType.fields().isEmpty() ? PLACEHOLDER_PARTITION_TYPE : partitionType;
 
     return Types.StructType.of(
         DataFile.CONTENT.asRequired(),
         DataFile.FILE_PATH,
         DataFile.FILE_FORMAT,
         required(
-          DataFile.PARTITION_ID, DataFile.PARTITION_NAME, writePartitionType, DataFile.PARTITION_DOC),
+            DataFile.PARTITION_ID,
+            DataFile.PARTITION_NAME,
+            writePartitionType,
+            DataFile.PARTITION_DOC),
         DataFile.RECORD_COUNT,
         DataFile.FILE_SIZE,
         DataFile.COLUMN_SIZES,

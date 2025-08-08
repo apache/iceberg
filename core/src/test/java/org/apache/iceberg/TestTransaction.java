@@ -114,14 +114,16 @@ public class TestTransaction extends TestBase {
         readMetadata().currentSnapshot().allManifests(table.io()).get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
 
     assertThat(readMetadata().snapshots()).hasSize(3);
     validateManifestEntries(
         readMetadata().snapshots().get(1).allManifests(table.io()).get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
 
     assertThat(table.history()).containsAll(initialHistory);
   }
@@ -160,14 +162,16 @@ public class TestTransaction extends TestBase {
         readMetadata().currentSnapshot().allManifests(table.io()).get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
-        statuses(Status.DELETED, Status.EXISTING), table.specs());
+        statuses(Status.DELETED, Status.EXISTING),
+        table.specs());
 
     assertThat(readMetadata().snapshots()).hasSize(2);
     validateManifestEntries(
         readMetadata().snapshots().get(0).allManifests(table.io()).get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED), table.specs());
+        statuses(Status.ADDED, Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -645,7 +649,8 @@ public class TestTransaction extends TestBase {
         statuses(
             ManifestEntry.Status.ADDED,
             ManifestEntry.Status.EXISTING,
-            ManifestEntry.Status.EXISTING), table.specs());
+            ManifestEntry.Status.EXISTING),
+        table.specs());
 
     table.expireSnapshots().expireOlderThan(finalSnapshotTimestamp + 1).retainLast(1).commit();
 
