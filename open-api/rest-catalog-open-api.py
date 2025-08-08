@@ -417,6 +417,14 @@ class RemoveEncryptionKeyUpdate(BaseUpdate):
     key_id: str = Field(..., alias='key-id')
 
 
+class CustomOperationType(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Custom operation type for catalog-specific extensions. Must start with 'x-' followed by an implementation-specific identifier.\n",
+        regex='^x-[a-zA-Z0-9-_.]+$',
+    )
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -519,6 +527,31 @@ class LoadCredentialsResponse(BaseModel):
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
+    )
+
+
+class NamespaceReference(BaseModel):
+    reference_type: Literal['namespace'] = Field(
+        ..., alias='reference-type', const=True
+    )
+    namespace: Namespace
+
+
+class TableReference(BaseModel):
+    reference_type: Literal['table'] = Field(..., alias='reference-type', const=True)
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class ViewReference(BaseModel):
+    reference_type: Literal['view'] = Field(..., alias='reference-type', const=True)
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CatalogObjectReference(BaseModel):
+    __root__: Union[NamespaceReference, TableReference, ViewReference] = Field(
+        ..., discriminator='reference_type'
     )
 
 
@@ -714,6 +747,36 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     missing: Optional[List[str]] = Field(
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
+    )
+
+
+class CustomOperation(BaseModel):
+    """
+    Extension point for catalog-specific operations not defined in the standard.
+
+    """
+
+    class Config:
+        extra = Extra.allow
+
+    operation_type: Literal['custom'] = Field(..., alias='operation-type', const=True)
+    custom_type: CustomOperationType = Field(..., alias='custom-type')
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table or view identifier this operation applies to, if applicable',
+    )
+    namespace: Optional[Namespace] = Field(
+        None, description='Namespace this operation applies to, if applicable'
+    )
+    table_uuid: Optional[UUID] = Field(
+        None,
+        alias='table-uuid',
+        description='UUID of table this operation applies to, if applicable',
+    )
+    view_uuid: Optional[UUID] = Field(
+        None,
+        alias='view-uuid',
+        description='UUID of view this operation applies to, if applicable',
     )
 
 
@@ -959,6 +1022,29 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class OperationType(BaseModel):
+    __root__: Union[
+        Literal[
+            'create-table',
+            'register-table',
+            'drop-table',
+            'update-table',
+            'rename-table',
+            'create-view',
+            'drop-view',
+            'update-view',
+            'rename-view',
+            'create-namespace',
+            'update-namespace-properties',
+            'drop-namespace',
+        ],
+        CustomOperationType,
+    ] = Field(
+        ...,
+        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
+    )
+
+
 class ViewRequirement(BaseModel):
     __root__: AssertViewUUID = Field(..., discriminator='type')
 
@@ -986,8 +1072,118 @@ class EmptyPlanningResult(BaseModel):
     status: Literal['cancelled']
 
 
+class QueryEventsRequest(BaseModel):
+    page_token: Optional[PageToken] = Field(None, alias='page-token')
+    page_size: Optional[int] = Field(
+        None,
+        alias='page-size',
+        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size. Servers may return less results than requested for various reasons, such as server side limits, payload size or processing time.\n',
+    )
+    after_timestamp_ms: Optional[int] = Field(
+        None,
+        alias='after-timestamp-ms',
+        description='The (server) timestamp in milliseconds to start consuming events from (inclusive). If not provided, the first available timestamp is used.\n',
+    )
+    operation_types: Optional[List[OperationType]] = Field(
+        None,
+        alias='operation-types',
+        description='Filter events by the type of operation. If not provided, all types are returned.\n',
+    )
+    catalog_objects: Optional[List[CatalogObjectReference]] = Field(
+        None,
+        alias='catalog-objects',
+        description='List of catalog objects (namespaces, tables, views) to get events for. If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
+    )
+    custom_filters: Optional[Dict[str, str]] = Field(
+        None,
+        alias='custom-filters',
+        description='Implementation-specific filter extensions. Implementations may define custom filter  properties beyond the standard ones defined in this specification.\n',
+    )
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
+
+
+class CreateTableOperation(BaseModel):
+    """
+    Operation to create a new table in the catalog. Events for this Operation must be issued when the create is finalized and committed, not when the create is staged.
+
+    """
+
+    operation_type: Literal['create-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RegisterTableOperation(BaseModel):
+    operation_type: Literal['register-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class DropTableOperation(BaseModel):
+    operation_type: Literal['drop-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    purge: Optional[bool] = Field(None, description='Whether purge flag was set')
+
+
+class RenameTableOperation(RenameTableRequest):
+    operation_type: Literal['rename-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RenameViewOperation(RenameTableRequest):
+    operation_type: Literal['rename-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CreateViewOperation(BaseModel):
+    operation_type: Literal['create-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class DropViewOperation(BaseModel):
+    operation_type: Literal['drop-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CreateNamespaceOperation(CreateNamespaceResponse):
+    namespace: Namespace
+    operation_type: Literal['create-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+
+
+class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
+
+
+class DropNamespaceOperation(BaseModel):
+    operation_type: Literal['drop-namespace'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    namespace: Namespace
 
 
 class StatisticsFile(BaseModel):
@@ -1419,6 +1615,82 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
+class EventsResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    highest_processed_timestamp_ms: int = Field(
+        ...,
+        alias='highest-processed-timestamp-ms',
+        description='The highest event timestamp processed when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\n',
+    )
+    events: List[Event]
+
+
+class Event(BaseModel):
+    event_id: str = Field(
+        ...,
+        alias='event-id',
+        description='Unique ID of this event. Clients should perform deduplication based on this ID.',
+    )
+    request_id: str = Field(
+        ...,
+        alias='request-id',
+        description='Opaque ID of the request this change belongs to. This ID can be used to identify events that were part of the same request. Servers generate this ID randomly.\n',
+    )
+    event_count: int = Field(
+        ...,
+        alias='event-count',
+        description='Total number of events in this batch or request. Some endpoints, such as "updateTable" and "commitTransaction", can perform multiple updates in a single atomic request. Each update is modeled as a separate event. All events generated by the same request share the same `request-id`. The `event-count` field indicates the total number of events generated by that request.\n',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this event occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
+    )
+    actor: Optional[str] = Field(
+        None,
+        description='The actor who performed the operation, such as a user or service account. The content of this field is implementation specific.\n',
+    )
+    operation: Union[
+        CreateTableOperation,
+        RegisterTableOperation,
+        DropTableOperation,
+        UpdateTableOperation,
+        RenameTableOperation,
+        CreateViewOperation,
+        DropViewOperation,
+        UpdateViewOperation,
+        RenameViewOperation,
+        CreateNamespaceOperation,
+        UpdateNamespacePropertiesOperation,
+        DropNamespaceOperation,
+        CustomOperation,
+    ] = Field(
+        ...,
+        description='The operation that was performed, such as creating or updating a table. Clients should discard events with unknown operation types.\n',
+        discriminator='operation_type',
+    )
+
+
+class UpdateTableOperation(BaseModel):
+    operation_type: Literal['update-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: List[TableUpdate]
+    requirements: Optional[List[TableRequirement]] = None
+
+
+class UpdateViewOperation(BaseModel):
+    operation_type: Literal['update-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+    updates: List[ViewUpdate]
+    requirements: Optional[List[ViewRequirement]] = None
+
+
 class PlanTableScanRequest(BaseModel):
     snapshot_id: Optional[int] = Field(
         None,
@@ -1517,6 +1789,8 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+EventsResponse.update_forward_refs()
+Event.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()
