@@ -61,7 +61,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
  * The following retriable HTTP status codes are defined for idempotent requests:
@@ -90,8 +89,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     Preconditions.checkArgument(
         maximumRetries > 0, "Cannot set retries to %s, the value must be positive", maximumRetries);
     this.maxRetries = maximumRetries;
-    this.retriableCodes =
-        ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
+    this.retriableCodes = ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS);
     this.idempotentRetriableCodes =
         ImmutableSet.of(
             HttpStatus.SC_TOO_MANY_REQUESTS,

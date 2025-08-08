@@ -82,9 +82,6 @@ public class TestExponentialHttpRequestRetryStrategy {
 
   @Test
   public void basicRetry() {
-    BasicHttpResponse response503 = new BasicHttpResponse(503, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response503, 3, null)).isTrue();
-
     BasicHttpResponse response429 = new BasicHttpResponse(429, "Oopsie");
     assertThat(retryStrategy.retryRequest(response429, 3, null)).isTrue();
 
@@ -200,14 +197,14 @@ public class TestExponentialHttpRequestRetryStrategy {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {429, 503})
+  @ValueSource(ints = 429)
   public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {500, 502, 504})
+  @ValueSource(ints = {500, 502, 503, 504})
   public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
