@@ -57,8 +57,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String ID_COLUMNS = "id-columns";
   private static final String PARTITION_BY = "partition-by";
   private static final String COMMIT_BRANCH = "commit-branch";
-  private static final String DYNAMIC_ROUTE_DATA_METADATA_PREFIX =
-      "iceberg.dynamic-route-data-metadata-prefix";
+  private static final String DYNAMIC_ROUTE_DATA_METADATA_PREFIX = "iceberg.dynamic-route-data-metadata-prefix";
 
   private static final String CATALOG_PROP_PREFIX = "iceberg.catalog.";
   private static final String HADOOP_PROP_PREFIX = "iceberg.hadoop.";
@@ -243,7 +242,8 @@ public class IcebergSinkConfig extends AbstractConfig {
         ConfigDef.Type.STRING,
         "",
         Importance.HIGH,
-        "prefix for creation of metadata path and data path in case of dynamic routing");
+        "prefix for creation of metadata path and data path in case of dynamic routing"
+    );
     return configDef;
   }
 
@@ -389,27 +389,15 @@ public class IcebergSinkConfig extends AbstractConfig {
           if (dynamicTablesEnabled()) {
             TableIdentifier tableIdentifier = TableIdentifier.parse(tableName);
             if (originalProps.containsKey("iceberg.catalog.warehouse")) {
-              metadataPath =
-                  originalProps.get("iceberg.catalog.warehouse")
-                      + tableIdentifier.namespace()
-                      + "/"
-                      + tableIdentifier.name()
-                      + "/metadata";
-              dataPath =
-                  originalProps.get("iceberg.catalog.warehouse")
-                      + tableIdentifier.namespace()
-                      + "/"
-                      + tableIdentifier.name()
-                      + "/data";
+              metadataPath = originalProps.get("iceberg.catalog.warehouse") + tableIdentifier.namespace() + "/" + tableIdentifier.name() + "/metadata";
+              dataPath = originalProps.get("iceberg.catalog.warehouse") + tableIdentifier.namespace() + "/" + tableIdentifier.name() + "/data";
             } else {
-              metadataPath =
-                  tableConfig.getOrDefault("write.metadata.path", defaultMetadataPath(tableName));
+              metadataPath = tableConfig.getOrDefault("write.metadata.path", defaultMetadataPath(tableName));
               dataPath = tableConfig.getOrDefault("write.data.path", defaultDataPath(tableName));
             }
           }
 
-          return new TableSinkConfig(
-              routeRegex, idColumns, partitionBy, commitBranch, dataPath, metadataPath);
+          return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch, dataPath, metadataPath);
         });
   }
 
@@ -424,26 +412,12 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private String defaultDataPath(String tableName) {
     TableIdentifier tableIdentifier = TableIdentifier.parse(tableName);
-    return getString(DYNAMIC_ROUTE_DATA_METADATA_PREFIX)
-        + "/"
-        + connectorName()
-        + "/"
-        + tableIdentifier.namespace()
-        + "/"
-        + tableIdentifier.name()
-        + "/data";
+    return getString(DYNAMIC_ROUTE_DATA_METADATA_PREFIX) + "/" + connectorName() + "/" + tableIdentifier.namespace() + "/" + tableIdentifier.name() + "/data";
   }
 
   private String defaultMetadataPath(String tableName) {
     TableIdentifier tableIdentifier = TableIdentifier.parse(tableName);
-    return getString(DYNAMIC_ROUTE_DATA_METADATA_PREFIX)
-        + "/"
-        + connectorName()
-        + "/"
-        + tableIdentifier.namespace()
-        + "/"
-        + tableIdentifier.name()
-        + "/metadata";
+    return getString(DYNAMIC_ROUTE_DATA_METADATA_PREFIX) + "/" + connectorName() + "/" + tableIdentifier.namespace() + "/" + tableIdentifier.name() + "/metadata";
   }
 
   public String controlTopic() {
