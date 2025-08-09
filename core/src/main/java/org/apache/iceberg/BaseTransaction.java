@@ -322,12 +322,14 @@ public class BaseTransaction implements Transaction {
                   try {
                     underlyingOps.refresh();
 
-                    // As we just refreshed the metadata, we can set the base to the current metadata.
+                    // As we just refreshed the metadata, we can set the base to the current
+                    // metadata.
                     this.base = underlyingOps.current();
                   } catch (NoSuchTableException e) {
                     // NOTE that this will not be useful for REST catalog because the updateType is
                     // set to REPLACE at this point and it will assert that the base is not null.
-                    // But for the rest of the catalogs, it will be useful because when base is null,
+                    // But for the rest of the catalogs, it will be useful because when base is
+                    // null,
                     // it will create a new table.
                     this.base = null;
                   }

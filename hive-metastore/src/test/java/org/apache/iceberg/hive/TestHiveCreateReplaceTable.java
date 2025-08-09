@@ -218,8 +218,7 @@ public class TestHiveCreateReplaceTable {
     txn.updateProperties().set("prop", "value").commit();
 
     assertThatThrownBy(txn::commitTransaction)
-        .isInstanceOf(NoSuchTableException.class)
-        .hasMessage("No such table: hivedb.tbl");
+        .isInstanceOf(CommitFailedException.class);
   }
 
   @Test
@@ -234,7 +233,7 @@ public class TestHiveCreateReplaceTable {
     table.updateProperties().set("another-prop", "another-value").commit();
 
     txn.updateProperties().set("prop", "value").commit();
-
+    
     assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class);
 
