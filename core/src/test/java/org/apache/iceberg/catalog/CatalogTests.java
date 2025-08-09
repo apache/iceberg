@@ -2649,11 +2649,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // The table should remain unchanged after the failed replace attempt
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+      // The table should remain unchanged after the failed replace attempt
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @Test
@@ -2685,11 +2691,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+      assertThat(afterSecondAttempt.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(OTHER_SCHEMA.asStruct());
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // The table should remain unchanged after the failed replace attempt
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+      // The table should remain unchanged after the failed replace attempt
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @Test
@@ -2721,11 +2736,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      // the second replace should succeed because the first replace will be converted to a create
+      // and the table will be created with the new schema
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+      assertThat(afterSecondAttempt.schema().asStruct())
+        .as("Table schema should match the original schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // The table should remain unchanged after the failed replace attempt
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+      // The table should remain unchanged after the failed replace attempt
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @Test
@@ -2798,11 +2824,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+      assertThat(afterSecondAttempt.spec().isUnpartitioned())
+        .as("Table should be unpartitioned")
+        .isTrue();
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // Table state should remain unchanged after failed replace
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+        // Table state should remain unchanged after failed replace
+        Table afterSecondAttempt = catalog.loadTable(TABLE);
+        assertFiles(afterSecondAttempt, FILE_B);
+      }
   }
 
   @Test
@@ -2835,11 +2870,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+      assertThat(afterSecondAttempt.spec().isPartitioned())
+        .as("Table should be partitioned")
+        .isTrue();
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // Table state should remain unchanged after failed replace
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+      // Table state should remain unchanged after failed replace
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @Test
@@ -2912,11 +2956,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    if (supportsServerSideRetry()) {
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+      assertThat(afterSecondAttempt.sortOrder().isUnsorted()).as("Should be unsorted").isTrue();
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
 
-    // Table state should remain unchanged after failed replace
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+      // Table state should remain unchanged after failed replace
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @Test
@@ -2952,11 +3003,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
-
-    // Table state should remain unchanged after failed replace
-    Table afterSecondAttempt = catalog.loadTable(TABLE);
-    assertFiles(afterSecondAttempt, FILE_B);
+    if (supportsServerSideRetry()) {
+      // the second replace should succeed because the first replace will be converted to a create
+      // and the table will be created with the new sort order
+      secondReplace.commitTransaction();
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_C);
+    } else {
+      assertThatThrownBy(secondReplace::commitTransaction)
+          .isInstanceOf(CommitFailedException.class);
+      // Table state should remain unchanged after failed replace
+      Table afterSecondAttempt = catalog.loadTable(TABLE);
+      assertFiles(afterSecondAttempt, FILE_B);
+    }
   }
 
   @ParameterizedTest

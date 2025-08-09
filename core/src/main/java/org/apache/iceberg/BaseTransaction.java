@@ -315,11 +315,21 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                try {
-                  underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
+                // We can assume underlyingOps will do the refresh internally, and will throw later
+                // in case of a conflict, thus no need to perform this here, except if orCreate is
+                // set and then we want to handle concurrent deletion / creation.
+                if (orCreate) {
+                  try {
+                    underlyingOps.refresh();
+
+                    // As we just refreshed the metadata, we can set the base to the current metadata.
+                    this.base = underlyingOps.current();
+                  } catch (NoSuchTableException e) {
+                    // NOTE that this will not be useful for REST catalog because the updateType is
+                    // set to REPLACE at this point and it will assert that the base is not null.
+                    // But for the rest of the catalogs, it will be useful because when base is null,
+                    // it will create a new table.
+                    this.base = null;
                   }
                 }
 
