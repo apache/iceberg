@@ -42,6 +42,9 @@ final class JdbcUtil {
   // property to control if catalog tables are created during initialization
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+  // set of all JdbcCatalog-specific properties
+  private static final Set<String> JDBC_CATALOG_PROPERTIES =
+      Set.of(STRICT_MODE_PROPERTY, SCHEMA_VERSION_PROPERTY, INIT_CATALOG_TABLES_PROPERTY);
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
 
@@ -515,12 +518,22 @@ final class JdbcUtil {
     return TableIdentifier.of(JdbcUtil.stringToNamespace(tableNamespace), tableName);
   }
 
-  static Properties filterAndRemovePrefix(Map<String, String> properties, String prefix) {
+  /**
+   * Create {@link Properties} to pass to the JDBC driver by filtering {@code properties} to those
+   * prefixed by {@code jdbc.} (removing the prefix) and removing those consumed by JdbcCatalog
+   * itself.
+   */
+  static Properties prepareJdbcDriverProperties(Map<String, String> properties) {
     Properties result = new Properties();
     properties.forEach(
         (key, value) -> {
-          if (key.startsWith(prefix)) {
-            result.put(key.substring(prefix.length()), value);
+          if (JDBC_CATALOG_PROPERTIES.contains(key)) {
+            // Skip properties consumed by JdbcCatalog
+            return;
+          }
+
+          if (key.startsWith(JdbcCatalog.PROPERTY_PREFIX)) {
+            result.put(key.substring(JdbcCatalog.PROPERTY_PREFIX.length()), value);
           }
         });
 
