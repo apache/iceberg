@@ -25,47 +25,20 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class FetchScanTasksResponse implements TableScanResponse {
-  private final List<String> planTasks;
-  private final List<FileScanTask> fileScanTasks;
-  private final List<DeleteFile> deleteFiles;
-  private final Map<Integer, PartitionSpec> specsById;
+public class FetchScanTasksResponse extends BaseScanResponse {
 
   private FetchScanTasksResponse(
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById) {
-    this.planTasks = planTasks;
-    this.fileScanTasks = fileScanTasks;
-    this.deleteFiles = deleteFiles;
-    this.specsById = specsById;
+    super(planTasks, fileScanTasks, deleteFiles, specsById);
     validate();
-  }
-
-  public List<String> planTasks() {
-    return planTasks;
-  }
-
-  public List<FileScanTask> fileScanTasks() {
-    return fileScanTasks;
-  }
-
-  public List<DeleteFile> deleteFiles() {
-    return deleteFiles;
-  }
-
-  public Map<Integer, PartitionSpec> specsById() {
-    return specsById;
-  }
-
-  public static Builder builder() {
-    return new Builder();
   }
 
   @Override
   public void validate() {
-    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+    if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
           "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -76,34 +49,14 @@ public class FetchScanTasksResponse implements TableScanResponse {
         "Invalid response: planTasks and fileScanTask cannot both be null");
   }
 
-  public static class Builder {
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder extends BaseScanResponse.Builder<Builder, FetchScanTasksResponse> {
     private Builder() {}
 
-    private List<String> planTasks;
-    private List<FileScanTask> fileScanTasks;
-    private List<DeleteFile> deleteFiles;
-    private Map<Integer, PartitionSpec> specsById;
-
-    public Builder withPlanTasks(List<String> tasks) {
-      this.planTasks = tasks;
-      return this;
-    }
-
-    public Builder withFileScanTasks(List<FileScanTask> tasks) {
-      this.fileScanTasks = tasks;
-      return this;
-    }
-
-    public Builder withDeleteFiles(List<DeleteFile> deletes) {
-      this.deleteFiles = deletes;
-      return this;
-    }
-
-    public Builder withSpecsById(Map<Integer, PartitionSpec> specs) {
-      this.specsById = specs;
-      return this;
-    }
-
+    @Override
     public FetchScanTasksResponse build() {
       return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles, specsById);
     }

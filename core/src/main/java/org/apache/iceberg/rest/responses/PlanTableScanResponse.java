@@ -27,13 +27,9 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 
-public class PlanTableScanResponse implements TableScanResponse {
+public class PlanTableScanResponse extends BaseScanResponse {
   private final PlanStatus planStatus;
   private final String planId;
-  private final List<String> planTasks;
-  private final List<FileScanTask> fileScanTasks;
-  private final List<DeleteFile> deleteFiles;
-  private final Map<Integer, PartitionSpec> specsById;
 
   private PlanTableScanResponse(
       PlanStatus planStatus,
@@ -42,12 +38,9 @@ public class PlanTableScanResponse implements TableScanResponse {
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById) {
+    super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
     this.planId = planId;
-    this.planTasks = planTasks;
-    this.fileScanTasks = fileScanTasks;
-    this.deleteFiles = deleteFiles;
-    this.specsById = specsById;
     validate();
   }
 
@@ -59,27 +52,11 @@ public class PlanTableScanResponse implements TableScanResponse {
     return planId;
   }
 
-  public List<String> planTasks() {
-    return planTasks;
-  }
-
-  public List<FileScanTask> fileScanTasks() {
-    return fileScanTasks;
-  }
-
-  public List<DeleteFile> deleteFiles() {
-    return deleteFiles;
-  }
-
-  public Map<Integer, PartitionSpec> specsById() {
-    return specsById;
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("planStatus", planStatus)
-        .add("planId", planId)
+        .add("planStatus", planStatus())
+        .add("planId", planId())
         .toString();
   }
 
@@ -99,7 +76,7 @@ public class PlanTableScanResponse implements TableScanResponse {
     Preconditions.checkArgument(
         planStatus() == PlanStatus.SUBMITTED || planId() == null,
         "Invalid response: plan id can only be returned in a 'submitted' status");
-    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+    if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
           "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -110,15 +87,9 @@ public class PlanTableScanResponse implements TableScanResponse {
     return new Builder();
   }
 
-  public static class Builder {
-    private Builder() {}
-
+  public static class Builder extends BaseScanResponse.Builder<Builder, PlanTableScanResponse> {
     private PlanStatus planStatus;
     private String planId;
-    private List<String> planTasks;
-    private List<FileScanTask> fileScanTasks;
-    private List<DeleteFile> deleteFiles;
-    private Map<Integer, PartitionSpec> specsById;
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
@@ -130,26 +101,7 @@ public class PlanTableScanResponse implements TableScanResponse {
       return this;
     }
 
-    public Builder withPlanTasks(List<String> tasks) {
-      this.planTasks = tasks;
-      return this;
-    }
-
-    public Builder withFileScanTasks(List<FileScanTask> tasks) {
-      this.fileScanTasks = tasks;
-      return this;
-    }
-
-    public Builder withDeleteFiles(List<DeleteFile> deletes) {
-      this.deleteFiles = deletes;
-      return this;
-    }
-
-    public Builder withSpecsById(Map<Integer, PartitionSpec> specs) {
-      this.specsById = specs;
-      return this;
-    }
-
+    @Override
     public PlanTableScanResponse build() {
       return new PlanTableScanResponse(
           planStatus, planId, planTasks, fileScanTasks, deleteFiles, specsById);

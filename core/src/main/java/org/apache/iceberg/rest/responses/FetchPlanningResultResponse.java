@@ -26,12 +26,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 
-public class FetchPlanningResultResponse implements TableScanResponse {
+public class FetchPlanningResultResponse extends BaseScanResponse {
   private final PlanStatus planStatus;
-  private final List<String> planTasks;
-  private final List<FileScanTask> fileScanTasks;
-  private final List<DeleteFile> deleteFiles;
-  private final Map<Integer, PartitionSpec> specsById;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
@@ -39,32 +35,13 @@ public class FetchPlanningResultResponse implements TableScanResponse {
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById) {
+    super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
-    this.planTasks = planTasks;
-    this.fileScanTasks = fileScanTasks;
-    this.deleteFiles = deleteFiles;
-    this.specsById = specsById;
     validate();
   }
 
   public PlanStatus planStatus() {
     return planStatus;
-  }
-
-  public List<String> planTasks() {
-    return planTasks;
-  }
-
-  public List<FileScanTask> fileScanTasks() {
-    return fileScanTasks;
-  }
-
-  public List<DeleteFile> deleteFiles() {
-    return deleteFiles;
-  }
-
-  public Map<Integer, PartitionSpec> specsById() {
-    return specsById;
   }
 
   public static Builder builder() {
@@ -77,47 +54,25 @@ public class FetchPlanningResultResponse implements TableScanResponse {
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be returned in a 'completed' status");
-    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+    if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
           "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
     }
   }
 
-  public static class Builder {
+  public static class Builder
+      extends BaseScanResponse.Builder<Builder, FetchPlanningResultResponse> {
     private Builder() {}
 
     private PlanStatus planStatus;
-    private List<String> planTasks;
-    private List<FileScanTask> fileScanTasks;
-    private List<DeleteFile> deleteFiles;
-    private Map<Integer, PartitionSpec> specsById;
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
       return this;
     }
 
-    public Builder withPlanTasks(List<String> tasks) {
-      this.planTasks = tasks;
-      return this;
-    }
-
-    public Builder withFileScanTasks(List<FileScanTask> tasks) {
-      this.fileScanTasks = tasks;
-      return this;
-    }
-
-    public Builder withDeleteFiles(List<DeleteFile> deletes) {
-      this.deleteFiles = deletes;
-      return this;
-    }
-
-    public Builder withSpecsById(Map<Integer, PartitionSpec> specs) {
-      this.specsById = specs;
-      return this;
-    }
-
+    @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
           planStatus, planTasks, fileScanTasks, deleteFiles, specsById);
