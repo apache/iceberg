@@ -94,7 +94,8 @@ class IcebergWriterFactory {
     Map<String, String> tableAutoCreateProps = config.autoCreateProps();
 
     if (config.dynamicTablesEnabled()) {
-      tableAutoCreateProps.put("write.metadata.path", config.tableConfig(tableName).getMetadataPath());
+      tableAutoCreateProps.put(
+          "write.metadata.path", config.tableConfig(tableName).getMetadataPath());
       tableAutoCreateProps.put("write.data.path", config.tableConfig(tableName).getDataPath());
     }
 
@@ -118,8 +119,7 @@ class IcebergWriterFactory {
             notUsed -> {
               try {
                 result.set(
-                    catalog.createTable(
-                        identifier, schema, partitionSpec, tableAutoCreateProps));
+                    catalog.createTable(identifier, schema, partitionSpec, tableAutoCreateProps));
               } catch (AlreadyExistsException e) {
                 result.set(catalog.loadTable(identifier));
               }
