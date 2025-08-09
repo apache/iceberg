@@ -132,13 +132,15 @@ class IncrementalDataTableScan extends DataTableScan {
     for (Snapshot snapshot :
         SnapshotUtil.ancestorsBetween(toSnapshotId, fromSnapshotId, table::snapshot)) {
       // for now, incremental scan supports only appends
-      if (snapshot.operation().equals(DataOperations.APPEND)) {
+      String operation = snapshot.operation();
+      if (operation.equals(DataOperations.APPEND)) {
         snapshots.add(snapshot);
-      } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
+      } else if (operation.equals(DataOperations.OVERWRITE)
+          || operation.equals(DataOperations.DELETE)) {
         throw new UnsupportedOperationException(
             String.format(
                 "Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
+                operation, fromSnapshotId, toSnapshotId));
       }
     }
     return snapshots;
