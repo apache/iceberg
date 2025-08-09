@@ -27,24 +27,13 @@ public class TableSinkConfig {
   private final List<String> idColumns;
   private final List<String> partitionBy;
   private final String commitBranch;
-  private final String dataPath, metadataPath;
 
   public TableSinkConfig(
-      Pattern routeRegex, List<String> idColumns, List<String> partitionBy, String commitBranch, String dataPath, String metadataPath) {
+      Pattern routeRegex, List<String> idColumns, List<String> partitionBy, String commitBranch) {
     this.routeRegex = routeRegex;
     this.idColumns = idColumns;
     this.partitionBy = partitionBy;
     this.commitBranch = commitBranch;
-    this.dataPath = dataPath;
-    this.metadataPath = metadataPath;
-  }
-
-  public String getDataPath() {
-    return dataPath;
-  }
-
-  public String getMetadataPath() {
-    return metadataPath;
   }
 
   public Pattern routeRegex() {

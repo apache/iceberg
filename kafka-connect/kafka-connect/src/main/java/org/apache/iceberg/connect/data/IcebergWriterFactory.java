@@ -20,7 +20,6 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -90,14 +89,6 @@ class IcebergWriterFactory {
     createNamespaceIfNotExist(catalog, identifier.namespace());
 
     List<String> partitionBy = config.tableConfig(tableName).partitionBy();
-
-    Map<String, String> tableAutoCreateProps = config.autoCreateProps();
-
-    if (config.dynamicTablesEnabled()) {
-      tableAutoCreateProps.put("write.metadata.path", config.tableConfig(tableName).getMetadataPath());
-      tableAutoCreateProps.put("write.data.path", config.tableConfig(tableName).getDataPath());
-    }
-
     PartitionSpec spec;
     try {
       spec = SchemaUtils.createPartitionSpec(schema, partitionBy);
@@ -119,7 +110,7 @@ class IcebergWriterFactory {
               try {
                 result.set(
                     catalog.createTable(
-                        identifier, schema, partitionSpec, tableAutoCreateProps));
+                        identifier, schema, partitionSpec, config.autoCreateProps()));
               } catch (AlreadyExistsException e) {
                 result.set(catalog.loadTable(identifier));
               }
