@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteOrphanFiles.DeleteEmptyDirectoriesMode;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -70,7 +71,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         optionalInParameter("equal_authorities", STRING_MAP),
         optionalInParameter("prefix_mismatch_mode", DataTypes.StringType),
         // List files with prefix operations. Default is false.
-        optionalInParameter("prefix_listing", DataTypes.BooleanType)
+        optionalInParameter("prefix_listing", DataTypes.BooleanType),
+        optionalInParameter("empty_dir_deletion_mode", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -146,6 +148,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     boolean prefixListing = args.isNullAt(9) ? false : args.getBoolean(9);
 
+    DeleteEmptyDirectoriesMode deleteEmptyDirectoriesMode =
+        args.isNullAt(10) ? null : DeleteEmptyDirectoriesMode.fromString(args.getString(10));
+
     return withIcebergTable(
         tableIdent,
         table -> {
@@ -190,6 +195,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
           if (prefixMismatchMode != null) {
             action.prefixMismatchMode(prefixMismatchMode);
+          }
+
+          if (deleteEmptyDirectoriesMode != null) {
+            action.deleteEmptyDirectoriesMode(deleteEmptyDirectoriesMode);
           }
 
           action.usePrefixListing(prefixListing);

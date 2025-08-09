@@ -29,10 +29,14 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -665,6 +669,170 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
+  }
+
+  @TestTemplate
+  public void testCleanEmptyDirsAllMode() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String dataLocation = table.location() + "/data";
+    Configuration conf = new Configuration();
+    FileSystem localFs = new Path(dataLocation).getFileSystem(conf);
+
+    Path emptyDir1 = new Path(dataLocation, "garbage_empty1");
+    Path emptyDir2Parent = new Path(dataLocation, "nested");
+    Path emptyDir2 = new Path(emptyDir2Parent, "empty2");
+    localFs.mkdirs(emptyDir1);
+    localFs.mkdirs(emptyDir2);
+
+    Path nonEmptyDir = new Path(dataLocation, "dir_with_file");
+    localFs.mkdirs(nonEmptyDir);
+    Path garbageFilePath = new Path(nonEmptyDir, "garbage_file.txt");
+    try (FSDataOutputStream out = localFs.create(garbageFilePath)) {
+      out.writeUTF("garbage content");
+    }
+
+    assertThat(localFs.exists(emptyDir1)).as("emptyDir1 should exist before clean").isTrue();
+    assertThat(localFs.exists(emptyDir2)).as("emptyDir2 should exist before clean").isTrue();
+    assertThat(localFs.exists(nonEmptyDir)).as("nonEmptyDir should exist before clean").isTrue();
+
+    Timestamp deleteTimestamp = Timestamp.from(Instant.now().plus(Duration.ofDays(1)));
+    List<Object[]> orphanFilesRows =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s',"
+                + "empty_dir_deletion_mode => 'ALL')",
+            catalogName, tableIdent, deleteTimestamp);
+    assertThat(localFs.exists(emptyDir1)).as("emptyDir1 should be deleted").isFalse();
+    assertThat(localFs.exists(emptyDir2)).as("emptyDir2 should be deleted").isFalse();
+    assertThat(localFs.exists(emptyDir2Parent))
+        .as("nested(parent of emptyDir2) should be deleted")
+        .isFalse();
+
+    assertThat(localFs.exists(nonEmptyDir)).as("nonEmptyDir should be deleted").isFalse();
+    assertThat(localFs.exists(garbageFilePath))
+        .as("File in nonEmptyDir should be deleted")
+        .isFalse();
+
+    List<String> orphanDirs =
+        orphanFilesRows.stream()
+            .map(arr -> arr[0].toString())
+            .map(TestRemoveOrphanFilesProcedure::normalizeForCompare)
+            .collect(Collectors.toList());
+
+    List<String> expectDirs =
+        Stream.of(
+                emptyDir1.toString(),
+                emptyDir2.toString(),
+                emptyDir2Parent.toString(),
+                nonEmptyDir.toString(),
+                garbageFilePath.toString())
+            .map(TestRemoveOrphanFilesProcedure::normalizeForCompare)
+            .collect(Collectors.toList());
+
+    assertThat(orphanDirs)
+        .as("Should clean and return correct empty dirs")
+        .containsExactlyInAnyOrderElementsOf(expectDirs);
+
+    List<SimpleRecord> actualRecords =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableName)
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    assertThat(actualRecords)
+        .as("Rows must match original records after cleaning empty dirs")
+        .isEqualTo(records);
+  }
+
+  @TestTemplate
+  public void testCleanEmptyDirsOrphanMode() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String dataLocation = table.location() + "/data";
+    Configuration conf = new Configuration();
+    FileSystem localFs = new Path(dataLocation).getFileSystem(conf);
+
+    Path emptyDir1 = new Path(dataLocation, "garbage_empty1");
+    Path emptyDir2Parent = new Path(dataLocation, "nested");
+    Path emptyDir2 = new Path(emptyDir2Parent, "empty2");
+    localFs.mkdirs(emptyDir1);
+    localFs.mkdirs(emptyDir2);
+
+    Path nonEmptyDir = new Path(dataLocation, "dir_with_file");
+    localFs.mkdirs(nonEmptyDir);
+    Path garbageFilePath = new Path(nonEmptyDir, "garbage_file.txt");
+    try (FSDataOutputStream out = localFs.create(new Path(nonEmptyDir, garbageFilePath))) {
+      out.writeUTF("garbage content");
+    }
+
+    assertThat(localFs.exists(emptyDir1)).as("emptyDir1 should exist before clean").isTrue();
+    assertThat(localFs.exists(emptyDir2)).as("emptyDir2 should exist before clean").isTrue();
+    assertThat(localFs.exists(nonEmptyDir)).as("nonEmptyDir should exist before clean").isTrue();
+    Timestamp deleteTimestamp = Timestamp.from(Instant.now().plus(Duration.ofDays(1)));
+    List<Object[]> orphanFilesRows =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s',"
+                + "empty_dir_deletion_mode => 'ORPHAN')",
+            catalogName, tableIdent, deleteTimestamp);
+
+    List<String> orphanDirs =
+        orphanFilesRows.stream()
+            .map(arr -> arr[0].toString())
+            .map(TestRemoveOrphanFilesProcedure::normalizeForCompare)
+            .collect(Collectors.toList());
+
+    List<String> expectDirs =
+        Stream.of(nonEmptyDir.toString(), garbageFilePath.toString())
+            .map(TestRemoveOrphanFilesProcedure::normalizeForCompare)
+            .collect(Collectors.toList());
+
+    assertThat(orphanDirs)
+        .as("Should clean and return correct empty dirs")
+        .containsExactlyInAnyOrderElementsOf(expectDirs);
+
+    List<SimpleRecord> actualRecords =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableName)
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    assertThat(actualRecords)
+        .as("Rows must match original records after cleaning empty dirs")
+        .isEqualTo(records);
+  }
+
+  public static String normalizeForCompare(String pathStr) {
+    return pathStr == null ? null : new Path(pathStr).toUri().getPath();
   }
 
   @TestTemplate
