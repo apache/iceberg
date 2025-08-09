@@ -82,7 +82,7 @@ class TestRowDataConverter {
             required(2, "data", Types.StringType.get()));
 
     assertThatThrownBy(() -> convert(GenericRowData.of(42), currentSchema, targetSchema))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 
