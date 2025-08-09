@@ -28,8 +28,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTFileScanTaskParser {
@@ -59,6 +57,7 @@ public class RESTFileScanTaskParser {
       generator.writeFieldName(RESIDUAL_FILTER);
       ExpressionParser.toJson(fileScanTask.residual(), generator);
     }
+
     generator.writeEndObject();
   }
 
@@ -76,13 +75,12 @@ public class RESTFileScanTaskParser {
     int specId = dataFile.specId();
 
     DeleteFile[] deleteFiles = null;
-    Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
-      deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
-      ImmutableList.Builder<GenericDeleteFile> builder = ImmutableList.builder();
-      deleteFileReferences.forEach(
-          delIdx -> builder.add((GenericDeleteFile) allDeleteFiles.get(delIdx)));
-      deleteFiles = builder.build().toArray(new GenericDeleteFile[0]);
+      List<Integer> indices = JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode);
+      deleteFiles =
+          indices.stream()
+              .map(index -> (GenericDeleteFile) allDeleteFiles.get(index))
+              .toArray(GenericDeleteFile[]::new);
     }
 
     Expression filter = null;

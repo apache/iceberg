@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.Expressions;
@@ -87,9 +86,7 @@ public class FileScanTaskParser {
 
     DataFile dataFile = null;
     if (jsonNode.has(DATA_FILE)) {
-      dataFile =
-          (DataFile)
-              ContentFileParser.fromJson(jsonNode.get(DATA_FILE), Map.of(spec.specId(), spec));
+      dataFile = (DataFile) ContentFileParser.fromJson(jsonNode.get(DATA_FILE), spec);
     }
 
     long start = JsonUtil.getLong(START, jsonNode);
@@ -105,8 +102,7 @@ public class FileScanTaskParser {
       // parse the schema array
       ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deletesArray) {
-        DeleteFile deleteFile =
-            (DeleteFile) ContentFileParser.fromJson(deleteFileNode, Map.of(spec.specId(), spec));
+        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, spec);
         builder.add(deleteFile);
       }
 

@@ -78,8 +78,6 @@ public class TestFetchScanTasksResponseParser {
     FetchScanTasksResponse fromResponse =
         FetchScanTasksResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
 
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(FetchScanTasksResponseParser.toJson(fromResponse, false)).isEqualTo(expectedJson);
   }
 
@@ -156,8 +154,6 @@ public class TestFetchScanTasksResponseParser {
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(FetchScanTasksResponseParser.toJson(copyResponse, false)).isEqualTo(expectedToJson);
   }
 }

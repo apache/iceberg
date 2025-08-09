@@ -49,7 +49,7 @@ public class PlanTableScanRequestParser {
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(PlanTableScanRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid request: planTableScanRequest null");
+    Preconditions.checkArgument(null != request, "Invalid planTableScanRequest: null");
 
     if (request.snapshotId() != null
         || request.startSnapshotId() != null
@@ -96,7 +96,7 @@ public class PlanTableScanRequestParser {
   }
 
   public static PlanTableScanRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Invalid request: planTableScanRequest null");
+    Preconditions.checkArgument(null != json, "Invalid planTableScanRequest: null");
 
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);

@@ -64,14 +64,14 @@ public class TestFetchPlanningResultResponseParser {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> FetchPlanningResultResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null");
+        .hasMessage("Invalid fetchPlanningResult response: null");
 
     assertThatThrownBy(
             () ->
                 FetchPlanningResultResponseParser.fromJson(
                     (JsonNode) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
+        .hasMessage("Invalid fetchPlanningResult response: null or empty");
   }
 
   @Test
@@ -88,7 +88,7 @@ public class TestFetchPlanningResultResponseParser {
             () ->
                 FetchPlanningResultResponseParser.fromJson(emptyJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
+        .hasMessage("Invalid fetchPlanningResult response: null or empty");
   }
 
   @Test
@@ -226,8 +226,6 @@ public class TestFetchPlanningResultResponseParser {
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, false))
         .isEqualTo(expectedToJson);
   }
