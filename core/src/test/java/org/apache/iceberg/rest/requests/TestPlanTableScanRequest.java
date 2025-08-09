@@ -32,11 +32,11 @@ public class TestPlanTableScanRequest {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> PlanTableScanRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: planTableScanRequest null");
+        .hasMessage("Invalid planTableScanRequest: null");
 
     assertThatThrownBy(() -> PlanTableScanRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: planTableScanRequest null");
+        .hasMessage("Invalid planTableScanRequest: null");
   }
 
   @Test
@@ -47,9 +47,6 @@ public class TestPlanTableScanRequest {
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
-
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);
   }
@@ -70,9 +67,6 @@ public class TestPlanTableScanRequest {
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
-
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);
   }
@@ -93,9 +87,6 @@ public class TestPlanTableScanRequest {
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
-
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);
   }
@@ -144,9 +135,6 @@ public class TestPlanTableScanRequest {
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
-
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);
   }

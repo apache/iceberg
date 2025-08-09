@@ -229,8 +229,6 @@ public class TestPlanTableScanResponseParser {
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
     assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
   }
 }

@@ -134,6 +134,10 @@ class ContentFileParser {
     generator.writeEndObject();
   }
 
+  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+    return fromJson(jsonNode, spec == null ? null : Map.of(spec.specId(), spec));
+  }
+
   static ContentFile<?> fromJson(JsonNode jsonNode, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(

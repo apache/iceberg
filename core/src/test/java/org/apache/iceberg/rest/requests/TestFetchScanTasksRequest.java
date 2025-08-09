@@ -30,11 +30,11 @@ public class TestFetchScanTasksRequest {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> FetchScanTasksRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: fetchScanTasks request null");
+        .hasMessage("Invalid fetchScanTasks request: null");
 
     assertThatThrownBy(() -> FetchScanTasksRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: fetchScanTasks null");
+        .hasMessage("Invalid fetchScanTasks request: null");
   }
 
   @Test
@@ -43,9 +43,6 @@ public class TestFetchScanTasksRequest {
     String expectedJson = "{\"plan-task\":\"somePlanTask\"}";
     String json = FetchScanTasksRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
-
-    // can't do an equality comparison on FetchScanTasksRequest because we don't implement
-    // equals/hashcode
     assertThat(
             FetchScanTasksRequestParser.toJson(FetchScanTasksRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);

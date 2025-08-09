@@ -214,7 +214,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "catalog:12345",
             "header.test-header",
             "test-value");
-
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()

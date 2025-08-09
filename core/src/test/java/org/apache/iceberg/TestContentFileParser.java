@@ -59,7 +59,7 @@ public class TestContentFileParser {
 
     String jsonStr = ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, (PartitionSpec) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid partition spec: null");
   }
