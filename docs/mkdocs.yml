@@ -72,6 +72,7 @@ nav:
       - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
       - Daft: daft.md
       - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
+      - Debezium: https://memiiso.github.io/debezium-server-iceberg/
       - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
       - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
       - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
