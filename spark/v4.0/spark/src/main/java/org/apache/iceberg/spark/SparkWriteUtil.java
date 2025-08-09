@@ -62,6 +62,8 @@ public class SparkWriteUtil {
   private static final SortOrder[] POSITION_DELETE_ORDERING =
       orderBy(SPEC_ID, PARTITION, FILE_PATH, ROW_POSITION);
 
+  public static final String SPARK_APP_ID = "spark.app.id";
+
   private SparkWriteUtil() {}
 
   /** Builds requirements for batch and micro-batch writes such as append or overwrite. */

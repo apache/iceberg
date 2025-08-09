@@ -61,6 +61,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -435,7 +436,7 @@ public class SparkTable
     DeleteFiles deleteFiles =
         icebergTable
             .newDelete()
-            .set("spark.app.id", sparkSession().sparkContext().applicationId())
+            .set(SparkWriteUtil.SPARK_APP_ID, sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
     if (SparkTableUtil.wapEnabled(table())) {
