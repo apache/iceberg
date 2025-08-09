@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PartitionSet;
@@ -214,13 +217,17 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
           parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s",
           parentId);
-      List<DataFile> newFiles =
-          SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io);
-      for (DataFile newFile : newFiles) {
-        ValidationException.check(
-            !replacedPartitions.contains(newFile.specId(), newFile.partition()),
-            "Cannot cherry-pick replace partitions with changed partition: %s",
-            newFile.partition());
+      try (CloseableIterable<DataFile> newFiles =
+          SnapshotUtil.newFilesBetween(
+              parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io)) {
+        for (DataFile newFile : newFiles) {
+          ValidationException.check(
+              !replacedPartitions.contains(newFile.specId(), newFile.partition()),
+              "Cannot cherry-pick replace partitions with changed partition: %s",
+              newFile.partition());
+        }
+      } catch (IOException ioe) {
+        throw new UncheckedIOException("Failed to validate replaced partitions", ioe);
       }
     }
   }
