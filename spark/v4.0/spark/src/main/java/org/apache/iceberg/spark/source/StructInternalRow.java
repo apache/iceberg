@@ -175,8 +175,16 @@ class StructInternalRow extends InternalRow {
   }
 
   private UTF8String getUTF8StringInternal(int ordinal) {
-    CharSequence seq = struct.get(ordinal, CharSequence.class);
-    return UTF8String.fromString(seq.toString());
+    Object value = struct.get(ordinal, Object.class);
+    if (value instanceof CharSequence) {
+      return UTF8String.fromString(value.toString());
+    } else if (value instanceof java.util.UUID) {
+      return UTF8String.fromString(value.toString());
+    } else {
+      throw new IllegalStateException(
+          "Unknown type for string field. Expected CharSequence or UUID, but was: "
+              + value.getClass().getName());
+    }
   }
 
   @Override
@@ -339,6 +347,15 @@ class StructInternalRow extends InternalRow {
             array ->
                 (BiConsumer<Integer, Map<?, ?>>)
                     (pos, map) -> array[pos] = mapToMapData(elementType.asMapType(), map));
+      case UUID:
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, java.util.UUID>)
+                    (pos, value) -> {
+                      array[pos] = UTF8String.fromString(value.toString());
+                    });
+
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
