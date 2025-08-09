@@ -136,19 +136,25 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    if (!isInitialized.get()) {
-      LOG.warn("Unexpected close() call without resource initialization");
+    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
+    stopWorker();
+    // Connect never calls close on a task with empty partition so empty partition means the task
+    // has stopped. Stopping coordinator if it was started on this task.
+    if (closedPartitions.isEmpty()) {
+      LOG.info(
+          "Worker {}-{} stopped. Stooping coordinator if started.",
+          config.connectorName(),
+          config.taskId());
+      stopCoordinator();
       return;
     }
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
-          "Committer {}-{} lost leader partition. Stopping Coordinator.",
+          "Committer {}-{} either lost the leader partition. Stopping coordinator.",
           config.connectorName(),
           config.taskId());
       stopCoordinator();
     }
-    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
-    stopWorker();
     LOG.info(
         "Seeking to last committed offsets for worker {}-{}.",
         config.connectorName(),
