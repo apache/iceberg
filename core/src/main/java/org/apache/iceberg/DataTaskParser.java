@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -64,7 +65,8 @@ class DataTaskParser {
     DataFile metadataFile =
         (DataFile)
             ContentFileParser.fromJson(
-                JsonUtil.get(METADATA_FILE, jsonNode), PartitionSpec.unpartitioned());
+                JsonUtil.get(METADATA_FILE, jsonNode),
+                Map.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned()));
 
     JsonNode rowsArray = JsonUtil.get(ROWS, jsonNode);
     Preconditions.checkArgument(
