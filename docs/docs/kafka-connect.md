@@ -20,8 +20,8 @@ title: "Kafka Connect"
 
 # Kafka Connect
 
-[Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) is a popular framework for moving data
-in and out of Kafka via connectors. There are many different connectors available, such as the S3 sink
+[Kafka Connect](https://kafka.apache.org/documentation/#connect) is a popular framework for moving data
+in and out of Apache Kafka via connectors. There are many different connectors available, such as the S3 sink
 for writing data from Kafka to S3 and Debezium source connectors for writing change data capture records from relational
 databases to Kafka.
 
@@ -241,7 +241,7 @@ This assumes the source topic already exists and is named `events`.
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
 automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
 ```bash
-bin/kafka-topics  \
+bin/kafka-topics.sh  \
   --command-config command-config.props \
   --bootstrap-server ${CONNECT_BOOTSTRAP_SERVERS} \
   --create \
@@ -276,8 +276,8 @@ PARTITIONED BY (hours(ts))
 This example config connects to a Iceberg REST catalog.
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -286,7 +286,7 @@ This example config connects to a Iceberg REST catalog.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -318,8 +318,8 @@ PARTITIONED BY (hours(ts));
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -331,7 +331,7 @@ PARTITIONED BY (hours(ts));
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -349,8 +349,8 @@ See above for creating two tables.
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -360,7 +360,7 @@ See above for creating two tables.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -452,7 +452,7 @@ Example json:
 
 ```json
 {
-  "key": 1, 
+  "key": 1,
   "array": [1,"two",3],
   "empty_obj": {},
   "nested_obj": {"some_key": ["one", "two"]}
@@ -470,8 +470,8 @@ Sinkrecord.value (Struct):
     "key" : "1",
     "array" : "[1,"two",3]"
     "empty_obj": "{}"
-    "nested_obj": "{"some_key":["one","two"]}}"
-   )
+    "nested_obj": "{"some_key":["one","two"]}"
+  )
 ```
 
 Will become the following if `json.root` is false
@@ -483,9 +483,9 @@ SinkRecord.schema:
   "nested_object": (Optional) Map<string, String>
   
 SinkRecord.value (Struct):
- "key" 1, 
- "array" ["1", "two", "3"] 
- "nested_object" Map ("some_key" : "["one", "two"]") 
+  "key" 1, 
+  "array" ["1", "two", "3"] 
+  "nested_object" Map ("some_key" : "["one", "two"]") 
 ```
 
 ### KafkaMetadataTransform
@@ -506,7 +506,7 @@ If `nested` is on:
 `_kafka_metadata.topic`, `_kafka_metadata.partition`, `_kafka_metadata.offset`, `_kafka_metadata.timestamp`
 
 If `nested` is off:
-`_kafka_metdata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
+`_kafka_metadata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
 
 ### MongoDebeziumTransform
 _(Experimental)_

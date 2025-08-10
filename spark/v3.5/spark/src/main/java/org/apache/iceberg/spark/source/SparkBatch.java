@@ -141,7 +141,7 @@ class SparkBatch implements Batch {
   }
 
   private OrcBatchReadConf orcBatchReadConf() {
-    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:

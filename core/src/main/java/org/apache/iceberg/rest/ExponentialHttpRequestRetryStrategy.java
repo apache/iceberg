@@ -73,7 +73,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SC_BAD_GATEWAY (502)
  *   <li>SC_GATEWAY_TIMEOUT (504)
  *   <li>SC_REQUEST_TIMEOUT (408)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
  * Most code and behavior is taken from {@link
@@ -97,7 +96,6 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
             HttpStatus.SC_TOO_MANY_REQUESTS,
             HttpStatus.SC_SERVICE_UNAVAILABLE,
             HttpStatus.SC_INTERNAL_SERVER_ERROR,
-            HttpStatus.SC_SERVICE_UNAVAILABLE,
             HttpStatus.SC_BAD_GATEWAY,
             HttpStatus.SC_GATEWAY_TIMEOUT,
             HttpStatus.SC_REQUEST_TIMEOUT);
