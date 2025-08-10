@@ -35,7 +35,17 @@ The following example demonstrates the implementation of automated maintenance f
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 TableLoader tableLoader = TableLoader.fromHadoopTable("path/to/table");
-TriggerLockFactory lockFactory = TriggerLockFactory.defaultLockFactory();
+
+Map<String, String> jdbcProps = new HashMap<>();
+jdbcProps.put("user", "flink");
+jdbcProps.put("password", "flinkpw");
+
+// JdbcLockFactory Example
+TriggerLockFactory lockFactory = new JdbcLockFactory(
+	"jdbc:postgresql://localhost:5432/iceberg", // JDBC URL
+	"catalog.db.table",                         // Lock ID (unique identifier)
+	jdbcProps                                   // JDBC connection properties
+);
 
 TableMaintenance.forTable(env, tableLoader, lockFactory)
     .uidSuffix("my-maintenance-job")
@@ -69,48 +79,101 @@ env.execute("Table Maintenance Job");
 | `parallelism(int)` | Default parallelism for maintenance tasks | System default |
 | `maxReadBack(int)` | Max snapshots to check during initialization | 100 |
 
-### ExpireSnapshots Configuration
+### Maintenance Task Common Options
 
 | Method | Description | Default Value | Type |
 |--------|-------------|---------------|------|
-| `maxSnapshotAge(Duration)` | Maximum age of snapshots to retain | No limit | Duration |
-| `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
-| `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
 | `scheduleOnCommitCount(int)` | Trigger after N commits | No automatic scheduling | int |
 | `scheduleOnDataFileCount(int)` | Trigger after N data files | No automatic scheduling | int |
 | `scheduleOnDataFileSize(long)` | Trigger after total data file size (bytes) | No automatic scheduling | long |
 | `scheduleOnIntervalSecond(long)` | Trigger after time interval (seconds) | No automatic scheduling | long |
 | `parallelism(int)` | Parallelism for this specific task | Inherits from TableMaintenance | int |
 
+### ExpireSnapshots Configuration
 
+| Method | Description | Default Value | Type |
+|--------|-------------|---------------|------|
+| `maxSnapshotAge(Duration)` | Maximum age of snapshots to retain | 5 days | Duration |
+| `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
+| `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
+| `planningWorkerPoolSize(int)` | Number of worker threads for planning snapshot expiration | System default | int |
+| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | true | boolean |
 
 ### RewriteDataFiles Configuration
 
 | Method | Description | Default Value | Type |
 |--------|-------------|---------------|------|
 | `targetFileSizeBytes(long)` | Target size for rewritten files | Table property or 512MB | long |
-| `partialProgressEnabled(boolean)` | Enable partial progress commits | false | boolean |
+| `minFileSizeBytes(long)` | Minimum size of files eligible for compaction | 0 | long |
+| `maxFileSizeBytes(long)` | Maximum size of files eligible for compaction | Long.MAX_VALUE | long |
+| `minInputFiles(int)` | Minimum number of files to trigger rewrite | 1 | int |
+| `deleteFileThreshold(double)` | Fraction of delete files to trigger rewrite | 0.0 | double |
+| `rewriteAll(boolean)` | Rewrite all data files regardless of thresholds | false | boolean |
+| `maxFileGroupSizeBytes(long)` | Maximum total size of a file group | Long.MAX_VALUE | long |
+| `maxFilesToRewrite(int)` | Maximum number of files to rewrite per task | Integer.MAX_VALUE | int |
+| `filter(Expression)` | Filter expression for selecting files to rewrite | None | Expression |
+| `partialProgressEnabled(boolean)` | Enable partial progress commits, allowing compacted data files to be committed in batches. | false | boolean |
 | `partialProgressMaxCommits(int)` | Maximum commits for partial progress | 10 | int |
-| `scheduleOnCommitCount(int)` | Trigger after N commits | 10 | int |
-| `scheduleOnDataFileCount(int)` | Trigger after N data files | 1000 | int |
-| `scheduleOnDataFileSize(long)` | Trigger after total data file size (bytes) | 100GB | long |
-| `scheduleOnIntervalSecond(long)` | Trigger after time interval (seconds) | 600 (10 minutes) | long |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
-| `parallelism(int)` | Parallelism for this specific task | Inherits from TableMaintenance | int |
+
+
+### Scheduling Examples
+
+You can configure scheduling triggers as shown below:
+
+- Time-based scheduling
+```java
+RewriteDataFiles.builder()
+    .scheduleOnIntervalSecond(600)
+```
+
+- Commit count based scheduling
+```java
+RewriteDataFiles.builder()
+    .scheduleOnCommitCount(50)
+```
+
+- Data volume based scheduling
+```java
+RewriteDataFiles.builder()
+    .scheduleOnDataFileCount(500)
+    .scheduleOnDataFileSize(50L * 1024 * 1024 * 1024)
+```
+
 
 ## Flink Configuration Options
 
-You can also configure maintenance behavior through Flink configuration:
+The following configuration keys can be used to control Iceberg table maintenance behavior when running in Flink.  
+They are read from Flink's `Configuration` and applied during the initialization of `TableMaintenance` tasks.
+
+You can set these options in:
+
+- **Flink cluster configuration** (`flink-conf.yaml`)
+- **Programmatically** via `StreamExecutionEnvironment` / `Configuration`
+- **SQL Client** using `SET` statements before executing maintenance commands
 
 | Configuration Key | Description | Default Value | Type |
 |-------------------|-------------|---------------|------|
-| `iceberg.maintenance.rate-limit-seconds` | Rate limit in seconds | 60 | long |
-| `iceberg.maintenance.lock-check-delay-seconds` | Lock check delay in seconds | 30 | long |
-| `iceberg.maintenance.rewrite.max-bytes` | Maximum rewrite bytes | Long.MAX_VALUE | long |
-| `iceberg.maintenance.rewrite.schedule.commit-count` | Schedule on commit count | 10 | int |
-| `iceberg.maintenance.rewrite.schedule.data-file-count` | Schedule on data file count | 1000 | int |
-| `iceberg.maintenance.rewrite.schedule.data-file-size` | Schedule on data file size | 100GB | long |
-| `iceberg.maintenance.rewrite.schedule.interval-second` | Schedule interval in seconds | 600 | long |
+| `iceberg.maintenance.rate-limit-seconds` | Minimum interval (seconds) between maintenance task executions | 60 | long |
+| `iceberg.maintenance.lock-check-delay-seconds` | Delay (seconds) before re-checking lock availability | 30 | long |
+| `iceberg.maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per maintenance execution | Long.MAX_VALUE | long |
+| `iceberg.maintenance.rewrite.schedule.commit-count` | Trigger rewrite after N commits | 10 | int |
+| `iceberg.maintenance.rewrite.schedule.data-file-count` | Trigger rewrite after N data files | 1000 | int |
+| `iceberg.maintenance.rewrite.schedule.data-file-size` | Trigger rewrite after total data file size (bytes) | 100GB | long |
+| `iceberg.maintenance.rewrite.schedule.interval-second` | Trigger rewrite after fixed interval (seconds) | 600 | long |
+
+### Example: Programmatic Configuration
+```java
+Configuration conf = new Configuration();
+conf.setLong("iceberg.maintenance.rate-limit-seconds", 120);
+conf.setLong("iceberg.maintenance.lock-check-delay-seconds", 60);
+
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
+```
+```sql
+SET 'iceberg.maintenance.rate-limit-seconds' = '120';
+SET 'iceberg.maintenance.lock-check-delay-seconds' = '60';
+```
 
 
 ## Complete Example
@@ -159,44 +222,30 @@ public class TableMaintenanceJob {
 }
 ```
 
-## Scheduling Options
-
-Maintenance tasks can be triggered based on various conditions:
-
-### Time-based Scheduling
-```java
-ExpireSnapshots.builder()
-    .scheduleOnIntervalSecond(3600)
-```
-
-### Commit-based Scheduling
-```java
-RewriteDataFiles.builder()
-    .scheduleOnCommitCount(50)
-```
-
-### Data Volume-based Scheduling
-```java
-RewriteDataFiles.builder()
-    .scheduleOnDataFileCount(500)
-    .scheduleOnDataFileSize(50L * 1024 * 1024 * 1024)
-```
-
 ## IcebergSink with Post-Commit Integration
 
 Apache Iceberg Sink V2 for Flink allows automatic execution of maintenance tasks after data is committed to the table, using the addPostCommitTopology(...) method.
 
 ```java
+Map<String, String> flinkConf = new HashMap<>();
+
+// Enable compaction and maintenance features
+flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+
+// Configure JDBC lock settings
+flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
+flinkConf.put(LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(), "jdbc:postgresql://localhost:5432/iceberg");
+flinkConf.put(LockConfig.JdbcLockConfig.JDBC_USER_OPTION.key(), "flink");
+flinkConf.put(LockConfig.JdbcLockConfig.JDBC_PASSWORD_OPTION.key(), "flinkpw");
+flinkConf.put(LockConfig.LOCK_ID_OPTION.key(), "catalog.db.table");
+
+// Add any other maintenance-related options here as needed
+// ...
+
 IcebergSink.forRowData(dataStream)
     .table(table)
     .tableLoader(tableLoader)
-    .setAll(properties)
-    .addPostCommitTopology(
-        TableMaintenance.forTable(env, tableLoader, TriggerLockFactory.defaultLockFactory())
-            .rateLimit(Duration.ofMinutes(10))
-            .add(ExpireSnapshots.builder().scheduleOnCommitCount(10))
-            .add(RewriteDataFiles.builder().scheduleOnDataFileCount(50))
-    )
+    .setAll(flinkConf)
     .append();
 ```
 
@@ -249,22 +298,29 @@ Use ZooKeeper-based locks only in high-availability or multi-process coordinatio
 
 ## Troubleshooting
 
-### Common Issues
-
-**OutOfMemoryError during file deletion:**
+### OutOfMemoryError during file deletion
+**Scenario:** This can occur when the maintenance task attempts to delete a very large number of files in a single batch, especially in tables with long retention histories or after bulk deletions.
+**Cause:** Each file deletion involves metadata and object store operations, which together can consume significant memory. Large batches magnify this effect and may exhaust the JVM heap.
+**Recommendation:** Reduce the batch size to limit memory usage during deletion.
 ```java
-.deleteBatchSize(500)
+.deleteBatchSize(500) // Example: 500 files per batch
 ```
 
-**Lock conflicts:**
+### Lock conflicts
+**Scenario:** In multi-job or high-availability environments, two or more Flink jobs may attempt maintenance on the same table simultaneously.
+**Cause:** Concurrent jobs compete for the same distributed lock, causing retries and possible delays.
+**Recommendation:** Increase lock check delay and rate limit so that failed attempts back off and reduce contention.
 ```java
-.lockCheckDelay(Duration.ofMinutes(1))
-.rateLimit(Duration.ofMinutes(10))
+.lockCheckDelay(Duration.ofMinutes(1)) // Wait longer before re-checking lock
+.rateLimit(Duration.ofMinutes(10))     // Reduce frequency of task execution
 ```
 
-**Slow rewrite operations:**
+### Slow rewrite operations
+**Scenario:** Large tables with many small files can require rewriting terabytes of data in a single run, which may overwhelm available resources.
+**Cause:** Without limits, rewrite tasks attempt to process all eligible files at once, leading to long execution times and possible job failures.
+**Recommendation:** Enable partial progress so that rewritten files can be committed in smaller batches, and cap the maximum data rewritten in each execution.
 ```java
-.partialProgressEnabled(true)
-.partialProgressMaxCommits(3)
-.maxRewriteBytes(1024 * 1024 * 1024)
+.partialProgressEnabled(true) // Commit progress incrementally
+.partialProgressMaxCommits(3) // Allow up to 3 commits per run
+.maxRewriteBytes(1L * 1024 * 1024 * 1024) // Limit to ~1GB per run
 ```
