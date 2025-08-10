@@ -301,11 +301,17 @@ public class RewriteTablePathUtil {
 
     List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
     manifestFiles.forEach(
-        mf ->
-            Preconditions.checkArgument(
-                rewrittenManifestLengths.containsKey(mf.path()),
-                "Encountered manifest file %s that was not rewritten",
-                mf.path()));
+        mf -> {
+          Preconditions.checkArgument(
+              mf.path().startsWith(sourcePrefix),
+              "Encountered manifest file %s not under the source prefix %s",
+              mf.path(),
+              sourcePrefix);
+          Preconditions.checkArgument(
+              rewrittenManifestLengths.containsKey(mf.path()),
+              "Encountered manifest file %s that was not rewritten",
+              mf.path());
+        });
 
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
@@ -318,7 +324,7 @@ public class RewriteTablePathUtil {
 
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
-        ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        ((StructLike) newFile).set(0, newPath(file.path(), sourcePrefix, targetPrefix));
         ((StructLike) newFile).set(1, rewrittenManifestLengths.get(file.path()));
         writer.add(newFile);
       }
