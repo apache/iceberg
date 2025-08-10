@@ -1160,10 +1160,6 @@ public class Types {
     private transient List<NestedField> fields = null;
 
     private ListType(NestedField elementField) {
-      Preconditions.checkArgument(
-          !elementField.type().equals(UnknownType.get()),
-          "Cannot create ListType with unknown type: %s",
-          elementField.name);
       this.elementField = elementField;
     }
 
@@ -1269,10 +1265,6 @@ public class Types {
     private transient List<NestedField> fields = null;
 
     private MapType(NestedField keyField, NestedField valueField) {
-      Preconditions.checkArgument(
-          !valueField.type().equals(UnknownType.get()),
-          "Cannot create MapType with unknown value type: %s",
-          valueField.name);
       this.keyField = keyField;
       this.valueField = valueField;
     }

@@ -37,7 +37,6 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.types.PruneUnknownTypes;
 
 /** A base writer factory to be extended by query engine integrations. */
 public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
@@ -63,7 +62,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
-    this.dataSchema = PruneUnknownTypes.convert(dataSchema);
+    this.dataSchema = dataSchema;
     this.dataSortOrder = dataSortOrder;
     this.deleteFileFormat = deleteFileFormat;
     this.equalityFieldIds = equalityFieldIds;

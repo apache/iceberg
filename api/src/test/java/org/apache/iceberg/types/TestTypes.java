@@ -181,19 +181,4 @@ public class TestTypes {
         .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
         .withMessage("Id cannot be null");
   }
-
-  @Test
-  public void testNestedFieldUnknownList() {
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> Types.ListType.ofOptional(1, Types.UnknownType.get()))
-        .withMessage("Cannot create ListType with unknown type: element");
-  }
-
-  @Test
-  public void testNestedFieldUnknownMap() {
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(
-            () -> Types.MapType.ofOptional(1, 2, Types.LongType.get(), Types.UnknownType.get()))
-        .withMessage("Cannot create MapType with unknown type: value");
-  }
 }
