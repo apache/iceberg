@@ -1271,7 +1271,7 @@ public class Types {
     private MapType(NestedField keyField, NestedField valueField) {
       Preconditions.checkArgument(
           !valueField.type().equals(UnknownType.get()),
-          "Cannot create MapType with unknown type: %s",
+          "Cannot create MapType with unknown value type: %s",
           valueField.name);
       this.keyField = keyField;
       this.valueField = valueField;

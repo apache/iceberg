@@ -149,15 +149,11 @@ public class TestSchema {
     assertThatThrownBy(() -> Schema.checkCompatibility(schemaWithUnknown, 2))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Invalid schema for v2:\n"
-                + "- Invalid type for top: unknown is not supported until v3\n"
-                + "- Invalid type for struct.inner_op: unknown is not supported until v3\n"
-                + "- Invalid type for struct.struct_arr.deep: unknown is not supported until v3",
+      "Invalid schema for v%s:\n"
+              + "- Invalid type for top: %s is not supported until v%s\n"
+              + "- Invalid type for arr.element: %s is not supported until v%s\n"
+              + "- Invalid type for struct.inner_op: %s is not supported until v%s\n",
             2,
-            Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
-            Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),
             MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),

@@ -110,7 +110,7 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
   public Type list(Types.ListType list, Type elementResult) {
     Preconditions.checkArgument(
         !elementResult.typeId().equals(Type.TypeID.UNKNOWN),
-        "Cannot create a map with a with an unknown: %s",
+        "Cannot create a list with a with an unknown: %s",
         list.elementId());
 
     if (!list.elementType().equals(elementResult)) {
