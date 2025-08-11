@@ -112,7 +112,7 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
-  static Set<Integer> limitFieldIds(Schema schema, int limit) {
+  public static Set<Integer> limitFieldIds(Schema schema, int limit) {
     return TypeUtil.visit(
         schema,
         new TypeUtil.CustomOrderSchemaVisitor<>() {
@@ -146,7 +146,7 @@ public final class MetricsConfig implements Serializable {
 
             // visit children to add more ids
             Iterator<Set<Integer>> iter = fieldResults.iterator();
-            while (shouldContinue() && iter.hasNext()) {
+            while (iter.hasNext()) {
               iter.next();
             }
 
@@ -161,16 +161,18 @@ public final class MetricsConfig implements Serializable {
           }
 
           @Override
+          public Set<Integer> variant(Types.VariantType variant) {
+            return null;
+          }
+
+          @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> list(Types.ListType list, Supplier<Set<Integer>> elementResult) {
             if (shouldContinue() && metricsEligible(list.elementType())) {
               idSet.add(list.elementId());
             }
 
-            if (shouldContinue()) {
-              elementResult.get();
-            }
-
+            elementResult.get();
             return null;
           }
 
@@ -189,13 +191,8 @@ public final class MetricsConfig implements Serializable {
               idSet.add(map.valueId());
             }
 
-            if (shouldContinue()) {
-              keyResult.get();
-            }
-
-            if (shouldContinue()) {
-              valueResult.get();
-            }
+            keyResult.get();
+            valueResult.get();
             return null;
           }
         });
