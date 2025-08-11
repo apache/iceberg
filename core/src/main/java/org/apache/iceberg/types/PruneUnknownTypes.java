@@ -22,12 +22,8 @@ import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.hadoop.util.Lists;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * This is used to fix primitive types to match a table schema. This uses a reference schema to
- * override types that were lost in round-trip conversion.
- */
+/** This is used to remove UnknownTypes that should not be persistent in files */
 public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
   private static final PruneUnknownTypes INSTANCE = new PruneUnknownTypes();
 
@@ -91,9 +87,6 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
         }
       }
 
-      Preconditions.checkArgument(
-          !newFields.isEmpty(), "StructType with solely UnknownTypes are not allowed: %s", struct);
-
       return Types.StructType.of(newFields);
     } else {
       // Nothing changed, let's return the original
@@ -108,11 +101,6 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Type elementResult) {
-    Preconditions.checkArgument(
-        !elementResult.typeId().equals(Type.TypeID.UNKNOWN),
-        "Cannot create a list with a with an unknown: %s",
-        list.elementId());
-
     if (!list.elementType().equals(elementResult)) {
       if (list.isElementOptional()) {
         return Types.ListType.ofOptional(list.elementId(), elementResult);
@@ -126,15 +114,6 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type map(Types.MapType map, Type keyType, Type valueResult) {
-    Preconditions.checkArgument(
-        !keyType.typeId().equals(Type.TypeID.UNKNOWN),
-        "Cannot create a map with a with an unknown: %s",
-        map.keyId());
-    Preconditions.checkArgument(
-        !valueResult.typeId().equals(Type.TypeID.UNKNOWN),
-        "Cannot create a map with a with an unknown: %s",
-        map.valueId());
-
     if (!map.valueType().equals(valueResult)) {
       if (map.isValueOptional()) {
         return Types.MapType.ofOptional(map.keyId(), map.valueId(), keyType, valueResult);

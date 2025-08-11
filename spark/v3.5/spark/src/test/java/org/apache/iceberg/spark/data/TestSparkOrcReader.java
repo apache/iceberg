@@ -19,8 +19,11 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -106,5 +109,36 @@ public class TestSparkOrcReader extends AvroDataTestBase {
 
   private Iterator<InternalRow> batchesToRows(Iterator<ColumnarBatch> batches) {
     return Iterators.concat(Iterators.transform(batches, ColumnarBatch::rowIterator));
+  }
+
+  @Test
+  @Override
+  public void testUnknownListType() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(0, "id", Types.LongType.get()),
+            optional(1, "data", Types.ListType.ofOptional(2, Types.UnknownType.get())));
+
+    assertThatThrownBy(() -> writeAndValidate(schema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create ListType with unknown element type");
+  }
+
+  @Test
+  @Override
+  public void testUnknownMapType() {
+    Schema schema =
+        new Schema(
+            required(0, "id", Types.LongType.get()),
+            optional(
+                1,
+                "data",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.UnknownType.get())));
+
+    assertThatThrownBy(() -> writeAndValidate(schema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create MapType with unknown value type");
   }
 }

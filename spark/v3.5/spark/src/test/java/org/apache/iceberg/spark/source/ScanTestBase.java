@@ -100,7 +100,17 @@ public abstract class ScanTestBase extends AvroDataTestBase {
                     f ->
                         f.initialDefaultLiteral() != null
                             || f.writeDefaultLiteral() != null
-                            || f.type().equals(Types.UnknownType.get()))
+                            || f.type().equals(Types.UnknownType.get())
+                            || (f.type().isListType()
+                                && f.type()
+                                    .asListType()
+                                    .elementType()
+                                    .equals(Types.UnknownType.get()))
+                            || (f.type().isMapType()
+                                && f.type()
+                                    .asMapType()
+                                    .valueType()
+                                    .equals(Types.UnknownType.get())))
             ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
             : ImmutableMap.of();
     Table table =
