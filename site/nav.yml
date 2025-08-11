@@ -61,9 +61,8 @@ nav:
       - Sponsors: https://www.apache.org/foundation/sponsors.html
   - Community:
     - Community: community.md
-    - Community Content: 
-      - Blogs: blogs.md
-      - Talks: talks.md
+    - Blogs: blogs.md
+    - Talks: talks.md
     - Vendors: vendors.md
   - Specification:
     - Terms: terms.md
