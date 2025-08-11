@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -491,7 +490,7 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, Map.of(0, SPEC)).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, io, null).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       assertThat(entries).hasSize(1);
       return entries.get(0);
