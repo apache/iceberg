@@ -219,7 +219,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s",
           parentId);
       List<DataFile> newFiles =
-          SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io);
+          SnapshotUtil.newFiles(
+              parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io, meta.specsById());
       for (DataFile newFile : newFiles) {
         ValidationException.check(
             !replacedPartitions.contains(newFile.specId(), newFile.partition()),

@@ -383,7 +383,7 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
     validateManifestEntries(
         newManifest, ids(pendingId), files(FILE_D), statuses(ADDED), table.specs());
-    assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
+    assertThat(ManifestFiles.read(newManifest, FILE_IO, table.specs()).entries())
         .allSatisfy(entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber));
     assertThat(newManifest.sequenceNumber()).isEqualTo(oldSequenceNumber + 1);
 

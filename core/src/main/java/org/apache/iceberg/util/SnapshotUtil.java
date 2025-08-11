@@ -20,13 +20,16 @@ package org.apache.iceberg.util;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -282,7 +285,11 @@ public class SnapshotUtil {
   }
 
   public static List<DataFile> newFiles(
-      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
+      Long baseSnapshotId,
+      long latestSnapshotId,
+      Function<Long, Snapshot> lookup,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById) {
     List<DataFile> newFiles = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
@@ -291,7 +298,8 @@ public class SnapshotUtil {
         return newFiles;
       }
 
-      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
+      SnapshotChanges changes = SnapshotChanges.changesFrom(currentSnapshot, io, specsById);
+      Iterables.addAll(newFiles, changes.addedDataFiles());
     }
 
     ValidationException.check(

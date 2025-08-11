@@ -67,7 +67,8 @@ public class TestSnapshotSelection extends TestBase {
     table.newFastAppend().appendFile(fileWithStats).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
+    SnapshotChanges changes = SnapshotChanges.changesFrom(snapshot, table.io(), table.specs());
+    Iterable<DataFile> addedFiles = changes.addedDataFiles();
     assertThat(addedFiles).hasSize(1);
     DataFile dataFile = Iterables.getOnlyElement(addedFiles);
     assertThat(dataFile.valueCounts()).isNotNull();
