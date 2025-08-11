@@ -60,10 +60,10 @@ public abstract class BaseScanResponse implements RESTResponse {
   }
 
   public abstract static class Builder<B extends Builder<B, R>, R extends BaseScanResponse> {
-    protected List<String> planTasks;
-    protected List<FileScanTask> fileScanTasks;
-    protected List<DeleteFile> deleteFiles;
-    protected Map<Integer, PartitionSpec> specsById;
+    private List<String> planTasks;
+    private List<FileScanTask> fileScanTasks;
+    private List<DeleteFile> deleteFiles;
+    private Map<Integer, PartitionSpec> specsById;
 
     protected Builder() {}
 
@@ -72,24 +72,40 @@ public abstract class BaseScanResponse implements RESTResponse {
       return (B) this;
     }
 
-    public B withPlanTasks(List<String> planTasks) {
-      this.planTasks = planTasks;
+    public B withPlanTasks(List<String> tasks) {
+      this.planTasks = tasks;
       return self();
     }
 
-    public B withFileScanTasks(List<FileScanTask> fileScanTasks) {
-      this.fileScanTasks = fileScanTasks;
+    public B withFileScanTasks(List<FileScanTask> tasks) {
+      this.fileScanTasks = tasks;
       return self();
     }
 
-    public B withDeleteFiles(List<DeleteFile> deleteFiles) {
-      this.deleteFiles = deleteFiles;
+    public B withDeleteFiles(List<DeleteFile> deleteFilesList) {
+      this.deleteFiles = deleteFilesList;
       return self();
     }
 
-    public B withSpecsById(Map<Integer, PartitionSpec> specsById) {
-      this.specsById = specsById;
+    public B withSpecsById(Map<Integer, PartitionSpec> specs) {
+      this.specsById = specs;
       return self();
+    }
+
+    public List<String> planTasks() {
+      return planTasks;
+    }
+
+    public List<FileScanTask> fileScanTasks() {
+      return fileScanTasks;
+    }
+
+    public List<DeleteFile> deleteFiles() {
+      return deleteFiles;
+    }
+
+    public Map<Integer, PartitionSpec> specsById() {
+      return specsById;
     }
 
     public abstract R build();

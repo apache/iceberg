@@ -75,7 +75,7 @@ public class FetchPlanningResultResponse extends BaseScanResponse {
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks, fileScanTasks, deleteFiles, specsById);
+          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById());
     }
   }
 }

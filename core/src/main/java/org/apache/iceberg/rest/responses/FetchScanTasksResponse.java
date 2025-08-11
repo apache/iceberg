@@ -58,7 +58,7 @@ public class FetchScanTasksResponse extends BaseScanResponse {
 
     @Override
     public FetchScanTasksResponse build() {
-      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles, specsById);
+      return new FetchScanTasksResponse(planTasks(), fileScanTasks(), deleteFiles(), specsById());
     }
   }
 }

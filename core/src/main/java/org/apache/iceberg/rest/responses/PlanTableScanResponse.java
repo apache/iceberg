@@ -104,7 +104,7 @@ public class PlanTableScanResponse extends BaseScanResponse {
     @Override
     public PlanTableScanResponse build() {
       return new PlanTableScanResponse(
-          planStatus, planId, planTasks, fileScanTasks, deleteFiles, specsById);
+          planStatus, planId, planTasks(), fileScanTasks(), deleteFiles(), specsById());
     }
   }
 }
