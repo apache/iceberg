@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
@@ -111,7 +112,10 @@ public class TypeToMessageType {
     int id = field.fieldId();
     String name = field.name();
 
-    if (field.type().isPrimitiveType()) {
+    if (field.type().typeId() == TypeID.UNKNOWN) {
+      return null;
+
+    } else if (field.type().isPrimitiveType()) {
       return primitive(field.type().asPrimitiveType(), repetition, id, name);
 
     } else if (field.type().isVariantType()) {
@@ -272,10 +276,6 @@ public class TypeToMessageType {
             .as(LogicalTypeAnnotation.uuidType())
             .id(id)
             .named(name);
-
-      case UNKNOWN:
-        throw new UnsupportedOperationException(
-            "Waiting for https://github.com/apache/parquet-java/pull/3154/ to be released");
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);
