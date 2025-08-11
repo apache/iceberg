@@ -119,11 +119,6 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelListOfPrimitives() {
     for (Type primitiveType : primitiveTypes()) {
-      if (primitiveType.equals(UnknownType.get())) {
-        // The UnknownType cannot be used as the element of a list-type
-        continue;
-      }
-
       Schema newSchema =
           new Schema(optional(1, "aList", Types.ListType.ofOptional(2, primitiveType)));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
