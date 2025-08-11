@@ -50,13 +50,13 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -253,15 +253,10 @@ public class SparkWriteConf {
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
-    // Check session configuration for properties with SNAPSHOT_PROPERTY_PREFIX
-    JavaConverters.mapAsJavaMap(sessionConf.getAll())
-        .forEach(
-            (key, value) -> {
-              if (key.startsWith(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX)) {
-                extraSnapshotMetadata.put(
-                    key.substring(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX.length()), value);
-              }
-            });
+    // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
+    extraSnapshotMetadata.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            sessionConf.getAll(), SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
 
     // Add write options, overriding session configuration if necessary
     writeOptions.forEach(
