@@ -87,6 +87,20 @@ public abstract class ScanTestBase extends AvroDataTestBase {
     writeAndValidate(schema, schema);
   }
 
+  private boolean checkVersion(List<Types.NestedField> fields) {
+    return fields.stream()
+        .anyMatch(
+            f ->
+                f.initialDefaultLiteral() != null
+                    || f.writeDefaultLiteral() != null
+                    || f.type().equals(Types.UnknownType.get())
+                    || (f.type().isListType()
+                        && f.type().asListType().elementType().equals(Types.UnknownType.get()))
+                    || (f.type().isMapType()
+                        && f.type().asMapType().valueType().equals(Types.UnknownType.get()))
+                    || (f.type().isStructType() && checkVersion(f.type().asStructType().fields())));
+  }
+
   @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     File parent = temp.resolve("scan_test").toFile();
@@ -95,22 +109,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
     HadoopTables tables = new HadoopTables(CONF);
     // If V3 spec features are used, set the format version to 3
     Map<String, String> tableProperties =
-        writeSchema.columns().stream()
-                .anyMatch(
-                    f ->
-                        f.initialDefaultLiteral() != null
-                            || f.writeDefaultLiteral() != null
-                            || f.type().equals(Types.UnknownType.get())
-                            || (f.type().isListType()
-                                && f.type()
-                                    .asListType()
-                                    .elementType()
-                                    .equals(Types.UnknownType.get()))
-                            || (f.type().isMapType()
-                                && f.type()
-                                    .asMapType()
-                                    .valueType()
-                                    .equals(Types.UnknownType.get())))
+        checkVersion(writeSchema.asStruct().fields())
             ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
             : ImmutableMap.of();
     Table table =

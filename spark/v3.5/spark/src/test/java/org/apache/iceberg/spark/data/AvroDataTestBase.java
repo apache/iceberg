@@ -615,6 +615,8 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testUnknownNestedLevel() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(1, "id", LongType.get()),

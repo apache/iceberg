@@ -220,7 +220,9 @@ public final class ORCSchemaUtil {
           orcType = TypeDescription.createStruct();
           for (Types.NestedField field : type.asStructType().fields()) {
             TypeDescription childType = convert(field.fieldId(), field.type(), field.isRequired());
-            orcType.addField(field.name(), childType);
+            if (childType != null) {
+              orcType.addField(field.name(), childType);
+            }
           }
           break;
         }
