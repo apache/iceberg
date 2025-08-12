@@ -42,7 +42,7 @@ public class TestORCDataFrameWrite extends DataFrameWriteTestBase {
         .isInstanceOf(SparkException.class)
         .cause()
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot create ListType with unknown value type");
+        .hasMessageStartingWith("Cannot create ListType with unknown element type");
   }
 
   @Test
