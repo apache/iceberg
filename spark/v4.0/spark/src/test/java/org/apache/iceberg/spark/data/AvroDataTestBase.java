@@ -69,14 +69,6 @@ public abstract class AvroDataTestBase {
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
           34L);
 
-  private static final ByteBuffer TEST_METADATA_BUFFER =
-      VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c", "d", "e"), true);
-  private static final VariantMetadata TEST_METADATA = Variants.metadata(TEST_METADATA_BUFFER);
-  private static final Schema SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "var", Types.VariantType.get()));
-
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
