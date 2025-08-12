@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -57,7 +58,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   private ManifestWriter(
       PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-    this.file = file.encryptingOutputFile();
+    this.file = outputFile(file);
     this.specId = spec.specId();
     this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
@@ -72,6 +73,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
+
+  /**
+   * Gets the actual OutputFile that will be used to write the manifest
+   * taking into account encryption if needed. V3 and earlier use AVRO so
+   * whole file encryption is invoked . V4+ use parquet so they pass through
+   * the native encryption output file if it is available.
+   */
+  protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
+    return encryptedFile.encryptingOutputFile();
+  }
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -230,6 +241,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
+    protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
+      Preconditions.checkArgument(encryptedFile instanceof NativeEncryptionOutputFile,
+          "Parquet Manifests require output file extending NativeEncryptionOutputFile, but got: %s",
+          encryptedFile.getClass().getName());
+      return (NativeEncryptionOutputFile) encryptedFile;
+    }
+
+    @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
     }
@@ -262,6 +281,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     V4DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId, null);
       this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+    }
+
+    @Override
+    protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
+      Preconditions.checkArgument(encryptedFile instanceof NativeEncryptionOutputFile,
+        "Parquet Manifests require output file extending NativeEncryptionOutputFile, but got: %s",
+        encryptedFile.getClass().getName());
+      return (NativeEncryptionOutputFile) encryptedFile;
     }
 
     @Override
