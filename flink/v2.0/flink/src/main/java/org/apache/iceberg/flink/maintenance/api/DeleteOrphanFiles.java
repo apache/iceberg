@@ -43,6 +43,7 @@ import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ThreadPools;
 
 /** Delete orphan files from the file system. */
 public class DeleteOrphanFiles {
@@ -74,9 +75,9 @@ public class DeleteOrphanFiles {
   }
 
   public static class Builder extends MaintenanceTaskBuilder<DeleteOrphanFiles.Builder> {
-    private String location = null;
+    private String location;
     private Duration minAge = Duration.ofDays(3);
-    private int planningWorkerPoolSize = 10;
+    private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
     private int maxListingDepth = 3;
     private int maxListingDirectSubDirs = 10;
@@ -85,7 +86,7 @@ public class DeleteOrphanFiles {
         Maps.newHashMap(
             ImmutableMap.of(
                 "s3n", "s3",
-                "s3a", "s3a"));
+                "s3a", "s3"));
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
@@ -119,7 +120,8 @@ public class DeleteOrphanFiles {
 
     /**
      * The maximum number of direct subdirectories to list in a single directory. This parameter is
-     * not used when {@link #usePrefixListing(boolean)} is set to true.
+     * not used when {@link #usePrefixListing(boolean)} is set to true. This parameter is only used
+     * when prefix listing is disabled.
      *
      * @param newMaxListingDirectSubDirs the maximum number of direct sub-directories to list
      * @return for chained calls
@@ -131,7 +133,8 @@ public class DeleteOrphanFiles {
 
     /**
      * The maximum depth to recurse when listing files from the file system. This parameter is not
-     * used when {@link #usePrefixListing(boolean)} is set to true.
+     * used when {@link #usePrefixListing(boolean)} is set to true. This parameter is only used when
+     * prefix listing is disabled.
      *
      * @param newMaxListingDepth the maximum depth to recurse
      * @return for chained calls
