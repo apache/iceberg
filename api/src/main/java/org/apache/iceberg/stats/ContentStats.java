@@ -23,9 +23,9 @@ import org.apache.iceberg.StructLike;
 
 public interface ContentStats extends StructLike {
 
-  List<Statistic> statistics();
+  List<FieldStats> fieldStats();
 
   long recordCount();
 
-  Statistic statsFor(int columnId);
+  FieldStats statsFor(int columnId);
 }

@@ -30,9 +30,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.BaseStatistic;
+import org.apache.iceberg.stats.BaseFieldStats;
 import org.apache.iceberg.stats.ContentStats;
-import org.apache.iceberg.stats.Statistic;
+import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -52,8 +52,8 @@ public class TestManifestReaderStats extends TestBase {
       new Metrics(
           3L, null, VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
   private static final String FILE_PATH = "/path/to/data-a.parquet";
-  private static final Statistic STAT =
-      BaseStatistic.builder()
+  private static final FieldStats STAT =
+      BaseFieldStats.builder()
           .type(Types.IntegerType.get())
           .fieldId(1)
           .valueCount(3L)
@@ -63,7 +63,7 @@ public class TestManifestReaderStats extends TestBase {
           .upperBound(4)
           .build();
   private static final BaseContentStats STATS =
-      BaseContentStats.builder().recordCount(3L).withStatistic(STAT).build();
+      BaseContentStats.builder().recordCount(3L).withFieldStats(STAT).build();
 
   private DataFile dataFile() {
     DataFiles.Builder builder =
@@ -202,7 +202,7 @@ public class TestManifestReaderStats extends TestBase {
 
         assertThat(entry.location()).isEqualTo(FILE_PATH);
         assertThat(entry.contentStats()).isNotNull();
-        Statistic stat = entry.contentStats().statsFor(1);
+        FieldStats stat = entry.contentStats().statsFor(1);
         assertThat(stat).isNotNull();
         assertThat(stat.valueCount()).isEqualTo(STAT.valueCount());
         assertThat(stat.nullValueCount()).isNull();
@@ -263,7 +263,7 @@ public class TestManifestReaderStats extends TestBase {
               .select(ImmutableList.of("file_path", "content_stats.1.value_count"))) {
         DataFile dataFile = reader.iterator().next();
         assertThat(dataFile.contentStats()).isNotNull();
-        Statistic stat = dataFile.contentStats().statsFor(1);
+        FieldStats stat = dataFile.contentStats().statsFor(1);
         assertThat(stat).isNotNull();
 
         // selected fields are populated
@@ -330,7 +330,7 @@ public class TestManifestReaderStats extends TestBase {
     } else {
       ContentStats stats = dataFile.contentStats();
       assertThat(stats).isNotNull();
-      assertThat(stats.statistics()).contains(STAT);
+      assertThat(stats.fieldStats()).contains(STAT);
     }
   }
 

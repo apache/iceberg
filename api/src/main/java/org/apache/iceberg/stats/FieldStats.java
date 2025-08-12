@@ -21,7 +21,7 @@ package org.apache.iceberg.stats;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
-public interface Statistic extends StructLike {
+public interface FieldStats extends StructLike {
   int fieldId();
 
   Type type();

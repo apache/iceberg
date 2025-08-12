@@ -28,7 +28,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.stats.ContentStats;
-import org.apache.iceberg.stats.Statistic;
+import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -151,7 +151,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.nullValueCount() && stat.nullValueCount() == 0) {
         return ROWS_MUST_MATCH;
       }
@@ -174,7 +174,7 @@ public class StrictStatsEvaluator {
     public <T> Boolean notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0) {
         return ROWS_MUST_MATCH;
       }
@@ -198,7 +198,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.upperBound()) {
         T upper = (T) stat.upperBound();
 
@@ -223,7 +223,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.upperBound()) {
         T upper = (T) stat.upperBound();
 
@@ -248,7 +248,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         T lower = (T) stat.lowerBound();
 
@@ -278,7 +278,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         T lower = (T) stat.lowerBound();
 
@@ -308,7 +308,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound() && null != stat.upperBound()) {
         T lower = (T) stat.lowerBound();
 
@@ -342,7 +342,7 @@ public class StrictStatsEvaluator {
         return ROWS_MUST_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         T lower = (T) stat.lowerBound();
 
@@ -380,7 +380,7 @@ public class StrictStatsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound() && null != stat.upperBound()) {
         T lower = (T) stat.lowerBound();
         if (!literalSet.contains(lower)) {
@@ -419,7 +419,7 @@ public class StrictStatsEvaluator {
 
       Collection<T> literals = literalSet;
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         T lower = (T) stat.lowerBound();
 
@@ -473,18 +473,18 @@ public class StrictStatsEvaluator {
     }
 
     private boolean canContainNulls(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null == stat || (null != stat.nullValueCount() && stat.nullValueCount() > 0);
     }
 
     private boolean canContainNaNs(int id) {
       // nan counts might be null for early version writers when nan counters are not populated.
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null != stat && null != stat.nanValueCount() && stat.nanValueCount() > 0;
     }
 
     private boolean containsNullsOnly(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null != stat
           && null != stat.valueCount()
           && null != stat.nullValueCount()
@@ -492,7 +492,7 @@ public class StrictStatsEvaluator {
     }
 
     private boolean containsNaNsOnly(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null != stat
           && null != stat.nanValueCount()
           && null != stat.valueCount()

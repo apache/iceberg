@@ -109,7 +109,7 @@ public class InclusiveMetricsEvaluator {
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
-      if (null != file.contentStats() && !file.contentStats().statistics().isEmpty()) {
+      if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
         return new InclusiveStatsEvaluator(schema, unboundExpression, caseSensitive).eval(file);
       }
 

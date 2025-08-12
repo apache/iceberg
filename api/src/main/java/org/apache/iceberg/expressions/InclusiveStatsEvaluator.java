@@ -29,7 +29,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.stats.ContentStats;
-import org.apache.iceberg.stats.Statistic;
+import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
@@ -167,7 +167,7 @@ public class InclusiveStatsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -465,12 +465,12 @@ public class InclusiveStatsEvaluator {
     }
 
     private boolean mayContainNull(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null == stat || null == stat.nullValueCount() || stat.nullValueCount() != 0;
     }
 
     private boolean containsNullsOnly(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null != stat
           && null != stat.valueCount()
           && null != stat.nullValueCount()
@@ -478,7 +478,7 @@ public class InclusiveStatsEvaluator {
     }
 
     private boolean containsNaNsOnly(int id) {
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       return null != stat
           && null != stat.nanValueCount()
           && null != stat.valueCount()
@@ -511,7 +511,7 @@ public class InclusiveStatsEvaluator {
 
     private <T> T parseLowerBound(BoundReference<T> ref) {
       int id = ref.fieldId();
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         return (T) stat.lowerBound();
       }
@@ -521,7 +521,7 @@ public class InclusiveStatsEvaluator {
 
     private <T> T parseUpperBound(BoundReference<T> ref) {
       int id = ref.fieldId();
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.upperBound()) {
         return (T) stat.upperBound();
       }
@@ -551,7 +551,7 @@ public class InclusiveStatsEvaluator {
 
     private <T> T extractLowerBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.lowerBound()) {
         Object obj = stat.lowerBound();
         VariantObject fieldLowerBounds = parseBounds((ByteBuffer) obj);
@@ -563,7 +563,7 @@ public class InclusiveStatsEvaluator {
 
     private <T> T extractUpperBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      Statistic stat = stats.statsFor(id);
+      FieldStats stat = stats.statsFor(id);
       if (null != stat && null != stat.upperBound()) {
         Object obj = stat.upperBound();
         VariantObject fieldUpperBounds = parseBounds((ByteBuffer) obj);

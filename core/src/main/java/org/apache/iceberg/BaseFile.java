@@ -230,7 +230,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
       this.stats =
-          null != toCopy.stats && !toCopy.stats.statistics().isEmpty()
+          null != toCopy.stats && !toCopy.stats.fieldStats().isEmpty()
               ? BaseContentStats.buildFrom(toCopy.stats, requestedColumnIds).build()
               : toCopy.stats;
     } else {
