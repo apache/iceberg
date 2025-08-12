@@ -40,7 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.BaseStatistic;
+import org.apache.iceberg.stats.BaseFieldStats;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -85,8 +85,8 @@ public class TestManifestWriterVersions {
           ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))); // upper bounds
   private static final ContentStats CONTENT_STATS =
       BaseContentStats.builder()
-          .withStatistic(
-              BaseStatistic.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
                   .fieldId(1)
                   .type(Types.IntegerType.get())
                   .columnSize(15L)
@@ -95,32 +95,32 @@ public class TestManifestWriterVersions {
                   .lowerBound(1)
                   .upperBound(1)
                   .build())
-          .withStatistic(
-              BaseStatistic.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
                   .fieldId(2)
                   .type(Types.TimestampType.withZone())
                   .columnSize(122L)
                   .valueCount(100L)
                   .nullValueCount(0L)
                   .build())
-          .withStatistic(
-              BaseStatistic.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
                   .fieldId(3)
                   .type(Types.StringType.get())
                   .columnSize(4021L)
                   .valueCount(100L)
                   .nullValueCount(0L)
                   .build())
-          .withStatistic(
-              BaseStatistic.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
                   .fieldId(4)
                   .type(Types.StringType.get())
                   .columnSize(9411L)
                   .valueCount(100L)
                   .nullValueCount(0L)
                   .build())
-          .withStatistic(
-              BaseStatistic.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
                   .fieldId(5)
                   .type(Types.DoubleType.get())
                   .columnSize(15L)

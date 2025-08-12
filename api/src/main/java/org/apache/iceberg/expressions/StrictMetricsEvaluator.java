@@ -100,7 +100,7 @@ public class StrictMetricsEvaluator {
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
-      if (null != file.contentStats() && !file.contentStats().statistics().isEmpty()) {
+      if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
         return new StrictStatsEvaluator(schema, unboundExpression, caseSensitive).eval(file);
       }
 

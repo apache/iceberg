@@ -127,5 +127,10 @@ public class StatsUtil {
 
       return null;
     }
+
+    @Override
+    public Types.NestedField variant(Types.VariantType variant) {
+      return null;
+    }
   }
 }

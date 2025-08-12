@@ -25,7 +25,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
-public class BaseStatistic implements Statistic, StructLike, Serializable {
+public class BaseFieldStats implements FieldStats, StructLike, Serializable {
   private final transient int fieldId;
   private final transient Type type;
   private final Long columnSize;
@@ -35,7 +35,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
   private final Object lowerBound;
   private final Object upperBound;
 
-  BaseStatistic(
+  BaseFieldStats(
       int fieldId,
       Type type,
       Long columnSize,
@@ -126,7 +126,7 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
 
   @Override
   public String toString() {
-    return new StringJoiner(", ", BaseStatistic.class.getSimpleName() + "[", "]")
+    return new StringJoiner(", ", BaseFieldStats.class.getSimpleName() + "[", "]")
         .add("fieldId=" + fieldId)
         .add("type=" + type)
         .add("columnSize=" + columnSize)
@@ -140,11 +140,11 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
 
   @Override
   public boolean equals(Object o) {
-    if (!(o instanceof BaseStatistic)) {
+    if (!(o instanceof BaseFieldStats)) {
       return false;
     }
 
-    BaseStatistic that = (BaseStatistic) o;
+    BaseFieldStats that = (BaseFieldStats) o;
     return fieldId == that.fieldId
         && Objects.equals(type, that.type)
         && Objects.equals(columnSize, that.columnSize)
@@ -172,9 +172,9 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
     return new Builder();
   }
 
-  public static Builder buildFrom(BaseStatistic value) {
+  public static Builder buildFrom(BaseFieldStats value) {
     Preconditions.checkArgument(null != value, "Invalid column stats: null");
-    return BaseStatistic.builder()
+    return BaseFieldStats.builder()
         .columnSize(value.columnSize())
         .valueCount(value.valueCount())
         .nanValueCount(value.nanValueCount())
@@ -237,8 +237,8 @@ public class BaseStatistic implements Statistic, StructLike, Serializable {
       return this;
     }
 
-    public BaseStatistic build() {
-      return new BaseStatistic(
+    public BaseFieldStats build() {
+      return new BaseFieldStats(
           fieldId,
           type,
           columnSize,

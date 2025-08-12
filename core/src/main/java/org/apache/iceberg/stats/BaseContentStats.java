@@ -37,13 +37,13 @@ import org.apache.iceberg.types.Types;
 // e.g. project only lowerBound for columnX
 public class BaseContentStats implements ContentStats, StructLike, Serializable {
 
-  private final List<Statistic> statistics;
-  private final Map<Integer, Statistic> statisticsById;
+  private final List<FieldStats> fieldStats;
+  private final Map<Integer, FieldStats> fieldStatsById;
   private long recordCount = -1L;
 
   public BaseContentStats(Types.StructType projection) {
-    this.statistics = Lists.newArrayListWithCapacity(projection.fields().size());
-    this.statisticsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
+    this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
@@ -55,23 +55,23 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
               : null != structType.field("upper_bound")
                   ? structType.field("upper_bound").type()
                   : null;
-      statistics.add(
-          BaseStatistic.builder()
+      fieldStats.add(
+          BaseFieldStats.builder()
               .fieldId(StatsUtil.fieldIdFor(field.fieldId()))
               .type(type)
               .build());
     }
   }
 
-  private BaseContentStats(long recordCount, List<Statistic> statistics) {
+  private BaseContentStats(long recordCount, List<FieldStats> fieldStats) {
     this.recordCount = recordCount;
-    this.statistics = Lists.newArrayList(statistics);
-    this.statisticsById = Maps.newLinkedHashMapWithExpectedSize(statistics.size());
+    this.fieldStats = Lists.newArrayList(fieldStats);
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(fieldStats.size());
   }
 
   @Override
-  public List<Statistic> statistics() {
-    return statistics;
+  public List<FieldStats> fieldStats() {
+    return fieldStats;
   }
 
   @Override
@@ -80,32 +80,36 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
   }
 
   @Override
-  public Statistic statsFor(int columnId) {
-    if (statisticsById.isEmpty() && !statistics.isEmpty()) {
-      statistics.stream()
+  public FieldStats statsFor(int columnId) {
+    if (fieldStatsById.isEmpty() && !fieldStats.isEmpty()) {
+      fieldStats.stream()
           .filter(Objects::nonNull)
-          .forEach(stat -> statisticsById.put(stat.fieldId(), stat));
+          .forEach(stat -> fieldStatsById.put(stat.fieldId(), stat));
     }
 
-    return statisticsById.get(columnId);
+    return fieldStatsById.get(columnId);
   }
 
   @Override
   public int size() {
-    return statistics.size();
+    return fieldStats.size();
   }
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(statistics.get(pos));
+    if (pos > fieldStats().size() - 1) {
+      return null;
+    }
+
+    return javaClass.cast(fieldStats.get(pos));
   }
 
   @Override
   public <T> void set(int pos, T value) {
     if (value instanceof GenericRecord) {
       GenericRecord record = (GenericRecord) value;
-      BaseStatistic stat = (BaseStatistic) statistics.get(pos);
-      BaseStatistic.Builder builder = BaseStatistic.buildFrom(stat);
+      BaseFieldStats stat = (BaseFieldStats) fieldStats.get(pos);
+      BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
       if (null != record.getField("column_size")) {
         builder.columnSize((Long) record.getField("column_size"));
@@ -132,11 +136,11 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
         }
       }
 
-      BaseStatistic newStat = builder.build();
-      statistics.set(pos, newStat);
-      statisticsById.put(newStat.fieldId(), newStat);
+      BaseFieldStats newStat = builder.build();
+      fieldStats.set(pos, newStat);
+      fieldStatsById.put(newStat.fieldId(), newStat);
     } else {
-      statistics.set(pos, (Statistic) value);
+      fieldStats.set(pos, (FieldStats) value);
     }
   }
 
@@ -144,7 +148,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
   public String toString() {
     return new StringJoiner(", ", BaseContentStats.class.getSimpleName() + "[", "]")
         .add("recordCount=" + recordCount)
-        .add("statistics=" + statistics)
+        .add("statistics=" + fieldStats)
         .toString();
   }
 
@@ -154,12 +158,12 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
       return false;
     }
     BaseContentStats that = (BaseContentStats) o;
-    return recordCount == that.recordCount && Objects.equals(statistics, that.statistics);
+    return recordCount == that.recordCount && Objects.equals(fieldStats, that.fieldStats);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(statistics, recordCount);
+    return Objects.hash(fieldStats, recordCount);
   }
 
   public static Builder builder() {
@@ -167,7 +171,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
   }
 
   public static Builder buildFrom(ContentStats stats) {
-    return builder().withStatistics(stats.statistics()).recordCount(stats.recordCount());
+    return builder().withFieldStats(stats.fieldStats()).recordCount(stats.recordCount());
   }
 
   public static Builder buildFrom(ContentStats stats, Set<Integer> requestedColumnIds) {
@@ -176,26 +180,26 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     }
 
     return builder()
-        .withStatistics(
-            stats.statistics().stream()
+        .withFieldStats(
+            stats.fieldStats().stream()
                 .filter(stat -> requestedColumnIds.contains(stat.fieldId()))
                 .collect(Collectors.toList()))
         .recordCount(stats.recordCount());
   }
 
   public static class Builder {
-    private final List<Statistic> stats = Lists.newArrayList();
+    private final List<FieldStats> stats = Lists.newArrayList();
     private long recordCount = -1L;
 
     private Builder() {}
 
-    public Builder withStatistic(Statistic statistic) {
-      stats.add(statistic);
+    public Builder withFieldStats(FieldStats fieldStats) {
+      stats.add(fieldStats);
       return this;
     }
 
-    public Builder withStatistics(List<Statistic> statistics) {
-      stats.addAll(statistics);
+    public Builder withFieldStats(List<FieldStats> fieldStats) {
+      stats.addAll(fieldStats);
       return this;
     }
 

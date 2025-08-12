@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.BaseStatistic;
+import org.apache.iceberg.stats.BaseFieldStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -64,8 +64,8 @@ public class TestDeleteFiles extends TestBase {
           .withContentStats(
               BaseContentStats.builder()
                   .recordCount(5L)
-                  .withStatistic(
-                      BaseStatistic.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
                           .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -73,8 +73,8 @@ public class TestDeleteFiles extends TestBase {
                           .lowerBound(0)
                           .upperBound(2)
                           .build())
-                  .withStatistic(
-                      BaseStatistic.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
                           .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -101,8 +101,8 @@ public class TestDeleteFiles extends TestBase {
           .withContentStats(
               BaseContentStats.builder()
                   .recordCount(7L)
-                  .withStatistic(
-                      BaseStatistic.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
                           .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -110,8 +110,8 @@ public class TestDeleteFiles extends TestBase {
                           .lowerBound(8)
                           .upperBound(10)
                           .build())
-                  .withStatistic(
-                      BaseStatistic.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
                           .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
