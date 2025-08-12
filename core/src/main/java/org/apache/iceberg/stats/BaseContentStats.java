@@ -96,12 +96,8 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
   }
 
   @Override
-  public <T> T get(int basePos, Class<T> javaClass) {
-    if (basePos > statistics().size() - 1) {
-      return null;
-    }
-
-    return javaClass.cast(statistics.get(basePos));
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(statistics.get(pos));
   }
 
   @Override

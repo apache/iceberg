@@ -23,8 +23,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class StatsUtil {
@@ -78,22 +78,7 @@ public class StatsUtil {
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {
-    List<Types.NestedField> structFields = Lists.newArrayList();
-    for (Types.NestedField field : schema.asStruct().fields()) {
-      int fieldId = statsFieldIdFor(field.fieldId());
-      // don't overflow and don't overlap with the metadata ID range
-      if (fieldId >= 0) {
-        Types.StructType structType = contentStatsFor(field.type(), fieldId + 1);
-        Types.NestedField statsField =
-            optional(fieldId, Integer.toString(field.fieldId()), structType);
-        structFields.add(statsField);
-      }
-    }
-
-    return optional(
-        DataFile.CONTENT_STATS.fieldId(),
-        DataFile.CONTENT_STATS.name(),
-        Types.StructType.of(structFields));
+    return TypeUtil.visit(schema, new ContentStatsSchemaVisitor());
   }
 
   private static Types.StructType contentStatsFor(Type type, int id) {
@@ -114,5 +99,33 @@ public class StatsUtil {
         optional(fieldId++, "null_value_count", Types.LongType.get(), "Total null value count"),
         optional(fieldId++, "lower_bound", boundType, "Lower bound"),
         optional(fieldId, "upper_bound", boundType, "Upper bound"));
+  }
+
+  private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {
+
+    @Override
+    public Types.NestedField schema(Schema schema, Types.NestedField structResult) {
+      return structResult;
+    }
+
+    @Override
+    public Types.NestedField struct(Types.StructType struct, List<Types.NestedField> fields) {
+      return optional(
+          DataFile.CONTENT_STATS.fieldId(),
+          DataFile.CONTENT_STATS.name(),
+          Types.StructType.of(fields));
+    }
+
+    @Override
+    public Types.NestedField field(Types.NestedField field, Types.NestedField fieldResult) {
+      int fieldId = StatsUtil.statsFieldIdFor(field.fieldId());
+      // don't overflow and don't overlap with the metadata ID range
+      if (fieldId >= 0) {
+        Types.StructType structType = contentStatsFor(field.type(), fieldId + 1);
+        return optional(fieldId, Integer.toString(field.fieldId()), structType);
+      }
+
+      return null;
+    }
   }
 }
