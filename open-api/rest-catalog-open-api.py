@@ -76,15 +76,22 @@ class UpdateNamespacePropertiesRequest(BaseModel):
     )
 
 
-class Namespace(BaseModel):
+class CatalogObject(BaseModel):
+    __root__: List[str] = Field(..., example=['accounting', 'tax'])
+
+
+class CatalogObjectUuid(BaseModel):
     """
-    Reference to one or more levels of a namespace
+    Identify a table or view by its uuid.
     """
 
-    __root__: List[str] = Field(
+    uuid: str = Field(
         ...,
-        description='Reference to one or more levels of a namespace',
-        example=['accounting', 'tax'],
+        description='The UUID of the catalog object',
+        example='123e4567-e89b-12d3-a456-426614174000',
+    )
+    type: Literal['table', 'view'] = Field(
+        ..., description='The type of the catalog object', example='table'
     )
 
 
@@ -93,11 +100,6 @@ class PageToken(BaseModel):
         None,
         description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
-
-
-class TableIdentifier(BaseModel):
-    namespace: Namespace
-    name: str
 
 
 class PrimitiveType(BaseModel):
@@ -257,20 +259,6 @@ class ViewHistoryEntry(BaseModel):
     timestamp_ms: int = Field(..., alias='timestamp-ms')
 
 
-class ViewVersion(BaseModel):
-    version_id: int = Field(..., alias='version-id')
-    timestamp_ms: int = Field(..., alias='timestamp-ms')
-    schema_id: int = Field(
-        ...,
-        alias='schema-id',
-        description='Schema ID to set as current, or -1 to set last added schema',
-    )
-    summary: Dict[str, str]
-    representations: List[ViewRepresentation]
-    default_catalog: Optional[str] = Field(None, alias='default-catalog')
-    default_namespace: Namespace = Field(..., alias='default-namespace')
-
-
 class BaseUpdate(BaseModel):
     action: str
 
@@ -359,11 +347,6 @@ class SetPropertiesUpdate(BaseUpdate):
 class RemovePropertiesUpdate(BaseUpdate):
     action: str = Field('remove-properties', const=True)
     removals: List[str]
-
-
-class AddViewVersionUpdate(BaseUpdate):
-    action: str = Field('add-view-version', const=True)
-    view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
@@ -509,31 +492,6 @@ class LoadCredentialsResponse(BaseModel):
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
-    )
-
-
-class NamespaceReference(BaseModel):
-    reference_type: Literal['namespace'] = Field(
-        ..., alias='reference-type', const=True
-    )
-    namespace: Namespace
-
-
-class TableReference(BaseModel):
-    reference_type: Literal['table'] = Field(..., alias='reference-type', const=True)
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
-
-
-class ViewReference(BaseModel):
-    reference_type: Literal['view'] = Field(..., alias='reference-type', const=True)
-    identifier: TableIdentifier
-    view_uuid: UUID = Field(..., alias='view-uuid')
-
-
-class CatalogObjectReference(BaseModel):
-    __root__: Union[NamespaceReference, TableReference, ViewReference] = Field(
-        ..., discriminator='reference_type'
     )
 
 
@@ -691,34 +649,6 @@ class IcebergErrorResponse(BaseModel):
     error: ErrorModel
 
 
-class CreateNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server.',
-        example={'owner': 'Ralph', 'created_at': '1452120468'},
-    )
-
-
-class GetNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
-        example={'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'},
-    )
-
-
-class ListTablesResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
-
-
-class ListNamespacesResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
-
-
 class UpdateNamespacePropertiesResponse(BaseModel):
     updated: List[str] = Field(
         ...,
@@ -729,36 +659,6 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     missing: Optional[List[str]] = Field(
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
-    )
-
-
-class CustomOperation(BaseModel):
-    """
-    Extension point for catalog-specific operations not defined in the standard.
-
-    """
-
-    class Config:
-        extra = Extra.allow
-
-    operation_type: Literal['custom'] = Field(..., alias='operation-type', const=True)
-    custom_type: CustomOperationType = Field(..., alias='custom-type')
-    identifier: Optional[TableIdentifier] = Field(
-        None,
-        description='Table or view identifier this operation applies to, if applicable',
-    )
-    namespace: Optional[Namespace] = Field(
-        None, description='Namespace this operation applies to, if applicable'
-    )
-    table_uuid: Optional[UUID] = Field(
-        None,
-        alias='table-uuid',
-        description='UUID of table this operation applies to, if applicable',
-    )
-    view_uuid: Optional[UUID] = Field(
-        None,
-        alias='view-uuid',
-        description='UUID of view this operation applies to, if applicable',
     )
 
 
@@ -977,24 +877,40 @@ class PlanTask(BaseModel):
     )
 
 
-class CreateNamespaceRequest(BaseModel):
+class Namespace(BaseModel):
+    """
+    Reference to one or more levels of a namespace
+    """
+
+
+class TableIdentifier(BaseModel):
     namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
-        {},
-        description='Configured string to string map of properties for the namespace',
-        example={'owner': 'Hank Bendickson'},
-    )
-
-
-class RenameTableRequest(BaseModel):
-    source: TableIdentifier
-    destination: TableIdentifier
+    name: str
 
 
 class TransformTerm(BaseModel):
     type: str = Field('transform', const=True)
     transform: Transform
     term: Reference
+
+
+class ViewVersion(BaseModel):
+    version_id: int = Field(..., alias='version-id')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    schema_id: int = Field(
+        ...,
+        alias='schema-id',
+        description='Schema ID to set as current, or -1 to set last added schema',
+    )
+    summary: Dict[str, str]
+    representations: List[ViewRepresentation]
+    default_catalog: Optional[str] = Field(None, alias='default-catalog')
+    default_namespace: Namespace = Field(..., alias='default-namespace')
+
+
+class AddViewVersionUpdate(BaseUpdate):
+    action: str = Field('add-view-version', const=True)
+    view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
@@ -1071,10 +987,20 @@ class QueryEventsRequest(BaseModel):
         alias='operation-types',
         description='Filter events by the type of operation. If not provided, all types are returned.\n',
     )
-    catalog_objects: Optional[List[CatalogObjectReference]] = Field(
+    catalog_objects_by_name: Optional[List[CatalogObject]] = Field(
         None,
-        alias='catalog-objects',
+        alias='catalog-objects-by-name',
         description='List of catalog objects (namespaces, tables, views) to get events for. If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
+    )
+    catalog_objects_by_id: Optional[List[CatalogObjectUuid]] = Field(
+        None,
+        alias='catalog-objects-by-id',
+        description='List of catalog objects tables and views to get events for by their UUID.\n',
+    )
+    object_types: Optional[List[Literal['namespace', 'table', 'view']]] = Field(
+        None,
+        alias='object-types',
+        description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
     )
     custom_filters: Optional[Dict[str, str]] = Field(
         None,
@@ -1087,25 +1013,32 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
-class CreateTableOperation(BaseModel):
-    """
-    Operation to create a new table in the catalog. Events for this Operation must be issued when the create is finalized and committed, not when the create is staged.
-
-    """
-
-    operation_type: Literal['create-table'] = Field(
-        ..., alias='operation-type', const=True
+class CreateNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: Optional[Dict[str, str]] = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server.',
+        example={'owner': 'Ralph', 'created_at': '1452120468'},
     )
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
 
 
-class RegisterTableOperation(BaseModel):
-    operation_type: Literal['register-table'] = Field(
-        ..., alias='operation-type', const=True
+class GetNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: Optional[Dict[str, str]] = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
+        example={'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'},
     )
-    identifier: TableIdentifier
-    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class ListTablesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
+
+
+class ListNamespacesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
 class DropTableOperation(BaseModel):
@@ -1115,20 +1048,6 @@ class DropTableOperation(BaseModel):
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
     purge: Optional[bool] = Field(None, description='Whether purge flag was set')
-
-
-class RenameTableOperation(RenameTableRequest):
-    operation_type: Literal['rename-table'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    table_uuid: UUID = Field(..., alias='table-uuid')
-
-
-class RenameViewOperation(RenameTableRequest):
-    operation_type: Literal['rename-view'] = Field(
-        ..., alias='operation-type', const=True
-    )
-    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class CreateViewOperation(BaseModel):
@@ -1166,6 +1085,36 @@ class DropNamespaceOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     namespace: Namespace
+
+
+class CustomOperation(BaseModel):
+    """
+    Extension point for catalog-specific operations not defined in the standard.
+
+    """
+
+    class Config:
+        extra = Extra.allow
+
+    operation_type: Literal['custom'] = Field(..., alias='operation-type', const=True)
+    custom_type: CustomOperationType = Field(..., alias='custom-type')
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table or view identifier this operation applies to, if applicable',
+    )
+    namespace: Optional[Namespace] = Field(
+        None, description='Namespace this operation applies to, if applicable'
+    )
+    table_uuid: Optional[UUID] = Field(
+        None,
+        alias='table-uuid',
+        description='UUID of table this operation applies to, if applicable',
+    )
+    view_uuid: Optional[UUID] = Field(
+        None,
+        alias='view-uuid',
+        description='UUID of view this operation applies to, if applicable',
+    )
 
 
 class StatisticsFile(BaseModel):
@@ -1227,6 +1176,20 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
+class CreateNamespaceRequest(BaseModel):
+    namespace: Namespace
+    properties: Optional[Dict[str, str]] = Field(
+        {},
+        description='Configured string to string map of properties for the namespace',
+        example={'owner': 'Hank Bendickson'},
+    )
+
+
+class RenameTableRequest(BaseModel):
+    source: TableIdentifier
+    destination: TableIdentifier
+
+
 class Term(BaseModel):
     __root__: Union[Reference, TransformTerm]
 
@@ -1239,6 +1202,20 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
+
+
+class RenameTableOperation(RenameTableRequest):
+    operation_type: Literal['rename-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RenameViewOperation(RenameTableRequest):
+    operation_type: Literal['rename-view'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class UnaryExpression(BaseModel):
@@ -1639,6 +1616,29 @@ class Event(BaseModel):
         description='The operation that was performed, such as creating or updating a table. Clients should discard events with unknown operation types.\n',
         discriminator='operation_type',
     )
+
+
+class CreateTableOperation(BaseModel):
+    """
+    Operation to create a new table in the catalog. Events for this Operation must be issued when the create is finalized and committed, not when the create is staged.
+
+    """
+
+    operation_type: Literal['create-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: List[TableUpdate]
+
+
+class RegisterTableOperation(BaseModel):
+    operation_type: Literal['register-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: Optional[List[TableUpdate]] = None
 
 
 class UpdateTableOperation(BaseModel):
