@@ -18,14 +18,23 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.util.UUID;
 import org.apache.curator.test.TestingServer;
-import org.junit.After;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestZkLockFactory extends TestLockFactoryBase {
-  private final String testLockId = "tableName";
+
   private TestingServer zkTestServer;
+
+  @Override
+  TriggerLockFactory lockFactory() {
+    return lockFactory("tableName");
+  }
 
   @BeforeEach
   @Override
@@ -39,15 +48,32 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     super.before();
   }
 
-  @Override
-  TriggerLockFactory lockFactory() {
-    return new ZkLockFactory(zkTestServer.getConnectString(), testLockId, 5000, 3000, 1000, 3);
+  @Test
+  void testMultiTableLock() throws IOException {
+    // Create two lock factories for different tables
+    ZkLockFactory other = lockFactory("tableName2");
+    other.open();
+    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
+    TriggerLockFactory.Lock lock2 = other.createLock();
+
+    // Verify that locks for different tables can be acquired independently
+    assertThat(lock1.tryLock()).isTrue();
+    assertThat(lock2.tryLock()).isTrue();
+
+    // Clean up
+    lock1.unlock();
+    lock2.unlock();
+    other.close();
   }
 
-  @After
+  ZkLockFactory lockFactory(String tableName) {
+    String lockId = "test_job_" + tableName + "_" + UUID.randomUUID().toString().replace("-", "");
+    return new ZkLockFactory(zkTestServer.getConnectString(), lockId, 5000, 3000, 1000, 3);
+  }
+
+  @AfterEach
   public void after() throws IOException {
     super.after();
-
     if (zkTestServer != null) {
       zkTestServer.close();
     }
