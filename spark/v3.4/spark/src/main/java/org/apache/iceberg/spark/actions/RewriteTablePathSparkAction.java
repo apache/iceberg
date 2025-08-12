@@ -302,7 +302,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .filter(e -> e instanceof DeleteFile)
             .map(e -> (DeleteFile) e)
             .collect(Collectors.toSet());
-    rewritePositionDeletes(endMetadata, deleteFiles);
+    rewritePositionDeletes(deleteFiles);
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
@@ -623,7 +623,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
-  private void rewritePositionDeletes(TableMetadata metadata, Set<DeleteFile> toRewrite) {
+  private void rewritePositionDeletes(Set<DeleteFile> toRewrite) {
     if (toRewrite.isEmpty()) {
       return;
     }
