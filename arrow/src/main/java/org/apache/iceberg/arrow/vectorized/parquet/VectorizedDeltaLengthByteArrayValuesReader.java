@@ -90,56 +90,67 @@ public class VectorizedDeltaLengthByteArrayValuesReader
     }
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public boolean readBoolean() {
     throw new UnsupportedOperationException("readBoolean is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public byte readByte() {
     throw new UnsupportedOperationException("readByte is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public short readShort() {
     throw new UnsupportedOperationException("readShort is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public int readInteger() {
     throw new UnsupportedOperationException("readInteger is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public long readLong() {
     throw new UnsupportedOperationException("readLong is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public float readFloat() {
     throw new UnsupportedOperationException("readFloat is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public double readDouble() {
     throw new UnsupportedOperationException("readDouble is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readIntegers is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readLongs is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public void readFloats(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readFloats is not supported");
   }
 
+  /** DELTA_LENGTH_BYTE_ARRAY only supports BINARY */
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
