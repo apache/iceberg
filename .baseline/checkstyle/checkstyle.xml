@@ -93,8 +93,8 @@
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>
     <module name="RegexpMultiline">
-        <property name="format" value="^\s*import\s+static\s+(?!\Qorg.junit.jupiter.api.Assertions.\E).*\.*;"/>
-        <property name="message" value="Avoid static imports of JUnit 5 assertions. Use methods from org.assertj.core.api.Assertions instead."/>
+        <property name="format" value="^\s*import\s+static\s+org\.junit\.jupiter\.api\.Assertions\.\w+;"/>
+        <property name="message" value="Static import of JUnit 5 assertions (org.junit.jupiter.api.Assertions) is prohibited. Use org.assertj.core.api.Assertions methods instead (e.g., import static org.assertj.core.api.Assertions.assertThat)."/>
     </module>
     <module name="RegexpMultiline">
         <property name="id" value="AssertThatThrownByWithMessageCheck"/>
