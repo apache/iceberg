@@ -136,18 +136,24 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
+    // Will try closing worker if started in every case to avoid duplicates.
     stopWorker();
+
+    // In case close is called by connect framework without open call, which should not happen.
+    if (!isInitialized.get()) {
+      LOG.warn("Close unexpectedly called without partition assignment");
+      return;
+    }
+
     // Connect never calls close on a task with empty partition so empty partition means the task
-    // has stopped. Stopping coordinator if it was started on this task.
+    // has stopped as we manually call close with empty partition in that case. Stopping coordinator
+    // if it was started on this task.
     if (closedPartitions.isEmpty()) {
-      LOG.info(
-          "Worker {}-{} stopped. Stooping coordinator if started.",
-          config.connectorName(),
-          config.taskId());
+      LOG.info("Task stopped. Trying closing coordinator");
       stopCoordinator();
       return;
     }
+
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
           "Committer {}-{} either lost the leader partition. Stopping coordinator.",
@@ -155,6 +161,7 @@ public class CommitterImpl implements Committer {
           config.taskId());
       stopCoordinator();
     }
+
     LOG.info(
         "Seeking to last committed offsets for worker {}-{}.",
         config.connectorName(),
