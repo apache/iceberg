@@ -31,6 +31,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -46,7 +47,7 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10))) {
+            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false))) {
       testHarness.open();
 
       if (!success) {
@@ -75,6 +76,47 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     } else {
       assertThat(result.exceptions()).isNotNull().hasSize(1);
       assertThat(deletes).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void testCleanExpiredMetadata(boolean cleanExpiredMetadata) throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    insert(table, 2, "b", "x");
+
+    assertThat(table.schemas()).hasSize(2);
+
+    List<TaskResult> actual;
+    Queue<StreamRecord<String>> deletes;
+    try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
+        ProcessFunctionTestHarnesses.forProcessFunction(
+            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, cleanExpiredMetadata))) {
+      testHarness.open();
+
+      testHarness.processElement(Trigger.create(10, 11), System.currentTimeMillis());
+      deletes = testHarness.getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM);
+      actual = testHarness.extractOutputValues();
+    }
+
+    assertThat(actual).hasSize(1);
+    TaskResult result = actual.get(0);
+    assertThat(result.startEpoch()).isEqualTo(10);
+    assertThat(result.taskIndex()).isEqualTo(11);
+    assertThat(result.success()).isEqualTo(true);
+    assertThat(result.exceptions()).isNotNull().isEmpty();
+
+    table.refresh();
+    Set<Snapshot> snapshots = Sets.newHashSet(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+    assertThat(deletes).hasSize(1);
+
+    if (cleanExpiredMetadata) {
+      assertThat(table.schemas().values()).containsExactly(table.schema());
+    } else {
+      assertThat(table.schemas()).hasSize(2);
     }
   }
 }

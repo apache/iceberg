@@ -298,6 +298,43 @@ public abstract class TestWriterMetrics<T> {
   }
 
   @TestTemplate
+  public void testMaxColumnsBounded() throws IOException {
+    List<Types.NestedField> fields = Arrays.asList(ID_FIELD, DATA_FIELD, STRUCT_FIELD);
+
+    Schema maxColSchema = new Schema(fields);
+
+    Table maxColumnTable =
+        TestTables.create(
+            tableDir,
+            "max_col_table",
+            maxColSchema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            FORMAT_V2);
+
+    long maxInferredColumns = 3;
+
+    maxColumnTable
+        .updateProperties()
+        .set(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            String.valueOf(maxInferredColumns))
+        .commit();
+
+    OutputFileFactory maxColFactory =
+        OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
+
+    T row = toRow(1, "data", false, Long.MAX_VALUE);
+    DataWriter<T> dataWriter =
+        newWriterFactory(maxColumnTable)
+            .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
+    dataWriter.write(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
+    assertThat(dataFile.upperBounds().keySet().size()).isEqualTo(maxInferredColumns);
+  }
+
+  @TestTemplate
   public void testMaxColumnsWithDefaultOverride() throws IOException {
     int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);

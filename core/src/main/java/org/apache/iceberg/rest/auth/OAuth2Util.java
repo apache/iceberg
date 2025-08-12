@@ -132,6 +132,11 @@ public class OAuth2Util {
   }
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    return buildOptionalParam(properties, OAuth2Properties.CATALOG_SCOPE);
+  }
+
+  public static Map<String, String> buildOptionalParam(
+      Map<String, String> properties, String defaultScope) {
     // these are some options oauth params based on specification
     // for any new optional oauth param, define the constant and add the constant to this list
     Set<String> optionalParamKeys =
@@ -139,8 +144,7 @@ public class OAuth2Util {
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
     // add scope too,
     optionalParamBuilder.put(
-        OAuth2Properties.SCOPE,
-        properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE));
+        OAuth2Properties.SCOPE, properties.getOrDefault(OAuth2Properties.SCOPE, defaultScope));
     // add all other parameters
     for (String key : optionalParamKeys) {
       String value = properties.get(key);
@@ -209,6 +213,12 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -229,6 +239,12 @@ public class OAuth2Util {
         ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -275,6 +291,11 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client, Map<String, String> headers, String credential, String scope) {
 
@@ -282,6 +303,11 @@ public class OAuth2Util {
         client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,

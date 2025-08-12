@@ -108,9 +108,14 @@ class ParquetMetrics {
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
 
     for (FieldMetrics<ByteBuffer> metrics : results) {
       int id = metrics.id();
+      if (null != metrics.originalType()) {
+        originalTypes.put(id, metrics.originalType());
+      }
+
       if (metrics.valueCount() >= 0) {
         valueCounts.put(id, metrics.valueCount());
       }
@@ -139,7 +144,8 @@ class ParquetMetrics {
         nullValueCounts,
         nanValueCounts,
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        originalTypes);
   }
 
   private static class MetricsVisitor
@@ -246,7 +252,8 @@ class ParquetMetrics {
             fieldMetrics.nullValueCount(),
             fieldMetrics.nanValueCount(),
             lower,
-            upper);
+            upper,
+            icebergType);
       }
     }
 
@@ -332,7 +339,7 @@ class ParquetMetrics {
       ByteBuffer lower = Conversions.toByteBuffer(icebergType, lowerBound);
       ByteBuffer upper = Conversions.toByteBuffer(icebergType, upperBound);
 
-      return new FieldMetrics<>(fieldId, valueCount, nullCount, lower, upper);
+      return new FieldMetrics<>(fieldId, valueCount, nullCount, lower, upper, icebergType);
     }
 
     @Override
@@ -396,7 +403,8 @@ class ParquetMetrics {
               metadataCounts.valueCount(),
               metadataCounts.nullCount(),
               ParquetVariantUtil.toByteBuffer(metadata, lowerBounds),
-              ParquetVariantUtil.toByteBuffer(metadata, upperBounds)));
+              ParquetVariantUtil.toByteBuffer(metadata, upperBounds),
+              Types.VariantType.get()));
     }
 
     private class MetricsVariantVisitor

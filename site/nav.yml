@@ -48,11 +48,7 @@ nav:
       - Go: https://go.iceberg.apache.org/
       - C++: https://github.com/apache/iceberg-cpp/
   - Releases: releases.md
-  - Blogs: blogs.md
-  - Talks: talks.md
-  - Vendors: vendors.md
   - Project:
-    - Community: community.md
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
@@ -63,6 +59,11 @@ nav:
       - License: https://www.apache.org/licenses/
       - Security: https://www.apache.org/security/
       - Sponsors: https://www.apache.org/foundation/sponsors.html
+  - Community:
+    - Community: community.md
+    - Blogs: blogs.md
+    - Talks: talks.md
+    - Vendors: vendors.md
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md
