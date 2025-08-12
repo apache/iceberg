@@ -38,7 +38,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -48,9 +47,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantTestUtil;
-import org.apache.iceberg.variants.Variants;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -68,14 +64,6 @@ public abstract class AvroDataTestBase {
           FIRST_ROW_ID,
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
           34L);
-
-  private static final ByteBuffer TEST_METADATA_BUFFER =
-      VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c", "d", "e"), true);
-  private static final VariantMetadata TEST_METADATA = Variants.metadata(TEST_METADATA_BUFFER);
-  private static final Schema SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "var", Types.VariantType.get()));
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
