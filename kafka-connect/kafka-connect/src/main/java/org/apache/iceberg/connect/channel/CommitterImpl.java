@@ -173,7 +173,10 @@ public class CommitterImpl implements Committer {
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException(String.format("Coordinator unexpectedly terminated on committer %s-%s", config.connectorName(), config.taskId()));
+      throw new NotRunningException(
+          String.format(
+              "Coordinator unexpectedly terminated on committer %s-%s",
+              config.connectorName(), config.taskId()));
     }
     if (worker != null) {
       worker.process();
@@ -191,7 +194,10 @@ public class CommitterImpl implements Committer {
 
   private void startCoordinator() {
     if (null == this.coordinatorThread) {
-      LOG.info("Task {}-{} elected leader, starting commit coordinator", config.connectorName(), config.taskId());
+      LOG.info(
+          "Task {}-{} elected leader, starting commit coordinator",
+          config.connectorName(),
+          config.taskId());
       Coordinator coordinator =
           new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
       coordinatorThread = new CoordinatorThread(coordinator);
@@ -210,7 +216,6 @@ public class CommitterImpl implements Committer {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
       coordinatorThread = null;
-      LOG.info("Terminated coordinator running on the committer = {}-{}", config.connectorName(), config.taskId());
     }
   }
 }
