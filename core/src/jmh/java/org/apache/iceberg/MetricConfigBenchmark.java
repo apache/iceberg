@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.metrics;
+package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -48,8 +47,8 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>To run this benchmark: <code>
  * ./gradlew :iceberg-core:jmh
- * -PjmhIncludeRegex=LimitFieldIdsBenchmark
- * -PjmhOutputPath=benchmark/limit-benchmark.txt
+ * -PjmhIncludeRegex=MetricConfigBenchmark
+ * -PjmhOutputPath=benchmark/metrics-config-benchmark.txt
  * </code>
  */
 @Fork(1)
@@ -58,7 +57,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
-public class LimitFieldIdsBenchmark {
+public class MetricConfigBenchmark {
 
   private Schema schema;
 
@@ -81,9 +80,16 @@ public class LimitFieldIdsBenchmark {
 
   private Schema initSchema() {
     List<NestedField> fields = Lists.newArrayList(required(0, "id", Types.LongType.get()));
+    Function<Integer, NestedField> fieldIdToNestedField =
+        i ->
+            optional(
+                i,
+                "struct" + i,
+                Types.StructType.of(required(i + 1, "int" + (i + 1), Types.IntegerType.get())));
     List<NestedField> additionalCols =
         IntStream.range(1, numFields)
-            .mapToObj(i -> optional(i, "c" + i, Types.StringType.get()))
+            .filter(i -> i % 2 != 0)
+            .mapToObj(fieldIdToNestedField::apply)
             .collect(Collectors.toList());
     fields.addAll(additionalCols);
     return new Schema(fields);

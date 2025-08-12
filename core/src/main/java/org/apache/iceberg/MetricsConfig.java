@@ -112,7 +112,7 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
-  public static Set<Integer> limitFieldIds(Schema schema, int limit) {
+  static Set<Integer> limitFieldIds(Schema schema, int limit) {
     return TypeUtil.visit(
         schema,
         new TypeUtil.CustomOrderSchemaVisitor<>() {
