@@ -326,9 +326,9 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       Table table = catalog.loadTable(tableIdent);
       String initialLocation = catalog.getTableMetadataLocation(tableIdent);
       if (table instanceof HasTableOperations) {
-          HasTableOperations tops = (HasTableOperations) table;
-          String metaLocation = tops.operations().current().metadataFileLocation();
-          assertThat(initialLocation).isEqualTo(metaLocation);
+        HasTableOperations tops = (HasTableOperations) table;
+        String metaLocation = tops.operations().current().metadataFileLocation();
+        assertThat(initialLocation).isEqualTo(metaLocation);
       }
       assertThat(table.spec().fields()).hasSize(1);
 

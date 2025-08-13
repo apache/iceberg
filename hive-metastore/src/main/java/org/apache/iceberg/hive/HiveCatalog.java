@@ -415,14 +415,15 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
    *
    * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
    * {@code false}.
-   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.</p>
+   *
+   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.
    *
    * @param identifier a table identifier
    * @return true if the table exists, false otherwise
    */
   @Override
   public boolean tableExists(TableIdentifier identifier) {
-      return Objects.nonNull(fetchTable(identifier));
+    return Objects.nonNull(fetchTable(identifier));
   }
 
   /**
@@ -430,16 +431,17 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
    *
    * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
    * {@code null}.
-   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.</p>
+   *
+   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.
    *
    * @param identifier a table identifier
    * @return the location of the table metadata if it exists, null otherwise
    */
   public String getTableMetadataLocation(TableIdentifier identifier) {
-      Table table = fetchTable(identifier);
-      return table == null
-              ? null
-              : table.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    Table table = fetchTable(identifier);
+    return table == null
+        ? null
+        : table.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
   }
 
   /**
