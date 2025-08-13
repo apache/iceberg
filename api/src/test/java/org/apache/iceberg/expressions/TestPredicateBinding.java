@@ -660,11 +660,11 @@ public class TestPredicateBinding {
     BoundPredicate<String> boundSet = assertAndUnwrap(bound);
     assertThat(boundSet.isLiteralPredicate()).isTrue();
     assertThat(boundSet.asLiteralPredicate().literal().value())
-            .as("Should not alter literal value")
-            .isEqualTo("test");
+        .as("Should not alter literal value")
+        .isEqualTo("test");
     assertThat(boundSet.ref().fieldId()).as("Should reference correct field ID").isEqualTo(14);
     assertThat(boundSet.op())
-            .as("Should change the operation from EQUAL(TRUNCATE()) to STARTS_WITH")
-            .isEqualTo(STARTS_WITH);
+        .as("Should change the operation from EQUAL(TRUNCATE()) to STARTS_WITH")
+        .isEqualTo(STARTS_WITH);
   }
 }
