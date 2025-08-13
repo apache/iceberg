@@ -47,7 +47,7 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>To run this benchmark: <code>
  * ./gradlew :iceberg-core:jmh
- * -PjmhIncludeRegex=MetricConfigBenchmark
+ * -PjmhIncludeRegex=MetricsConfigBenchmark
  * -PjmhOutputPath=benchmark/metrics-config-benchmark.txt
  * </code>
  */
@@ -57,7 +57,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
-public class MetricConfigBenchmark {
+public class MetricsConfigBenchmark {
 
   private Schema schema;
 
