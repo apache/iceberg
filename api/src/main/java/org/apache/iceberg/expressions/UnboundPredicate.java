@@ -198,8 +198,9 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
           return Expressions.alwaysFalse();
       }
     }
-
-    // TODO: translate truncate(col) == value to startsWith(value)
+    if (op() == Operation.EQ && boundTerm instanceof BoundTransform) {
+      return new BoundLiteralPredicate<>(Operation.STARTS_WITH, boundTerm, lit);
+    }
     return new BoundLiteralPredicate<>(op(), boundTerm, lit);
   }
 
@@ -245,7 +246,6 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
           throw new ValidationException("Operation must be IN or NOT_IN");
       }
     }
-
     return new BoundSetPredicate<>(op(), boundTerm, literalSet);
   }
 
