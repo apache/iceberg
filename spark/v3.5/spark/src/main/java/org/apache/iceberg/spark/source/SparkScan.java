@@ -38,7 +38,6 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -356,11 +355,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics, SupportsCome
 
   @Override
   public boolean isCometEnabled() {
-    if (readConf.parquetReaderType() == ParquetReaderType.COMET) {
-      SparkBatch batch = (SparkBatch) this.toBatch();
-      return batch.useParquetBatchReads();
-    }
-
-    return false;
+    SparkBatch batch = (SparkBatch) this.toBatch();
+    return batch.useCometBatchReads();
   }
 }
