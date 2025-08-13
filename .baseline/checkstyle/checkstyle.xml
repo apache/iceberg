@@ -94,7 +94,7 @@
     </module>
     <module name="RegexpMultiline">
         <property name="format" value="^\s*import\s+static\s+org\.junit\.jupiter\.api\.Assertions\.\w+;"/>
-        <property name="message" value="Static import of JUnit 5 assertions (org.junit.jupiter.api.Assertions) is prohibited. Use org.assertj.core.api.Assertions methods instead (e.g., import static org.assertj.core.api.Assertions.assertThat)."/>
+        <property name="message" value="Prefer using org.assertj.core.api.Assertions instead."/>
     </module>
     <module name="RegexpMultiline">
         <property name="id" value="AssertThatThrownByWithMessageCheck"/>
