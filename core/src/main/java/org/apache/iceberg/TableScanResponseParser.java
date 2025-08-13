@@ -52,7 +52,7 @@ public class TableScanResponseParser {
       return deleteFilesBuilder.build();
     }
 
-    return null;
+    return Lists.newArrayList();
   }
 
   public static List<FileScanTask> parseFileScanTasks(
@@ -85,7 +85,7 @@ public class TableScanResponseParser {
       JsonGenerator gen)
       throws IOException {
     Map<String, Integer> deleteFilePathToIndex = Maps.newHashMap();
-    if (deleteFiles != null) {
+    if (deleteFiles != null && !deleteFiles.isEmpty()) {
       Preconditions.checkArgument(
           specsById != null, "Cannot serialize response without specs by ID defined");
       gen.writeArrayFieldStart(DELETE_FILES);

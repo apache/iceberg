@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.classification.VisibleForTesting;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -69,7 +70,8 @@ public class PlanTableScanResponseParser {
     gen.writeEndObject();
   }
 
-  public static PlanTableScanResponse fromJson(
+  @VisibleForTesting
+  static PlanTableScanResponse fromJson(
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null, "Cannot parse planTableScan response from empty or null object");

@@ -27,6 +27,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableScanResponseParser;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.util.JsonUtil;
@@ -63,9 +64,11 @@ public class FetchPlanningResultResponseParser {
     gen.writeEndObject();
   }
 
-  public static FetchPlanningResultResponse fromJson(
+  @VisibleForTesting
+  static FetchPlanningResultResponse fromJson(
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
-    Preconditions.checkArgument(json != null, "Invalid fetchPlanningResult response: null");
+    Preconditions.checkArgument(
+        json != null, "Invalid fetchPlanningResult response: null or empty");
     return JsonUtil.parse(
         json,
         node -> {

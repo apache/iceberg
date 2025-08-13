@@ -25,7 +25,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class FetchScanTasksResponse extends BaseScanResponse {
+public class FetchScanTasksResponse extends BaseScanTaskResponse {
 
   private FetchScanTasksResponse(
       List<String> planTasks,
@@ -53,7 +53,8 @@ public class FetchScanTasksResponse extends BaseScanResponse {
     return new Builder();
   }
 
-  public static class Builder extends BaseScanResponse.Builder<Builder, FetchScanTasksResponse> {
+  public static class Builder
+      extends BaseScanTaskResponse.Builder<Builder, FetchScanTasksResponse> {
     private Builder() {}
 
     @Override

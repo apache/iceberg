@@ -26,7 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 
-public class FetchPlanningResultResponse extends BaseScanResponse {
+public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
 
   private FetchPlanningResultResponse(
@@ -62,7 +62,7 @@ public class FetchPlanningResultResponse extends BaseScanResponse {
   }
 
   public static class Builder
-      extends BaseScanResponse.Builder<Builder, FetchPlanningResultResponse> {
+      extends BaseScanTaskResponse.Builder<Builder, FetchPlanningResultResponse> {
     private Builder() {}
 
     private PlanStatus planStatus;

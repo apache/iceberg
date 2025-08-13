@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 
-public class PlanTableScanResponse extends BaseScanResponse {
+public class PlanTableScanResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
   private final String planId;
 
@@ -72,10 +72,10 @@ public class PlanTableScanResponse extends BaseScanResponse {
         "Invalid response: 'cancelled' is not a valid status for planTableScan");
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
-        "Invalid response: tasks can only be returned in a 'completed' status");
+        "Invalid response: tasks can only be defined when status is 'completed'");
     Preconditions.checkArgument(
         planStatus() == PlanStatus.SUBMITTED || planId() == null,
-        "Invalid response: plan id can only be returned in a 'submitted' status");
+        "Invalid response: plan id can only be defined when status is 'submitted'");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
@@ -87,7 +87,7 @@ public class PlanTableScanResponse extends BaseScanResponse {
     return new Builder();
   }
 
-  public static class Builder extends BaseScanResponse.Builder<Builder, PlanTableScanResponse> {
+  public static class Builder extends BaseScanTaskResponse.Builder<Builder, PlanTableScanResponse> {
     private PlanStatus planStatus;
     private String planId;
 

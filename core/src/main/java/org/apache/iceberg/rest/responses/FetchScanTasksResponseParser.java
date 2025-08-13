@@ -27,6 +27,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableScanResponseParser;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -59,7 +60,8 @@ public class FetchScanTasksResponseParser {
     gen.writeEndObject();
   }
 
-  public static FetchScanTasksResponse fromJson(
+  @VisibleForTesting
+  static FetchScanTasksResponse fromJson(
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(json != null, "Cannot parse fetchScanTasks response from null");
     return JsonUtil.parse(

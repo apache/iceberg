@@ -40,7 +40,7 @@ public enum PlanStatus {
   public static PlanStatus fromName(String status) {
     Preconditions.checkArgument(status != null, "Status is null");
     try {
-      return PlanStatus.valueOf(status.toUpperCase(Locale.ENGLISH));
+      return PlanStatus.valueOf(status.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid status name: %s", status), e);
     }

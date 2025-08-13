@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +78,11 @@ public class RESTFileScanTaskParser {
     DeleteFile[] deleteFiles = null;
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       List<Integer> indices = JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode);
+      Preconditions.checkArgument(
+          Collections.max(indices) < allDeleteFiles.size(),
+          "Invalid delete file references: %s, expected indices < %s",
+          indices,
+          allDeleteFiles.size());
       deleteFiles =
           indices.stream()
               .map(index -> (GenericDeleteFile) allDeleteFiles.get(index))

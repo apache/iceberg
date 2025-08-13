@@ -545,13 +545,11 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      // Retrieve injectable values
-      @SuppressWarnings("unchecked")
-      Map<Integer, PartitionSpec> specsById =
-          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
 
-      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
-      return (T) PlanTableScanResponseParser.fromJson(jsonNode, specsById, caseSensitive);
+      return (T)
+          PlanTableScanResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
     }
   }
 
@@ -569,13 +567,11 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      // Retrieve injectable values
-      @SuppressWarnings("unchecked")
-      Map<Integer, PartitionSpec> specsById =
-          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
 
-      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
-      return (T) FetchPlanningResultResponseParser.fromJson(jsonNode, specsById, caseSensitive);
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
+      return (T)
+          FetchPlanningResultResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
     }
   }
 
@@ -593,13 +589,38 @@ public class RESTSerializers {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      // Retrieve injectable values
-      @SuppressWarnings("unchecked")
-      Map<Integer, PartitionSpec> specsById =
-          (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
 
-      boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
-      return (T) FetchScanTasksResponseParser.fromJson(jsonNode, specsById, caseSensitive);
+      TableScanResponseContext scanContext = parseScanResponseContext(context);
+      return (T)
+          FetchScanTasksResponseParser.fromJson(
+              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  private static TableScanResponseContext parseScanResponseContext(DeserializationContext context)
+      throws IOException {
+    @SuppressWarnings("unchecked")
+    Map<Integer, PartitionSpec> specsById =
+        (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
+    boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
+    return new TableScanResponseContext(specsById, caseSensitive);
+  }
+
+  static class TableScanResponseContext {
+    private final Map<Integer, PartitionSpec> specsById;
+    private final boolean caseSensitive;
+
+    TableScanResponseContext(Map<Integer, PartitionSpec> specs, boolean isCaseSensitive) {
+      this.specsById = specs;
+      this.caseSensitive = isCaseSensitive;
+    }
+
+    Map<Integer, PartitionSpec> getSpecsById() {
+      return specsById;
+    }
+
+    boolean isCaseSensitive() {
+      return caseSensitive;
     }
   }
 }

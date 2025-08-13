@@ -92,20 +92,19 @@ public class TestPlanTableScanRequest {
   }
 
   @Test
-  public void roundTripSerdeWithAllFieldsInvalidRequest() {
-    PlanTableScanRequest request =
-        new PlanTableScanRequest.Builder()
-            .withSnapshotId(1L)
-            .withSelect(Lists.newArrayList("col1", "col2"))
-            .withFilter(Expressions.alwaysTrue())
-            .withStartSnapshotId(1L)
-            .withEndSnapshotId(2L)
-            .withCaseSensitive(false)
-            .withUseSnapshotSchema(true)
-            .withStatsFields(Lists.newArrayList("col1", "col2"))
-            .build();
-
-    assertThatThrownBy(() -> PlanTableScanRequestParser.toJson(request))
+  public void planTableScanRequestWithAllFieldsInvalidRequest() {
+    assertThatThrownBy(
+            () ->
+                new PlanTableScanRequest.Builder()
+                    .withSnapshotId(1L)
+                    .withSelect(Lists.newArrayList("col1", "col2"))
+                    .withFilter(Expressions.alwaysTrue())
+                    .withStartSnapshotId(1L)
+                    .withEndSnapshotId(2L)
+                    .withCaseSensitive(false)
+                    .withUseSnapshotSchema(true)
+                    .withStatsFields(Lists.newArrayList("col1", "col2"))
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");

@@ -25,14 +25,14 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.rest.RESTResponse;
 
-public abstract class BaseScanResponse implements RESTResponse {
+public abstract class BaseScanTaskResponse implements RESTResponse {
 
   private final List<String> planTasks;
   private final List<FileScanTask> fileScanTasks;
   private final List<DeleteFile> deleteFiles;
   private final Map<Integer, PartitionSpec> specsById;
 
-  protected BaseScanResponse(
+  protected BaseScanTaskResponse(
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
@@ -59,7 +59,7 @@ public abstract class BaseScanResponse implements RESTResponse {
     return specsById;
   }
 
-  public abstract static class Builder<B extends Builder<B, R>, R extends BaseScanResponse> {
+  public abstract static class Builder<B extends Builder<B, R>, R extends BaseScanTaskResponse> {
     private List<String> planTasks;
     private List<FileScanTask> fileScanTasks;
     private List<DeleteFile> deleteFiles;

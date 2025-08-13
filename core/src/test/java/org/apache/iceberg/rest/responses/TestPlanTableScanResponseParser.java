@@ -26,7 +26,6 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -47,8 +46,7 @@ public class TestPlanTableScanResponseParser {
         .hasMessage("Invalid response: planTableScanResponse null");
 
     assertThatThrownBy(
-            () ->
-                PlanTableScanResponseParser.fromJson((JsonNode) null, PARTITION_SPECS_BY_ID, false))
+            () -> PlanTableScanResponseParser.fromJson((String) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse planTableScan response from empty or null object");
   }
@@ -118,7 +116,7 @@ public class TestPlanTableScanResponseParser {
                     .withPlanTasks(List.of("task1", "task2"))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
+        .hasMessage("Invalid response: tasks can only be defined when status is 'completed'");
 
     String invalidJson =
         "{\"plan-status\":\"submitted\","
@@ -128,7 +126,7 @@ public class TestPlanTableScanResponseParser {
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
+        .hasMessage("Invalid response: tasks can only be defined when status is 'completed'");
   }
 
   @Test
@@ -141,14 +139,14 @@ public class TestPlanTableScanResponseParser {
                     .withPlanId("somePlanId")
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan id can only be returned in a 'submitted' status");
+        .hasMessage("Invalid response: plan id can only be defined when status is 'submitted'");
 
     String invalidJson = "{\"plan-status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
 
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan id can only be returned in a 'submitted' status");
+        .hasMessage("Invalid response: plan id can only be defined when status is 'submitted'");
   }
 
   @Test

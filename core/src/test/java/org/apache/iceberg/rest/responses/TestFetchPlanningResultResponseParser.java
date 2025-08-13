@@ -30,7 +30,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.InjectableValues;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.util.List;
@@ -69,7 +68,7 @@ public class TestFetchPlanningResultResponseParser {
     assertThatThrownBy(
             () ->
                 FetchPlanningResultResponseParser.fromJson(
-                    (JsonNode) null, PARTITION_SPECS_BY_ID, false))
+                    (String) null, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid fetchPlanningResult response: null or empty");
   }
