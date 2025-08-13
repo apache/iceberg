@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -36,14 +38,19 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableMetadataParser {
 
@@ -84,6 +91,8 @@ public class TableMetadataParser {
 
   private TableMetadataParser() {}
 
+  private static final Logger LOG = LoggerFactory.getLogger(TableMetadataParser.class);
+
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
   static final String TABLE_UUID = "table-uuid";
@@ -114,6 +123,21 @@ public class TableMetadataParser {
   static final String ENCRYPTION_KEYS = "encryption-keys";
   static final String NEXT_ROW_ID = "next-row-id";
   static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
+
+  private static Caffeine<Object, Object> newTableMetadataCacheBuilder() {
+    int maxSize = SystemConfigs.IO_TABLE_METADATA_CACHE_MAX_FILEIO.value();
+    return Caffeine.newBuilder()
+            .weakKeys()
+            .softValues()
+            .maximumSize(maxSize)
+            .removalListener(
+                    (io, contentCache, cause) ->
+                            LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
+            .recordStats();
+  }
+
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
+      newTableMetadataCacheBuilder().build();
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -294,7 +318,8 @@ public class TableMetadataParser {
     return read(io.newInputFile(path));
   }
 
-  public static TableMetadata read(InputFile file) {
+  public static TableMetadata read(FileIO io, InputFile input) {
+    InputFile file = newInputFile(io, input);
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
@@ -302,6 +327,55 @@ public class TableMetadataParser {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file.location());
     }
+  }
+
+  private static InputFile newInputFile(FileIO io, InputFile input) {
+    if (cachingEnabled(io)) {
+      return contentCache(io).tryCache(input);
+    }
+
+    return input;
+  }
+
+  private static boolean cachingEnabled(FileIO io) {
+    try {
+      return PropertyUtil.propertyAsBoolean(
+              io.properties(),
+              CatalogProperties.IO_TABLE_METADATA_CACHE_ENABLED,
+              CatalogProperties.IO_TABLE_METADATA_CACHE_ENABLED_DEFAULT);
+    } catch (UnsupportedOperationException e) {
+      return false;
+    }
+  }
+
+  @VisibleForTesting
+  static ContentCache contentCache(FileIO io) {
+    return CONTENT_CACHES.get(
+            io,
+            fileIO ->
+                    new ContentCache(
+                            cacheDurationMs(fileIO), cacheTotalBytes(fileIO), cacheMaxContentLength(fileIO)));
+  }
+
+  private static long cacheDurationMs(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+            io.properties(),
+            CatalogProperties.IO_TABLE_METADATA_CACHE_EXPIRATION_INTERVAL_MS,
+            CatalogProperties.IO_TABLE_METADATA_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+  }
+
+  private static long cacheTotalBytes(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+            io.properties(),
+            CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_TOTAL_BYTES,
+            CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_TOTAL_BYTES_DEFAULT);
+  }
+
+  private static long cacheMaxContentLength(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+            io.properties(),
+            CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_CONTENT_LENGTH,
+            CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
   }
 
   /**

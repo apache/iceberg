@@ -24,22 +24,26 @@ import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.ContentCache;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -55,27 +59,110 @@ public class TestTableMetadataParser {
 
   @Parameter private String codecName;
 
+  private FileIO io;
+  private final List<String> fileNames = new ArrayList<>();
+
   @TestTemplate
   public void testGzipCompressionProperty() throws IOException {
-    Codec codec = Codec.fromName(codecName);
-    String fileExtension = getFileExtension(codec);
-    String fileName = "v3" + fileExtension;
-    OutputFile outputFile = Files.localOutput(fileName);
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(TableProperties.METADATA_COMPRESSION, codecName);
-    String location = "file://tmp/db/table";
-    TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
-    TableMetadataParser.write(metadata, outputFile);
-    assertThat(isCompressed(fileName)).isEqualTo(codec == Codec.GZIP);
-    TableMetadata actualMetadata = TableMetadataParser.read(Files.localInput(new File(fileName)));
-    verifyMetadata(metadata, actualMetadata);
+    io = new HadoopFileIO();
+    String fileName = getFileName("v3");
+    TableMetadata metadata = createTableMetadata();
+    writeTableMetadata(fileName, metadata);
+    readAndTestTableMetadata(fileName, metadata);
+
+    ContentCache cache = TableMetadataParser.contentCache(io);
+    assertThat(cache.stats().loadCount()).isEqualTo(0);
+    assertThat(cache.stats().hitCount()).isEqualTo(0);
+    assertThat(cache.stats().missCount()).isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void testGzipCompressionPropertyWithCache() throws IOException {
+    io = new HadoopFileIO();
+    io.initialize(ImmutableMap.of(CatalogProperties.IO_TABLE_METADATA_CACHE_ENABLED, "true"));
+    String fileName = getFileName("v3");
+    TableMetadata metadata = createTableMetadata();
+    writeTableMetadata(fileName, metadata);
+    readAndTestTableMetadata(fileName, metadata);
+
+    ContentCache cache = TableMetadataParser.contentCache(io);
+    assertThat(cache.stats().loadCount()).isEqualTo(1);
+    assertThat(cache.stats().hitCount()).isEqualTo(0);
+    assertThat(cache.stats().missCount()).isEqualTo(1);
+
+    readAndTestTableMetadata(fileName, metadata);
+    assertThat(cache.stats().loadCount()).isEqualTo(1);
+    assertThat(cache.stats().hitCount()).isEqualTo(1);
+    assertThat(cache.stats().missCount()).isEqualTo(1);
+
+    String anotherFileName = getFileName("another-v3");
+    writeTableMetadata(anotherFileName, metadata);
+    readAndTestTableMetadata(anotherFileName, metadata);
+    assertThat(cache.stats().loadCount()).isEqualTo(2);
+    assertThat(cache.stats().hitCount()).isEqualTo(1);
+    assertThat(cache.stats().missCount()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testGzipCompressionPropertyWithSmallCache() throws IOException {
+    io = new HadoopFileIO();
+    io.initialize(ImmutableMap.of(
+        CatalogProperties.IO_TABLE_METADATA_CACHE_ENABLED, "true",
+        CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_TOTAL_BYTES, "1",
+        CatalogProperties.IO_TABLE_METADATA_CACHE_MAX_CONTENT_LENGTH, "1"
+    ));
+    String fileName = getFileName("v3");
+    TableMetadata metadata = createTableMetadata();
+    writeTableMetadata(fileName, metadata);
+    readAndTestTableMetadata(fileName, metadata);
+
+    ContentCache cache = TableMetadataParser.contentCache(io);
+    assertThat(cache.stats().loadCount()).isEqualTo(0);
+    assertThat(cache.stats().hitCount()).isEqualTo(0);
+    assertThat(cache.stats().missCount()).isEqualTo(0);
+  }
+
+  @BeforeEach
+  public void setup() {
+    fileNames.clear();
   }
 
   @AfterEach
   public void cleanup() throws IOException {
+    for (String fileName : fileNames) {
+      java.nio.file.Files.deleteIfExists(Paths.get(fileName));
+      java.nio.file.Files.deleteIfExists(Paths.get("." + fileName + ".crc"));
+    }
+    io.close();
+  }
+
+  private String getFileName(String prefix) {
     Codec codec = Codec.fromName(codecName);
-    Path metadataFilePath = Paths.get("v3" + getFileExtension(codec));
-    java.nio.file.Files.deleteIfExists(metadataFilePath);
+    String fileExtension = getFileExtension(codec);
+    String fileName = prefix + fileExtension;
+    fileNames.add(fileName);
+    return fileName;
+  }
+
+  private TableMetadata createTableMetadata() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.METADATA_COMPRESSION, codecName);
+    String location = "file://tmp/db/table";
+    return newTableMetadata(SCHEMA, unpartitioned(), location, properties);
+  }
+
+  private void writeTableMetadata(String fileName, TableMetadata metadata) {
+    OutputFile outputFile = io.newOutputFile(fileName);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.METADATA_COMPRESSION, codecName);
+    TableMetadataParser.write(metadata, outputFile);
+  }
+
+  private void readAndTestTableMetadata(String fileName, TableMetadata metadata) throws IOException {
+    assertThat(isCompressed(fileName)).isEqualTo(Codec.fromName(codecName) == Codec.GZIP);
+    TableMetadata actualMetadata =
+            TableMetadataParser.read(io, io.newInputFile(fileName));
+    verifyMetadata(metadata, actualMetadata);
   }
 
   private void verifyMetadata(TableMetadata expected, TableMetadata actual) {
