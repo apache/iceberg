@@ -213,6 +213,12 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -233,6 +239,12 @@ public class OAuth2Util {
         ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -279,6 +291,11 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client, Map<String, String> headers, String credential, String scope) {
 
@@ -286,6 +303,11 @@ public class OAuth2Util {
         client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,

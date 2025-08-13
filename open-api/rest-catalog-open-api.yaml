@@ -2554,7 +2554,7 @@ components:
           type: integer
         # encryption
         encryption-keys:
-          type: list
+          type: array
           items:
             $ref: '#/components/schemas/EncryptedKey'
         # snapshot tracking
