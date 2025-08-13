@@ -44,6 +44,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -647,5 +648,23 @@ public class TestPredicateBinding {
     assertThat(expr)
         .as("Should change NOT_IN to alwaysTrue expression")
         .isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testEqualWithTruncateToNotStartsWithPredicate() {
+    StructType struct = StructType.of(required(14, "x", Types.StringType.get()));
+    UnboundTerm<String> unbound = Expressions.truncate("x", 5);
+    UnboundPredicate<String> unP = Expressions.equal(unbound, "test");
+    Expression bound = Binder.bind(struct, unP);
+    TestHelpers.assertAllReferencesBound("StartsWith", bound);
+    BoundPredicate<String> boundSet = assertAndUnwrap(bound);
+    assertThat(boundSet.isLiteralPredicate()).isTrue();
+    assertThat(boundSet.asLiteralPredicate().literal().value())
+            .as("Should not alter literal value")
+            .isEqualTo("test");
+    assertThat(boundSet.ref().fieldId()).as("Should reference correct field ID").isEqualTo(14);
+    assertThat(boundSet.op())
+            .as("Should change the operation from EQUAL(TRUNCATE()) to STARTS_WITH")
+            .isEqualTo(STARTS_WITH);
   }
 }
