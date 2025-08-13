@@ -1359,7 +1359,7 @@ public class Parquet {
 
         if (batchedReaderFunc != null) {
           if (isComet) {
-            LOG.info("Comet enabled");
+            LOG.info("Comet vectorized reader enabled");
             return new CometVectorizedParquetReader<>(
                 file,
                 schema,
