@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
@@ -414,29 +415,55 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
    *
    * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
    * {@code false}.
+   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.</p>
    *
    * @param identifier a table identifier
    * @return true if the table exists, false otherwise
    */
   @Override
   public boolean tableExists(TableIdentifier identifier) {
+      return Objects.nonNull(fetchTable(identifier));
+  }
+
+  /**
+   * Check whether table exists and return its current metadata location.
+   *
+   * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
+   * {@code null}.
+   * <p>This does *not* materialize the Iceberg Table object and only accesses the Hive Metastore.</p>
+   *
+   * @param identifier a table identifier
+   * @return the location of the table metadata if it exists, null otherwise
+   */
+  public String getTableMetadataLocation(TableIdentifier identifier) {
+      Table table = fetchTable(identifier);
+      return table == null
+              ? null
+              : table.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+  }
+
+  /**
+   * Fetches the table from the Hive Metastore.
+   *
+   * @param identifier a table identifier
+   * @return the HMS table if it exists, null otherwise
+   */
+  private Table fetchTable(TableIdentifier identifier) {
     TableIdentifier baseTableIdentifier = identifier;
     if (!isValidIdentifier(identifier)) {
       if (!isValidMetadataIdentifier(identifier)) {
-        return false;
-      } else {
-        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+        return null;
       }
+      baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
     }
-
     String database = baseTableIdentifier.namespace().level(0);
     String tableName = baseTableIdentifier.name();
     try {
       Table table = clients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, baseTableIdentifier));
-      return true;
+      return table;
     } catch (NoSuchTableException | NoSuchObjectException e) {
-      return false;
+      return null;
     } catch (TException e) {
       throw new RuntimeException("Failed to check table existence of " + baseTableIdentifier, e);
     } catch (InterruptedException e) {

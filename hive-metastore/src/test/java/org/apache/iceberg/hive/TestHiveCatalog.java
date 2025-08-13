@@ -52,6 +52,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -323,6 +324,12 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       createTxn.commitTransaction();
 
       Table table = catalog.loadTable(tableIdent);
+      String initialLocation = catalog.getTableMetadataLocation(tableIdent);
+      if (table instanceof HasTableOperations) {
+          HasTableOperations tops = (HasTableOperations) table;
+          String metaLocation = tops.operations().current().metadataFileLocation();
+          assertThat(initialLocation).isEqualTo(metaLocation);
+      }
       assertThat(table.spec().fields()).hasSize(1);
 
       String newLocation = temp.resolve("tbl-2").toString();
@@ -337,6 +344,13 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
       table = catalog.loadTable(tableIdent);
       assertThat(table.location()).isEqualTo(newLocation);
+      String currentLocation = catalog.getTableMetadataLocation(tableIdent);
+      assertThat(currentLocation).isNotEqualTo(initialLocation);
+      if (table instanceof HasTableOperations) {
+        HasTableOperations tops = (HasTableOperations) table;
+        String metaLocation = tops.operations().current().metadataFileLocation();
+        assertThat(currentLocation).isEqualTo(metaLocation);
+      }
       assertThat(table.currentSnapshot()).isNull();
       if (formatVersion == 1) {
         PartitionSpec v1Expected =
