@@ -75,10 +75,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       PartitionSpec spec, OutputFile outputFile);
 
   /**
-   * Gets the actual OutputFile that will be used to write the manifest
-   * taking into account encryption if needed. V3 and earlier use AVRO so
-   * whole file encryption is invoked . V4+ use parquet so they pass through
-   * the native encryption output file if it is available.
+   * Gets the actual OutputFile that will be used to write the manifest taking into account
+   * encryption if needed. V3 and earlier use AVRO so whole file encryption is invoked . V4+ use
+   * parquet so they pass through the native encryption output file if it is available.
    */
   protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
     return encryptedFile.encryptingOutputFile();
@@ -242,10 +241,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
-      Preconditions.checkArgument(encryptedFile instanceof NativeEncryptionOutputFile,
-          "Parquet Manifests require output file extending NativeEncryptionOutputFile, but got: %s",
-          encryptedFile.getClass().getName());
-      return (NativeEncryptionOutputFile) encryptedFile;
+      if (encryptedFile instanceof NativeEncryptionOutputFile) {
+        return (NativeEncryptionOutputFile) encryptedFile;
+      } else {
+        return encryptedFile.encryptingOutputFile();
+      }
     }
 
     @Override
@@ -285,10 +285,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected OutputFile outputFile(EncryptedOutputFile encryptedFile) {
-      Preconditions.checkArgument(encryptedFile instanceof NativeEncryptionOutputFile,
-        "Parquet Manifests require output file extending NativeEncryptionOutputFile, but got: %s",
-        encryptedFile.getClass().getName());
-      return (NativeEncryptionOutputFile) encryptedFile;
+      if (encryptedFile instanceof NativeEncryptionOutputFile) {
+        return (NativeEncryptionOutputFile) encryptedFile;
+      } else {
+        return encryptedFile.encryptingOutputFile();
+      }
     }
 
     @Override
