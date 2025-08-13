@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 
@@ -34,12 +35,11 @@ import org.apache.iceberg.Schema;
  * <p>This interface is directly exposed to users for parameterizing when only an appender is
  * required.
  *
- * @param <B> the concrete builder type for method chaining
  * @param <D> the input data type for the writer
  */
-public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
+public interface WriteBuilder<D> {
   /** Set the file schema. */
-  B schema(Schema schema);
+  WriteBuilder<D> schema(Schema schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -48,7 +48,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
    * @param value config value
    * @return this for method chaining
    */
-  B set(String property, String value);
+  WriteBuilder<D> set(String property, String value);
 
   /**
    * Sets multiple writer configuration properties that affect the writer behavior.
@@ -56,10 +56,9 @@ public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
    * @param properties writer config properties to set
    * @return this for method chaining
    */
-  @SuppressWarnings("unchecked")
-  default B set(Map<String, String> properties) {
+  default WriteBuilder<D> set(Map<String, String> properties) {
     properties.forEach(this::set);
-    return (B) this;
+    return this;
   }
 
   /**
@@ -69,7 +68,7 @@ public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
    * @param value config value
    * @return this for method chaining
    */
-  B meta(String property, String value);
+  WriteBuilder<D> meta(String property, String value);
 
   /**
    * Sets multiple file metadata properties in the created file.
@@ -77,29 +76,34 @@ public interface WriteBuilder<B extends WriteBuilder<B, D>, D> {
    * @param properties file metadata properties to set
    * @return this for method chaining
    */
-  @SuppressWarnings("unchecked")
-  default B meta(Map<String, String> properties) {
+  default WriteBuilder<D> meta(Map<String, String> properties) {
     properties.forEach(this::meta);
-    return (B) this;
+    return this;
   }
 
+  /**
+   * Based on the target file content the generated {@link FileAppender} needs different
+   * configuration.
+   */
+  WriteBuilder<D> content(FileContent content);
+
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  B metricsConfig(MetricsConfig metricsConfig);
+  WriteBuilder<D> metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
-  B overwrite();
+  WriteBuilder<D> overwrite();
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  B fileEncryptionKey(ByteBuffer encryptionKey);
+  WriteBuilder<D> fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
    * does not support encryption, then an exception should be thrown.
    */
-  B fileAADPrefix(ByteBuffer aadPrefix);
+  WriteBuilder<D> fileAADPrefix(ByteBuffer aadPrefix);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   FileAppender<D> build() throws IOException;

@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.deletes.PositionDelete;
 
@@ -63,53 +65,26 @@ public interface FormatModel<D> {
    * Creates a writer builder for standard data files.
    *
    * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
-   * objects into the file format supported by this factory for regular data content.
+   * objects into the file format supported by this factory. The builder allows for configuration of
+   * various writing aspects like schema, metrics collection, compression, encryption.
    *
-   * <p>The builder follows the fluent pattern for configuring writer properties like compression,
-   * encryption, row group size, and other format-specific options.
+   * <p>The builder follows the fluent pattern for configuring writer properties and ultimately
+   * creates a {@link FileAppender} for writing the files.
    *
    * @param outputFile destination for the written data
-   * @return configured writer builder for standard data files
-   * @param <B> the concrete builder type for method chaining
+   * @return configured writer builder
    */
-  <B extends WriteBuilder<B, D>> B dataBuilder(OutputFile outputFile);
+  WriteBuilder<D> writeBuilder(OutputFile outputFile);
 
   /**
-   * Creates a writer builder for equality delete files.
+   * Creates a function that converts {@link PositionDelete} objects into the format-specific
+   * objects which is used for writing position deletes
    *
-   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
-   * objects into the file format supported by this factory for equality delete content.
-   *
-   * <p>Equality delete files contain records that identify rows to be deleted based on equality
-   * conditions.
-   *
-   * <p>The builder follows the fluent pattern for configuring writer properties like compression,
-   * encryption, row group size, and other format-specific options.
-   *
-   * @param outputFile destination for the written equality delete data
-   * @return configured writer builder for equality delete files
-   * @param <B> the concrete builder type for method chaining
+   * @param schema of the position delete row content
+   * @return a function that converts {@link PositionDelete} objects into the format-specific
+   *     objects.
    */
-  <B extends WriteBuilder<B, D>> B equalityDeleteBuilder(OutputFile outputFile);
-
-  /**
-   * Creates a writer builder for position delete files.
-   *
-   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts {@link
-   * PositionDelete} objects into the file format supported by this factory for position delete
-   * content.
-   *
-   * <p>Position delete files contain records that identify rows to be deleted by file path and
-   * position. Each PositionDelete object could contain the writer's output type in its row field.
-   *
-   * <p>The builder follows the fluent pattern for configuring writer properties like compression,
-   * encryption, row group size, and other format-specific options.
-   *
-   * @param outputFile destination for the written position delete data
-   * @return configured writer builder for position delete files
-   * @param <B> the concrete builder type for method chaining
-   */
-  <B extends WriteBuilder<B, PositionDelete<D>>> B positionDeleteBuilder(OutputFile outputFile);
+  Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema);
 
   /**
    * Creates a file reader builder for the specified input file.
@@ -124,7 +99,6 @@ public interface FormatModel<D> {
    *
    * @param inputFile source file to read from
    * @return configured reader builder for the specified input
-   * @param <B> the concrete builder type for method chaining
    */
-  <B extends ReadBuilder<B, D>> B readBuilder(InputFile inputFile);
+  ReadBuilder<D> readBuilder(InputFile inputFile);
 }

@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -133,7 +134,7 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
-  public static <D> ReadBuilder<?, D> readBuilder(
+  public static <D> ReadBuilder<D> readBuilder(
       FileFormat format, String modelName, InputFile inputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
     return factory.readBuilder(inputFile);
@@ -152,10 +153,10 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
-  public static <D> WriteBuilder<?, D> writeBuilder(
+  public static <D> WriteBuilder<D> writeBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    return factory.dataBuilder(outputFile.encryptingOutputFile());
+    return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
   }
 
   /**
@@ -175,7 +176,8 @@ public final class FormatModelRegistry {
   public static <D> DataWriteBuilder<D> dataWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, D> writeBuilder = factory.dataBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -197,8 +199,10 @@ public final class FormatModelRegistry {
   public static <D> EqualityDeleteWriteBuilder<D> equalityDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, D> writeBuilder =
-        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory
+            .writeBuilder(outputFile.encryptingOutputFile())
+            .content(FileContent.EQUALITY_DELETES);
     return ContentFileWriteBuilderImpl.forEqualityDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -221,10 +225,15 @@ public final class FormatModelRegistry {
   public static <D> PositionDeleteWriteBuilder<D> positionDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, PositionDelete<D>> writeBuilder =
-        factory.positionDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory
+            .writeBuilder(outputFile.encryptingOutputFile())
+            .content(FileContent.POSITION_DELETES);
     return ContentFileWriteBuilderImpl.forPositionDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+        writeBuilder,
+        outputFile.encryptingOutputFile().location(),
+        format,
+        factory::positionDeleteConverter);
   }
 
   @SuppressWarnings("unchecked")

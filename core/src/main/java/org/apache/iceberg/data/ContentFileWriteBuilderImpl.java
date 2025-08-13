@@ -21,9 +21,11 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -56,14 +58,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * specialized writer for the requested content type.
  *
  * @param <C> the concrete builder type for method chaining
- * @param <W> the type of the wrapped format-specific writer builder
  * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
-abstract class ContentFileWriteBuilderImpl<
-        C extends ContentFileWriteBuilder<C>, W extends WriteBuilder<W, D>, D>
-    implements ContentFileWriteBuilder<C> {
-  private final WriteBuilder<W, D> writeBuilder;
+abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
+    implements ContentFileWriteBuilder {
+  private final WriteBuilder<D> writeBuilder;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
@@ -71,28 +71,33 @@ abstract class ContentFileWriteBuilderImpl<
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
 
-  static <W extends WriteBuilder<W, D>, D> DataWriteBuilder<D> forDataFile(
-      WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+  static <D> DataWriteBuilder<D> forDataFile(
+      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
     return new DataFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <W extends WriteBuilder<W, D>, D> EqualityDeleteWriteBuilder<D> forEqualityDelete(
-      WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+  static <D> EqualityDeleteWriteBuilder<D> forEqualityDelete(
+      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
     return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <W extends WriteBuilder<W, PositionDelete<D>>, D>
-      PositionDeleteWriteBuilder<D> forPositionDelete(
-          WriteBuilder<W, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
-    return new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
+  static <D> PositionDeleteWriteBuilder<D> forPositionDelete(
+      WriteBuilder<D> writeBuilder,
+      String location,
+      FileFormat format,
+      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
+    return new PositionDeleteFileWriteBuilder<>(
+        writeBuilder, location, format, positionDeleteConverter);
   }
 
   private ContentFileWriteBuilderImpl(
-      WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
     this.writeBuilder = writeBuilder;
     this.location = location;
     this.format = format;
   }
+
+  abstract C self();
 
   @Override
   public C schema(Schema fileSchema) {
@@ -160,16 +165,14 @@ abstract class ContentFileWriteBuilderImpl<
     return self();
   }
 
-  private static class DataFileWriteBuilder<W extends WriteBuilder<W, D>, D>
-      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D>, W, D>
-      implements DataWriteBuilder<D> {
-    private DataFileWriteBuilder(
-        WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+  private static class DataFileWriteBuilder<D>
+      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D>, D> implements DataWriteBuilder<D> {
+    private DataFileWriteBuilder(WriteBuilder<D> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public DataFileWriteBuilder<W, D> self() {
+    DataWriteBuilder<D> self() {
       return this;
     }
 
@@ -191,31 +194,31 @@ abstract class ContentFileWriteBuilderImpl<
     }
   }
 
-  private static class EqualityDeleteFileWriteBuilder<W extends WriteBuilder<W, D>, D>
-      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D>, W, D>
+  private static class EqualityDeleteFileWriteBuilder<D>
+      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D>, D>
       implements EqualityDeleteWriteBuilder<D> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
-        WriteBuilder<W, D> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<D> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<W, D> rowSchema(Schema schema) {
+    EqualityDeleteFileWriteBuilder<D> self() {
+      return this;
+    }
+
+    @Override
+    public EqualityDeleteFileWriteBuilder<D> rowSchema(Schema schema) {
       this.rowSchema = schema;
       return this;
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<W, D> equalityFieldIds(int... fieldIds) {
+    public EqualityDeleteFileWriteBuilder<D> equalityFieldIds(int... fieldIds) {
       this.equalityFieldIds = fieldIds;
-      return this;
-    }
-
-    @Override
-    public EqualityDeleteFileWriteBuilder<W, D> self() {
       return this;
     }
 
@@ -251,30 +254,37 @@ abstract class ContentFileWriteBuilderImpl<
     }
   }
 
-  private static class PositionDeleteFileWriteBuilder<
-          W extends WriteBuilder<W, PositionDelete<D>>, D>
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D>, W, PositionDelete<D>>
+  private static class PositionDeleteFileWriteBuilder<D>
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D>, D>
       implements PositionDeleteWriteBuilder<D> {
+    private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
     private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<W, PositionDelete<D>> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<D> writeBuilder,
+        String location,
+        FileFormat format,
+        Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
       super(writeBuilder, location, format);
+      this.positionDeleteConverter = positionDeleteConverter;
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<W, D> rowSchema(Schema schema) {
+    PositionDeleteFileWriteBuilder<D> self() {
+      return this;
+    }
+
+    @Override
+    public PositionDeleteFileWriteBuilder<D> rowSchema(Schema schema) {
       this.rowSchema = schema;
       return this;
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<W, D> self() {
-      return this;
-    }
-
-    @Override
     public PositionDeleteWriter<D> build() throws IOException {
+      Preconditions.checkArgument(
+          positionDeleteConverter != null,
+          "Positional delete converter must not be null when creating position delete writer");
       Preconditions.checkArgument(
           super.spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(
@@ -283,15 +293,47 @@ abstract class ContentFileWriteBuilderImpl<
 
       return new PositionDeleteWriter<D>(
           (FileAppender)
-              super.writeBuilder
-                  .meta("delete-type", "position")
-                  .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
-                  .build(),
+              new ConvertingFileAppender<>(
+                  super.writeBuilder
+                      .meta("delete-type", "position")
+                      .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
+                      .build(),
+                  positionDeleteConverter.apply(rowSchema)),
           super.format,
           super.location,
           super.spec,
           super.partition,
           super.keyMetadata);
+    }
+  }
+
+  private static class ConvertingFileAppender<D> implements FileAppender<PositionDelete<D>> {
+    private final FileAppender<D> appender;
+    private final Function<PositionDelete<D>, D> converter;
+
+    ConvertingFileAppender(FileAppender<D> appender, Function<PositionDelete<D>, D> converter) {
+      this.appender = appender;
+      this.converter = converter;
+    }
+
+    @Override
+    public void add(PositionDelete<D> positionDelete) {
+      appender.add(converter.apply(positionDelete));
+    }
+
+    @Override
+    public Metrics metrics() {
+      return appender.metrics();
+    }
+
+    @Override
+    public long length() {
+      return appender.length();
+    }
+
+    @Override
+    public void close() throws IOException {
+      appender.close();
     }
   }
 }
