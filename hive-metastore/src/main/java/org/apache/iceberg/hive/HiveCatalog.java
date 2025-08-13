@@ -20,7 +20,6 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
@@ -423,7 +422,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
    */
   @Override
   public boolean tableExists(TableIdentifier identifier) {
-    return Objects.nonNull(fetchTable(identifier));
+    return null != fetchTable(identifier);
   }
 
   /**
