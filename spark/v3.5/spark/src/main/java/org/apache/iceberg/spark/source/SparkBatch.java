@@ -172,11 +172,11 @@ class SparkBatch implements Batch {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
-  private boolean useCometBatchReads() {
+  protected boolean useCometBatchReads() {
     return readConf.parquetVectorizationEnabled()
         && readConf.parquetReaderType() == ParquetReaderType.COMET
         && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
-        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
+        && taskGroups.stream().allMatch(this::supportsCometBatchReads);
   }
 
   private boolean supportsCometBatchReads(Types.NestedField field) {
@@ -184,6 +184,21 @@ class SparkBatch implements Batch {
         && !field.type().typeId().equals(Type.TypeID.UUID)
         && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
         && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
+  }
+
+  private boolean supportsCometBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsCometBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      // Comet can't handle delete files for now
+      return fileScanTask.file().format() == FileFormat.PARQUET && fileScanTask.deletes().isEmpty();
+
+    } else {
+      return false;
+    }
   }
 
   // conditions for using ORC batch reads:
