@@ -156,7 +156,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType dataSparkType() {
     if (dataSparkType == null) {
       Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataSparkType = SparkSchemaUtil.convert(PruneUnknownTypes.convert(dataSchema()));
+      this.dataSparkType = SparkSchemaUtil.convert(PruneUnknownTypes.prune(dataSchema()));
     }
 
     return dataSparkType;

@@ -35,7 +35,7 @@ public class TestPruneUnknownTypes {
     Schema expectedSchema =
         new Schema(Types.NestedField.optional(1, "int", Types.IntegerType.get()));
 
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
+    Schema actualSchema = PruneUnknownTypes.prune(schema);
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
@@ -60,7 +60,7 @@ public class TestPruneUnknownTypes {
                 Types.StructType.of(
                     Types.NestedField.optional(21, "int", Types.IntegerType.get()))));
 
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
+    Schema actualSchema = PruneUnknownTypes.prune(schema);
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
@@ -102,7 +102,7 @@ public class TestPruneUnknownTypes {
                                 Types.NestedField.required(17, "x", Types.IntegerType.get()),
                                 Types.NestedField.required(18, "y", Types.IntegerType.get())))))));
 
-    Schema actualSchema = PruneUnknownTypes.convert(schema);
+    Schema actualSchema = PruneUnknownTypes.prune(schema);
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 }

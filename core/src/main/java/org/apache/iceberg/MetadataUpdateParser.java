@@ -235,8 +235,8 @@ public class MetadataUpdateParser {
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
         break;
       case REMOVE_SNAPSHOTS:
-        MetadataUpdate.RemoveSnapshots removeSnapshots;
-        removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
+        MetadataUpdate.RemoveSnapshots removeSnapshots =
+            (MetadataUpdate.RemoveSnapshots) metadataUpdate;
         writeRemoveSnapshots(removeSnapshots, generator);
         break;
       case REMOVE_SNAPSHOT_REF:

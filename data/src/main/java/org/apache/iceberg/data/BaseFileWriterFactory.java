@@ -64,7 +64,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     if (dataSchema != null) {
-      this.dataSchema = PruneUnknownTypes.convert(dataSchema);
+      this.dataSchema = PruneUnknownTypes.prune(dataSchema);
     } else {
       this.dataSchema = null;
     }

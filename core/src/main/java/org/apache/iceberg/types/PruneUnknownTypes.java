@@ -19,23 +19,12 @@
 package org.apache.iceberg.types;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import org.apache.hadoop.util.Lists;
 import org.apache.iceberg.Schema;
 
 /** This is used to remove UnknownTypes that should not be persistent in files */
 public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
   private static final PruneUnknownTypes INSTANCE = new PruneUnknownTypes();
-
-  /**
-   * Prunes any UnknownType from a Schema
-   *
-   * @param schema a Schema
-   */
-  public static Schema convert(Schema schema) {
-    Types.StructType struct = (Types.StructType) TypeUtil.visit(schema, INSTANCE);
-    return new Schema(struct.fields(), schema.identifierFieldIds());
-  }
 
   /**
    * Visits a schema and removes the UnknownTypes.
@@ -45,7 +34,17 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
    */
   private PruneUnknownTypes() {}
 
-  public static Types.StructType convert(Types.StructType structType) {
+  /**
+   * Prunes any UnknownType from a Schema
+   *
+   * @param schema a Schema
+   */
+  public static Schema prune(Schema schema) {
+    Types.StructType struct = (Types.StructType) TypeUtil.visit(schema, INSTANCE);
+    return new Schema(struct.fields(), schema.identifierFieldIds());
+  }
+
+  public static Types.StructType prune(Types.StructType structType) {
     Object obj = TypeUtil.visit(structType, INSTANCE);
 
     if (obj instanceof Types.StructType) {
@@ -57,6 +56,10 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type schema(Schema schema, Type structResult) {
+    if (schema == null) {
+      return null;
+    }
+
     if (structResult.typeId().equals(Type.TypeID.UNKNOWN)) {
       return Types.StructType.of();
     } else {
@@ -64,32 +67,35 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
     }
   }
 
+  private boolean needsRewrite(Types.NestedField field, Type type) {
+    return field.type().typeId().equals(Type.TypeID.UNKNOWN)
+        || field.type().typeId().equals(Type.TypeID.UNKNOWN)
+        || !field.type().equals(type);
+  }
+
   @Override
   public Type struct(Types.StructType struct, List<Type> fieldResults) {
     List<Types.NestedField> fields = struct.fields();
-    boolean needsRewrite =
-        IntStream.range(0, fieldResults.size())
-            .anyMatch(
-                i ->
-                    (fields.get(i).type().typeId().equals(Type.TypeID.UNKNOWN)
-                            || fieldResults.get(i).typeId().equals(Type.TypeID.UNKNOWN))
-                        || !fields.get(i).type().equals(fieldResults.get(i)));
+    List<Types.NestedField> newFields = Lists.newArrayList();
 
-    if (needsRewrite) {
-      List<Types.NestedField> newFields = Lists.newArrayList();
-      int pos = 0;
-      for (Types.NestedField field : fields) {
-        Type fieldResult = fieldResults.get(pos++);
+    int pos = 0;
+    boolean rewritten = false;
+    for (Types.NestedField field : fields) {
+      Type fieldResult = fieldResults.get(pos);
 
-        if (!fieldResult.typeId().equals(Type.TypeID.UNKNOWN)
-            && !field.type().typeId().equals(Type.TypeID.UNKNOWN)) {
-          newFields.add(Types.NestedField.from(field).ofType(fieldResult).build());
-        }
+      if (needsRewrite(field, fieldResult)) {
+        newFields.add(Types.NestedField.from(field).ofType(fieldResult).build());
+        rewritten = true;
+      } else {
+        newFields.add(field);
       }
 
+      pos += 1;
+    }
+
+    if (rewritten) {
       return Types.StructType.of(newFields);
     } else {
-      // Nothing changed, let's return the original
       return struct;
     }
   }
