@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.maintenance.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.util.UUID;
 import org.apache.curator.test.TestingServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,8 +65,7 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     other.close();
   }
 
-  ZkLockFactory lockFactory(String tableName) {
-    String lockId = "test_job_" + tableName + "_" + UUID.randomUUID().toString().replace("-", "");
+  ZkLockFactory lockFactory(String lockId) {
     return new ZkLockFactory(zkTestServer.getConnectString(), lockId, 5000, 3000, 1000, 3);
   }
 

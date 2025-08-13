@@ -137,12 +137,12 @@ public class ZkLockFactory implements TriggerLockFactory {
 
   @Override
   public Lock createLock() {
-    return new ZkLock(lockId, "taskShare", getTaskSharePath(), taskSharedCount);
+    return new ZkLock(lockId, "task", getTaskSharePath(), taskSharedCount);
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new ZkLock(lockId, "Recovery", getRecoverySharedPath(), recoverySharedCount);
+    return new ZkLock(lockId, "recovery", getRecoverySharedPath(), recoverySharedCount);
   }
 
   @Override
@@ -194,6 +194,7 @@ public class ZkLockFactory implements TriggerLockFactory {
           LOG.warn(
               "Failed to acquire {} lock for lockId: {}, path: {}", lockType, lockId, lockPath);
         }
+
         return acquired;
       } catch (Exception e) {
         LOG.error("Failed to acquire Zookeeper lock.", e);
