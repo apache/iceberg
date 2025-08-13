@@ -159,6 +159,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       if (client != null) {
         client.close();
       }
+      isOpen = false;
     }
   }
 

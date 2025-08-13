@@ -40,7 +40,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -223,8 +222,6 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("no_nulls")).eval(FILE);
     assertThat(shouldRead).as("Should read: non-null column contains a non-null value").isTrue();
-
-    assertEquals(1, 1);
   }
 
   @Test
