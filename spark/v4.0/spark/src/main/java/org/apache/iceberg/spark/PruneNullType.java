@@ -19,11 +19,11 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.StructField;
@@ -41,36 +41,46 @@ public class PruneNullType extends SparkTypeVisitor<DataType> {
     }
   }
 
+  private boolean needsRewrite(StructField field, DataType type) {
+    return field.dataType() instanceof NullType
+        || type instanceof NullType
+        || !field.dataType().equals(type);
+  }
+
   @Override
   public DataType struct(StructType struct, List<DataType> fieldResults) {
     StructField[] fields = struct.fields();
-    boolean needsRewrite =
-        IntStream.range(0, fieldResults.size())
-            .anyMatch(
-                i ->
-                    (fields[i].dataType() instanceof NullType
-                        || fieldResults.get(i) instanceof NullType
-                        || fields[i].dataType() != fieldResults.get(i)));
+    List<StructField> newFields = Lists.newArrayList();
 
-    if (needsRewrite) {
-      List<StructField> newFields = Lists.newArrayList();
-      int pos = 0;
-      for (StructField field : fields) {
-        DataType fieldResult = fieldResults.get(pos++);
+    int pos = 0;
+    boolean rewritten = false;
+    for (StructField field : fields) {
+      DataType fieldResult = fieldResults.get(pos);
 
+      if (needsRewrite(field, fieldResult)) {
         if (!(fieldResult instanceof NullType) && !(field.dataType() instanceof NullType)) {
           newFields.add(
               StructField.apply(field.name(), fieldResult, field.nullable(), field.metadata()));
+        } else {
+          newFields.add(
+              StructField.apply(
+                  field.name(), DataTypes.NullType, field.nullable(), field.metadata()));
         }
+      } else {
+        newFields.add(field);
       }
+      rewritten = true;
 
+      pos += 1;
+    }
+
+    if (rewritten) {
       if (newFields.isEmpty()) {
-        return new NullType();
+        return DataTypes.NullType;
       } else {
         return new StructType(newFields.toArray(new StructField[0]));
       }
     } else {
-      // Nothing changed, let's return the original
       return struct;
     }
   }
