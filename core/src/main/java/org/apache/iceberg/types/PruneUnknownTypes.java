@@ -44,6 +44,11 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
     return new Schema(struct.fields(), schema.identifierFieldIds());
   }
 
+  /**
+   * Prunes any UnknownType from a StructType
+   *
+   * @param structType a StructType
+   */
   public static Types.StructType prune(Types.StructType structType) {
     Object obj = TypeUtil.visit(structType, INSTANCE);
 

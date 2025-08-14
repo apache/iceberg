@@ -109,8 +109,8 @@ public abstract class AvroDataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
-          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
-          );
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
+          required(118, "unk", Types.UnknownType.get()));
 
   @TempDir protected Path temp;
 
@@ -137,6 +137,7 @@ public abstract class AvroDataTestBase {
         Types.VariantType.get(),
         Types.GeometryType.crs84(),
         Types.GeographyType.crs84(),
+        Types.UnknownType.get()
       };
 
   protected boolean supportsUnknown() {
@@ -685,5 +686,49 @@ public abstract class AvroDataTestBase {
                     33L)),
             record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
             record.copy(Map.of("id", 5L, "data", "e"))));
+  }
+
+  @Test
+  public void testUnknownNestedLevel() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(
+                2,
+                "nested",
+                Types.StructType.of(
+                    required(20, "int", Types.IntegerType.get()),
+                    optional(21, "unk", Types.UnknownType.get()))));
+
+    writeAndValidate(schema);
+  }
+
+  @Test
+  public void testUnknownListType() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(0, "id", LongType.get()),
+            optional(1, "data", ListType.ofOptional(2, Types.UnknownType.get())));
+
+    writeAndValidate(schema);
+  }
+
+  @Test
+  public void testUnknownMapType() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(0, "id", LongType.get()),
+            optional(
+                1,
+                "data",
+                MapType.ofOptional(2, 3, Types.StringType.get(), Types.UnknownType.get())));
+
+    writeAndValidate(schema);
   }
 }

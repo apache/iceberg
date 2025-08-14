@@ -75,8 +75,9 @@ public class SparkParquetWriters {
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
+    StructType writeSchema = PruneNullType.prune(dfSchema);
     return (ParquetValueWriter<T>)
-        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
+        ParquetWithSparkSchemaVisitor.visit(writeSchema, type, new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {

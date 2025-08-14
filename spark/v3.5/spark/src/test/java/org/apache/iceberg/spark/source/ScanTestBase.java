@@ -41,7 +41,6 @@ import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -85,20 +84,6 @@ public abstract class ScanTestBase extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
-  }
-
-  private boolean checkVersion(List<Types.NestedField> fields) {
-    return fields.stream()
-        .anyMatch(
-            f ->
-                f.initialDefaultLiteral() != null
-                    || f.writeDefaultLiteral() != null
-                    || f.type().equals(Types.UnknownType.get())
-                    || (f.type().isListType()
-                        && f.type().asListType().elementType().equals(Types.UnknownType.get()))
-                    || (f.type().isMapType()
-                        && f.type().asMapType().valueType().equals(Types.UnknownType.get()))
-                    || (f.type().isStructType() && checkVersion(f.type().asStructType().fields())));
   }
 
   @Override

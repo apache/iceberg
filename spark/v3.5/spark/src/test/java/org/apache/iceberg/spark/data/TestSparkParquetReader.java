@@ -248,20 +248,4 @@ public class TestSparkParquetReader extends AvroDataTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: missing_str");
   }
-
-  @Test
-  @Override
-  public void testUnknownListType() {
-    assertThatThrownBy(super::testUnknownListType)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot convert element Parquet: unknown");
-  }
-
-  @Test
-  @Override
-  public void testUnknownMapType() {
-    assertThatThrownBy(super::testUnknownMapType)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot convert value Parquet: unknown");
-  }
 }
