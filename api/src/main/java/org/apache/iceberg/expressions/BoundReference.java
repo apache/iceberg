@@ -57,10 +57,9 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
 
   @Override
   public boolean producesNull() {
-    // A leaf required field can still evaluate to null if any ancestor struct on the path
-    // is optional and is null at runtime. Accessor implementations indicate this via
-    // hasOptionalAncestor().
-    return field.isOptional() || accessor.hasOptionalAncestor();
+    // A leaf required field can evaluate to null if it is optional itself or any
+    // ancestor on the path is optional.
+    return field.isOptional() || accessor.hasOptionalFieldInPath();
   }
 
   @Override

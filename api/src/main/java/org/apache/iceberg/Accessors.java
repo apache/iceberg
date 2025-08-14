@@ -59,13 +59,13 @@ public class Accessors {
     private final int position;
     private final Type type;
     private final Class<?> javaClass;
-    private final boolean isOptional;
+    private final boolean hasOptionalFieldInPath;
 
     PositionAccessor(int pos, boolean isOptional, Type type) {
       this.position = pos;
       this.type = type;
       this.javaClass = type.typeId().javaClass();
-      this.isOptional = isOptional;
+      this.hasOptionalFieldInPath = isOptional;
     }
 
     @Override
@@ -87,13 +87,8 @@ public class Accessors {
     }
 
     @Override
-    public boolean isOptional() {
-      return isOptional;
-    }
-
-    @Override
-    public boolean hasOptionalAncestor() {
-      return false;
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
     }
 
     @Override
@@ -107,14 +102,14 @@ public class Accessors {
     private final int p1;
     private final Type type;
     private final Class<?> javaClass;
-    private final boolean isOptional;
+    private final boolean hasOptionalFieldInPath;
 
     Position2Accessor(int pos, PositionAccessor wrapped, boolean isOptional) {
       this.p0 = pos;
       this.p1 = wrapped.position();
       this.type = wrapped.type();
       this.javaClass = wrapped.javaClass();
-      this.isOptional = isOptional;
+      this.hasOptionalFieldInPath = isOptional || wrapped.hasOptionalFieldInPath();
     }
 
     @Override
@@ -132,13 +127,8 @@ public class Accessors {
     }
 
     @Override
-    public boolean isOptional() {
-      return isOptional;
-    }
-
-    @Override
-    public boolean hasOptionalAncestor() {
-      return false;
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
     }
 
     @Override
@@ -153,7 +143,7 @@ public class Accessors {
     private final int p2;
     private final Type type;
     private final Class<?> javaClass;
-    private final boolean isOptional;
+    private final boolean hasOptionalFieldInPath;
 
     Position3Accessor(int pos, Position2Accessor wrapped, boolean isOptional) {
       this.p0 = pos;
@@ -161,7 +151,7 @@ public class Accessors {
       this.p2 = wrapped.p1;
       this.type = wrapped.type();
       this.javaClass = wrapped.javaClass();
-      this.isOptional = isOptional;
+      this.hasOptionalFieldInPath = isOptional || wrapped.hasOptionalFieldInPath();
     }
 
     @Override
@@ -175,13 +165,8 @@ public class Accessors {
     }
 
     @Override
-    public boolean isOptional() {
-      return isOptional;
-    }
-
-    @Override
-    public boolean hasOptionalAncestor() {
-      return false;
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
     }
 
     @Override
@@ -193,12 +178,12 @@ public class Accessors {
   private static class WrappedPositionAccessor implements Accessor<StructLike> {
     private final int position;
     private final Accessor<StructLike> accessor;
-    private final boolean isOptional;
+    private final boolean hasOptionalFieldInPath;
 
     WrappedPositionAccessor(int pos, Accessor<StructLike> accessor, boolean isOptional) {
       this.position = pos;
       this.accessor = accessor;
-      this.isOptional = isOptional;
+      this.hasOptionalFieldInPath = isOptional || accessor.hasOptionalFieldInPath();
     }
 
     @Override
@@ -216,13 +201,8 @@ public class Accessors {
     }
 
     @Override
-    public boolean isOptional() {
-      return isOptional;
-    }
-
-    @Override
-    public boolean hasOptionalAncestor() {
-      return accessor.isOptional() || accessor.hasOptionalAncestor();
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
     }
 
     @Override

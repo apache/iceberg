@@ -297,9 +297,7 @@ public class TestBloomRowGroupFilter {
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    assertThat(shouldRead)
-        .as("Should read: this field is required and are always not-null")
-        .isTrue();
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -322,9 +320,7 @@ public class TestBloomRowGroupFilter {
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    assertThat(shouldRead)
-        .as("Should skip: this field is required and are always not-null")
-        .isFalse();
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test

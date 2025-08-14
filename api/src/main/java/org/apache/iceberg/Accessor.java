@@ -26,13 +26,6 @@ public interface Accessor<T> extends Serializable {
 
   Type type();
 
-  /**
-   * Returns true if any ancestor in the access path to this field is optional.
-   */
-  boolean hasOptionalAncestor();
-
-  /**
-   * Returns true if this accessor is optional.
-   */
-  boolean isOptional();
+  /** Returns true if the current field or any ancestor in the access path is optional. */
+  boolean hasOptionalFieldInPath();
 }
