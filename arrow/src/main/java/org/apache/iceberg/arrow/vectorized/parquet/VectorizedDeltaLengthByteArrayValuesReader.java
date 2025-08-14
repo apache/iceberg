@@ -78,15 +78,19 @@ public class VectorizedDeltaLengthByteArrayValuesReader
       IntUnaryOperator getLength,
       BinaryOutputWriter outputWriter) {
     ByteBuffer buffer;
-    int length;
+    long offset = rowId;
     for (int i = 0; i < total; i++) {
-      length = getLength.applyAsInt(rowId + i);
+      int length = getLength.applyAsInt(rowId + i);
       try {
+        if (length <= 0) {
+          throw new IllegalStateException("Invalid length: " + length);
+        }
         buffer = in.slice(length);
       } catch (EOFException e) {
         throw new ParquetDecodingException("Failed to read " + length + " bytes");
       }
-      outputWriter.write(vec, rowId + i, buffer);
+      outputWriter.write(vec, offset, buffer);
+      offset += length;
     }
   }
 
