@@ -57,12 +57,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * underlying builder and calls its {@link WriteBuilder#build()} method to create the appropriate
  * specialized writer for the requested content type.
  *
- * @param <C> the concrete builder type for method chaining
+ * @param <B> the concrete builder type for method chaining
  * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
-abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
-    implements ContentFileWriteBuilder {
+abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D>
+    implements ContentFileWriteBuilder<B> {
   private final WriteBuilder<D> writeBuilder;
   private final String location;
   private final FileFormat format;
@@ -97,70 +97,68 @@ abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
     this.format = format;
   }
 
-  abstract C self();
-
   @Override
-  public C schema(Schema fileSchema) {
+  public B schema(Schema fileSchema) {
     writeBuilder.schema(fileSchema);
     return self();
   }
 
   @Override
-  public C set(String property, String value) {
+  public B set(String property, String value) {
     writeBuilder.set(property, value);
     return self();
   }
 
   @Override
-  public C meta(String property, String value) {
+  public B meta(String property, String value) {
     writeBuilder.meta(property, value);
     return self();
   }
 
   @Override
-  public C metricsConfig(MetricsConfig metricsConfig) {
+  public B metricsConfig(MetricsConfig metricsConfig) {
     writeBuilder.metricsConfig(metricsConfig);
     return self();
   }
 
   @Override
-  public C overwrite() {
+  public B overwrite() {
     writeBuilder.overwrite();
     return self();
   }
 
   @Override
-  public C fileEncryptionKey(ByteBuffer encryptionKey) {
+  public B fileEncryptionKey(ByteBuffer encryptionKey) {
     writeBuilder.fileEncryptionKey(encryptionKey);
     return self();
   }
 
   @Override
-  public C fileAADPrefix(ByteBuffer aadPrefix) {
+  public B fileAADPrefix(ByteBuffer aadPrefix) {
     writeBuilder.fileAADPrefix(aadPrefix);
     return self();
   }
 
   @Override
-  public C spec(PartitionSpec newSpec) {
+  public B spec(PartitionSpec newSpec) {
     this.spec = newSpec;
     return self();
   }
 
   @Override
-  public C partition(StructLike newPartition) {
+  public B partition(StructLike newPartition) {
     this.partition = newPartition;
     return self();
   }
 
   @Override
-  public C keyMetadata(EncryptionKeyMetadata newKeyMetadata) {
+  public B keyMetadata(EncryptionKeyMetadata newKeyMetadata) {
     this.keyMetadata = newKeyMetadata;
     return self();
   }
 
   @Override
-  public C sortOrder(SortOrder newSortOrder) {
+  public B sortOrder(SortOrder newSortOrder) {
     this.sortOrder = newSortOrder;
     return self();
   }
@@ -172,7 +170,7 @@ abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
     }
 
     @Override
-    DataWriteBuilder<D> self() {
+    public DataFileWriteBuilder<D> self() {
       return this;
     }
 
@@ -206,7 +204,7 @@ abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
     }
 
     @Override
-    EqualityDeleteFileWriteBuilder<D> self() {
+    public EqualityDeleteFileWriteBuilder<D> self() {
       return this;
     }
 
@@ -270,7 +268,7 @@ abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
     }
 
     @Override
-    PositionDeleteFileWriteBuilder<D> self() {
+    public PositionDeleteFileWriteBuilder<D> self() {
       return this;
     }
 
@@ -318,7 +316,8 @@ abstract class ContentFileWriteBuilderImpl<C extends ContentFileWriteBuilder, D>
 
     @Override
     public void add(PositionDelete<D> positionDelete) {
-      appender.add(converter.apply(positionDelete));
+      D datum = converter.apply(positionDelete);
+      appender.add(datum);
     }
 
     @Override

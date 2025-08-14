@@ -44,11 +44,13 @@ import org.apache.iceberg.io.DataWriter;
  *
  * <p>Each concrete implementation configures the underlying file format writer while adding
  * content-specific metadata and behaviors.
+ *
+ * @param <B> the concrete builder type for method chaining
  */
-interface ContentFileWriteBuilder {
+interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
 
   /** Set the file schema. */
-  ContentFileWriteBuilder schema(Schema schema);
+  B schema(Schema schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -57,7 +59,7 @@ interface ContentFileWriteBuilder {
    * @param value config value
    * @return this for method chaining
    */
-  ContentFileWriteBuilder set(String property, String value);
+  B set(String property, String value);
 
   /**
    * Adds the new properties to the writer configuration.
@@ -65,9 +67,9 @@ interface ContentFileWriteBuilder {
    * @param properties a map of writer config properties
    * @return this for method chaining
    */
-  default ContentFileWriteBuilder set(Map<String, String> properties) {
+  default B set(Map<String, String> properties) {
     properties.forEach(this::set);
-    return this;
+    return self();
   }
 
   /**
@@ -77,7 +79,7 @@ interface ContentFileWriteBuilder {
    * @param value config value
    * @return this for method chaining
    */
-  ContentFileWriteBuilder meta(String property, String value);
+  B meta(String property, String value);
 
   /**
    * Add the new properties to file metadata for the created file.
@@ -85,38 +87,40 @@ interface ContentFileWriteBuilder {
    * @param properties a map of file metadata properties
    * @return this for method chaining
    */
-  default ContentFileWriteBuilder meta(Map<String, String> properties) {
+  default B meta(Map<String, String> properties) {
     properties.forEach(this::meta);
-    return this;
+    return self();
   }
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  ContentFileWriteBuilder metricsConfig(MetricsConfig metricsConfig);
+  B metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
-  ContentFileWriteBuilder overwrite();
+  B overwrite();
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  ContentFileWriteBuilder fileEncryptionKey(ByteBuffer encryptionKey);
+  B fileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
    * does not support encryption, then an exception should be thrown.
    */
-  ContentFileWriteBuilder fileAADPrefix(ByteBuffer aadPrefix);
+  B fileAADPrefix(ByteBuffer aadPrefix);
 
   /** Sets the partition specification for the Iceberg metadata. */
-  ContentFileWriteBuilder spec(PartitionSpec newSpec);
+  B spec(PartitionSpec newSpec);
 
   /** Sets the partition value for the Iceberg metadata. */
-  ContentFileWriteBuilder partition(StructLike partition);
+  B partition(StructLike partition);
 
   /** Sets the encryption key metadata for Iceberg metadata. */
-  ContentFileWriteBuilder keyMetadata(EncryptionKeyMetadata keyMetadata);
+  B keyMetadata(EncryptionKeyMetadata keyMetadata);
 
   /** Sets the sort order for the Iceberg metadata. */
-  ContentFileWriteBuilder sortOrder(SortOrder sortOrder);
+  B sortOrder(SortOrder sortOrder);
+
+  B self();
 }

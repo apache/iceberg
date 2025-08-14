@@ -96,7 +96,7 @@ public final class FormatModelRegistry {
         !FORMAT_MODELS.containsKey(key),
         "Cannot register %s: %s is registered for format=%s model=%s",
         formatModel.getClass(),
-        FORMAT_MODELS.get(key).getClass(),
+        FORMAT_MODELS.containsKey(key) ? FORMAT_MODELS.get(key).getClass() : null,
         key.first(),
         key.second());
 

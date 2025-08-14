@@ -33,7 +33,7 @@ import org.apache.iceberg.io.DataWriter;
  *
  * @param <D> the type of data records the writer will accept
  */
-public interface DataWriteBuilder<D> extends ContentFileWriteBuilder {
+public interface DataWriteBuilder<D> extends ContentFileWriteBuilder<DataWriteBuilder<D>> {
   /**
    * Creates a data file writer configured with the current builder settings.
    *
