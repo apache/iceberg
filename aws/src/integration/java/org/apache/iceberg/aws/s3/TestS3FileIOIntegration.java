@@ -265,10 +265,14 @@ public class TestS3FileIOIntegration {
     validateRead(s3FileIO);
   }
 
-  @Test
-  public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.aws.s3.S3TestUtil#analyticsAcceleratorLibraryProperties")
+  public void testNewInputStreamWithMultiRegionAccessPoint(Map<String, String> aalProperties)
+      throws Exception {
     assumeThat(multiRegionAccessPointAlias).isNotEmpty();
-    clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
+    Map<String, String> testProperties =
+        ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    clientFactory.initialize(mergeProperties(aalProperties, testProperties));
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),

@@ -27,13 +27,13 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.s3.analyticsaccelerator.ObjectClientConfiguration;
-import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
+import software.amazon.s3.analyticsaccelerator.S3SyncSdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -44,13 +44,13 @@ class AnalyticsAcceleratorUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyticsAcceleratorUtil.class);
 
-  private static final Cache<Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>
+  private static final Cache<Pair<S3Client, S3FileIOProperties>, S3SeekableInputStreamFactory>
       STREAM_FACTORY_CACHE =
           Caffeine.newBuilder()
               .maximumSize(100)
               .removalListener(
                   (RemovalListener<
-                          Pair<S3AsyncClient, S3FileIOProperties>, S3SeekableInputStreamFactory>)
+                          Pair<S3Client, S3FileIOProperties>, S3SeekableInputStreamFactory>)
                       (key, factory, cause) -> close(factory))
               .build();
 
@@ -70,7 +70,7 @@ class AnalyticsAcceleratorUtil {
 
     S3SeekableInputStreamFactory factory =
         STREAM_FACTORY_CACHE.get(
-            Pair.of(inputFile.asyncClient(), inputFile.s3FileIOProperties()),
+            Pair.of(inputFile.client(), inputFile.s3FileIOProperties()),
             AnalyticsAcceleratorUtil::createNewFactory);
 
     try {
@@ -83,7 +83,7 @@ class AnalyticsAcceleratorUtil {
   }
 
   private static S3SeekableInputStreamFactory createNewFactory(
-      Pair<S3AsyncClient, S3FileIOProperties> cacheKey) {
+      Pair<S3Client, S3FileIOProperties> cacheKey) {
     ConnectorConfiguration connectorConfiguration =
         new ConnectorConfiguration(cacheKey.second().s3AnalyticsacceleratorProperties());
     S3SeekableInputStreamConfiguration streamConfiguration =
@@ -91,7 +91,10 @@ class AnalyticsAcceleratorUtil {
     ObjectClientConfiguration objectClientConfiguration =
         ObjectClientConfiguration.fromConfiguration(connectorConfiguration);
 
-    ObjectClient objectClient = new S3SdkObjectClient(cacheKey.first(), objectClientConfiguration);
+    // Use the existing S3Client from the cache key
+    S3Client s3Client = cacheKey.first();
+
+    ObjectClient objectClient = new S3SyncSdkObjectClient(s3Client, objectClientConfiguration);
     return new S3SeekableInputStreamFactory(objectClient, streamConfiguration);
   }
 
@@ -105,8 +108,7 @@ class AnalyticsAcceleratorUtil {
     }
   }
 
-  public static void cleanupCache(
-      S3AsyncClient asyncClient, S3FileIOProperties s3FileIOProperties) {
-    STREAM_FACTORY_CACHE.invalidate(Pair.of(asyncClient, s3FileIOProperties));
+  public static void cleanupCache(S3Client client, S3FileIOProperties s3FileIOProperties) {
+    STREAM_FACTORY_CACHE.invalidate(Pair.of(client, s3FileIOProperties));
   }
 }

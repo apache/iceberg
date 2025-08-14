@@ -118,8 +118,8 @@ allprojects {
   group = "org.apache.iceberg"
   version = projectVersion
   repositories {
-    mavenCentral()
     mavenLocal()
+    mavenCentral()
   }
 }
 
