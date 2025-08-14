@@ -136,13 +136,8 @@ public abstract class AvroDataTestBase {
         Types.DecimalType.of(38, 10),
         Types.VariantType.get(),
         Types.GeometryType.crs84(),
-        Types.GeographyType.crs84(),
-        Types.UnknownType.get()
+        Types.GeographyType.crs84()
       };
-
-  protected boolean supportsUnknown() {
-    return false;
-  }
 
   protected boolean supportsTime() {
     return false;
@@ -163,11 +158,6 @@ public abstract class AvroDataTestBase {
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
-    assumeThat(
-            supportsUnknown()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
-        .as("unknown is not yet implemented")
-        .isTrue();
     assumeThat(supportsTime() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) == null)
         .as("Spark does not support time fields")
         .isTrue();
