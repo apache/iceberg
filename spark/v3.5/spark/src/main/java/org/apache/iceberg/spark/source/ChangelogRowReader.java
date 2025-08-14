@@ -37,16 +37,24 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.connector.read.PartitionReader;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
+
+  private NestedField[] columns;
+  private DataType[] sparkColumnTypes;
 
   ChangelogRowReader(SparkInputPartition partition) {
     this(
@@ -69,6 +77,36 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         tableSchema,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
         caseSensitive);
+    columns = expectedSchema().columns().stream().toArray(NestedField[]::new);
+    sparkColumnTypes = computeColumnTypes();
+  }
+
+  private DataType[] computeColumnTypes() {
+    DataType[] types = new DataType[columns.length];
+
+    for (int i = 0; i < columns.length; i++) {
+      types[i] = SparkSchemaUtil.convert(columns[i].type());
+    }
+
+    return types;
+  }
+
+  // rowSchema is expected to contain all the columns of the expected schema
+  private int[] indexesInRow(Schema rowSchema) {
+    int[] indexes = new int[columns.length];
+    NestedField[] columnsInRow = rowSchema.columns().stream().toArray(NestedField[]::new);
+
+    for (int i = 0; i < columns.length; i++) {
+      NestedField column = columns[i];
+      for (int j = 0; j < columnsInRow.length; j++) {
+        if (column.equals(columnsInRow[j])) {
+          indexes[i] = j;
+          break;
+        }
+      }
+    }
+
+    return indexes;
   }
 
   @Override
@@ -98,7 +136,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       return openAddedRowsScanTask((AddedRowsScanTask) task);
 
     } else if (task instanceof DeletedRowsScanTask) {
-      throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
+      return openDeletedRowsScanTask((DeletedRowsScanTask) task);
 
     } else if (task instanceof DeletedDataFileScanTask) {
       return openDeletedDataFileScanTask((DeletedDataFileScanTask) task);
@@ -109,17 +147,50 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     }
   }
 
-  CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
+  private InternalRow projectRow(InternalRow row, int[] indexes) {
+    InternalRow expectedRow = new GenericInternalRow(columns.length);
+
+    for (int i = 0; i < columns.length; i++) {
+      expectedRow.update(i, row.get(indexes[i], sparkColumnTypes[i]));
+    }
+
+    return expectedRow;
+  }
+
+  private CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
     String filePath = task.file().location();
     SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
-    return deletes.filter(rows(task, deletes.requiredSchema()));
+    int[] indexes = indexesInRow(deletes.requiredSchema());
+
+    return CloseableIterable.transform(
+        deletes.filter(rows(task, deletes.requiredSchema())), row -> projectRow(row, indexes));
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
     String filePath = task.file().location();
     SparkDeleteFilter deletes =
         new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
-    return deletes.filter(rows(task, deletes.requiredSchema()));
+    int[] indexes = indexesInRow(deletes.requiredSchema());
+
+    return CloseableIterable.transform(
+        deletes.filter(rows(task, deletes.requiredSchema())), row -> projectRow(row, indexes));
+  }
+
+  private CloseableIterable<InternalRow> openDeletedRowsScanTask(DeletedRowsScanTask task) {
+    String filePath = task.file().location();
+    SparkDeleteFilter existingDeletes =
+        new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
+    SparkDeleteFilter newDeletes =
+        new SparkDeleteFilter(filePath, task.addedDeletes(), counter(), true);
+    Schema requiredSchema =
+        TypeUtil.join(existingDeletes.requiredSchema(), newDeletes.requiredSchema());
+    int[] indexes = indexesInRow(requiredSchema);
+
+    return CloseableIterable.transform(
+        // first, apply the existing deletes and get the rows remaining
+        // then, see what rows are deleted by applying the new deletes
+        newDeletes.filterDeleted(existingDeletes.filter(rows(task, requiredSchema))),
+        row -> projectRow(row, indexes));
   }
 
   private CloseableIterable<InternalRow> rows(ContentScanTask<DataFile> task, Schema readSchema) {
@@ -148,7 +219,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       return addedRowsScanTaskFiles((AddedRowsScanTask) task);
 
     } else if (task instanceof DeletedRowsScanTask) {
-      throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
+      return deletedRowsScanTaskFiles((DeletedRowsScanTask) task);
 
     } else if (task instanceof DeletedDataFileScanTask) {
       return deletedDataFileScanTaskFiles((DeletedDataFileScanTask) task);
@@ -168,6 +239,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   private static Stream<ContentFile<?>> addedRowsScanTaskFiles(AddedRowsScanTask task) {
     DataFile file = task.file();
     List<DeleteFile> deletes = task.deletes();
+    return Stream.concat(Stream.of(file), deletes.stream());
+  }
+
+  private static Stream<ContentFile<?>> deletedRowsScanTaskFiles(DeletedRowsScanTask task) {
+    DataFile file = task.file();
+    List<DeleteFile> existingDeletes = task.existingDeletes();
+    List<DeleteFile> newDeletes = task.addedDeletes();
+    List<DeleteFile> deletes =
+        ImmutableList.<DeleteFile>builder().addAll(existingDeletes).addAll(newDeletes).build();
     return Stream.concat(Stream.of(file), deletes.stream());
   }
 }

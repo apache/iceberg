@@ -19,16 +19,14 @@
 package org.apache.iceberg;
 
 import java.util.ArrayDeque;
-import java.util.Collection;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
 import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -63,33 +61,39 @@ class BaseIncrementalChangelogScan
       return CloseableIterable.empty();
     }
 
-    Set<Long> changelogSnapshotIds = toSnapshotIds(changelogSnapshots);
+    Map<Long, Integer> snapshotOrdinals = computeSnapshotOrdinals(changelogSnapshots);
 
-    Set<ManifestFile> newDataManifests =
+    Iterable<CloseableIterable<ChangelogScanTask>> plans =
         FluentIterable.from(changelogSnapshots)
-            .transformAndConcat(snapshot -> snapshot.dataManifests(table().io()))
-            .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
-            .toSet();
+            .transform(
+                snapshot -> {
+                  List<ManifestFile> dataManifests = snapshot.dataManifests(table().io());
+                  List<ManifestFile> deleteManifests = snapshot.deleteManifests(table().io());
 
-    ManifestGroup manifestGroup =
-        new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
-            .specsById(table().specs())
-            .caseSensitive(isCaseSensitive())
-            .select(scanColumns())
-            .filterData(filter())
-            .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
-            .ignoreExisting()
-            .columnsToKeepStats(columnsToKeepStats());
+                  ManifestGroup manifestGroup =
+                      new ManifestGroup(table().io(), dataManifests, deleteManifests)
+                          .specsById(table().specs())
+                          .caseSensitive(isCaseSensitive())
+                          .select(scanColumns())
+                          .filterData(filter())
+                          .columnsToKeepStats(columnsToKeepStats());
 
-    if (shouldIgnoreResiduals()) {
-      manifestGroup = manifestGroup.ignoreResiduals();
-    }
+                  if (shouldIgnoreResiduals()) {
+                    manifestGroup = manifestGroup.ignoreResiduals();
+                  }
 
-    if (newDataManifests.size() > 1 && shouldPlanWithExecutor()) {
-      manifestGroup = manifestGroup.planWith(planExecutor());
-    }
+                  if (dataManifests.size() > 1 && shouldPlanWithExecutor()) {
+                    manifestGroup = manifestGroup.planWith(planExecutor());
+                  }
 
-    return manifestGroup.plan(new CreateDataFileChangeTasks(changelogSnapshots));
+                  long snapshotId = snapshot.snapshotId();
+                  long sequenceNumber = snapshot.sequenceNumber();
+                  int changeOrdinal = snapshotOrdinals.get(snapshotId);
+                  return manifestGroup.plan(
+                      new CreateDataFileChangeTasks(snapshotId, sequenceNumber, changeOrdinal));
+                });
+
+    return CloseableIterable.concat(plans);
   }
 
   @Override
@@ -105,20 +109,11 @@ class BaseIncrementalChangelogScan
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
       if (!snapshot.operation().equals(DataOperations.REPLACE)) {
-        if (!snapshot.deleteManifests(table().io()).isEmpty()) {
-          throw new UnsupportedOperationException(
-              "Delete files are currently not supported in changelog scans");
-        }
-
         changelogSnapshots.addFirst(snapshot);
       }
     }
 
     return changelogSnapshots;
-  }
-
-  private Set<Long> toSnapshotIds(Collection<Snapshot> snapshots) {
-    return snapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
   }
 
   private static Map<Long, Integer> computeSnapshotOrdinals(Deque<Snapshot> snapshots) {
@@ -133,51 +128,124 @@ class BaseIncrementalChangelogScan
     return snapshotOrdinals;
   }
 
+  private static class DummyChangelogScanTask implements ChangelogScanTask {
+    public static final DummyChangelogScanTask INSTANCE = new DummyChangelogScanTask();
+
+    private DummyChangelogScanTask() {}
+
+    @Override
+    public ChangelogOperation operation() {
+      return ChangelogOperation.DELETE;
+    }
+
+    @Override
+    public int changeOrdinal() {
+      return 0;
+    }
+
+    @Override
+    public long commitSnapshotId() {
+      return 0L;
+    }
+  }
+
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
-    private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
+    private final long snapshotId;
+    private final long sequenceNumber;
+    private final int changeOrdinal;
 
-    private final Map<Long, Integer> snapshotOrdinals;
-
-    CreateDataFileChangeTasks(Deque<Snapshot> snapshots) {
-      this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
+    CreateDataFileChangeTasks(long snapshotId, long sequenceNumber, int changeOrdinal) {
+      this.snapshotId = snapshotId;
+      this.sequenceNumber = sequenceNumber;
+      this.changeOrdinal = changeOrdinal;
     }
 
     @Override
     public CloseableIterable<ChangelogScanTask> apply(
         CloseableIterable<ManifestEntry<DataFile>> entries, TaskContext context) {
 
-      return CloseableIterable.transform(
-          entries,
-          entry -> {
-            long commitSnapshotId = entry.snapshotId();
-            int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
-            DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+      CloseableIterable<ChangelogScanTask> tasks =
+          CloseableIterable.transform(
+              entries,
+              entry -> {
+                long entrySnapshotId = entry.snapshotId();
+                DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+                DeleteFile[] deleteFiles = context.deletes().forEntry(entry);
+                List<DeleteFile> added = Lists.newArrayList();
+                List<DeleteFile> existing = Lists.newArrayList();
+                for (DeleteFile deleteFile : deleteFiles) {
+                  if (sequenceNumber == deleteFile.dataSequenceNumber()) {
+                    added.add(deleteFile);
+                  } else {
+                    existing.add(deleteFile);
+                  }
+                }
+                DeleteFile[] addedDeleteFiles = added.toArray(new DeleteFile[0]);
+                DeleteFile[] existingDeleteFiles = existing.toArray(new DeleteFile[0]);
 
-            switch (entry.status()) {
-              case ADDED:
-                return new BaseAddedRowsScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
+                switch (entry.status()) {
+                  case ADDED:
+                    if (entrySnapshotId == snapshotId) {
+                      return new BaseAddedRowsScanTask(
+                          changeOrdinal,
+                          snapshotId,
+                          dataFile,
+                          addedDeleteFiles,
+                          context.schemaAsString(),
+                          context.specAsString(),
+                          context.residuals());
+                    } else {
+                      // the data file is added before the snapshot we're processing
+                      if (addedDeleteFiles.length == 0) {
+                        return DummyChangelogScanTask.INSTANCE;
+                      } else {
+                        return new BaseDeletedRowsScanTask(
+                            changeOrdinal,
+                            snapshotId,
+                            dataFile,
+                            addedDeleteFiles,
+                            existingDeleteFiles,
+                            context.schemaAsString(),
+                            context.specAsString(),
+                            context.residuals());
+                      }
+                    }
 
-              case DELETED:
-                return new BaseDeletedDataFileScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
+                  case DELETED:
+                    if (entrySnapshotId == snapshotId) {
+                      return new BaseDeletedDataFileScanTask(
+                          changeOrdinal,
+                          snapshotId,
+                          dataFile,
+                          existingDeleteFiles,
+                          context.schemaAsString(),
+                          context.specAsString(),
+                          context.residuals());
+                    } else {
+                      return DummyChangelogScanTask.INSTANCE;
+                    }
 
-              default:
-                throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
-            }
-          });
+                  case EXISTING:
+                    if (addedDeleteFiles.length == 0) {
+                      return DummyChangelogScanTask.INSTANCE;
+                    } else {
+                      return new BaseDeletedRowsScanTask(
+                          changeOrdinal,
+                          snapshotId,
+                          dataFile,
+                          addedDeleteFiles,
+                          existingDeleteFiles,
+                          context.schemaAsString(),
+                          context.specAsString(),
+                          context.residuals());
+                    }
+
+                  default:
+                    throw new IllegalArgumentException(
+                        "Unexpected entry status: " + entry.status());
+                }
+              });
+      return CloseableIterable.filter(tasks, task -> (task != DummyChangelogScanTask.INSTANCE));
     }
   }
 }

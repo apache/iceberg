@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -42,7 +43,9 @@ import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -51,6 +54,7 @@ import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -217,6 +221,32 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         row.setBoolean(columnIsDeletedPosition(), true);
         counter().increment();
       }
+    }
+
+    /**
+     * Returns the rows that are deleted.
+     *
+     * @param rows the rows of the data file
+     * @return the deleted rows
+     */
+    public CloseableIterable<InternalRow> filterDeleted(CloseableIterable<InternalRow> rows) {
+      PositionDeleteIndex deletedRowPositions = deletedRowPositions();
+      Accessor<StructLike> posAccessor = posAccessor();
+
+      Filter<InternalRow> deletedFilter =
+          new Filter<InternalRow>() {
+            @Override
+            protected boolean shouldKeep(InternalRow row) {
+              boolean isPosDeleted =
+                  (deletedRowPositions != null && posAccessor != null)
+                      ? deletedRowPositions.isDeleted(pos(row))
+                      : false;
+              boolean isEqDeleted = isEqDeleted().test(row);
+              return isPosDeleted || isEqDeleted;
+            }
+          };
+
+      return deletedFilter.filter(rows);
     }
 
     @Override
