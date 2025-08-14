@@ -184,6 +184,39 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testDeleteFilesCacheDisabledConfig() throws Exception {
+    createAndInitTable(TableProperties.DELETE_MODE, COPY_ON_WRITE);
+    Table table = validationCatalog.loadTable(targetTableIdent);
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+  }
+
+  @TestTemplate
   public void testConcurrentAccess() throws InterruptedException {
     SparkExecutorCache cache = SparkExecutorCache.getOrCreate();
 
