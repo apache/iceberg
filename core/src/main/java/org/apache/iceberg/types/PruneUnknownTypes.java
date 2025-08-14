@@ -19,8 +19,8 @@
 package org.apache.iceberg.types;
 
 import java.util.List;
-import org.apache.hadoop.util.Lists;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** This is used to remove UnknownTypes that should not be persistent in files */
 public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
