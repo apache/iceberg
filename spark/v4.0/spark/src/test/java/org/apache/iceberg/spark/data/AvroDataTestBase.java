@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -194,10 +195,13 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testStructWithRequiredFields() throws IOException {
+    List<Types.NestedField> supportedPrimitives =
+        SUPPORTED_PRIMITIVES.fields().stream()
+            .filter(f -> f.type().typeId() != Type.TypeID.UNKNOWN)
+            .collect(Collectors.toList());
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
-            new Schema(
-                Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
+            new Schema(Lists.transform(supportedPrimitives, Types.NestedField::asRequired))));
   }
 
   @Test

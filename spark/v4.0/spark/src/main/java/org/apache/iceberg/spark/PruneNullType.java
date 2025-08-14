@@ -50,7 +50,7 @@ public class PruneNullType extends SparkTypeVisitor<DataType> {
   @Override
   public DataType struct(StructType struct, List<DataType> fieldResults) {
     StructField[] fields = struct.fields();
-    List<StructField> newFields = Lists.newArrayList();
+    List<StructField> newFields = Lists.newArrayListWithExpectedSize(struct.length());
 
     int pos = 0;
     boolean rewritten = false;
@@ -61,10 +61,6 @@ public class PruneNullType extends SparkTypeVisitor<DataType> {
         if (!(fieldResult instanceof NullType) && !(field.dataType() instanceof NullType)) {
           newFields.add(
               StructField.apply(field.name(), fieldResult, field.nullable(), field.metadata()));
-        } else {
-          newFields.add(
-              StructField.apply(
-                  field.name(), DataTypes.NullType, field.nullable(), field.metadata()));
         }
       } else {
         newFields.add(field);

@@ -84,7 +84,9 @@ public class TestSparkOrcReader extends AvroDataTestBase {
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
-        assertEquals(schema, expectedRows.next(), actualRows.next());
+        InternalRow expectedRow = expectedRows.next();
+        InternalRow actualRow = actualRows.next();
+        assertEquals(schema, expectedRow, actualRow);
       }
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
