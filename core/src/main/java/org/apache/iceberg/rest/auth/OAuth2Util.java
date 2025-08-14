@@ -181,6 +181,10 @@ public class OAuth2Util {
 
       return response;
     } else {
+      if (null == config.credential()) {
+        return null;
+      }
+
       return fetchToken(
           client, headers, config.credential(), config.scope(), config.oauth2ServerUri());
     }
