@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -109,8 +108,8 @@ public abstract class AvroDataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
-          required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
-          optional(118, "unk", Types.UnknownType.get()));
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
+          );
 
   @TempDir protected Path temp;
 
@@ -121,15 +120,10 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testStructWithRequiredFields() throws IOException {
-    List<Types.NestedField> supportedPrimitivesExceptUnknown =
-        SUPPORTED_PRIMITIVES.fields().stream()
-            .filter(f -> !f.type().typeId().equals(Type.TypeID.UNKNOWN))
-            .collect(Collectors.toList());
-
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
-                Lists.transform(supportedPrimitivesExceptUnknown, Types.NestedField::asRequired))));
+                Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
   }
 
   @Test
