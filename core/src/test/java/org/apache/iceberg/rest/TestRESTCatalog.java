@@ -18,6 +18,18 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -90,18 +102,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.InstanceOfAssertFactories.map;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
@@ -1621,11 +1621,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Mockito.verify(adapter)
                   .execute(
                       reqMatcher(
-                          HTTPMethod.POST,
-                          oauth2ServerUri,
-                          emptyHeaders,
-                          Map.of(),
-                          refreshRequest),
+                          HTTPMethod.POST, oauth2ServerUri, emptyHeaders, Map.of(), refreshRequest),
                       eq(OAuthTokenResponse.class),
                       any(),
                       any());
