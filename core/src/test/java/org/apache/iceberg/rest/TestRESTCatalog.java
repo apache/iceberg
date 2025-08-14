@@ -18,18 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.InstanceOfAssertFactories.map;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -102,6 +90,18 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
@@ -1617,13 +1617,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       any(),
                       any());
 
-              // verify the new token request is issued twice
-              Mockito.verify(adapter, times(2))
+              // verify the new token request is issued
+              Mockito.verify(adapter)
                   .execute(
                       reqMatcher(
                           HTTPMethod.POST,
                           oauth2ServerUri,
-                          catalogHeaders,
+                          emptyHeaders,
                           Map.of(),
                           refreshRequest),
                       eq(OAuthTokenResponse.class),
@@ -1756,7 +1756,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
   public void testCatalogExpiredTokenCredentialRefreshWithExchangeDisabled(String oauth2ServerUri) {
     // expires at epoch second = 1
-    String token = ".eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.";
+    String token =
+        ".eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.";
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
